@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -44,6 +45,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -65,6 +67,8 @@ import kotlin.math.sin
  * Floorplan card — the picture-elements equivalent. Draws a background image
  * (loaded safely off-thread) with tappable icons positioned by percentage,
  * each toggling a light and lighting up (amber) when that entity is on.
+ * Long-pressing a light icon opens the same colour/brightness detail popup
+ * as the bubble_light card on the Lights page.
  */
 class PictureElementsCard : CardRenderer {
     override val type = "picture_elements"
@@ -75,6 +79,7 @@ class PictureElementsCard : CardRenderer {
         val imagePath = config.string("image") ?: "/sdcard/astrion/floorplan.png"
         val elements = (config.options["elements"] as? List<Map<String, Any?>>) ?: emptyList()
         var showVacuumDialog by remember { mutableStateOf(false) }
+        var detailEntity by remember { mutableStateOf<String?>(null) }
 
         // Decode off-thread safely via produceState + Dispatchers.IO
         val bitmap by produceState<ImageBitmap?>(initialValue = null, imagePath) {
@@ -139,35 +144,56 @@ class PictureElementsCard : CardRenderer {
                         .size(iconBox)
                         .clip(CircleShape)
                         .background(bg)
-                        .clickable {
-                            when {
-                                entityId != null -> ctx.client.toggle(entityId)
-                                service != null -> {
-                                    val domain = service.substringBefore('.')
-                                    val svc = service.substringAfter('.')
-                                    val targets = (el["targets"] as? List<*>)?.filterIsInstance<String>().orEmpty()
-                                    if (targets.isEmpty()) {
-                                        ctx.client.callService(ServiceCall(domain, svc))
-                                    } else {
-                                        targets.forEach { t ->
-                                            ctx.client.callService(ServiceCall(domain, svc, entityId = t))
+                        .pointerInput(entityId, service) {
+                            detectTapGestures(
+                                // Long-press a light icon → colour/brightness popup
+                                // (same dialog as the bubble_light card).
+                                onLongPress = if (entityId?.startsWith("light.") == true) {
+                                    { _ -> detailEntity = entityId }
+                                } else null,
+                                onTap = {
+                                    when {
+                                        entityId != null -> ctx.client.toggle(entityId)
+                                        service != null -> {
+                                            val domain = service.substringBefore('.')
+                                            val svc = service.substringAfter('.')
+                                            val targets = (el["targets"] as? List<*>)?.filterIsInstance<String>().orEmpty()
+                                            if (targets.isEmpty()) {
+                                                ctx.client.callService(ServiceCall(domain, svc))
+                                            } else {
+                                                targets.forEach { t ->
+                                                    ctx.client.callService(ServiceCall(domain, svc, entityId = t))
+                                                }
+                                            }
                                         }
                                     }
-                                }
-                            }
+                                },
+                            )
                         }
                         .padding(6.dp),
                 )
             }
 
-            // Radar overlay: plot mmWave target dots (e.g. LD2450) on the plan.
-            val radar = config.options["radar"] as? Map<String, Any?>
-            if (radar != null) RadarDots(radar, ctx, w, h)
+            // Radar overlays: plot mmWave target dots (e.g. LD2450) on the plan.
+            // `radars` is a list (one block per sensor); `radar` is the older
+            // single-sensor form, still accepted.
+            val radarList = (config.options["radars"] as? List<Map<String, Any?>>)
+                ?: listOfNotNull(config.options["radar"] as? Map<String, Any?>)
+            radarList.forEach { RadarDots(it, ctx, w, h) }
 
             // Vacuum overlay: a robot-vacuum icon at its current room (or dock).
             val vacuumOpts = config.options["vacuum"] as? Map<String, Any?>
             if (vacuumOpts != null) {
                 VacuumOverlay(vacuumOpts, ctx, w, h) { showVacuumDialog = true }
+            }
+
+            detailEntity?.let { id ->
+                LightDetailDialog(
+                    entityId = id,
+                    e = ctx.entities[id],
+                    client = ctx.client,
+                    onClose = { detailEntity = null },
+                )
             }
 
             if (showVacuumDialog && vacuumOpts != null) {
@@ -298,6 +324,16 @@ class PictureElementsCard : CardRenderer {
         val flipX = radar["flip_x"] as? Boolean ?: false
         val flipY = radar["flip_y"] as? Boolean ?: false
         val blend = parseBlend(radar["blend"] as? String)
+        // Sensors differ in reported units: the Apollo publishes metres, the
+        // bare ESPHome LD2450 boards publish millimetres. Normalise to metres
+        // before the affine transform so one set of scale values means the
+        // same thing everywhere. "unit": "mm" | "m", or an explicit divisor.
+        val divisor = (radar["units_per_metre"] as? Number)?.toFloat()
+            ?: if ((radar["unit"] as? String)?.lowercase() == "mm") 1000f else 1f
+        // Per-sensor dot colours so you can tell which radar a dot came from.
+        val fill = parseArgb(radar["color"] as? String) ?: Color(0xD9155E6E)
+        val accent = parseArgb(radar["accent_color"] as? String) ?: Color(0xFF33CBDA)
+        val label = radar["label"] as? String ?: ""
 
         // Loop handles layout of children, but child states are read ONLY inside child scopes!
         for (i in 1..nTargets) {
@@ -316,9 +352,20 @@ class PictureElementsCard : CardRenderer {
                 rot = rot,
                 flipX = flipX,
                 flipY = flipY,
-                blend = blend
+                blend = blend,
+                divisor = divisor,
+                fill = fill,
+                accent = accent,
+                label = label,
             )
         }
+    }
+
+    /** Parse "#AARRGGBB" / "#RRGGBB" to a Color; null if absent or malformed. */
+    private fun parseArgb(s: String?): Color? {
+        val hex = s?.removePrefix("#") ?: return null
+        val v = hex.toLongOrNull(16) ?: return null
+        return if (hex.length <= 6) Color(v or 0xFF000000L) else Color(v)
     }
 
     /**
@@ -341,10 +388,18 @@ class PictureElementsCard : CardRenderer {
         rot: Float,
         flipX: Boolean,
         flipY: Boolean,
-        blend: BlendMode?
+        blend: BlendMode?,
+        divisor: Float,
+        fill: Color,
+        accent: Color,
+        label: String,
     ) {
-        val xm = ctx.entities["${prefix}_${id}_x"]?.state?.toFloatOrNull() ?: return
-        val ym = ctx.entities["${prefix}_${id}_y"]?.state?.toFloatOrNull() ?: return
+        // A target with no lock reports "unknown" — toFloatOrNull drops it, so
+        // the dot simply isn't drawn.
+        val rawX = ctx.entities["${prefix}_${id}_x"]?.state?.toFloatOrNull() ?: return
+        val rawY = ctx.entities["${prefix}_${id}_y"]?.state?.toFloatOrNull() ?: return
+        val xm = rawX / divisor
+        val ym = rawY / divisor
 
         val cosR = cos(rot)
         val sinR = sin(rot)
@@ -367,12 +422,12 @@ class PictureElementsCard : CardRenderer {
                 .offset(x = dx, y = dy)
                 .size(dot)
                 .drawBehind {
-                    drawCircle(color = Color(0xD9155E6E))
-                    blend?.let { drawCircle(color = Color(0xFF33CBDA), blendMode = it) }
+                    drawCircle(color = fill)
+                    blend?.let { drawCircle(color = accent, blendMode = it) }
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Text("$id", color = Color(0xFFDCF1F4), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("$label$id", color = Color(0xFFDCF1F4), fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 

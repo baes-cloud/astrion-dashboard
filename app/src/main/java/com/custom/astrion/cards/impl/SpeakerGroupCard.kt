@@ -8,12 +8,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.PhoneBluetoothSpeaker
 import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.outlined.Speaker as SpeakerOutlined
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
@@ -42,9 +45,12 @@ import kotlin.math.roundToInt
 /**
  * Sonos-style speaker group + volume controller.
  *
- * One row per speaker: a check circle showing LIVE group membership (tick =
- * grouped with the master), the name, current volume as a bar + percentage,
- * and mute / vol- / vol+ buttons per speaker.
+ * Per speaker: a type icon, the name, live volume % and a compact volume bar
+ * (name row); below that, the group-membership tick (left) and mute/vol-/vol+
+ * (right) on their own row. The volume bar is deliberately narrow and pushed
+ * to the right — a vertical scroll gesture landing near the middle of the
+ * row can't drag it, and worst case only nudges a value near its left (low)
+ * end rather than jumping to max.
  *
  * Ticking a speaker immediately fires `media_player.join` against the master
  * (no apply step); unticking fires `media_player.unjoin` on that speaker.
@@ -60,11 +66,15 @@ import kotlin.math.roundToInt
  *   { "type": "speaker_group", "options": {
  *       "master": "media_player.living_room",
  *       "name": "Living Room",
+ *       "icon": "sub",              // optional type icon for the master row
  *       "speakers": [
- *         { "entity_id": "media_player.kitchen", "name": "Kitchen" },
- *         { "entity_id": "media_player.bedroom", "name": "Bedroom" }
+ *         { "entity_id": "media_player.kitchen", "name": "Kitchen", "icon": "play1" },
+ *         { "entity_id": "media_player.bedroom", "name": "Bedroom", "icon": "lamp" }
  *       ]
  *   } }
+ *
+ * Recognised `icon` keys: "sub", "play3", "play1", "move", "lamp" — anything
+ * else (or omitted) falls back to a generic speaker glyph.
  */
 class SpeakerGroupCard : CardRenderer {
     override val type = "speaker_group"
@@ -84,18 +94,28 @@ class SpeakerGroupCard : CardRenderer {
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
-                "Speakers",
+                config.string("title") ?: "Speakers",
                 color = Color(0xFF93AFB6),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.sp,
             )
-            SpeakerRow(ctx, master, config.string("name"), isMaster = true, master = master)
+            SpeakerRow(ctx, master, config.string("name"), config.string("icon"), isMaster = true, master = master)
             speakers.forEach { sp ->
                 val id = sp["entity_id"] as? String ?: return@forEach
-                SpeakerRow(ctx, id, sp["name"] as? String, isMaster = false, master = master)
+                SpeakerRow(ctx, id, sp["name"] as? String, sp["icon"] as? String, isMaster = false, master = master)
             }
         }
+    }
+
+    /** Maps a config "icon" key to a recognisable speaker-type glyph. */
+    private fun speakerIcon(key: String?): ImageVector = when (key) {
+        "sub" -> Icons.Filled.GraphicEq
+        "play3" -> Icons.Filled.Speaker
+        "play1" -> Icons.Outlined.SpeakerOutlined
+        "move" -> Icons.Filled.PhoneBluetoothSpeaker
+        "lamp" -> Icons.Filled.Lightbulb
+        else -> Icons.Filled.Speaker
     }
 
     @Composable
@@ -103,6 +123,7 @@ class SpeakerGroupCard : CardRenderer {
         ctx: CardContext,
         entityId: String,
         name: String?,
+        icon: String?,
         isMaster: Boolean,
         master: String,
     ) {
@@ -128,36 +149,27 @@ class SpeakerGroupCard : CardRenderer {
             }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            // Name row: membership tick, name, volume %.
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Name row: type icon, name, volume % + a narrow volume bar
+            // pinned to the right edge.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (isMaster) {
-                    Icon(
-                        Icons.Filled.Speaker,
-                        contentDescription = null,
-                        tint = Color(0xFF6EA8FE),
-                        modifier = Modifier.size(24.dp),
-                    )
-                } else {
-                    Icon(
-                        if (grouped) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
-                        contentDescription = if (grouped) "Ungroup" else "Group",
-                        tint = if (grouped) Color(0xFF6EA8FE) else Color(0xFF5A7783),
-                        modifier = Modifier
-                            .size(26.dp)
-                            .clip(CircleShape)
-                            .clickable { toggleGroup() },
-                    )
-                }
+                Icon(
+                    speakerIcon(icon),
+                    contentDescription = null,
+                    tint = Color(0xFF6EA8FE),
+                    modifier = Modifier.size(22.dp),
+                )
                 Text(
                     label,
                     color = Color(0xFFE6F0F1),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
@@ -169,21 +181,32 @@ class SpeakerGroupCard : CardRenderer {
                     color = if (muted) Color(0xFFE79A9A) else Color(0xFF93AFB6),
                     fontSize = 12.sp,
                 )
+                VolumeBar(entityId, vol, muted, ctx, modifier = Modifier.width(96.dp))
             }
-            // Volume bar — tap or drag to set this speaker's volume.
-            VolumeBar(entityId, vol, muted, ctx)
-            // Controls: mute / vol- / vol+.
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SmallBtn(Icons.Filled.VolumeOff, active = muted) {
-                    ctx.client.callService(
-                        ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted)
-                    )
+            // Controls row: a wide Join/Leave button filling the left space,
+            // mute/vol-/vol+ on the right.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (!isMaster) {
+                    JoinButton(grouped, Modifier.weight(1f), ::toggleGroup)
+                } else {
+                    Spacer(Modifier.weight(1f))
                 }
-                SmallBtn(Icons.Filled.VolumeDown) {
-                    ctx.client.callService(ServiceCall("media_player", "volume_down", entityId))
-                }
-                SmallBtn(Icons.Filled.VolumeUp) {
-                    ctx.client.callService(ServiceCall("media_player", "volume_up", entityId))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SmallBtn(Icons.Filled.VolumeOff, active = muted) {
+                        ctx.client.callService(
+                            ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted)
+                        )
+                    }
+                    SmallBtn(Icons.Filled.VolumeDown) {
+                        ctx.client.callService(ServiceCall("media_player", "volume_down", entityId))
+                    }
+                    SmallBtn(Icons.Filled.VolumeUp) {
+                        ctx.client.callService(ServiceCall("media_player", "volume_up", entityId))
+                    }
                 }
             }
         }
@@ -191,7 +214,13 @@ class SpeakerGroupCard : CardRenderer {
 
     /** Tap/drag volume bar. Local state responds instantly; commits to HA. */
     @Composable
-    private fun VolumeBar(entityId: String, vol: Double?, muted: Boolean, ctx: CardContext) {
+    private fun VolumeBar(
+        entityId: String,
+        vol: Double?,
+        muted: Boolean,
+        ctx: CardContext,
+        modifier: Modifier = Modifier.fillMaxWidth(),
+    ) {
         val level = (vol ?: 0.0).toFloat().coerceIn(0f, 1f)
         // Re-syncs to the live level whenever HA reports a new one.
         var dragLevel by remember(level) { mutableStateOf(level) }
@@ -205,9 +234,8 @@ class SpeakerGroupCard : CardRenderer {
             )
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
+        BoxWithConstraints(
+            modifier = modifier
                 .height(24.dp) // taller touch target than the visible bar
                 .pointerInput(entityId) {
                     detectTapGestures { offset ->
@@ -234,11 +262,41 @@ class SpeakerGroupCard : CardRenderer {
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(dragLevel)
+                        .fillMaxWidth(dragLevel.coerceAtLeast(0.02f))
                         .fillMaxHeight()
                         .background(if (muted) Color(0xFF5A7783) else Color(0xFF57C4A3)),
                 )
             }
+            // Thumb — matches the white-circle slider style used elsewhere (lights).
+            val thumbSize = 14.dp
+            val thumbX = (maxWidth * dragLevel - thumbSize / 2).coerceIn(0.dp, maxWidth - thumbSize)
+            Box(
+                modifier = Modifier
+                    .padding(start = thumbX)
+                    .size(thumbSize)
+                    .clip(CircleShape)
+                    .background(Color.White),
+            )
+        }
+    }
+
+    /** Wide Join/Leave button — fills the row's left space next to the mute/vol buttons. */
+    @Composable
+    private fun JoinButton(grouped: Boolean, modifier: Modifier, onClick: () -> Unit) {
+        Box(
+            modifier = modifier
+                .height(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (grouped) Color(0xFF2C4C58) else Color(0xFF1E3841))
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                if (grouped) "Leave group" else "Join group",
+                color = if (grouped) Color(0xFF6EA8FE) else Color(0xFF93AFB6),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
     }
 

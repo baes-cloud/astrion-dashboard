@@ -8,12 +8,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,6 +68,7 @@ class MediaPlayerCard : CardRenderer {
         val entityId = config.string("entity_id") ?: return
         val full = config.string("variant") == "full"
         val topButtons = (config.options["top_buttons"] as? List<Map<String, Any?>>) ?: emptyList()
+        val sourceEntity = config.string("source_entity")
         val e = ctx.entities[entityId]
         val playing = e?.state == "playing"
         val title = e?.attrString("media_title") ?: e?.friendlyName ?: entityId
@@ -109,7 +113,7 @@ class MediaPlayerCard : CardRenderer {
             }
 
             if (full) {
-                FullContent(ctx, title, artist, playing, art, ::mp, topButtons)
+                FullContent(ctx, title, artist, playing, art, ::mp, topButtons, sourceEntity)
             } else {
                 CompactContent(title, artist, art, ::mp)
             }
@@ -174,12 +178,19 @@ class MediaPlayerCard : CardRenderer {
         art: ImageBitmap?,
         mp: (String, Array<out Pair<String, Any?>>) -> Unit,
         topButtons: List<Map<String, Any?>>,
+        sourceEntity: String?,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // Compact source dropdown, right at the top — kept to one slim
+            // row (tight margins) so it doesn't push the shortcut row below
+            // this card off the first screen.
+            if (sourceEntity != null) {
+                CompactSourceSelect(ctx, sourceEntity)
+            }
             // Top action buttons (e.g. Group / Ungroup).
             if (topButtons.isNotEmpty()) {
                 Row(
@@ -238,6 +249,73 @@ class MediaPlayerCard : CardRenderer {
                 }
                 CircleControl(Icons.Filled.SkipNext, 52.dp) { mp("media_next_track", emptyArray()) }
                 CircleControl(Icons.Filled.VolumeUp, 48.dp) { mp("volume_up", emptyArray()) }
+            }
+        }
+    }
+
+    /**
+     * A single slim row showing the entity's current source; tap opens a
+     * dropdown of its live `source_list`. Deliberately tighter than the
+     * standalone `source_select` card (less vertical padding, no stacked
+     * label) so embedding it above the rest of the full player doesn't cost
+     * much height.
+     */
+    @Composable
+    private fun CompactSourceSelect(ctx: CardContext, entityId: String) {
+        val e = ctx.entities[entityId]
+        val sources = e?.attrStringList("source_list") ?: emptyList()
+        val current = e?.attrString("source")
+        var expanded by remember { mutableStateOf(false) }
+
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0x662C4C58))
+                    .clickable(enabled = sources.isNotEmpty()) { expanded = true }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    current ?: if (sources.isEmpty()) "No sources" else "Select source…",
+                    color = Color(0xFFE6F0F1),
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    tint = if (sources.isEmpty()) Color(0xFF5A7783) else Color(0xFFCBDCE0),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.background(Color(0xFF1E3841)).widthIn(max = 400.dp),
+            ) {
+                sources.forEach { s ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                s,
+                                color = if (s == current) Color(0xFF6EA8FE) else Color(0xFFE6F0F1),
+                                fontSize = 14.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        onClick = {
+                            expanded = false
+                            ctx.client.callService(
+                                ServiceCall.of("media_player", "select_source", entityId, "source" to s)
+                            )
+                        },
+                    )
+                }
             }
         }
     }

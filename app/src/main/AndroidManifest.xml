@@ -14,6 +14,18 @@
     <!-- Wake the screen on motion (remote lifted/moved). -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- IR Mode: blast Samsung TV codes from the HA100's built-in emitter.
+         TRANSMIT_IR is a normal (install-time) permission — no runtime prompt.
+         The hardware is declared required=false so the app still installs on
+         a unit without an emitter; IrBlaster degrades gracefully. -->
+    <uses-permission android:name="android.permission.TRANSMIT_IR" />
+    <uses-feature android:name="android.hardware.consumerir" android:required="false" />
+
+    <!-- Voice assistant: capture mic audio and stream it to HA Assist.
+         RECORD_AUDIO is a runtime permission, requested by MainActivity. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
     <application
         android:name=".AstrionApp"
         android:allowBackup="true"

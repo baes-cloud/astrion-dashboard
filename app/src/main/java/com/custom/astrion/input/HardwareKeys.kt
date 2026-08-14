@@ -18,14 +18,19 @@ enum class HardwareKey {
     VOLUME_UP, VOLUME_DOWN, MUTE,
     PAGE_UP, PAGE_DOWN,
     UP, DOWN, LEFT, RIGHT, CENTER,
-    VOICE,
+    VOICE, MENU,
     LIGHT, CURTAIN, SCENE, AC,
     CUSTOM_1, CUSTOM_2, CUSTOM_3, CUSTOM_4,
     UNKNOWN;
 
     companion object {
         // Android keycode -> logical button, straight from device_key_code.json (HA100).
-        // Note: 82 and 91 both map to "mute" in the stock config; kept as MUTE here.
+        //
+        // CORRECTION to the stock table: it lists BOTH 82 and 91 as "mute",
+        // which is a copy-paste error in the vendor config. The HA100 has two
+        // separate buttons on that row — 🔇 mute and ☰ menu — and 82 is
+        // Android's standard KEYCODE_MENU, i.e. the ☰ key. Mapping them apart
+        // is what lets ☰ open IR Mode while 🔇 keeps its own binding.
         private val MAP: Map<Int, HardwareKey> = mapOf(
             4 to BACK,
             131 to HOME,
@@ -39,9 +44,9 @@ enum class HardwareKey {
             21 to LEFT,
             22 to RIGHT,
             23 to CENTER,
-            91 to MUTE,
-            82 to MUTE,
-            133 to VOICE,
+            91 to MUTE,   // 🔇
+            82 to MENU,   // ☰  (KEYCODE_MENU — opens IR Mode)
+            133 to VOICE, // 🎤
             134 to LIGHT,
             135 to CURTAIN,
             136 to SCENE,

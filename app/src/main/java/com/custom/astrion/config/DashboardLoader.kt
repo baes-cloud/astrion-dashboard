@@ -87,7 +87,14 @@ object DashboardLoader {
                 val start = (root["startPage"] as? JsonPrimitive)?.intOrNull ?: 0
                 val hotkeys = (root["hotkeys"] as? JsonArray)?.map { parseHotkey(it as JsonObject) } ?: emptyList()
                 val longHotkeys = (root["longHotkeys"] as? JsonArray)?.map { parseHotkey(it as JsonObject) } ?: emptyList()
-                AppConfig(pages, start.coerceIn(0, pages.size - 1), hotkeys, longHotkeys)
+                // Top-level feature blocks (ir_mode, voice, …). Anything that
+                // isn't a known structural key is carried through verbatim, so
+                // new features need no loader change.
+                val structural = setOf("pages", "startPage", "hotkeys", "longHotkeys")
+                val options = root.entries
+                    .filter { it.key !in structural }
+                    .associate { (k, v) -> k to JsonPlain.toPlain(v) }
+                AppConfig(pages, start.coerceIn(0, pages.size - 1), hotkeys, longHotkeys, options)
             }
             else -> error("top level must be an object or array")
         }
@@ -144,6 +151,9 @@ object DashboardLoader {
         })
         put("hotkeys", encodeHotkeys(cfg.hotkeys))
         put("longHotkeys", encodeHotkeys(cfg.longHotkeys))
+        // Round-trip the feature blocks so a freshly written default config
+        // still contains ir_mode / voice for the user to edit.
+        cfg.options.forEach { (k, v) -> put(k, JsonPlain.toJson(v)) }
     }
 
     private fun encodeHotkeys(hotkeys: List<HotkeyConfig>) = buildJsonArray {

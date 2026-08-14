@@ -16,6 +16,13 @@ data class AppConfig(
     val hotkeys: List<HotkeyConfig> = emptyList(),
     /** Long-press (~500ms hold) button bindings — same shape as hotkeys. */
     val longHotkeys: List<HotkeyConfig> = emptyList(),
+    /**
+     * Top-level feature blocks that aren't tied to a single page or button —
+     * currently `ir_mode` (Samsung IR codes + popup buttons) and `voice`
+     * (Assist pipeline id, artwork folder). Free-form so new features can be
+     * configured without a schema change.
+     */
+    val options: Map<String, Any?> = emptyMap(),
 )
 
 /** One swipeable page: a name (used by hotkey `page` navigation) and its cards. */

@@ -9,6 +9,8 @@ import com.custom.astrion.cards.impl.ClockWeatherCard
 import com.custom.astrion.cards.impl.CoverCard
 import com.custom.astrion.cards.impl.FanCard
 import com.custom.astrion.cards.impl.LightCard
+import com.custom.astrion.cards.impl.LightGroupCard
+import com.custom.astrion.cards.impl.LightZonesCard
 import com.custom.astrion.cards.impl.MediaPlayerCard
 import com.custom.astrion.cards.impl.MonitorCard
 import com.custom.astrion.cards.impl.PictureElementsCard
@@ -37,6 +39,8 @@ class AstrionApp : Application() {
         super.onCreate()
         CardRegistry.register(
             LightCard(),
+            LightGroupCard(),
+            LightZonesCard(),
             SceneGridCard(),
             BubbleLightCard(),
             TvRemoteCard(),

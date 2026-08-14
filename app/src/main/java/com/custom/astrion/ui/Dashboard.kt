@@ -72,13 +72,18 @@ fun Dashboard(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0E2229)),
+            .background(Color(0xFF122A32)),
     ) {
         ConnectionBanner(connection)
         if (configNotice != null) ConfigNoticeBanner(configNotice)
 
         HorizontalPager(
             state = pagerState,
+            // Swipe-to-change-page is paused: a horizontal-ish touch meant for
+            // a slider/drag control inside a card (volume bar, brightness
+            // pill) could otherwise get mistaken for a page swipe. Pages are
+            // still reachable via the dots below or a hardware shortcut key.
+            userScrollEnabled = false,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
@@ -96,12 +101,24 @@ fun Dashboard(
 
 @Composable
 private fun PageContent(page: PageConfig, ctx: CardContext) {
-    // Cards with options["pin"] == "bottom" float at the bottom, always visible;
-    // the rest scroll above them.
-    val pinned = page.cards.filter { it.options["pin"] == "bottom" }
-    val scrolling = page.cards.filter { it.options["pin"] != "bottom" }
+    // Cards can pin to "top" (fixed header section, e.g. Scenes) or "bottom"
+    // (fixed footer section); everything else scrolls in between.
+    val pinnedTop = page.cards.filter { it.options["pin"] == "top" }
+    val pinnedBottom = page.cards.filter { it.options["pin"] == "bottom" }
+    val scrolling = page.cards.filter { it.options["pin"] != "top" && it.options["pin"] != "bottom" }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        if (pinnedTop.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF0E2229))
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                pinnedTop.forEach { RenderCard(it, ctx) }
+            }
+        }
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -112,7 +129,7 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
         ) {
             scrolling.forEach { RenderCard(it, ctx) }
         }
-        if (pinned.isNotEmpty()) {
+        if (pinnedBottom.isNotEmpty()) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -120,7 +137,7 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                pinned.forEach { RenderCard(it, ctx) }
+                pinnedBottom.forEach { RenderCard(it, ctx) }
             }
         }
     }
@@ -145,6 +162,7 @@ private fun PageIndicator(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(Color(0x661B343D))
             .padding(vertical = 5.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,

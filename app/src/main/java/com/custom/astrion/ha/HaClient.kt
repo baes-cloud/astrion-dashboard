@@ -20,6 +20,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import okio.ByteString.Companion.toByteString
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -73,6 +74,13 @@ class HaClient(
 
     /** Outstanding request/response commands (e.g. browse_media), keyed by id. */
     private val pending = ConcurrentHashMap<Int, CompletableDeferred<JsonObject>>()
+
+    /**
+     * Long-running commands that stream many `event` messages under one id
+     * (assist_pipeline/run), keyed by id. Checked before the state_changed
+     * path in onEvent so pipeline events never reach the entity store.
+     */
+    private val eventHandlers = ConcurrentHashMap<Int, (JsonObject) -> Unit>()
 
     private val _connection = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connection: StateFlow<ConnectionState> = _connection.asStateFlow()
@@ -198,6 +206,50 @@ class HaClient(
         val response = reply?.get("result")?.jsonObject?.get("response")?.jsonObject ?: return null
         return response[entityId]?.jsonObject?.get("forecast") as? JsonArray
     }
+
+    /**
+     * Start a streaming command (e.g. `assist_pipeline/run`) whose progress
+     * arrives as a series of `event` messages sharing one request id.
+     *
+     * Returns the id so the caller can [endSubscription] when finished, or
+     * null if the socket isn't up. `onEvent` receives the inner `event` object.
+     */
+    fun startSubscription(build: JsonObjectBuilder.() -> Unit, onEvent: (JsonObject) -> Unit): Int? {
+        if (socket == null || _connection.value != ConnectionState.CONNECTED) return null
+        val id = idCounter.getAndIncrement()
+        eventHandlers[id] = onEvent
+        val msg = buildJsonObject {
+            put("id", id)
+            build()
+        }
+        send(msg)
+        return id
+    }
+
+    /** Stop routing events for a streaming command started by [startSubscription]. */
+    fun endSubscription(id: Int) {
+        eventHandlers.remove(id)
+    }
+
+    /**
+     * Send a raw binary frame. HA's Assist pipeline expects audio as
+     * `[handler_id byte] + [raw PCM]`; a frame containing only the handler
+     * byte signals end-of-audio.
+     */
+    fun sendAudioChunk(handlerId: Int, pcm: ByteArray, length: Int): Boolean {
+        val sock = socket ?: return false
+        val frame = ByteArray(length + 1)
+        frame[0] = handlerId.toByte()
+        System.arraycopy(pcm, 0, frame, 1, length)
+        return sock.send(frame.toByteString(0, frame.size))
+    }
+
+    /** Absolute URL for an HA-relative path, with the bearer token attached. */
+    fun authedUrl(path: String): String =
+        if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
+
+    /** The long-lived token, for callers that must build their own authed request. */
+    fun bearerToken(): String = token
 
     /** Play a specific media item on a player. */
     fun playMedia(entityId: String, contentId: String, contentType: String) {
@@ -335,6 +387,13 @@ class HaClient(
 
     /** state_changed events carry event.data.new_state. */
     private fun onEvent(obj: JsonObject) {
+        // Streaming commands (assist pipeline) claim their id first.
+        val id = obj["id"]?.jsonPrimitive?.intOrNull
+        val handler = id?.let { eventHandlers[it] }
+        if (handler != null) {
+            (obj["event"] as? JsonObject)?.let(handler)
+            return
+        }
         val data = obj["event"]?.jsonObject?.get("data")?.jsonObject ?: return
         val newState = data["new_state"] as? JsonObject ?: return
         val entityId = newState["entity_id"]?.jsonPrimitive?.content ?: return

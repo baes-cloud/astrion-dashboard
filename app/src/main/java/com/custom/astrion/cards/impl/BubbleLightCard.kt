@@ -19,27 +19,29 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.math.roundToInt
 
 /**
- * Bubble-Card-style light control, inspired by the popular Bubble Card HACS
- * front-end. The whole pill is a horizontal brightness slider; the circular icon
- * on the left is a tap-target that toggles on/off. Drag anywhere along the pill
- * to set brightness. The fill tracks the current brightness level, and the pill
- * tints warm when on.
+ * Light control card: icon + name + state on top, a dedicated brightness
+ * slider (coloured fill, white thumb) below, and — when the light supports
+ * colour — three quick colour-preset dots at the top right.
  *
- * This is exactly the sort of interaction the stock aiks-light-card can't do —
- * and it's ~120 lines of Compose here.
+ * Long-press the icon row opens the full colour/brightness detail popup
+ * (swatches + colour-temp presets).
  *
  * Uses:
  *   light.toggle
  *   light.turn_on { brightness_pct }
+ *   light.turn_on { rgb_color }   (quick presets)
  *
  * Config shape:
  *   CardConfig("bubble_light", mapOf(
@@ -49,6 +51,13 @@ import kotlin.math.roundToInt
  */
 class BubbleLightCard : CardRenderer {
     override val type = "bubble_light"
+
+    // Fixed quick-preset colours shown on any colour-capable light.
+    private val presets = listOf(
+        Color(0xFF9B59B6), // purple
+        Color(0xFF4A90D9), // blue
+        Color(0xFFFFCBA4), // peach
+    )
 
     @Composable
     override fun Render(config: CardConfig, ctx: CardContext) {
@@ -82,87 +91,149 @@ class BubbleLightCard : CardRenderer {
             }
         }
 
+        fun setColor(c: Color) {
+            ctx.client.callService(
+                ServiceCall.of(
+                    "light", "turn_on", entityId,
+                    "rgb_color" to JsonArray(
+                        listOf(
+                            JsonPrimitive((c.red * 255).roundToInt()),
+                            JsonPrimitive((c.green * 255).roundToInt()),
+                            JsonPrimitive((c.blue * 255).roundToInt()),
+                        )
+                    ),
+                )
+            )
+        }
+
+        // "dimmable": false → on/off only (no slider, no colour, no detail popup).
+        val dimmable = config.bool("dimmable", true)
+        val colorModes = e?.attrStringList("supported_color_modes") ?: emptyList()
+        val hasColor = dimmable && colorModes.any { it in listOf("hs", "rgb", "rgbw", "rgbww", "xy") }
+
         // Reflect the light's real colour when it reports one (rgb_color);
-        // otherwise a neutral blue-grey. Icon stays yellow-when-on as the
-        // on/off indicator.
-        val rgb = e?.attr("rgb_color") as? kotlinx.serialization.json.JsonArray
+        // otherwise a neutral blue-grey.
+        val rgb = e?.attr("rgb_color") as? JsonArray
         val lightColor: Color? = if (on && rgb != null && rgb.size >= 3) {
-            fun ch(i: Int) = (rgb[i] as? kotlinx.serialization.json.JsonPrimitive)
-                ?.content?.toIntOrNull()?.coerceIn(0, 255)
+            fun ch(i: Int) = (rgb[i] as? JsonPrimitive)?.content?.toIntOrNull()?.coerceIn(0, 255)
             val r = ch(0); val g = ch(1); val b = ch(2)
             if (r != null && g != null && b != null) Color(r, g, b) else null
         } else null
 
-        val fillColor = lightColor ?: Color(0xFF6E7E92) // blue-grey fallback
-        val pillBg = Color(0xFF1E3841)                  // neutral dark body
+        val fillColor = lightColor ?: Color(0xFF6E9BD9) // neutral blue fallback
         val iconBg = if (on) Color(0xFFFFC24B) else Color(0xFF33525E)
         val iconTint = if (on) Color(0xFF241A00) else Color(0xFFB6C9CE)
 
-        BoxWithConstraints(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
-                .clip(RoundedCornerShape(32.dp))
-                .background(pillBg)
-                .pointerInput(entityId) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = { commit(dragLevel) },
-                    ) { change, _ ->
-                        val frac = (change.position.x / size.width).coerceIn(0f, 1f)
-                        dragLevel = frac
-                    }
-                }
-                .pointerInput(entityId) {
-                    detectTapGestures(
-                        onLongPress = { showDetail = true },
-                    ) { offset ->
-                        val frac = (offset.x / size.width).coerceIn(0f, 1f)
-                        dragLevel = frac
-                        commit(frac)
-                    }
-                },
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFF1B343D))
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Brightness fill
-            if (on) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(dragLevel.coerceIn(0.001f, 1f))
-                        .background(fillColor.copy(alpha = 0.38f))
-                )
-            }
-
+            // Top row: icon toggle, name/state, quick colour presets.
             Row(
-                modifier = Modifier
-                    .matchParentSize()
-                    .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                // Icon toggle (stops slider from stealing the tap by handling click first)
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(44.dp)
                         .clip(CircleShape)
                         .background(iconBg)
-                        .clickable { ctx.client.toggle(entityId) },
+                        .pointerInput(entityId, dimmable) {
+                            detectTapGestures(
+                                onTap = { ctx.client.toggle(entityId) },
+                                onLongPress = if (dimmable) { { showDetail = true } } else null,
+                            )
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(Icons.Filled.Lightbulb, contentDescription = null, tint = iconTint)
                 }
-                Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
                         name,
                         color = Color(0xFFE6F0F1),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        if (on) "${(dragLevel * 100).roundToInt()}%" else "Off",
+                        if (on) (if (dimmable) "${(dragLevel * 100).roundToInt()}%" else "On") else "Off",
                         color = Color(0xFF93AFB6),
                         fontSize = 12.sp,
                     )
                 }
+                if (on && hasColor) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        presets.forEach { c ->
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(c)
+                                    .clickable { setColor(c) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Dedicated brightness slider — coloured fill + white thumb.
+            if (dimmable) BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // Leave a dead-zone gutter on the right so a vertical
+                    // scroll gesture starting near the edge of the screen
+                    // can't be mistaken for a horizontal brightness drag.
+                    .padding(end = 28.dp)
+                    .height(28.dp)
+                    .pointerInput(entityId) {
+                        detectHorizontalDragGestures(
+                            onDragEnd = { commit(dragLevel) },
+                        ) { change, _ ->
+                            dragLevel = (change.position.x / size.width).coerceIn(0f, 1f)
+                        }
+                    }
+                    .pointerInput(entityId) {
+                        detectTapGestures { offset ->
+                            val frac = (offset.x / size.width).coerceIn(0f, 1f)
+                            dragLevel = frac
+                            commit(frac)
+                        }
+                    },
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(Color(0xFF152B33)),
+                ) {
+                    if (on) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(dragLevel.coerceAtLeast(0.02f))
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(fillColor),
+                        )
+                    }
+                }
+                // Thumb — a white circle riding the fill boundary.
+                val thumbSize = 20.dp
+                val thumbX = (maxWidth * dragLevel - thumbSize / 2).coerceIn(0.dp, maxWidth - thumbSize)
+                Box(
+                    modifier = Modifier
+                        .padding(start = thumbX)
+                        .size(thumbSize)
+                        .clip(CircleShape)
+                        .background(Color.White),
+                )
             }
         }
 

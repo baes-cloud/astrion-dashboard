@@ -19,10 +19,13 @@ import kotlin.math.sqrt
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import com.custom.astrion.config.DashboardConfig
 import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HotkeyConfig
@@ -31,7 +34,12 @@ import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
+import com.custom.astrion.ir.IrBlaster
+import com.custom.astrion.ir.IrModeOverlay
 import com.custom.astrion.ui.Dashboard
+import com.custom.astrion.voice.VoiceOverlay
+import com.custom.astrion.voice.VoicePhase
+import com.custom.astrion.voice.VoiceSession
 
 /**
  * Single-activity host. Owns the HA client, wires physical buttons to the
@@ -44,6 +52,19 @@ import com.custom.astrion.ui.Dashboard
 class MainActivity : ComponentActivity() {
 
     private companion object {
+        /**
+         * Buttons swallowed by IR Mode. Everything here is diverted to the IR
+         * emitter and must not fall through to its normal Android-TV binding
+         * or to Android's own navigation (Back/Home would otherwise leave the
+         * app entirely).
+         */
+        val IR_INTERCEPTED = setOf(
+            HardwareKey.UP, HardwareKey.DOWN, HardwareKey.LEFT, HardwareKey.RIGHT,
+            HardwareKey.CENTER,
+            HardwareKey.VOLUME_UP, HardwareKey.VOLUME_DOWN,
+            HardwareKey.POWER, HardwareKey.HOME, HardwareKey.BACK,
+        )
+
         // Temporary: on-screen toast + logcat for any button not yet mapped,
         // so unknown keycodes (e.g. power/menu on this unit) can be identified.
         const val DEBUG_KEYS = true
@@ -91,9 +112,25 @@ class MainActivity : ComponentActivity() {
     /** Page index requested by a hardware button; consumed by the Dashboard. */
     private var navTarget by mutableStateOf<Int?>(null)
 
+    // ---- IR Mode ------------------------------------------------------------
+    private lateinit var irBlaster: IrBlaster
+    /** When true the hardware buttons blast IR instead of driving the TV over HA. */
+    private var irMode by mutableStateOf(false)
+    /** Last button blasted, echoed in the popup so you can see it working. */
+    private var irLastKey by mutableStateOf<String?>(null)
+    /** Active code table: defaults overlaid with dashboard.json overrides. */
+    private var irCodes: Map<HardwareKey, Long> = IrBlaster.DEFAULT_CODES
+
+    // ---- Voice --------------------------------------------------------------
+    private lateinit var voice: VoiceSession
+
     private val storagePermission = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { reloadDashboard() }
+
+    private val micPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) voice.start(voicePipelineId()) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -121,21 +158,50 @@ class MainActivity : ComponentActivity() {
         setupMotionWake()
 
         client = HaClient(baseUrl = BuildConfig.HA_URL, token = BuildConfig.HA_TOKEN)
+        irBlaster = IrBlaster(this)
+        voice = VoiceSession(this, client)
         bindHotkeys(dashboard.config.hotkeys, dashboard.config.longHotkeys)
         client.connect()
 
         setContent {
             val entities = client.entities.collectAsState()
             val connection = client.connection.collectAsState()
-            Dashboard(
-                client = client,
-                entitiesState = entities,
-                connectionState = connection,
-                config = dashboard.config,
-                configNotice = dashboard.notice,
-                navTarget = navTarget,
-                onNavHandled = { navTarget = null },
-            )
+            // Overlays are stacked in the SAME window as the dashboard (not
+            // Dialogs) so this Activity keeps key focus and dispatchKeyEvent
+            // continues to fire while they're on screen.
+            Box(modifier = Modifier.fillMaxSize()) {
+                Dashboard(
+                    client = client,
+                    entitiesState = entities,
+                    connectionState = connection,
+                    config = dashboard.config,
+                    configNotice = dashboard.notice,
+                    navTarget = navTarget,
+                    onNavHandled = { navTarget = null },
+                )
+
+                // IR Mode modal sits above the dashboard while active.
+                if (irMode) {
+                    IrModeOverlay(
+                        options = irOptions(),
+                        client = client,
+                        blaster = irBlaster,
+                        lastKeyLabel = irLastKey,
+                        onClose = { irMode = false; irLastKey = null },
+                    )
+                }
+
+                // Voice modal, driven by the session's own state machine.
+                val voiceState = voice.state.collectAsState().value
+                VoiceOverlay(
+                    state = voiceState,
+                    imageDir = voiceImageDir(),
+                    onDismiss = {
+                        if (voiceState.phase == VoicePhase.LISTENING) voice.stopListening()
+                        else voice.cancel()
+                    },
+                )
+            }
         }
     }
 
@@ -168,6 +234,69 @@ class MainActivity : ComponentActivity() {
                 ?: return@forEach
             keyRouter.onLong(key) { runHotkey(hk) }
         }
+
+        // Refresh the IR code table from config, then claim the toggle key.
+        irCodes = IrBlaster.fromConfig(irOptions()["codes"] as? Map<String, Any?>)
+        bindIrToggle()
+    }
+
+    /**
+     * Bind the IR-Mode toggle — long-press of 🔇 MUTE by default.
+     *
+     * NOT keycode 82 (☰): Key Mapper claims that key system-wide as a
+     * launcher shortcut (accessibility-service key filtering, scoped to "any
+     * input device"), so it never reaches dispatchKeyEvent at all. Override
+     * with `ir_mode.toggle_key` / `ir_mode.toggle_long` in config if a given
+     * unit's Key Mapper setup differs — no rebuild needed.
+     */
+    private fun bindIrToggle() {
+        val opts = irOptions()
+        val keyName = (opts["toggle_key"] as? String) ?: "MUTE"
+        val useLong = (opts["toggle_long"] as? Boolean) ?: true
+        val key = runCatching { HardwareKey.valueOf(keyName.uppercase()) }.getOrNull() ?: return
+        val toggle = { toggleIrMode(); true }
+        if (useLong) keyRouter.onLong(key, toggle) else keyRouter.on(key, toggle)
+    }
+
+    private fun toggleIrMode() {
+        irMode = !irMode
+        irLastKey = null
+        if (irMode && !irBlaster.available) {
+            Toast.makeText(this, "No IR emitter available on this device", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** `ir_mode` block from dashboard.json (empty map when absent). */
+    @Suppress("UNCHECKED_CAST")
+    private fun irOptions(): Map<String, Any?> =
+        (dashboard.config.options["ir_mode"] as? Map<String, Any?>) ?: emptyMap()
+
+    /** `voice` block from dashboard.json. */
+    @Suppress("UNCHECKED_CAST")
+    private fun voiceOptions(): Map<String, Any?> =
+        (dashboard.config.options["voice"] as? Map<String, Any?>) ?: emptyMap()
+
+    private fun voicePipelineId(): String? = voiceOptions()["pipeline"] as? String
+
+    private fun voiceImageDir(): String =
+        (voiceOptions()["image_dir"] as? String) ?: "/sdcard/astrion/voice"
+
+    /**
+     * Mic button: press once to start listening, again to stop early (HA's VAD
+     * will normally end the turn on its own). Requests RECORD_AUDIO on first use.
+     */
+    private fun onVoiceKey() {
+        when (voice.state.value.phase) {
+            VoicePhase.LISTENING -> voice.stopListening()
+            VoicePhase.PROCESSING, VoicePhase.SPEAKING -> voice.cancel()
+            else -> {
+                if (voice.hasPermission) {
+                    voice.start(voicePipelineId())
+                } else {
+                    micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            }
+        }
     }
 
     /** Execute one hotkey: page navigation, or a HA service call. */
@@ -196,6 +325,37 @@ class MainActivity : ComponentActivity() {
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val code = event.keyCode
+        val key = HardwareKey.fromKeyCode(code)
+
+        // ---- IR Mode intercept ---------------------------------------------
+        // Highest priority: while the popup is up these buttons must NOT reach
+        // their normal Android-TV bindings, so we consume them outright (both
+        // DOWN and UP) and blast the Samsung code instead.
+        if (irMode && key in IR_INTERCEPTED) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                val codeHex = irCodes[key]
+                if (codeHex == null) {
+                    irLastKey = "$key — no IR code mapped"
+                } else {
+                    val ok = irBlaster.blast(codeHex)
+                    irLastKey = if (ok) {
+                        "$key → 0x${codeHex.toString(16).uppercase()}"
+                    } else {
+                        "$key — transmit FAILED"
+                    }
+                }
+            }
+            return true // swallow: no TV service call, no Android navigation
+        }
+
+        // Voice button: start (or stop) an Assist session.
+        if (key == HardwareKey.VOICE && event.action == KeyEvent.ACTION_DOWN &&
+            event.repeatCount == 0
+        ) {
+            onVoiceKey()
+            return true
+        }
+
         val shortH = keyRouter.shortHandler(code)
         val longH = keyRouter.longHandler(code)
 

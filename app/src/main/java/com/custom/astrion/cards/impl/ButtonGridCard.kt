@@ -52,8 +52,12 @@ class ButtonGridCard : CardRenderer {
     override fun Render(config: CardConfig, ctx: CardContext) {
         val columns = config.int("columns", 3).coerceAtLeast(1)
         val buttons = (config.options["buttons"] as? List<Map<String, Any?>>) ?: emptyList()
+        val title = config.string("title")
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (title != null) {
+                Text(title, color = Color(0xFF9FBAC0), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+            }
             buttons.chunked(columns).forEach { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
