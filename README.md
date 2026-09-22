@@ -58,6 +58,8 @@ Requirements: Android Studio (Ladybug or newer) with the Android SDK.
 | ![Plex rows](screenshots/tv-plex-rows.png) | ![Music shelves](screenshots/sonos-media.png) | ![Climate](screenshots/climate.png) |
 | **Alarm** | **Alarm — snoozed** | **IR Mode** |
 | ![Alarm ringing](screenshots/alarm-ringing.png) | ![Alarm snoozed](screenshots/alarm-snoozed.png) | ![IR Mode](screenshots/ir-mode.png) |
+| **Speaker group** | | |
+| ![Speaker group and volume](screenshots/sonos-group.png) | | |
 
 ![Hold to stop the alarm](screenshots/alarm-hold-to-stop.gif)
 
