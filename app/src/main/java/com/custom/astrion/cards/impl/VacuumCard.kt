@@ -43,6 +43,7 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
+import com.custom.astrion.ui.tap
 
 /**
  * Robot vacuum card: the map (from a Roborock/Xiaomi map image entity, which
@@ -174,7 +175,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF1E3841))
-                    .clickable { fanExpanded = true }
+                    .tap { fanExpanded = true }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -226,7 +227,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                             .height(44.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(Color(0xFF2A4954))
-                            .clickable(enabled = id != null) { id?.let { cleanSegment(it) } },
+                            .tap(enabled = id != null) { id?.let { cleanSegment(it) } },
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(label, color = Color(0xFFE6F0F1), fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -245,7 +246,7 @@ private fun VacuumCtrlBtn(icon: ImageVector, accent: Boolean = false, onClick: (
             .size(52.dp)
             .clip(CircleShape)
             .background(if (accent) Color(0xFF4C6EF5) else Color(0xFF2C4C58))
-            .clickable(onClick = onClick),
+            .tap(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = Color.White)

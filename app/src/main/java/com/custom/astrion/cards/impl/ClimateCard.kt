@@ -1,6 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -23,6 +24,11 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.UnavailableLabel
+import com.custom.astrion.ui.dimIfUnavailable
+import com.custom.astrion.ui.humanise
+import com.custom.astrion.ui.tap
 
 /**
  * Climate / thermostat card.
@@ -84,12 +90,15 @@ class ClimateCard : CardRenderer {
         }
 
         val isOff = mode == "off"
+        val unavailable = e == null || e.isUnavailable
+        val live = !unavailable && ctx.connected
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF1B343D))
+                .background(AstrionTheme.cardBg)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -104,8 +113,8 @@ class ClimateCard : CardRenderer {
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(if (isOff) Color(0xFF3A2E2E) else Color(0xFF2C4C58))
-                        .clickable { turnOff() },
+                        .background(if (isOff) AstrionTheme.dangerBg else AstrionTheme.controlBg)
+                        .tap(enabled = live) { turnOff() },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -122,23 +131,34 @@ class ClimateCard : CardRenderer {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Stepper(Icons.Filled.Remove) { target?.let { setTemp(it - step) } }
+                Stepper(Icons.Filled.Remove, "Lower target temperature", live) {
+                    target?.let { setTemp(it - step) }
+                }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         target?.let { "${trim(it)}°" } ?: "—",
-                        color = Color(0xFFE6F0F1),
+                        color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
                         fontSize = 44.sp,
                         fontWeight = FontWeight.Bold,
                     )
-                    Text(
-                        current?.let { "Now ${trim(it)}°" } ?: "",
-                        color = Color(0xFF93AFB6),
-                        fontSize = 13.sp,
-                    )
+                    // The steppers silently no-op when there is no target, so
+                    // an unreachable aircon used to look like a working one
+                    // showing a dash. Say so instead.
+                    if (unavailable) {
+                        UnavailableLabel(13.sp)
+                    } else {
+                        Text(
+                            current?.let { "Now ${trim(it)}°" } ?: "",
+                            color = AstrionTheme.textSecondary,
+                            fontSize = 13.sp,
+                        )
+                    }
                 }
 
-                Stepper(Icons.Filled.Add) { target?.let { setTemp(it + step) } }
+                Stepper(Icons.Filled.Add, "Raise target temperature", live) {
+                    target?.let { setTemp(it + step) }
+                }
             }
 
             // HVAC mode chips
@@ -149,9 +169,10 @@ class ClimateCard : CardRenderer {
                 ) {
                     modes.take(4).forEach { m ->
                         ModeChip(
-                            label = m.replaceFirstChar { it.uppercase() },
+                            label = m.humanise(),
                             selected = m == mode,
                             modifier = Modifier.weight(1f),
+                            enabled = live,
                         ) { setMode(m) }
                     }
                 }
@@ -165,9 +186,10 @@ class ClimateCard : CardRenderer {
                 ) {
                     fanModes.forEach { f ->
                         ModeChip(
-                            label = f.replaceFirstChar { it.uppercase() },
+                            label = f.humanise(),
                             selected = fanMode?.equals(f, ignoreCase = true) == true,
                             modifier = Modifier.weight(1f),
+                            enabled = live,
                         ) { setFan(f) }
                     }
                 }
@@ -181,17 +203,19 @@ class ClimateCard : CardRenderer {
     @Composable
     private fun Stepper(
         icon: androidx.compose.ui.graphics.vector.ImageVector,
+        description: String? = null,
+        enabled: Boolean = true,
         onClick: () -> Unit,
     ) {
         Box(
             modifier = Modifier
                 .size(56.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF2C4C58))
-                .clickable(onClick = onClick),
+                .background(AstrionTheme.controlBg)
+                .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = null, tint = Color(0xFFCBDCE0))
+            Icon(icon, contentDescription = description, tint = AstrionTheme.textOnControl)
         }
     }
 
@@ -200,19 +224,24 @@ class ClimateCard : CardRenderer {
         label: String,
         selected: Boolean,
         modifier: Modifier,
+        enabled: Boolean = true,
         onClick: () -> Unit,
     ) {
         Box(
             modifier = modifier
-                .height(40.dp)
+                // Raised from 40dp; this is the row that carries mode state.
+                .height(44.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (selected) Color(0xFF4C6EF5) else Color(0xFF23414B))
-                .clickable(onClick = onClick),
+                // accentStrong is a darkened 0xFF4C6EF5 — white 13sp on the
+                // original measured 4.32:1, the only real contrast failure in
+                // the app, and it was on the selected chip.
+                .background(if (selected) AstrionTheme.accentStrong else AstrionTheme.controlSunken)
+                .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 label,
-                color = if (selected) Color.White else Color(0xFF93AFB6),
+                color = if (selected) Color.White else AstrionTheme.textSecondary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
             )

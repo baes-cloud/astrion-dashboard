@@ -87,14 +87,18 @@ object DashboardLoader {
                 val start = (root["startPage"] as? JsonPrimitive)?.intOrNull ?: 0
                 val hotkeys = (root["hotkeys"] as? JsonArray)?.map { parseHotkey(it as JsonObject) } ?: emptyList()
                 val longHotkeys = (root["longHotkeys"] as? JsonArray)?.map { parseHotkey(it as JsonObject) } ?: emptyList()
+                val doubleHotkeys = (root["doubleHotkeys"] as? JsonArray)?.map { parseHotkey(it as JsonObject) } ?: emptyList()
                 // Top-level feature blocks (ir_mode, voice, …). Anything that
                 // isn't a known structural key is carried through verbatim, so
                 // new features need no loader change.
-                val structural = setOf("pages", "startPage", "hotkeys", "longHotkeys")
+                val structural = setOf("pages", "startPage", "hotkeys", "longHotkeys", "doubleHotkeys")
                 val options = root.entries
                     .filter { it.key !in structural }
                     .associate { (k, v) -> k to JsonPlain.toPlain(v) }
-                AppConfig(pages, start.coerceIn(0, pages.size - 1), hotkeys, longHotkeys, options)
+                AppConfig(
+                    pages, start.coerceIn(0, pages.size - 1),
+                    hotkeys, longHotkeys, doubleHotkeys, options,
+                )
             }
             else -> error("top level must be an object or array")
         }
@@ -117,8 +121,22 @@ object DashboardLoader {
         val data = (obj["data"] as? JsonObject)
             ?.entries?.associate { (k, v) -> k to JsonPlain.toPlain(v) }
             ?: emptyMap()
-        return HotkeyConfig(key, page, service, entityId, data)
+        // Chained follow-up actions; each is a hotkey object without its own key.
+        val then = (obj["then"] as? JsonArray)
+            ?.mapNotNull { (it as? JsonObject)?.let { o -> parseChainedAction(o) } }
+            ?: emptyList()
+        return HotkeyConfig(key, page, service, entityId, data, then)
     }
+
+    /** A `then` entry: same shape as a hotkey but the key is inherited. */
+    private fun parseChainedAction(obj: JsonObject): HotkeyConfig = HotkeyConfig(
+        key = (obj["key"] as? JsonPrimitive)?.content ?: "",
+        service = (obj["service"] as? JsonPrimitive)?.content,
+        entityId = (obj["entityId"] as? JsonPrimitive)?.content,
+        data = (obj["data"] as? JsonObject)
+            ?.entries?.associate { (k, v) -> k to JsonPlain.toPlain(v) }
+            ?: emptyMap(),
+    )
 
     // ---- serialize defaults -------------------------------------------------
 
@@ -151,20 +169,24 @@ object DashboardLoader {
         })
         put("hotkeys", encodeHotkeys(cfg.hotkeys))
         put("longHotkeys", encodeHotkeys(cfg.longHotkeys))
+        put("doubleHotkeys", encodeHotkeys(cfg.doubleHotkeys))
         // Round-trip the feature blocks so a freshly written default config
         // still contains ir_mode / voice for the user to edit.
         cfg.options.forEach { (k, v) -> put(k, JsonPlain.toJson(v)) }
     }
 
     private fun encodeHotkeys(hotkeys: List<HotkeyConfig>) = buildJsonArray {
-        hotkeys.forEach { hk ->
-            add(buildJsonObject {
-                put("key", hk.key)
-                hk.page?.let { put("page", it) }
-                hk.service?.let { put("service", it) }
-                hk.entityId?.let { put("entityId", it) }
-                if (hk.data.isNotEmpty()) put("data", JsonPlain.toJson(hk.data))
-            })
+        hotkeys.forEach { hk -> add(encodeHotkey(hk)) }
+    }
+
+    private fun encodeHotkey(hk: HotkeyConfig): JsonObject = buildJsonObject {
+        if (hk.key.isNotEmpty()) put("key", hk.key)
+        hk.page?.let { put("page", it) }
+        hk.service?.let { put("service", it) }
+        hk.entityId?.let { put("entityId", it) }
+        if (hk.data.isNotEmpty()) put("data", JsonPlain.toJson(hk.data))
+        if (hk.then.isNotEmpty()) {
+            put("then", buildJsonArray { hk.then.forEach { add(encodeHotkey(it)) } })
         }
     }
 }

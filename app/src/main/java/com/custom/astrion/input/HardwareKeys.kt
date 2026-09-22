@@ -44,7 +44,12 @@ enum class HardwareKey {
             21 to LEFT,
             22 to RIGHT,
             23 to CENTER,
-            91 to MUTE,   // 🔇
+            91 to MUTE,   // 🔇 (KEYCODE_MUTE — per the stock firmware map)
+            // ...but this unit's 🔇 actually reports KEYCODE_VOLUME_MUTE:
+            // scancode 113 (KEY_MUTE) on mt_gpio_kpd resolves to 164, which is
+            // what Key Mapper captured from the physical button. Both are
+            // mapped so either firmware behaviour works.
+            164 to MUTE,
             82 to MENU,   // ☰  (KEYCODE_MENU — opens IR Mode)
             133 to VOICE, // 🎤
             134 to LIGHT,
@@ -68,6 +73,7 @@ enum class HardwareKey {
 class HardwareKeyRouter {
     private val shortHandlers = mutableMapOf<HardwareKey, () -> Boolean>()
     private val longHandlers = mutableMapOf<HardwareKey, () -> Boolean>()
+    private val doubleHandlers = mutableMapOf<HardwareKey, () -> Boolean>()
 
     fun on(key: HardwareKey, handler: () -> Boolean) {
         shortHandlers[key] = handler
@@ -77,10 +83,15 @@ class HardwareKeyRouter {
         longHandlers[key] = handler
     }
 
+    fun onDouble(key: HardwareKey, handler: () -> Boolean) {
+        doubleHandlers[key] = handler
+    }
+
     /** Drop all bindings — used before rebinding from a reloaded config. */
     fun clear() {
         shortHandlers.clear()
         longHandlers.clear()
+        doubleHandlers.clear()
     }
 
     fun shortHandler(code: Int): (() -> Boolean)? {
@@ -91,5 +102,10 @@ class HardwareKeyRouter {
     fun longHandler(code: Int): (() -> Boolean)? {
         val key = HardwareKey.fromKeyCode(code)
         return if (key == HardwareKey.UNKNOWN) null else longHandlers[key]
+    }
+
+    fun doubleHandler(code: Int): (() -> Boolean)? {
+        val key = HardwareKey.fromKeyCode(code)
+        return if (key == HardwareKey.UNKNOWN) null else doubleHandlers[key]
     }
 }

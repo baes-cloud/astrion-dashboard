@@ -25,6 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -102,10 +104,24 @@ class SceneGridCard : CardRenderer {
         activate: (String) -> Unit,
     ) {
         if (row) {
-            // Horizontally scrollable row; tiles sized so exactly 4 fit the width.
+            // Horizontally scrollable row.
+            //
+            // Tiles used to be sized so exactly 4 fit, with no edge fade, peek
+            // or arrow — so with five scenes configured (Night/White/Day/Club/
+            // Off) the row filled edge to edge and the fifth was invisible.
+            // "Off" is the single most likely thing you want from a lighting
+            // remote at the end of the night, and it was the one you couldn't
+            // see. Fit them all when they're still a comfortable size, and
+            // otherwise leave half a tile showing so the row is self-evidently
+            // scrollable.
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                 val gap = 8.dp
-                val tileW = (maxWidth - gap * 3) / 4
+                val count = scenes.size
+                val tileW = if (count in 1..5) {
+                    (maxWidth - gap * (count - 1)) / count
+                } else {
+                    (maxWidth - gap * 4) / 4.5f
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -176,6 +192,7 @@ class SceneGridCard : CardRenderer {
         val base = Color(color.red * 0.5f, color.green * 0.5f, color.blue * 0.5f, 0.62f)
         val interaction = remember { MutableInteractionSource() }
         val pressed by interaction.collectIsPressedAsState()
+        val haptics = LocalHapticFeedback.current
         val lip = 5.dp
         val faceH = if (icon != null) 60.dp else 48.dp
         val sink by animateDpAsState(if (pressed) lip else 0.dp, label = "sink")
@@ -194,7 +211,10 @@ class SceneGridCard : CardRenderer {
                     .offset(y = sink)
                     .clip(RoundedCornerShape(14.dp))
                     .background(face)
-                    .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+                    .clickable(interactionSource = interaction, indication = null) {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onClick()
+                    }
                     .padding(horizontal = 6.dp, vertical = 7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = if (icon != null) Arrangement.SpaceBetween else Arrangement.Center,

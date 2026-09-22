@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ui.tap
 
 /**
  * Example custom light card.
@@ -49,7 +50,7 @@ class LightCard : CardRenderer {
                 .height(84.dp)
                 .clip(RoundedCornerShape(18.dp))
                 .background(bg)
-                .clickable { ctx.client.toggle(entityId) }
+                .tap { ctx.client.toggle(entityId) }
                 .padding(horizontal = 18.dp),
             contentAlignment = Alignment.CenterStart,
         ) {

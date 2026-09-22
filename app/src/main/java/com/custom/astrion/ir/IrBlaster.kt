@@ -47,6 +47,9 @@ class IrBlaster(context: Context) {
         private const val ONE_SPACE = 1690
         private const val ZERO_SPACE = 560
 
+        /** Idle gap between repeated frames, milliseconds. */
+        private const val FRAME_GAP_MS = 40L
+
         /**
          * Standard Samsung TV codes (32-bit). Keyed by the logical button so
          * the mapping stays readable.
@@ -141,18 +144,45 @@ class IrBlaster(context: Context) {
         false
     }
 
-    /** Transmit one raw 32-bit Samsung code. Returns false if it couldn't be sent. */
-    fun blast(code: Long): Boolean {
-        val mgr = manager ?: return false
-        if (!available) return false
-        return try {
-            mgr.transmit(CARRIER_HZ, encodeSamsung(code))
-            true
-        } catch (e: Exception) {
-            // Some MTK HALs throw rather than returning cleanly when busy.
-            Log.w(TAG, "IR transmit failed for 0x${code.toString(16).uppercase()}", e)
-            false
+    /**
+     * Transmit one raw 32-bit Samsung code. Returns false if it couldn't be sent.
+     *
+     * [repeat] sends the same frame back to back with a short gap. Leave it
+     * at 1 for Samsung sets: they treat each complete frame as a separate
+     * press (a held button is a train of full frames, not NEC repeat codes),
+     * so 2 makes every button act twice. It exists for receivers that
+     * genuinely miss an isolated frame.
+     *
+     * Synchronous on purpose: [ConsumerIrManager.transmit] blocks for the
+     * pattern's duration (~68 ms per Samsung frame), and this is called from
+     * dispatchKeyEvent, so two frames cost ~170 ms of the main thread. That is
+     * cheaper than the machinery needed to report a background transmit's
+     * result back into the popup's status line.
+     */
+    fun blast(code: Long, repeat: Int = 1): Boolean {
+        val mgr = manager ?: run {
+            Log.w(TAG, "no ConsumerIrManager — cannot transmit")
+            return false
         }
+        if (!available) {
+            Log.w(TAG, "hasIrEmitter() == false — cannot transmit")
+            return false
+        }
+        val pattern = encodeSamsung(code)
+        val hex = "0x${code.toString(16).uppercase()}"
+        var any = false
+        for (i in 0 until repeat.coerceIn(1, 5)) {
+            if (i > 0) try { Thread.sleep(FRAME_GAP_MS) } catch (_: InterruptedException) {}
+            try {
+                mgr.transmit(CARRIER_HZ, pattern)
+                any = true
+            } catch (e: Exception) {
+                // Some MTK HALs throw rather than returning cleanly when busy.
+                Log.w(TAG, "IR transmit failed for $hex", e)
+            }
+        }
+        if (any) Log.i(TAG, "IR sent $hex x$repeat @${CARRIER_HZ}Hz (${pattern.size} slots)")
+        return any
     }
 
     /** Human-readable capability line for the popup, so failures are visible. */

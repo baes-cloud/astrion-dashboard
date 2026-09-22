@@ -26,6 +26,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.tap
 
 /**
  * Source picker for a media_player: a compact row showing the current source,
@@ -60,7 +61,7 @@ class SourceSelectCard : CardRenderer {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xFF1E3841))
-                    .clickable(enabled = sources.isNotEmpty()) { expanded = true }
+                    .tap(enabled = sources.isNotEmpty()) { expanded = true }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

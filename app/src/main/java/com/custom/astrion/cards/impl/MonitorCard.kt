@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ui.AstrionTheme
 
 /**
  * Sensor / monitor card — the native equivalent of the stock
@@ -63,7 +64,11 @@ class MonitorCard : CardRenderer {
                 val e = ctx.entities[entityId]
                 val name = row["name"] as? String ?: e?.friendlyName ?: entityId
                 val unit = e?.attrString("unit_of_measurement").orEmpty()
-                val value = e?.state?.let { if (it == "unknown" || it == "unavailable") "—" else it } ?: "—"
+                // Uses the shared helper rather than its own inline string
+                // comparison, and says "Unavailable" instead of an anonymous
+                // dash that reads the same as a sensor reporting nothing.
+                val rowUnavailable = e == null || e.isUnavailable
+                val value = if (rowUnavailable) "Unavailable" else e!!.state
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -71,8 +76,8 @@ class MonitorCard : CardRenderer {
                 ) {
                     Text(name, color = Color(0xFF93AFB6), fontSize = 14.sp, modifier = Modifier.weight(1f))
                     Text(
-                        if (unit.isBlank()) value else "$value $unit",
-                        color = Color(0xFFE6F0F1),
+                        if (rowUnavailable || unit.isBlank()) value else "$value $unit",
+                        color = if (rowUnavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                     )

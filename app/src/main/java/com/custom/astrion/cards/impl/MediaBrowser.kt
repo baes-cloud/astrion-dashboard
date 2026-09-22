@@ -35,6 +35,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import com.custom.astrion.ui.tap
 
 /** One row in the media browser. */
 private data class MediaItem(
@@ -135,7 +136,7 @@ private fun MediaRow(item: MediaItem, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
+            .tap(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -160,7 +161,7 @@ private fun IconBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, onCli
     Box(
         modifier = Modifier
             .size(40.dp)
-            .clickable(onClick = onClick),
+            .tap(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = Color(0xFFCBDCE0))

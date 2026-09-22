@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import java.io.File
+import com.custom.astrion.ui.tap
 
 /**
  * Voice assistant modal, shown while a [VoiceSession] is running.
@@ -155,7 +156,7 @@ fun VoiceOverlay(
                     .height(44.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF2C4D59))
-                    .clickable(onClick = onDismiss),
+                    .tap(onClick = onDismiss),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(

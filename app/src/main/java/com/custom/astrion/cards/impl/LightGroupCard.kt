@@ -26,6 +26,8 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.tap
 import kotlin.math.roundToInt
 
 /**
@@ -239,7 +241,7 @@ class LightGroupCard : CardRenderer {
                     .size(32.dp)
                     .clip(CircleShape)
                     .background(if (on) Color(0xFFFFC24B) else Color(0xFF2C4D59))
-                    .clickable { ctx.client.toggle(entityId) },
+                    .tap { ctx.client.toggle(entityId) },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -254,17 +256,18 @@ class LightGroupCard : CardRenderer {
                 Text(if (on) "On" else "Off", color = Color(0xFF9FBAC0), fontSize = 11.sp)
             }
             // Switch: matches the app's flat-toggle style used elsewhere.
+            // Raised from 40×24dp — under 6mm tall at this density.
             Box(
                 modifier = Modifier
-                    .size(width = 40.dp, height = 24.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (on) Color(0xFF6EA8FE) else Color(0xFF2C4D59))
-                    .clickable { ctx.client.toggle(entityId) },
+                    .size(width = 50.dp, height = 30.dp)
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(if (on) AstrionTheme.accent else AstrionTheme.controlBg)
+                    .tap { ctx.client.toggle(entityId) },
             ) {
                 Box(
                     modifier = Modifier
-                        .padding(start = if (on) 18.dp else 2.dp, top = 2.dp)
-                        .size(20.dp)
+                        .padding(start = if (on) 23.dp else 3.dp, top = 3.dp)
+                        .size(24.dp)
                         .clip(CircleShape)
                         .background(Color(0xFFF2F7F8)),
                 )

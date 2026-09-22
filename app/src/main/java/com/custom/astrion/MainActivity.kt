@@ -2,6 +2,7 @@ package com.custom.astrion
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -13,8 +14,16 @@ import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import android.view.KeyEvent
+import android.view.WindowManager
 import android.widget.Toast
 import kotlin.math.abs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -36,6 +45,8 @@ import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.ir.IrBlaster
 import com.custom.astrion.ir.IrModeOverlay
+import com.custom.astrion.ui.AlarmOverlay
+import com.custom.astrion.ui.AlarmUiState
 import com.custom.astrion.ui.Dashboard
 import com.custom.astrion.voice.VoiceOverlay
 import com.custom.astrion.voice.VoicePhase
@@ -62,16 +73,61 @@ class MainActivity : ComponentActivity() {
             HardwareKey.UP, HardwareKey.DOWN, HardwareKey.LEFT, HardwareKey.RIGHT,
             HardwareKey.CENTER,
             HardwareKey.VOLUME_UP, HardwareKey.VOLUME_DOWN,
+            // MUTE and the CH rocker have Samsung codes in the table but were
+            // missing here, so those three buttons kept firing their normal
+            // Sonos/blinds bindings while the popup claimed the remote was in
+            // IR mode. The toggle key (MENU) is deliberately NOT in this set:
+            // it has to survive to close the popup.
+            HardwareKey.MUTE, HardwareKey.PAGE_UP, HardwareKey.PAGE_DOWN,
             HardwareKey.POWER, HardwareKey.HOME, HardwareKey.BACK,
         )
 
-        // Temporary: on-screen toast + logcat for any button not yet mapped,
-        // so unknown keycodes (e.g. power/menu on this unit) can be identified.
-        const val DEBUG_KEYS = true
+        /**
+         * Ignore a second IR-Mode toggle within this window.
+         *
+         * The toggle is a SHORT press, and short-only keys deliberately fire on
+         * every ACTION_DOWN so volume can auto-repeat while held — which would
+         * otherwise make holding ☰ flap the popup open and shut at the key
+         * repeat rate.
+         */
+        const val IR_TOGGLE_DEBOUNCE_MS = 500L
+
+        // Logcat for any button not yet mapped, so unknown keycodes can be
+        // identified. The on-screen toast that went with it is now gated on a
+        // debug build: POWER is unbound in the live config, so on a release
+        // build every press of it popped "Unmapped key: 132" over the
+        // dashboard in a dark room.
+        val DEBUG_KEYS = BuildConfig.DEBUG
         const val KEY_TAG = "AstrionKeys"
 
         // Hold this long for a button's long-press action to fire.
         const val LONG_PRESS_MS = 1500L
+
+        /**
+         * How long a key with a double-tap binding waits after a release to
+         * see whether a second tap is coming.
+         *
+         * This is a real cost, not a tuning knob: for those keys the single
+         * tap cannot fire until the window closes, because until then we do
+         * not know which action was meant. Kept short enough that the page
+         * jump still feels like a button press.
+         */
+        const val DOUBLE_TAP_MS = 280L
+
+        /**
+         * Treat a resume after this long as a "cold arrival" and reset to the
+         * configured start page.
+         *
+         * With the screen off the Activity isn't resumed, so the keypress that
+         * wakes the device is consumed by the system as the wake and never
+         * reaches dispatchKeyEvent — meaning every page button needed two
+         * presses from cold, the first doing nothing but turning the screen on
+         * and leaving you on whatever page you abandoned. The key that caused
+         * the wake is not recoverable from an Activity, so it can't be
+         * replayed; landing on a known page instead at least makes the cold
+         * arrival predictable rather than random.
+         */
+        const val COLD_ARRIVAL_MS = 30_000L
 
         // Motion-wake tuning: accel magnitude delta (m/s²) that counts as
         // "moved", and a cooldown so a single lift fires one wake.
@@ -84,6 +140,11 @@ class MainActivity : ComponentActivity() {
     private var pendingLong: Runnable? = null
     private var activeLongKey = -1
     private var longFired = false
+
+    // Double-tap timing state: the deferred single-tap action, and which key
+    // it belongs to, so a second tap of a DIFFERENT key doesn't consume it.
+    private var pendingSingle: Runnable? = null
+    private var pendingSingleKey = -1
 
     // Motion-wake: a wake-up accelerometer wakes the screen when the remote is
     // lifted/moved. Only wakes the CPU on actual motion, so it's cheap at rest.
@@ -112,6 +173,9 @@ class MainActivity : ComponentActivity() {
     /** Page index requested by a hardware button; consumed by the Dashboard. */
     private var navTarget by mutableStateOf<Int?>(null)
 
+    /** When the Activity last paused — drives the cold-arrival page reset. */
+    private var pausedAtMs = 0L
+
     // ---- IR Mode ------------------------------------------------------------
     private lateinit var irBlaster: IrBlaster
     /** When true the hardware buttons blast IR instead of driving the TV over HA. */
@@ -120,6 +184,22 @@ class MainActivity : ComponentActivity() {
     private var irLastKey by mutableStateOf<String?>(null)
     /** Active code table: defaults overlaid with dashboard.json overrides. */
     private var irCodes: Map<HardwareKey, Long> = IrBlaster.DEFAULT_CODES
+    /** Last toggle, for [IR_TOGGLE_DEBOUNCE_MS]. */
+    private var lastIrToggleMs = 0L
+    /** How many times each frame is repeated; `ir_mode.repeat` in config. */
+    private var irRepeat = 1
+
+    // ---- Work alarm ---------------------------------------------------------
+    /**
+     * Watches HA for the alarm even while the screen is off. Compose stops
+     * drawing when the display sleeps, so the popup alone could never wake
+     * the remote — this collector runs regardless and does the waking.
+     */
+    private val alarmScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    /** "Hide until it rings again", set from the snoozed popup. */
+    private var alarmHidden by mutableStateOf(false)
+    /** Whether this Activity is in front, so a ring only reorders when needed. */
+    private var inFront = false
 
     // ---- Voice --------------------------------------------------------------
     private lateinit var voice: VoiceSession
@@ -160,8 +240,13 @@ class MainActivity : ComponentActivity() {
         client = HaClient(baseUrl = BuildConfig.HA_URL, token = BuildConfig.HA_TOKEN)
         irBlaster = IrBlaster(this)
         voice = VoiceSession(this, client)
-        bindHotkeys(dashboard.config.hotkeys, dashboard.config.longHotkeys)
+        bindHotkeys(
+            dashboard.config.hotkeys,
+            dashboard.config.longHotkeys,
+            dashboard.config.doubleHotkeys,
+        )
         client.connect()
+        watchAlarm()
 
         setContent {
             val entities = client.entities.collectAsState()
@@ -191,6 +276,18 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                // Work alarm: above the dashboard and IR Mode, since it's the
+                // one overlay that must not be missed.
+                val alarm = alarmUiState(entities.value)
+                if (alarm != null && !alarmHidden) {
+                    AlarmOverlay(
+                        state = alarm,
+                        onSnooze = { fireAlarmAction("snooze") },
+                        onDismiss = { fireAlarmAction("stop") },
+                        onHide = { alarmHidden = true },
+                    )
+                }
+
                 // Voice modal, driven by the session's own state machine.
                 val voiceState = voice.state.collectAsState().value
                 VoiceOverlay(
@@ -207,23 +304,42 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        inFront = true
         // Re-read the config file on every foreground, so edits (adb push, file
         // manager) apply without a rebuild or restart.
         reloadDashboard()
+        // Cold arrival (screen slept, or we were away a while): land on the
+        // configured start page so the first thing you see is predictable.
+        // See COLD_ARRIVAL_MS for why the waking keypress can't just be replayed.
+        val away = System.currentTimeMillis() - pausedAtMs
+        if (pausedAtMs > 0L && away >= COLD_ARRIVAL_MS) {
+            navTarget = dashboard.config.startPage
+        }
+    }
+
+    override fun onPause() {
+        inFront = false
+        pausedAtMs = System.currentTimeMillis()
+        super.onPause()
     }
 
     /** Load config from disk and (re)bind hotkeys. Synchronous — the file is tiny. */
     private fun reloadDashboard() {
         val result = DashboardLoader.load()
         dashboard = result
-        bindHotkeys(result.config.hotkeys, result.config.longHotkeys)
+        bindHotkeys(result.config.hotkeys, result.config.longHotkeys, result.config.doubleHotkeys)
     }
 
     // ---- hotkeys ------------------------------------------------------------
 
-    /** Rebind the physical buttons to the config's short- and long-press hotkeys. */
-    private fun bindHotkeys(short: List<HotkeyConfig>, long: List<HotkeyConfig>) {
+    /** Rebind the physical buttons to the config's short, long and double hotkeys. */
+    private fun bindHotkeys(
+        short: List<HotkeyConfig>,
+        long: List<HotkeyConfig>,
+        double: List<HotkeyConfig> = emptyList(),
+    ) {
         keyRouter.clear()
+        cancelPendingSingle()
         short.forEach { hk ->
             val key = runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
                 ?: return@forEach
@@ -234,31 +350,42 @@ class MainActivity : ComponentActivity() {
                 ?: return@forEach
             keyRouter.onLong(key) { runHotkey(hk) }
         }
+        double.forEach { hk ->
+            val key = runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
+                ?: return@forEach
+            keyRouter.onDouble(key) { runHotkey(hk) }
+        }
 
         // Refresh the IR code table from config, then claim the toggle key.
         irCodes = IrBlaster.fromConfig(irOptions()["codes"] as? Map<String, Any?>)
+        irRepeat = (irOptions()["repeat"] as? Number)?.toInt()?.coerceIn(1, 5) ?: 1
         bindIrToggle()
     }
 
     /**
-     * Bind the IR-Mode toggle — long-press of 🔇 MUTE by default.
+     * Bind the IR-Mode toggle — a SHORT press of ☰ MENU by default.
      *
-     * NOT keycode 82 (☰): Key Mapper claims that key system-wide as a
-     * launcher shortcut (accessibility-service key filtering, scoped to "any
-     * input device"), so it never reaches dispatchKeyEvent at all. Override
-     * with `ir_mode.toggle_key` / `ir_mode.toggle_long` in config if a given
-     * unit's Key Mapper setup differs — no rebuild needed.
+     * One key, one gesture, both ways: the same tap that opens the popup
+     * closes it again. That works because MENU is excluded from
+     * [IR_INTERCEPTED], so while the popup is up its press still reaches the
+     * router instead of being swallowed and blasted at the TV.
+     *
+     * Override with `ir_mode.toggle_key` / `ir_mode.toggle_long` in config —
+     * no rebuild needed.
      */
     private fun bindIrToggle() {
         val opts = irOptions()
-        val keyName = (opts["toggle_key"] as? String) ?: "MUTE"
-        val useLong = (opts["toggle_long"] as? Boolean) ?: true
+        val keyName = (opts["toggle_key"] as? String) ?: "MENU"
+        val useLong = (opts["toggle_long"] as? Boolean) ?: false
         val key = runCatching { HardwareKey.valueOf(keyName.uppercase()) }.getOrNull() ?: return
         val toggle = { toggleIrMode(); true }
         if (useLong) keyRouter.onLong(key, toggle) else keyRouter.on(key, toggle)
     }
 
     private fun toggleIrMode() {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastIrToggleMs < IR_TOGGLE_DEBOUNCE_MS) return
+        lastIrToggleMs = now
         irMode = !irMode
         irLastKey = null
         if (irMode && !irBlaster.available) {
@@ -270,6 +397,141 @@ class MainActivity : ComponentActivity() {
     @Suppress("UNCHECKED_CAST")
     private fun irOptions(): Map<String, Any?> =
         (dashboard.config.options["ir_mode"] as? Map<String, Any?>) ?: emptyMap()
+
+    /** `alarm` block from dashboard.json (empty map when absent). */
+    @Suppress("UNCHECKED_CAST")
+    private fun alarmOptions(): Map<String, Any?> =
+        (dashboard.config.options["alarm"] as? Map<String, Any?>) ?: emptyMap()
+
+    /**
+     * Null when no alarm is on; otherwise what the popup should show. Pure
+     * mirror of HA: ringing = the `ringing_entity` flag, snoozed = the snooze
+     * timer running while that flag is still on.
+     */
+    private fun alarmUiState(entities: com.custom.astrion.ha.EntityMap): AlarmUiState? {
+        val opts = alarmOptions()
+        val ringingId = opts["ringing_entity"] as? String ?: return null
+        if (entities[ringingId]?.state != "on") return null
+
+        val timer = (opts["snooze_timer"] as? String)?.let { entities[it] }
+        val snoozeEnds = timer?.takeIf { it.state == "active" }?.attrString("finishes_at")?.let { iso ->
+            runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
+        }
+
+        // The timer's own duration ("0:05:00"), so the snooze ring drains
+        // over the real length rather than an assumed five minutes.
+        val snoozeTotalMs = timer?.attrString("duration")?.split(":")?.mapNotNull { it.toLongOrNull() }
+            ?.takeIf { it.size == 3 }?.let { (h, m, sec) -> (h * 3600 + m * 60 + sec) * 1000 }
+            ?: 300_000L
+
+        val info = (opts["info_entity"] as? String)?.let { entities[it] }
+        val startsAt = info?.state?.let { iso ->
+            runCatching {
+                val t = java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli()
+                java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(t))
+            }.getOrNull()
+        }
+        return AlarmUiState(
+            ringing = snoozeEnds == null,
+            snoozeEndsMs = snoozeEnds,
+            snoozeTotalMs = snoozeTotalMs,
+            title = info?.attrString("summary")?.takeIf { it.isNotBlank() },
+            place = info?.attrString("location")?.takeIf { it.isNotBlank() },
+            startsAt = startsAt,
+        )
+    }
+
+    /** 0 = no alarm, 1 = ringing, 2 = snoozed. */
+    private fun alarmPhase(entities: com.custom.astrion.ha.EntityMap): Int =
+        alarmUiState(entities)?.let { if (it.ringing) 1 else 2 } ?: 0
+
+    /**
+     * React to the alarm starting and stopping, screen on or off. Starting
+     * (or a snooze ending) wakes the display, keeps it on and brings this app
+     * forward; stopping lets the screen time out normally again.
+     */
+    private fun watchAlarm() {
+        // While it is actually ringing, the screen stays on — even if someone
+        // presses Power to shut it up. Re-asserted every 20 s until it stops
+        // or is snoozed.
+        var keepAwake: kotlinx.coroutines.Job? = null
+        alarmScope.launch {
+            client.entities
+                .map { alarmPhase(it) }
+                .distinctUntilChanged()
+                .collect { phase ->
+                    keepAwake?.cancel()
+                    keepAwake = null
+                    when (phase) {
+                        1 -> {
+                            alarmHidden = false
+                            wakeForAlarm()
+                            keepAwake = alarmScope.launch {
+                                while (true) {
+                                    kotlinx.coroutines.delay(20_000)
+                                    wakeForAlarm()
+                                }
+                            }
+                        }
+                        2 -> window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        else -> {
+                            alarmHidden = false
+                            @Suppress("DEPRECATION")
+                            window.clearFlags(
+                                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                            )
+                        }
+                    }
+                }
+        }
+    }
+
+    private fun wakeForAlarm() {
+        @Suppress("DEPRECATION")
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+        )
+        // Same wake the motion sensor uses, minus its cooldown: an alarm must
+        // never be swallowed because someone picked the remote up a second ago.
+        val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        if (pm != null && !pm.isInteractive) {
+            @Suppress("DEPRECATION")
+            val wl = pm.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK
+                    or PowerManager.ACQUIRE_CAUSES_WAKEUP
+                    or PowerManager.ON_AFTER_RELEASE,
+                "astrion:alarm",
+            )
+            wl.acquire(10_000)
+        }
+        // If another app is in front (Key Mapper launched something, say),
+        // come forward — API 27 still allows a background activity start.
+        if (!inFront) {
+            startActivity(
+                Intent(this, MainActivity::class.java).addFlags(
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_NEW_TASK
+                )
+            )
+        }
+    }
+
+    /** Fire the configured `snooze` / `stop` action: `{ service, entity_id }`. */
+    @Suppress("UNCHECKED_CAST")
+    private fun fireAlarmAction(which: String) {
+        val action = alarmOptions()[which] as? Map<String, Any?> ?: return
+        val service = action["service"] as? String ?: return
+        client.callService(
+            ServiceCall(
+                domain = service.substringBefore('.'),
+                service = service.substringAfter('.'),
+                entityId = action["entity_id"] as? String,
+            )
+        )
+    }
 
     /** `voice` block from dashboard.json. */
     @Suppress("UNCHECKED_CAST")
@@ -307,11 +569,43 @@ class MainActivity : ComponentActivity() {
             navTarget = idx
             return true
         }
+        val ran = runAction(hk)
+        hk.then.forEach { runAction(it) }
+        return ran || hk.then.isNotEmpty()
+    }
+
+    /**
+     * A single hotkey action. Two built-in pseudo-services need to read live
+     * entity state, so they can't be expressed as plain config service calls:
+     *   astrion.toggle_mute   — mute or unmute depending on what it is now
+     *   astrion.unjoin_others — drop every speaker currently grouped to this one
+     */
+    private fun runAction(hk: HotkeyConfig): Boolean {
         val service = hk.service ?: return false
+        val entityId = hk.entityId
+        when (service) {
+            "astrion.toggle_mute" -> {
+                if (entityId == null) return false
+                val muted = client.entities.value[entityId]?.attrString("is_volume_muted") == "true"
+                client.callService(
+                    ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted)
+                )
+                return true
+            }
+            "astrion.unjoin_others" -> {
+                if (entityId == null) return false
+                // group_members[0] is the group leader; everyone else is joined
+                // to it and gets dropped.
+                client.entities.value[entityId]?.attrStringList("group_members")
+                    ?.filter { it != entityId }
+                    ?.forEach { client.callService(ServiceCall("media_player", "unjoin", entityId = it)) }
+                return true
+            }
+        }
         val domain = service.substringBefore('.')
         val svc = service.substringAfter('.')
         val data = hk.data.mapValues { JsonPlain.toJson(it.value) }
-        client.callService(ServiceCall(domain, svc, hk.entityId, data))
+        client.callService(ServiceCall(domain, svc, entityId, data))
         return true
     }
 
@@ -337,7 +631,7 @@ class MainActivity : ComponentActivity() {
                 if (codeHex == null) {
                     irLastKey = "$key — no IR code mapped"
                 } else {
-                    val ok = irBlaster.blast(codeHex)
+                    val ok = irBlaster.blast(codeHex, irRepeat)
                     irLastKey = if (ok) {
                         "$key → 0x${codeHex.toString(16).uppercase()}"
                     } else {
@@ -358,9 +652,10 @@ class MainActivity : ComponentActivity() {
 
         val shortH = keyRouter.shortHandler(code)
         val longH = keyRouter.longHandler(code)
+        val doubleH = keyRouter.doubleHandler(code)
 
         // Unmapped: log/toast for diagnosis, then let the OS handle it.
-        if (shortH == null && longH == null) {
+        if (shortH == null && longH == null && doubleH == null) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 Log.i(KEY_TAG, "keyCode=$code (${KeyEvent.keyCodeToString(code)})")
                 if (DEBUG_KEYS) Toast.makeText(this, "Unmapped key: $code", Toast.LENGTH_SHORT).show()
@@ -370,6 +665,20 @@ class MainActivity : ComponentActivity() {
 
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
+                // A press arriving while this key's single-tap is still held
+                // back IS the second tap: cancel the deferred single and fire
+                // the double instead. Checked before the long-press timer so a
+                // double tap never also arms a hold.
+                if (doubleH != null && event.repeatCount == 0 &&
+                    pendingSingle != null && pendingSingleKey == code
+                ) {
+                    cancelPendingSingle()
+                    cancelPendingLong()
+                    longFired = true // suppress the short action on this release
+                    activeLongKey = -1
+                    doubleH.invoke()
+                    return true
+                }
                 if (longH != null) {
                     // Long-capable: start the hold timer on first press, ignore repeats.
                     if (event.repeatCount == 0) {
@@ -383,6 +692,12 @@ class MainActivity : ComponentActivity() {
                         pendingLong = r
                         keyHandler.postDelayed(r, LONG_PRESS_MS)
                     }
+                } else if (doubleH != null) {
+                    // Short-only but double-capable: nothing can fire until the
+                    // window closes on release. Arming here rather than on UP
+                    // would make a held key auto-repeat into a double tap.
+                    longFired = false
+                    activeLongKey = code
                 } else {
                     // Short-only: fire on every down (preserves hold-to-repeat).
                     shortH?.invoke()
@@ -390,11 +705,26 @@ class MainActivity : ComponentActivity() {
                 return true
             }
             KeyEvent.ACTION_UP -> {
-                if (longH != null && code == activeLongKey) {
+                if ((longH != null || doubleH != null) && code == activeLongKey) {
                     cancelPendingLong()
                     activeLongKey = -1
                     // Released before the hold threshold → it was a tap.
-                    if (!longFired) shortH?.invoke()
+                    if (!longFired) {
+                        if (doubleH != null) {
+                            // Hold the single back until the window closes.
+                            cancelPendingSingle()
+                            val r = Runnable {
+                                pendingSingle = null
+                                pendingSingleKey = -1
+                                shortH?.invoke()
+                            }
+                            pendingSingle = r
+                            pendingSingleKey = code
+                            keyHandler.postDelayed(r, DOUBLE_TAP_MS)
+                        } else {
+                            shortH?.invoke()
+                        }
+                    }
                 }
                 return true
             }
@@ -405,6 +735,12 @@ class MainActivity : ComponentActivity() {
     private fun cancelPendingLong() {
         pendingLong?.let { keyHandler.removeCallbacks(it) }
         pendingLong = null
+    }
+
+    private fun cancelPendingSingle() {
+        pendingSingle?.let { keyHandler.removeCallbacks(it) }
+        pendingSingle = null
+        pendingSingleKey = -1
     }
 
     // ---- motion wake --------------------------------------------------------
@@ -439,6 +775,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        alarmScope.cancel()
         sensorManager?.unregisterListener(motionListener)
         client.disconnect()
         super.onDestroy()

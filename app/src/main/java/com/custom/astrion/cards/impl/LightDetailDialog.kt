@@ -31,6 +31,7 @@ import com.custom.astrion.ha.ServiceCall
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.math.roundToInt
+import com.custom.astrion.ui.tap
 
 /**
  * Long-press detail popup for a light (bubble-card style): a big vertical
@@ -143,7 +144,7 @@ fun LightDetailDialog(
                     .size(48.dp)
                     .clip(CircleShape)
                     .background(if (on) Color(0xFFFFC24B) else Color(0xFF2C4C58))
-                    .clickable { client.toggle(entityId) },
+                    .tap { client.toggle(entityId) },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -169,7 +170,7 @@ fun LightDetailDialog(
                                     .size(36.dp)
                                     .clip(CircleShape)
                                     .background(Color(r, g, b))
-                                    .clickable { setRgb(r, g, b) },
+                                    .tap { setRgb(r, g, b) },
                             )
                         }
                     }
@@ -184,7 +185,7 @@ fun LightDetailDialog(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color(0xFF23414B))
-                                .clickable { setKelvin(k) }
+                                .tap { setKelvin(k) }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                         ) {
                             Text(label, color = Color(0xFFCBDCE0), fontSize = 12.sp)

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.tap
 
 /**
  * The "IR Mode" modal.
@@ -220,7 +221,7 @@ fun IrModeOverlay(
                                 .height(48.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color(0xFF2C4D59))
-                                .clickable { press(b) },
+                                .tap { press(b) },
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
@@ -244,7 +245,7 @@ fun IrModeOverlay(
                     .height(46.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF3A2E2E))
-                    .clickable(onClick = onClose),
+                    .tap(onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(

@@ -51,14 +51,35 @@ Requirements: Android Studio (Ladybug or newer) with the Android SDK.
 
 ### Screenshots
 
-| | | |
+| Main | TV / Plex | Sonos |
 |---|---|---|
-| ![Main](screenshots/home.png) | ![Lights](screenshots/light-control.png) | ![Light detail](screenshots/light-card.png) |
-| ![Climate](screenshots/climate-control.png) | ![Vacuum popup](screenshots/robovac-control.png) | ![Vacuum docked on floorplan](screenshots/robovac-docked.png) |
+| ![Main](screenshots/main.png) | ![TV and Plex](screenshots/tv-plex.png) | ![Sonos player](screenshots/sonos-player.png) |
+| **Plex rows** | **Music shelves** (swipe) | **Climate** |
+| ![Plex rows](screenshots/tv-plex-rows.png) | ![Music shelves](screenshots/sonos-media.png) | ![Climate](screenshots/climate.png) |
+| **Alarm** | **Alarm — snoozed** | **IR Mode** |
+| ![Alarm ringing](screenshots/alarm-ringing.png) | ![Alarm snoozed](screenshots/alarm-snoozed.png) | ![IR Mode](screenshots/ir-mode.png) |
 
-`screenshots/LD2450-tracking.gif` and `screenshots/sonos-control.gif` show the
-mmWave presence dots moving live on the floorplan, and the Sonos group/volume
-controls in action.
+![Hold to stop the alarm](screenshots/alarm-hold-to-stop.gif)
+
+More: `screenshots/LD2450-tracking.gif` (mmWave presence dots moving live on the
+floorplan), `sonos-control.gif` (speaker group + volume), the robot-vacuum
+overlay and popup (`robovac-*.png`), and the light colour popup (`light-*.png`).
+
+### What it does
+
+- **Main** — a glance panel (date, time, weather now + 5 days, next diary entry
+  and next alarm), a door-lock card, a live floorplan with tappable lights,
+  mmWave presence dots and the robot vacuum, and a one-tap mute strip.
+- **TV / Plex** — what's on the TV, plus Plex poster rows where one tap plays
+  the exact episode or film, even from a switched-off TV.
+- **Media** — the full Sonos player with album-art shelves swiped in behind it,
+  playlist shortcuts and speaker grouping.
+- **Climate** — aircon with HVAC and fan modes, and the blinds.
+- **Alarm popup** — wakes the screen for a Home Assistant alarm; snooze with a
+  tap, stop with a hold.
+- **IR Mode** — tap ☰ and the hardware buttons drive a Samsung TV over IR.
+- **Every physical button** is configurable, with tap, 1.5 s hold and (opt-in)
+  double-tap actions.
 
 > Target: the HA100 runs Android 8.1 (API 27); `minSdk` is 26. Keep custom cards
 > lightweight — the SoC (MT6580, 1 GB RAM) is modest.
@@ -109,13 +130,18 @@ standard Android `KeyEvent`s, intercepted in `dispatchKeyEvent`.
 | `ha/HaClient.kt` | Standard HA WebSocket client (auth, get_states, subscribe, call_service, ping) |
 | `ha/HaModels.kt` | Entity state + connection models |
 | `cards/Card.kt` | `CardRenderer` interface + `CardRegistry` (extensibility core) |
-| `cards/impl/*` | 18 card types — see the table in `COMMUNITY.md` for what each one does |
+| `cards/impl/*` | 29 card types — see the table in `COMMUNITY.md` for what each one does |
 | `config/DashboardConfig.kt` | Your dashboard layout (compiled-in fallback; live layout is a JSON file, see below) |
 | `config/DashboardLoader.kt` | Reads/writes `/sdcard/astrion/dashboard.json`, falls back to the compiled default |
-| `ui/Dashboard.kt` | Renders the card list, page pager, hotkey dispatch |
-| `input/HardwareKeys.kt` | HA100 keycode map + router (tap vs. long-press) |
-| `MainActivity.kt` | Compose host + hardware key dispatch + motion-wake |
+| `ui/Dashboard.kt` | Renders the card list, page pager, pinned top/bottom sections |
+| `ui/AlarmOverlay.kt` | The alarm popup |
+| `ui/Theme.kt`, `ui/CardKit.kt` | Shared palette, type scale and card building blocks |
+| `ir/IrBlaster.kt`, `ir/IrModeOverlay.kt` | Samsung IR encoder over the built-in emitter, and the IR Mode popup |
+| `input/HardwareKeys.kt` | HA100 keycode map + router (tap, long-press, double-tap) |
+| `MainActivity.kt` | Compose host, hardware key dispatch, motion-wake, alarm wake |
 | `AstrionApp.kt` | Registers card types at startup |
+| `device/` | On-device scripts: restrict wireless ADB to your admin machine |
+| `docs/` | Alarm popup spec, IR capture notes, UI critique |
 
 See `COMMUNITY.md` for the full card reference, the JSON config schema, and
 the physical-button map. See `ARCHITECTURE.md` for how the stock app works
@@ -129,7 +155,10 @@ internally and why this design follows from it.
   day (a from-scratch replacement, not a scaffold anymore).
 - Credentials come from `secrets.properties` (gitignored) via `BuildConfig` —
   see Build & install above.
-- The local IR-blaster path (Sanytron's `astrion/control_command` custom events)
-  is **not** implemented here — all control goes through HA `remote.*` /
-  `media_player.*` services over the network, which covers the online case. See
-  ARCHITECTURE.md if you want to add offline IR later.
+- IR: the remote's own emitter is driven directly through Android's
+  `ConsumerIrManager` (IR Mode, Samsung32 codes), so no Sanytron integration or
+  cloud is involved. Control of everything else goes over the network through
+  HA `remote.*` / `media_player.*` / `androidtv.*` services.
+- **Don't publish an APK you built yourself**: the HA URL and token are compiled
+  into it.
+- See `CHANGELOG.md` for what changed in each release.

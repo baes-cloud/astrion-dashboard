@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,12 +18,16 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.rememberSampledBitmap
+import com.custom.astrion.ui.tap
 import java.io.File
 
 /**
@@ -31,9 +36,15 @@ import java.io.File
  * a text label, or both. Used for the TV-app row, Group/Ungroup, and the
  * playlist buttons.
  *
+ * `tile_height`, `icon_size` and `spacing` (all dp) shrink the buttons where a
+ * grid has to share a page with taller cards — the playlist grid sits under the
+ * media stack and would otherwise be cut in half by the bottom of the screen.
+ *
  * Config shape:
  *   { "type": "button_grid", "options": {
  *       "columns": 3,
+ *       "tile_height": 56,
+ *       "icon_size": 26,
  *       "buttons": [
  *         { "name": "Group",   "service": "script.group" },
  *         { "name": "Disco",   "icon": "/sdcard/astrion/icons/disco.png",
@@ -53,18 +64,21 @@ class ButtonGridCard : CardRenderer {
         val columns = config.int("columns", 3).coerceAtLeast(1)
         val buttons = (config.options["buttons"] as? List<Map<String, Any?>>) ?: emptyList()
         val title = config.string("title")
+        val tileHeight = config.int("tile_height", 0).takeIf { it > 0 }?.dp
+        val iconSize = config.int("icon_size", 0).takeIf { it > 0 }?.dp
+        val spacing = config.int("spacing", 10).coerceIn(2, 24).dp
 
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
             if (title != null) {
                 Text(title, color = Color(0xFF9FBAC0), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
             }
             buttons.chunked(columns).forEach { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(spacing),
                 ) {
                     row.forEach { b ->
-                        GridButton(b, Modifier.weight(1f)) { fire(ctx, b) }
+                        GridButton(b, Modifier.weight(1f), tileHeight, iconSize) { fire(ctx, b) }
                     }
                     repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
@@ -85,32 +99,37 @@ class ButtonGridCard : CardRenderer {
     }
 
     @Composable
-    private fun GridButton(b: Map<String, Any?>, modifier: Modifier, onClick: () -> Unit) {
+    private fun GridButton(
+        b: Map<String, Any?>,
+        modifier: Modifier,
+        tileHeight: Dp?,
+        iconSize: Dp?,
+        onClick: () -> Unit,
+    ) {
         val name = b["name"] as? String
         val iconPath = b["icon"] as? String
-        val bitmap = remember(iconPath) {
-            iconPath?.let {
-                runCatching {
-                    val f = File(it)
-                    if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
-                }.getOrNull()
-            }
-        }
+        // Off-thread and downsampled — these are drawn into a 32dp box but
+        // were being decoded at native resolution (up to 78 KB apiece) on the
+        // composition thread, six at a time, when the Media page first drew.
+        val bitmap by rememberSampledBitmap(iconPath, targetPx = 96)
         val hasIcon = bitmap != null
+
+        val height = tileHeight ?: if (hasIcon) 68.dp else 48.dp
+        val glyph = iconSize ?: 32.dp
 
         Column(
             modifier = modifier
-                .height(if (hasIcon) 68.dp else 48.dp)
+                .height(height)
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFF2A4954))
-                .clickable(onClick = onClick)
+                .background(AstrionTheme.raised)
+                .tap(onClick = onClick)
                 .padding(6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            if (bitmap != null) {
-                Image(bitmap = bitmap, contentDescription = name, modifier = Modifier.size(32.dp))
-                if (!name.isNullOrBlank()) Spacer(Modifier.height(4.dp))
+            bitmap?.let { bmp ->
+                Image(bitmap = bmp, contentDescription = name, modifier = Modifier.size(glyph))
+                if (!name.isNullOrBlank()) Spacer(Modifier.height(3.dp))
             }
             if (!name.isNullOrBlank()) {
                 Text(

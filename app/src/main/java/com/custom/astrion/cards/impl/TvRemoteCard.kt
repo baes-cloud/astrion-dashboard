@@ -22,6 +22,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.tap
 
 /**
  * TV / Android-TV remote card.
@@ -163,7 +164,7 @@ class TvRemoteCard : CardRenderer {
                 .height(48.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color(0xFF2C4C58))
-                .clickable(onClick = onClick),
+                .tap(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Text(label, color = Color(0xFFE6F0F1), fontSize = 15.sp, fontWeight = FontWeight.Medium)
@@ -217,7 +218,7 @@ class TvRemoteCard : CardRenderer {
                     .size(64.dp)
                     .clip(CircleShape)
                     .background(Color(0xFF33525E))
-                    .clickable(onClick = onCenter),
+                    .tap(onClick = onCenter),
                 contentAlignment = Alignment.Center,
             ) {
                 Text("OK", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -236,7 +237,7 @@ class TvRemoteCard : CardRenderer {
                 .size(52.dp)
                 .clip(CircleShape)
                 .background(Color(0xFF2C4C58))
-                .clickable(onClick = onClick),
+                .tap(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Icon(icon, contentDescription = null, tint = tint)

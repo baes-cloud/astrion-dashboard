@@ -16,15 +16,18 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Lightbulb
@@ -56,12 +59,14 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.rememberSampledBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import com.custom.astrion.ui.tap
 
 /**
  * Floorplan card — the picture-elements equivalent. Draws a background image
@@ -81,37 +86,70 @@ class PictureElementsCard : CardRenderer {
         var showVacuumDialog by remember { mutableStateOf(false) }
         var detailEntity by remember { mutableStateOf<String?>(null) }
 
-        // Decode off-thread safely via produceState + Dispatchers.IO
-        val bitmap by produceState<ImageBitmap?>(initialValue = null, imagePath) {
-            value = withContext(Dispatchers.IO) {
-                runCatching {
-                    val f = File(imagePath)
-                    if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
-                }.getOrNull()
-            }
-        }
+        // Decoded off-thread AND downsampled. The floorplan on this device is
+        // 1089 x 1047, i.e. 4.56 MB resident as ARGB_8888, held for the life of
+        // the card to fill about 460 px of screen.
+        val bitmap by rememberSampledBitmap(imagePath, targetPx = 720)
 
         val aspect = bitmap?.let { it.width.toFloat() / it.height.toFloat() }
             ?: (config.options["aspect"] as? Number)?.toFloat() ?: 1.3f
 
+        // With "pin": "fill" the card is handed a weighted slot and should take
+        // all of it, so the plan grows to close out the page rather than
+        // sizing itself from its own aspect ratio and leaving a gap. Element
+        // and radar positions are percentages of this box, so they follow.
+        val fill = config.bool("fill", false) || config.options["pin"] == "fill"
+
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(aspect)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF0E1116)),
+                .then(if (fill) Modifier.fillMaxHeight() else Modifier.aspectRatio(aspect))
+                // Inside a `stack` the container clips the outer corners; a
+                // second rounding here would notch the joins.
+                .then(if (config.bool("flush")) Modifier else Modifier.clip(RoundedCornerShape(18.dp)))
+                // Flush inside a stack, any letterbox margin shows the card's
+                // own fill, so it reads as spacing rather than black bars.
+                .then(if (config.bool("flush")) Modifier else Modifier.background(Color(0xFF0E1116))),
+            contentAlignment = Alignment.Center,
         ) {
+            // Where the plan is actually drawn — every icon, radar dot and the
+            // vacuum below is laid out inside this rectangle, so their
+            // percentages are percentages of the IMAGE.
+            //
+            // This used to draw with ContentScale.Crop into whatever box the
+            // page handed it while placing the overlays as percentages of the
+            // BOX. Whenever the two shapes differed the picture was zoomed and
+            // cropped but the icons weren't, so they drifted off their rooms;
+            // and this plan runs edge to edge, so the crop cut off real rooms.
+            //
+            // Now: scale up to cover the box, but crop at most `max_crop` of the
+            // plan's width or height (default 12%, i.e. 6% a side — outer walls
+            // and window frames, not rooms). Past that it letterboxes instead.
+            val boxW = maxWidth
+            val boxH = if (maxHeight.value.isFinite()) maxHeight else maxWidth / aspect
+            val maxCrop = ((config.options["max_crop"] as? Number)?.toFloat() ?: 0.12f).coerceIn(0f, 0.5f)
+            val coverW = if (boxW / boxH > aspect) boxW else boxH * aspect
+            val w = minOf(coverW, if (boxW / boxH > aspect) boxH * aspect * (1 + maxCrop) else boxW * (1 + maxCrop))
+            val h = w / aspect
+
+            // Read out here: the vacuum dialog below, outside the image box,
+            // needs it too.
+            val vacuumOpts = config.options["vacuum"] as? Map<String, Any?>
+
+            // requiredSize, not size: when covering, the rectangle is LARGER
+            // than the box and must overflow it (centred, clipped by the card)
+            // rather than be squeezed back into it.
+            Box(Modifier.requiredSize(w, h)) {
             if (bitmap != null) {
                 Image(
                     bitmap = bitmap!!,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
+                    // The box already has the image's proportions.
+                    contentScale = ContentScale.FillBounds,
                 )
             }
 
-            val w = maxWidth
-            val h = maxHeight
             val iconBox = 40.dp
 
             elements.forEach { el ->
@@ -121,16 +159,30 @@ class PictureElementsCard : CardRenderer {
                 val service = el["service"] as? String
                 val isPower = (el["icon"] as? String) == "power"
 
-                val on = entityId?.let { ctx.entities[it]?.isOn == true } ?: false
+                val entity = entityId?.let { ctx.entities[it] }
+                val on = entity?.isOn == true
+                // A Zigbee light that dropped off the mesh used to render as a
+                // dark icon — identical to one deliberately turned off — so the
+                // floorplan actively misreported the state of the house.
+                val elUnavailable = entityId != null && (entity == null || entity.isUnavailable)
 
                 // Position using cheap Modifier.offset instead of expensive layout padding
                 val x = w * (leftPct / 100f) - iconBox / 2
                 val y = h * (topPct / 100f) - iconBox / 2
 
-                val bg = if (on) Color(0x66FFC24B) else Color(0x33000000)
-                val tint = if (on) Color(0xFFFFD37A) else Color(0xFFE8ECF2)
+                val bg = when {
+                    elUnavailable -> Color(0x44803030)
+                    on -> Color(0x66FFC24B)
+                    else -> Color(0x33000000)
+                }
+                val tint = when {
+                    elUnavailable -> Color(0xFFC98A8A)
+                    on -> Color(0xFFFFD37A)
+                    else -> Color(0xFFE8ECF2)
+                }
                 val icon = when {
                     isPower -> Icons.Filled.PowerSettingsNew
+                    elUnavailable -> Icons.Filled.HelpOutline
                     on -> Icons.Filled.Lightbulb
                     else -> Icons.Outlined.Lightbulb
                 }
@@ -182,10 +234,10 @@ class PictureElementsCard : CardRenderer {
             radarList.forEach { RadarDots(it, ctx, w, h) }
 
             // Vacuum overlay: a robot-vacuum icon at its current room (or dock).
-            val vacuumOpts = config.options["vacuum"] as? Map<String, Any?>
             if (vacuumOpts != null) {
                 VacuumOverlay(vacuumOpts, ctx, w, h) { showVacuumDialog = true }
             }
+            } // image rectangle
 
             detailEntity?.let { id ->
                 LightDetailDialog(
@@ -249,7 +301,7 @@ class PictureElementsCard : CardRenderer {
         Box(
             modifier = Modifier
                 .offset(x = x, y = y)
-                .clickable(onClick = onOpen),
+                .tap(onClick = onOpen),
         ) {
             RoboVacIcon(vac = vac, docked = docked, moving = active)
         }

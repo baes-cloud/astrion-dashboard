@@ -17,6 +17,15 @@ data class AppConfig(
     /** Long-press (~500ms hold) button bindings — same shape as hotkeys. */
     val longHotkeys: List<HotkeyConfig> = emptyList(),
     /**
+     * Double-tap bindings — same shape again.
+     *
+     * A key listed here pays for it: its SHORT action can no longer fire on
+     * release, because there is no way to know a second tap isn't coming until
+     * the double-tap window has passed. Only bind keys where that delay is
+     * worth the extra action; everything else stays instant.
+     */
+    val doubleHotkeys: List<HotkeyConfig> = emptyList(),
+    /**
      * Top-level feature blocks that aren't tied to a single page or button —
      * currently `ir_mode` (Samsung IR codes + popup buttons) and `voice`
      * (Assist pipeline id, artwork folder). Free-form so new features can be
@@ -46,4 +55,10 @@ data class HotkeyConfig(
     val service: String? = null,
     val entityId: String? = null,
     val data: Map<String, Any?> = emptyMap(),
+    /**
+     * Extra actions fired straight after this one, so a single button can do
+     * several things (e.g. mute the TV *and* toggle the speaker's mute).
+     * Same shape as a hotkey minus the key/page.
+     */
+    val then: List<HotkeyConfig> = emptyList(),
 )

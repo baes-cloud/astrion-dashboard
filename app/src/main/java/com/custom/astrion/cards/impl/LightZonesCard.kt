@@ -24,6 +24,8 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.tap
 
 /**
  * Lights grouped into titled zones. Each light renders as the full-width
@@ -84,19 +86,27 @@ class LightZonesCard : CardRenderer {
         }
     }
 
+    /**
+     * Zone master switch — turns a whole room's lights on or off.
+     *
+     * Was 44×26dp, which made the highest-consequence control on the page the
+     * second-smallest thing on it. At 220dpi, 26dp is about 5.8mm against a
+     * thumb contact patch of 9–11mm, on a screen used one-handed without
+     * aiming. Now 52×32dp.
+     */
     @Composable
     private fun ZoneToggle(on: Boolean, onClick: () -> Unit) {
         Box(
             modifier = Modifier
-                .size(width = 44.dp, height = 26.dp)
-                .clip(RoundedCornerShape(13.dp))
-                .background(if (on) Color(0xFF6EA8FE) else Color(0xFF2C4D59))
-                .clickable(onClick = onClick),
+                .size(width = 52.dp, height = 32.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (on) AstrionTheme.accent else AstrionTheme.controlBg)
+                .tap(onClick = onClick),
         ) {
             Box(
                 modifier = Modifier
-                    .padding(start = if (on) 20.dp else 2.dp, top = 2.dp)
-                    .size(22.dp)
+                    .padding(start = if (on) 24.dp else 3.dp, top = 3.dp)
+                    .size(26.dp)
                     .clip(CircleShape)
                     .background(Color(0xFFF2F7F8)),
             )

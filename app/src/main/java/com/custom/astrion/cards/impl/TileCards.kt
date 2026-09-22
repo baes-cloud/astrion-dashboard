@@ -1,7 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Whatshot
+import androidx.compose.material.icons.outlined.Blinds
 import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Text
@@ -23,12 +24,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.UnavailableLabel
+import com.custom.astrion.ui.dimIfUnavailable
+import com.custom.astrion.ui.humanise
+import com.custom.astrion.ui.tap
 
 /**
  * Cover / curtain card: open / stop / close buttons plus a position readout.
@@ -45,19 +52,36 @@ class CoverCard : CardRenderer {
         val entityId = config.string("entity_id") ?: return
         val e = ctx.entities[entityId]
         val name = config.string("name") ?: e?.friendlyName ?: entityId
-        val position = e?.attrInt("current_position") // 0..100
-        val stateLabel = position?.let { "$it% open" } ?: (e?.state ?: "—")
+        val unavailable = e == null || e.isUnavailable
+        val live = !unavailable && ctx.connected
+        // Some blinds are wired backwards: they report 100 when shut, and/or
+        // their open/close motors run the other way. Fixed per-entity in
+        // config, because it varies by blind — not a house-wide convention.
+        val invertPosition = config.bool("invert_position", false)
+        val invertButtons = config.bool("invert_buttons", false)
+
+        val rawPosition = e?.attrInt("current_position") // as HA reports it
+        val position = rawPosition?.let { if (invertPosition) 100 - it else it }
+        // This card had no on/off encoding at all — open and closed looked
+        // identical. Open is now carried by both the glyph and its tint.
+        val open = when {
+            position != null -> position > 0
+            else -> (e?.state == "open") != invertPosition
+        }
+        val stateLabel = position?.let { "$it% open" } ?: (e?.state?.humanise() ?: "—")
 
         fun call(service: String) {
             ctx.client.callService(ServiceCall(domain = "cover", service = service, entityId = entityId))
         }
+        val openService = if (invertButtons) "close_cover" else "open_cover"
+        val closeService = if (invertButtons) "open_cover" else "close_cover"
 
-        // Mushroom horizontal: icon + name/state on the left, controls on the right.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1E3841))
+                .background(AstrionTheme.cardBgAlt)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -65,26 +89,40 @@ class CoverCard : CardRenderer {
                 modifier = Modifier
                     .size(42.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF2A4954)),
+                    .background(AstrionTheme.raised),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Blinds, contentDescription = null, tint = Color(0xFFB6C9CE))
+                Icon(
+                    if (open) Icons.Filled.Blinds else Icons.Outlined.Blinds,
+                    contentDescription = if (open) "$name, open" else "$name, closed",
+                    tint = when {
+                        unavailable -> AstrionTheme.unavailable
+                        open -> AstrionTheme.on
+                        else -> Color(0xFFB6C9CE)
+                    },
+                )
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     name,
-                    color = Color(0xFFE6F0F1),
+                    color = AstrionTheme.textPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
+                    // Was maxLines=1 with no overflow, so a long name simply clipped.
+                    overflow = TextOverflow.Ellipsis,
                 )
-                Text(stateLabel, color = Color(0xFF93AFB6), fontSize = 13.sp)
+                if (unavailable) {
+                    UnavailableLabel(13.sp)
+                } else {
+                    Text(stateLabel, color = AstrionTheme.textSecondary, fontSize = 13.sp)
+                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CircleBtn(Icons.Filled.KeyboardArrowUp) { call("open_cover") }
-                CircleBtn(Icons.Filled.Stop) { call("stop_cover") }
-                CircleBtn(Icons.Filled.KeyboardArrowDown) { call("close_cover") }
+                CircleBtn(Icons.Filled.KeyboardArrowUp, "Open $name", live) { call(openService) }
+                CircleBtn(Icons.Filled.Stop, "Stop $name", live) { call("stop_cover") }
+                CircleBtn(Icons.Filled.KeyboardArrowDown, "Close $name", live) { call(closeService) }
             }
         }
     }
@@ -106,6 +144,8 @@ class FanCard : CardRenderer {
         val e = ctx.entities[entityId]
         val name = config.string("name") ?: e?.friendlyName ?: entityId
         val on = e?.isOn == true
+        val unavailable = e == null || e.isUnavailable
+        val live = !unavailable && ctx.connected
         val pct = e?.attrInt("percentage") ?: 0
         val step = config.int("step", 20).coerceAtLeast(1)
 
@@ -118,22 +158,33 @@ class FanCard : CardRenderer {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(18.dp))
-                .background(if (on) Color(0xFF2B3A67) else Color(0xFF1E3841))
+                .background(if (on) Color(0xFF2B3A67) else AstrionTheme.cardBgAlt)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .clickable { ctx.client.toggle(entityId) }
+                    .tap(enabled = live) { ctx.client.toggle(entityId) }
             ) {
-                Text(name, color = Color(0xFFE6F0F1), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                Text(if (on) "$pct%" else "Off", color = Color(0xFF93AFB6), fontSize = 13.sp)
+                Text(
+                    name, color = AstrionTheme.textPrimary, fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    // Previously had neither maxLines nor overflow, so a long
+                    // name wrapped and reflowed the whole row.
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                if (unavailable) {
+                    UnavailableLabel(13.sp)
+                } else {
+                    Text(if (on) "$pct%" else "Off", color = AstrionTheme.textSecondary, fontSize = 13.sp)
+                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CircleBtn(Icons.Filled.KeyboardArrowDown) { setPct(pct - step) }
-                CircleBtn(Icons.Filled.KeyboardArrowUp) { setPct(pct + step) }
+                CircleBtn(Icons.Filled.KeyboardArrowDown, "$name slower", live) { setPct(pct - step) }
+                CircleBtn(Icons.Filled.KeyboardArrowUp, "$name faster", live) { setPct(pct + step) }
             }
         }
     }
@@ -153,6 +204,8 @@ class SwitchCard : CardRenderer {
         val e = ctx.entities[entityId]
         val name = config.string("name") ?: e?.friendlyName ?: entityId
         val on = e?.isOn == true
+        val unavailable = e == null || e.isUnavailable
+        val live = !unavailable && ctx.connected
         val icon = switchIcon(config.string("icon"))
         // On-state background (e.g. a semi-transparent dark red for a heater).
         val onColor = parseColor(config.options["on_color"]) ?: Color(0xFF2E5A46)
@@ -160,9 +213,10 @@ class SwitchCard : CardRenderer {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(18.dp))
-                .background(if (on) onColor else Color(0xFF1E3841))
-                .clickable { ctx.client.toggle(entityId) }
+                .background(if (on) onColor else AstrionTheme.cardBgAlt)
+                .tap(enabled = live) { ctx.client.toggle(entityId) }
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -171,15 +225,31 @@ class SwitchCard : CardRenderer {
                 modifier = Modifier
                     .size(42.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF2A4954)),
+                    .background(AstrionTheme.raised),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(icon, contentDescription = null, tint = if (on) Color(0xFFE79A9A) else Color(0xFFB6C9CE))
+                Icon(
+                    icon,
+                    contentDescription = if (on) "$name, on" else "$name, off",
+                    tint = when {
+                        unavailable -> AstrionTheme.unavailable
+                        on -> Color(0xFFE79A9A)
+                        else -> Color(0xFFB6C9CE)
+                    },
+                )
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(name, color = Color(0xFFE6F0F1), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Text(if (on) "On" else "Off", color = Color(0xFF93AFB6), fontSize = 13.sp)
+                Text(
+                    name, color = AstrionTheme.textPrimary, fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                if (unavailable) {
+                    UnavailableLabel(13.sp)
+                } else {
+                    Text(if (on) "On" else "Off", color = AstrionTheme.textSecondary, fontSize = 13.sp)
+                }
             }
         }
     }
@@ -203,17 +273,19 @@ private fun parseColor(v: Any?): Color? = when (v) {
 /** Shared small circular icon button used by the tile cards above. */
 @Composable
 private fun CircleBtn(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
+    description: String? = null,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
             .size(44.dp)
             .clip(CircleShape)
-            .background(Color(0xFF2C4C58))
-            .clickable(onClick = onClick),
+            .background(AstrionTheme.controlBg)
+            .tap(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = Color(0xFFCBDCE0))
+        Icon(icon, contentDescription = description, tint = AstrionTheme.textOnControl)
     }
 }
