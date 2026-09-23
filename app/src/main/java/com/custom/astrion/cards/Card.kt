@@ -44,22 +44,17 @@ data class CardConfig(
 }
 
 /**
- * Context handed to every card render. Gives the card read access to live
- * entity states and the ability to fire service calls back to HA.
+ * Context handed to every card render: live entity state, the connection
+ * state, and the client to fire service calls with.
  *
- * Holds the entity map as a [State] rather than as a plain `Map`, which matters
- * more than it looks. A `Map` is unstable to Compose regardless of annotation,
- * and this object used to be rebuilt on every recomposition — so a single
- * `state_changed` from anywhere in HA recomposed every card on every page,
- * including the three pages you cannot see (HorizontalPager keeps neighbours
- * composed). The Main page carries a floorplan with 11 light icons and three
- * radar blocks × 3 targets = 18 position sensors updating continuously as
- * people move through the room, so that was a full-tree recomposition on a
- * high-frequency event stream, on a 1GB MT6580.
+ * Read entities with [entity]. It reads that entity's own observable cell in
+ * [HaClient], so the calling composable recomposes when THAT entity changes
+ * and never because some other entity in the house did. (The previous
+ * version read one whole-map State — on Main that meant six cards
+ * recomposing up to ~8×/s whenever any sensor anywhere updated.)
  *
- * Reading `ctx.entities` (or [entity]) inside a composable now subscribes only
- * that scope to the snapshot, which is what the deliberately-extracted
- * `RadarDot` in PictureElementsCard already assumed was happening.
+ * [entities] is still the whole map, for the rare reader that genuinely needs
+ * it; reading it subscribes to every change, so don't use it in a card.
  */
 @Stable
 class CardContext(
@@ -67,19 +62,21 @@ class CardContext(
     val client: HaClient,
     private val connectionState: State<ConnectionState>,
 ) {
-    /** Live entity map. Reading this inside a composable scopes recomposition to it. */
+    /** Whole-map snapshot. Subscribes to EVERY entity change — avoid in cards. */
     val entities: EntityMap get() = entitiesState.value
 
-    /** Single-entity read — narrower subscription than pulling the whole map. */
-    fun entity(id: String): EntityState? = entitiesState.value[id]
+    /** One entity, subscribing the caller to that entity only. */
+    fun entity(id: String): EntityState? = client.cell(id).value
 
     /**
      * False when the websocket is down. A dead socket is just "everything is
-     * unavailable at once", so cards gate their taps on this with the same
-     * treatment they use for a single unavailable entity, rather than looking
-     * fully live and firing calls into the void.
+     * unavailable at once", so cards gate (and visibly dim) their controls on
+     * this exactly as they do for a single unavailable entity.
      */
     val connected: Boolean get() = connectionState.value == ConnectionState.CONNECTED
+
+    /** True when [id] is missing, `unavailable` or `unknown`. */
+    fun isUnavailable(id: String): Boolean = entity(id)?.isUnavailable ?: true
 }
 
 /**

@@ -1,14 +1,20 @@
 package com.custom.astrion.ha
 
-import android.graphics.BitmapFactory
 import android.util.Log
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
+import com.custom.astrion.ui.ImageCache
+import com.custom.astrion.ui.decodeSampledBytes
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -23,7 +29,24 @@ import okhttp3.WebSocketListener
 import okio.ByteString.Companion.toByteString
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+
+/** What happened to a service call. */
+enum class CallOutcome {
+    /** HA answered `success: true`. */
+    OK,
+    /** HA answered `success: false` (bad service, bad data, entity refused). */
+    FAILED,
+    /** Never left the device: socket down or send() refused. */
+    NOT_SENT,
+    /**
+     * No answer inside the timeout. Not treated as a failure: HA only answers
+     * a directly-called script once the script has finished, which can take
+     * longer than any sensible UI timeout.
+     */
+    NO_REPLY,
+}
 
 /**
  * Minimal, dependency-light Home Assistant WebSocket client.
@@ -54,6 +77,8 @@ class HaClient(
         private const val TAG = "HaClient"
         private const val PING_INTERVAL_MS = 30_000L
         private const val PUBLISH_INTERVAL_MS = 120L
+        private const val CALL_TIMEOUT_MS = 12_000L
+        private const val ALIVE_TIMEOUT_MS = 3_000L
     }
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -96,6 +121,34 @@ class HaClient(
     @Volatile private var entitiesDirty = false
     @Volatile private var publisherStarted = false
 
+    /**
+     * Per-entity observable cells. Reading one entity through [cell] (which
+     * is what `CardContext.entity` does) subscribes that composable to THAT
+     * entity only, so a radar target moving no longer recomposes the lock
+     * card, the weather and the header. Created lazily on first read; the
+     * publisher writes only the ids that actually changed.
+     */
+    private val cells = ConcurrentHashMap<String, MutableState<EntityState?>>()
+    private val dirtyIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    private val _errors = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    /**
+     * Human-readable failures of service calls (refused, or not sent). The
+     * UI shows these in the feedback strip so no action fails silently.
+     */
+    val errors: SharedFlow<String> = _errors.asSharedFlow()
+
+    private val reconnectScheduled = AtomicBoolean(false)
+
+    /**
+     * Bumped on every connect / disconnect / forced reconnect. Each socket's
+     * listener remembers the generation it was created for and ignores its
+     * own callbacks once superseded — so a dead socket's late onFailure can't
+     * knock a fresh connection back to ERROR. (A generation, not a socket
+     * identity check, because onOpen can race the `socket =` assignment.)
+     */
+    @Volatile private var generation = 0
+
     // ---- public API ---------------------------------------------------------
 
     fun connect() {
@@ -103,22 +156,57 @@ class HaClient(
         val wsUrl = toWebSocketUrl(baseUrl)
         Log.i(TAG, "Connecting to $wsUrl")
         val req = Request.Builder().url(wsUrl).build()
-        socket = http.newWebSocket(req, listener)
+        val gen = ++generation
+        socket = http.newWebSocket(req, Listener(gen))
     }
 
     fun disconnect() {
+        generation++
         socket?.close(1000, "client closing")
         socket = null
         _connection.value = ConnectionState.DISCONNECTED
     }
 
-    /** Fire a HA service call, e.g. light.toggle on light.kitchen. */
+    /** Observable state of ONE entity. See [cells]. */
+    fun cell(entityId: String): State<EntityState?> =
+        cells.getOrPut(entityId) { mutableStateOf(entityStore[entityId]) }
+
+    /** Current state of one entity, without subscribing anything. */
+    fun peek(entityId: String): EntityState? = entityStore[entityId]
+
+    /**
+     * Fire a HA service call, e.g. light.toggle on light.kitchen. Sent
+     * synchronously (so rapid presses keep their order); the reply is watched
+     * in the background and a refusal is reported on [errors].
+     */
     fun callService(call: ServiceCall) {
+        val (id, waiter) = dispatch(call) ?: return
+        scope.launch { report(call, awaitReply(id, waiter)) }
+    }
+
+    /** Fire a call and suspend until HA answers (or [CALL_TIMEOUT_MS]). */
+    suspend fun callAwait(call: ServiceCall): CallOutcome {
+        val (id, waiter) = dispatch(call) ?: return CallOutcome.NOT_SENT
+        val outcome = awaitReply(id, waiter)
+        report(call, outcome)
+        return outcome
+    }
+
+    /** Send one call_service; null (already reported) if it couldn't be sent. */
+    private fun dispatch(call: ServiceCall): Pair<Int, CompletableDeferred<JsonObject>>? {
+        val sock = socket
+        if (sock == null || _connection.value != ConnectionState.CONNECTED) {
+            report(call, CallOutcome.NOT_SENT)
+            return null
+        }
+        val id = idCounter.getAndIncrement()
+        val waiter = CompletableDeferred<JsonObject>()
+        pending[id] = waiter
         val target = buildJsonObject {
             call.entityId?.let { put("entity_id", it) }
         }
         val msg = buildJsonObject {
-            put("id", idCounter.getAndIncrement())
+            put("id", id)
             put("type", "call_service")
             put("domain", call.domain)
             put("service", call.service)
@@ -127,7 +215,75 @@ class HaClient(
             }
             put("target", target)
         }
-        send(msg)
+        if (!sock.send(msg.toString())) {
+            pending.remove(id)
+            report(call, CallOutcome.NOT_SENT)
+            return null
+        }
+        return id to waiter
+    }
+
+    private suspend fun awaitReply(id: Int, waiter: CompletableDeferred<JsonObject>): CallOutcome {
+        val reply = withTimeoutOrNull(CALL_TIMEOUT_MS) { waiter.await() }
+        pending.remove(id)
+        if (reply == null) return CallOutcome.NO_REPLY
+        if (reply["success"]?.jsonPrimitive?.booleanOrNull == false) {
+            failMessage = (reply["error"] as? JsonObject)?.get("message")?.jsonPrimitive?.contentOrNull
+            return CallOutcome.FAILED
+        }
+        return CallOutcome.OK
+    }
+
+    // Last refusal text, handed from [await] to [report]. Racy only in the
+    // wording of simultaneous failures, never in whether one is reported.
+    @Volatile private var failMessage: String? = null
+
+    private fun report(call: ServiceCall, outcome: CallOutcome) {
+        val what = describe(call)
+        val text = when (outcome) {
+            CallOutcome.OK, CallOutcome.NO_REPLY -> return
+            CallOutcome.NOT_SENT -> "Not connected — $what wasn't sent"
+            CallOutcome.FAILED -> "Home Assistant refused $what" +
+                (failMessage?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: "")
+        }
+        Log.w(TAG, text)
+        _errors.tryEmit(text)
+    }
+
+    /** "Kitchen (light.toggle)" — friendly enough for a one-line strip. */
+    private fun describe(call: ServiceCall): String {
+        val name = call.entityId?.let { entityStore[it]?.friendlyName }
+        val svc = "${call.domain}.${call.service}"
+        return if (name != null) "$name ($svc)" else svc
+    }
+
+    /**
+     * Cheap liveness check for the wake path. After the screen has slept the
+     * WiFi may have dropped while the socket still claims CONNECTED; a ping
+     * with a short timeout finds out, and forces a reconnect if it's dead.
+     */
+    suspend fun ensureAlive() {
+        if (_connection.value != ConnectionState.CONNECTED) return
+        val sock = socket ?: return
+        val id = idCounter.getAndIncrement()
+        val waiter = CompletableDeferred<JsonObject>()
+        pending[id] = waiter
+        val sent = sock.send(buildJsonObject { put("id", id); put("type", "ping") }.toString())
+        val pong = if (sent) withTimeoutOrNull(ALIVE_TIMEOUT_MS) { waiter.await() } else null
+        pending.remove(id)
+        if (pong == null) {
+            Log.w(TAG, "Socket looked alive but didn't answer a ping — reconnecting")
+            forceReconnect()
+        }
+    }
+
+    private fun forceReconnect() {
+        val old = socket
+        generation++ // the old socket's callbacks are ignored from here on
+        socket = null
+        old?.cancel()
+        _connection.value = ConnectionState.ERROR
+        scheduleReconnect()
     }
 
     /** Convenience helper mirroring the common toggle pattern. */
@@ -141,14 +297,19 @@ class HaClient(
      * `path` may be absolute or an HA-relative path like /api/media_player_proxy/…;
      * the bearer token is attached so proxied/authenticated art loads too.
      */
-    suspend fun fetchBitmap(path: String): ImageBitmap? = withContext(Dispatchers.IO) {
+    suspend fun fetchBitmap(path: String, targetPx: Int = 0): ImageBitmap? = withContext(Dispatchers.IO) {
         try {
-            val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
+            val url = authedUrl(path)
+            val key = ImageCache.remoteKey(url, targetPx)
+            ImageCache.get(key)?.let { return@withContext it }
             val req = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
             imageHttp.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@withContext null
                 val bytes = resp.body?.bytes() ?: return@withContext null
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                // Downsampled to the size it's drawn at (album art was being
+                // decoded at 640×640 ARGB = 1.6 MB for an 85dp tile) and
+                // cached, so scrolling a shelf back doesn't refetch.
+                decodeSampledBytes(bytes, targetPx)?.also { ImageCache.put(key, it) }
             }
         } catch (e: Exception) {
             Log.w(TAG, "fetchBitmap failed for $path", e)
@@ -264,17 +425,20 @@ class HaClient(
 
     // ---- internals ----------------------------------------------------------
 
-    private val listener = object : WebSocketListener() {
+    private inner class Listener(private val gen: Int) : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
+            if (gen != generation) return
             Log.i(TAG, "Socket open, waiting for auth_required")
             _connection.value = ConnectionState.AUTHENTICATING
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
+            // A replaced socket's late messages must not touch the new state.
+            if (gen != generation) return
             try {
                 val obj = json.parseToJsonElement(text).jsonObject
                 when (obj["type"]?.jsonPrimitive?.content) {
-                    "auth_required" -> sendAuth()
+                    "auth_required" -> sendAuth(webSocket)
                     "auth_ok" -> onAuthOk()
                     "auth_invalid" -> _connection.value = ConnectionState.AUTH_FAILED
                     "result" -> {
@@ -285,7 +449,11 @@ class HaClient(
                         if (waiter != null) waiter.complete(obj) else onResult(obj)
                     }
                     "event" -> onEvent(obj)
-                    "pong" -> { /* heartbeat ok */ }
+                    "pong" -> {
+                        // Heartbeat, or an ensureAlive() probe waiting on its id.
+                        val id = obj["id"]?.jsonPrimitive?.intOrNull
+                        id?.let { pending.remove(it) }?.complete(obj)
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "onMessage parse error", e)
@@ -293,24 +461,32 @@ class HaClient(
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            if (gen != generation) return
             Log.e(TAG, "Socket failure", t)
             _connection.value = ConnectionState.ERROR
             scheduleReconnect()
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            if (gen != generation) return
             Log.w(TAG, "Socket closed $code $reason")
-            if (_connection.value != ConnectionState.DISCONNECTED) scheduleReconnect()
+            // A server-side close used to leave the state at CONNECTED, and
+            // scheduleReconnect only reconnects from ERROR — so it never came
+            // back. Mark it an error so the retry actually happens.
+            if (_connection.value != ConnectionState.DISCONNECTED) {
+                _connection.value = ConnectionState.ERROR
+                scheduleReconnect()
+            }
         }
     }
 
-    private fun sendAuth() {
+    private fun sendAuth(webSocket: WebSocket) {
         val msg = buildJsonObject {
             put("type", "auth")
             put("access_token", token)
         }
         // NOTE: auth message must NOT include an id (HA rejects it otherwise).
-        socket?.send(msg.toString())
+        webSocket.send(msg.toString())
     }
 
     private fun onAuthOk() {
@@ -331,7 +507,14 @@ class HaClient(
                 kotlinx.coroutines.delay(PUBLISH_INTERVAL_MS)
                 if (entitiesDirty) {
                     entitiesDirty = false
+                    val changed = ArrayList<String>()
+                    val it = dirtyIds.iterator()
+                    while (it.hasNext()) {
+                        changed.add(it.next())
+                        it.remove()
+                    }
                     _entities.value = HashMap(entityStore)
+                    publishCells(changed)
                 }
             }
         }
@@ -383,6 +566,18 @@ class HaClient(
         }
         // Seed is important — publish immediately so the first frame has data.
         _entities.value = HashMap(entityStore)
+        publishCells(ArrayList(cells.keys))
+    }
+
+    /** Push changed entities into their cells, on the main thread. */
+    private fun publishCells(ids: List<String>) {
+        if (ids.isEmpty()) return
+        scope.launch(Dispatchers.Main) {
+            for (id in ids) {
+                val c = cells[id] ?: continue
+                c.value = entityStore[id]
+            }
+        }
     }
 
     /** state_changed events carry event.data.new_state. */
@@ -404,6 +599,7 @@ class HaClient(
             lastChanged = newState["last_changed"]?.jsonPrimitive?.content,
             lastUpdated = newState["last_updated"]?.jsonPrimitive?.content,
         )
+        dirtyIds.add(entityId)
         entitiesDirty = true // published by the coalescing publisher loop
     }
 
@@ -412,8 +608,11 @@ class HaClient(
     }
 
     private fun scheduleReconnect() {
+        // One pending retry at a time: a failure and a close can both land.
+        if (!reconnectScheduled.compareAndSet(false, true)) return
         scope.launch {
             kotlinx.coroutines.delay(3_000)
+            reconnectScheduled.set(false)
             if (_connection.value == ConnectionState.ERROR) connect()
         }
     }
