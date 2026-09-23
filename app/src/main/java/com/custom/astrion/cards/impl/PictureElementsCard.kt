@@ -312,7 +312,7 @@ class PictureElementsCard : CardRenderer {
                         .align(Alignment.TopCenter)
                         .fillMaxWidth()
                         .height(vac * 0.5f)
-                        .clip(RoundedCornerShape(5.dp))
+                        .clip(RoundedCornerShape(Radius.small))
                         .background(AstrionTheme.vacDock),
                 )
                 VacBody(vac * 0.92f, Modifier.align(Alignment.BottomCenter))

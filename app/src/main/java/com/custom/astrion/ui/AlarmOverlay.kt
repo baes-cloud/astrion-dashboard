@@ -165,7 +165,7 @@ fun AlarmOverlay(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(30.dp))
+                .clip(RoundedCornerShape(Radius.sheet))
                 .background(Brush.verticalGradient(listOf(NavyTop, NavyMid, NavyBottom)))
                 // The dawn: a soft pool of warm light behind the clock.
                 .drawBehind {
@@ -398,9 +398,9 @@ private fun PillButton(
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
-            .clip(RoundedCornerShape(32.dp))
+            .clip(RoundedCornerShape(percent = 50))
             .background(brush)
-            .border(1.dp, glowColor, RoundedCornerShape(32.dp))
+            .border(1.dp, glowColor, RoundedCornerShape(percent = 50))
             .tap(onClick = onClick),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
@@ -436,9 +436,9 @@ private fun HoldToStop(onDismiss: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .clip(RoundedCornerShape(32.dp))
+                .clip(RoundedCornerShape(percent = 50))
                 .background(Wine)
-                .border(1.dp, WineHi, RoundedCornerShape(32.dp))
+                .border(1.dp, WineHi, RoundedCornerShape(percent = 50))
                 .pointerInput(Unit) {
                     detectTapGestures(onPress = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)

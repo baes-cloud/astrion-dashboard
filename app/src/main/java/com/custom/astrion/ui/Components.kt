@@ -235,7 +235,7 @@ fun AstrionSwitch(
         Box(
             modifier = Modifier
                 .size(width = 52.dp, height = 30.dp)
-                .clip(RoundedCornerShape(15.dp))
+                .clip(RoundedCornerShape(percent = 50))
                 .background(if (on) AstrionTheme.on else AstrionTheme.controlBg),
             contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
         ) {

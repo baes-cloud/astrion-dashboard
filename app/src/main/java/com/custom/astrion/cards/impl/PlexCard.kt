@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -335,7 +336,7 @@ class PlexCard : CardRenderer {
                         modifier = Modifier
                             .align(Alignment.BottomStart)
                             .padding(Space.xs)
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(Radius.small))
                             .background(AstrionTheme.pinnedTopBg)
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                     )
@@ -345,7 +346,7 @@ class PlexCard : CardRenderer {
                         Modifier
                             .align(Alignment.Center)
                             .size(44.dp)
-                            .clip(RoundedCornerShape(22.dp))
+                            .clip(CircleShape)
                             .background(AstrionTheme.pinnedTopBg),
                         contentAlignment = Alignment.Center,
                     ) { PendingSpinner(size = 24.dp) }

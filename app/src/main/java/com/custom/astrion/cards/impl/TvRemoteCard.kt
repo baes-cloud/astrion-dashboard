@@ -194,7 +194,7 @@ class TvRemoteCard : CardRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(188.dp)
-                .clip(RoundedCornerShape(94.dp))
+                .clip(RoundedCornerShape(percent = 50))
                 .background(AstrionTheme.controlSunken),
             contentAlignment = Alignment.Center,
         ) {

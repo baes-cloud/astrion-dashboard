@@ -119,7 +119,7 @@ class BubbleLightCard : CardRenderer {
 
         val commitNow by rememberUpdatedState(::commit)
         val toggleNow by rememberUpdatedState(::toggle)
-        val shape = RoundedCornerShape(32.dp)
+        val shape = RoundedCornerShape(percent = 50)
 
         BoxWithConstraints(
             modifier = Modifier

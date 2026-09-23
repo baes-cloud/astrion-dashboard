@@ -508,10 +508,10 @@ class HaClient(
                 if (entitiesDirty) {
                     entitiesDirty = false
                     val changed = ArrayList<String>()
-                    val it = dirtyIds.iterator()
-                    while (it.hasNext()) {
-                        changed.add(it.next())
-                        it.remove()
+                    val iter = dirtyIds.iterator()
+                    while (iter.hasNext()) {
+                        changed.add(iter.next())
+                        iter.remove()
                     }
                     _entities.value = HashMap(entityStore)
                     publishCells(changed)

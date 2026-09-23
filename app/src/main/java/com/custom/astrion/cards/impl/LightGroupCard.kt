@@ -236,7 +236,7 @@ class LightGroupCard : CardRenderer {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(12.dp)
-                        .clip(RoundedCornerShape(6.dp))
+                        .clip(RoundedCornerShape(percent = 50))
                         .background(AstrionTheme.trackBg),
                 ) {
                     if (on) {
