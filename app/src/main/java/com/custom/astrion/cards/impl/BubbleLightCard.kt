@@ -284,12 +284,11 @@ class BubbleLightCard : CardRenderer {
         }
 
         if (showDetail) {
-            LightDetailDialog(
-                entityId = entityId,
-                e = e,
-                client = ctx.client,
-                onClose = { showDetail = false },
-            )
+            val overlay = com.custom.astrion.ui.LocalOverlay.current
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                overlay.show { LightDetailSheet(entityId, ctx, onClose = { overlay.dismiss() }) }
+                showDetail = false
+            }
         }
     }
 }

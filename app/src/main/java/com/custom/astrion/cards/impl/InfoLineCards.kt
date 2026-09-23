@@ -1,29 +1,27 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.material.icons.filled.Alarm
-import com.custom.astrion.ui.tap
-import com.custom.astrion.ha.ServiceCall
-import androidx.compose.foundation.layout.Box
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.filled.VolumeOff
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.AlarmOff
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,24 +35,36 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ha.EntityState
+import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.AstrionType
+import com.custom.astrion.ui.PendingSpinner
+import com.custom.astrion.ui.Radius
+import com.custom.astrion.ui.Space
+import com.custom.astrion.ui.Touch
+import com.custom.astrion.ui.liveOrDim
+import com.custom.astrion.ui.rememberAction
+import com.custom.astrion.ui.rememberOptimistic
+import com.custom.astrion.ui.tap
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
- * The two one-line cards on Main: the next diary entry, and what's playing.
- *
- * Both are deliberately text only. They replace things that used to be bigger
- * — the diary line was buried inside the weather card, and now-playing was a
- * 54dp transport row — on a page whose whole job is to give the floorplan as
- * much of the screen as it can get. Play/pause is still on the hardware OK
- * button (held), so dropping the on-screen transport loses no function.
+ * The one-line cards on Main: the next diary entry, what's playing, and
+ * next-event / next-alarm.
  */
 
 /** One slim row: glyph, then a single line of text that ellipsises. */
@@ -71,34 +81,22 @@ private fun InfoLine(
             .fillMaxWidth()
             .then(
                 if (flush) Modifier
-                else Modifier.clip(RoundedCornerShape(14.dp)).background(AstrionTheme.cardBgAlt)
+                else Modifier.clip(RoundedCornerShape(Radius.control)).background(AstrionTheme.cardBg)
             )
-            // Tighter when joined into a stack: it is the card's footer there,
-            // and those 4dp go to the weather card's larger forecast text.
-            .padding(horizontal = 12.dp, vertical = if (flush) 5.dp else 7.dp),
+            .padding(horizontal = Space.m, vertical = if (flush) 5.dp else Space.s),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        horizontalArrangement = Arrangement.spacedBy(Space.s),
     ) {
-        Icon(icon, contentDescription = description, tint = tint, modifier = Modifier.size(14.dp))
-        Text(
-            text,
-            color = tint,
-            fontSize = AstrionTheme.label,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Icon(icon, contentDescription = description, tint = tint, modifier = Modifier.size(16.dp))
+        Text(text, style = AstrionType.label, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 /**
  * The next (or current) diary entry as its own card.
  *
- * Config shape:
- *   { "type": "calendar_line", "options": {
- *       "entity_id": "calendar.work",
- *       "title_separator": " - "     // trims a venue off the event title
- *   } }
+ * Config: { "type": "calendar_line", "options": {
+ *     "entity_id": "calendar.work", "title_separator": " - ", "flush": false } }
  */
 class CalendarLineCard : CardRenderer {
     override val type = "calendar_line"
@@ -106,9 +104,6 @@ class CalendarLineCard : CardRenderer {
     @Composable
     override fun Render(config: CardConfig, ctx: CardContext) {
         val entityId = config.string("entity_id") ?: return
-
-        // The label is relative ("Tomorrow 6:15 PM"), so it has to re-evaluate
-        // as the day turns, not just when the entity changes.
         var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
         LaunchedEffect(Unit) {
             while (true) {
@@ -116,7 +111,6 @@ class CalendarLineCard : CardRenderer {
                 now = System.currentTimeMillis()
             }
         }
-
         val line = nextCalendarEvent(ctx.entity(entityId), now, config.string("title_separator"))
             ?: return
         InfoLine(Icons.Filled.Event, line, AstrionTheme.accent, "Next diary entry", config.bool("flush"))
@@ -124,18 +118,21 @@ class CalendarLineCard : CardRenderer {
 }
 
 /**
- * What's playing, on one line.
+ * What's playing, on one line — with the play state visible (a paused track
+ * used to read "Now playing: …" exactly like a playing one).
  *
- * `tv_entities` exists for the same reason it does on the media card: when the
- * speakers are carrying the TV feed their own metadata is literally "TV", so
- * the title is borrowed from whichever TV entity actually has one.
+ * `tv_entities`: when the speakers carry the TV feed their own metadata is
+ * literally "TV", so the title is borrowed from whichever TV entity has one.
  *
- * Config shape:
- *   { "type": "now_playing", "options": {
- *       "entity_id": "media_player.club",
- *       "tv_entities": ["media_player.plex_...", "media_player.the_club_tv"],
- *       "prefix": "Now playing"
- *   } }
+ * `controls: true` makes the whole strip ONE 48dp target that mutes or
+ * unmutes the speaker AND every speaker grouped with it, to the same state.
+ * The mute badge updates optimistically, spins if HA is slow, and outlines
+ * red if the call fails.
+ *
+ * Config: { "type": "now_playing", "options": {
+ *     "entity_id": "media_player.club",
+ *     "tv_entities": ["media_player.plex_…", "media_player.the_club_tv"],
+ *     "prefix": "Now playing", "controls": true, "flush": false } }
  */
 class NowPlayingLineCard : CardRenderer {
     override val type = "now_playing"
@@ -146,16 +143,7 @@ class NowPlayingLineCard : CardRenderer {
         val prefix = config.string("prefix") ?: "Now playing"
         val e = ctx.entity(entityId)
 
-        val onTvSource = e?.attrString("source") == "TV" ||
-            e?.attrString("media_title") in listOf("TV", "TV Audio")
-        val tv = if (!onTvSource) null else config.stringList("tv_entities")
-            .mapNotNull { ctx.entity(it) }
-            .filterNot { it.isUnavailable }
-            .let { candidates ->
-                candidates.firstOrNull { !it.attrString("media_title").isNullOrBlank() }
-                    ?: candidates.firstOrNull { it.state == "playing" }
-            }
-
+        val tv = borrowTvEntity(e, config.stringList("tv_entities")) { ctx.entity(it) }
         val title = (tv ?: e)?.attrString("media_title")?.takeIf { it.isNotBlank() }
         val artist = if (tv != null) {
             tv.attrString("media_series_title") ?: tv.attrString("app_name")
@@ -163,106 +151,139 @@ class NowPlayingLineCard : CardRenderer {
             e?.attrString("media_artist") ?: e?.attrString("media_series_title")
         }?.takeIf { it.isNotBlank() }
 
-        // "TV" / "TV Audio" is the speaker's placeholder for "I am carrying
-        // the television's audio", not a thing that is playing. If no TV
-        // entity could supply a real title, say nothing is on rather than
-        // reporting the placeholder as the track.
         val placeholder = tv == null && title in listOf("TV", "TV Audio")
-        val idle = e == null || e.isUnavailable || title == null || placeholder
-        val text = if (idle) {
-            "$prefix: nothing"
-        } else {
-            "$prefix: " + listOfNotNull(title, artist).joinToString(" · ")
+        val unavailable = e == null || e.isUnavailable
+        val idle = unavailable || title == null || placeholder
+        val paused = e?.state == "paused"
+        val lead = when {
+            unavailable -> "Speaker unavailable"
+            idle -> "$prefix: nothing"
+            paused -> "Paused: "
+            else -> "$prefix: "
         }
-        val tint = if (idle) AstrionTheme.textMuted else AstrionTheme.textSecondary
+        val text = if (idle) lead else lead + listOfNotNull(title, artist).joinToString(" · ")
+        val tint = when {
+            unavailable -> AstrionTheme.unavailable
+            idle -> AstrionTheme.textSecondary
+            paused -> AstrionTheme.textSecondary
+            else -> AstrionTheme.textPrimary
+        }
+        val stateIcon = when {
+            idle -> Icons.Filled.MusicNote
+            paused -> Icons.Filled.Pause
+            else -> Icons.Filled.GraphicEq
+        }
+        val stateTint = when {
+            unavailable -> AstrionTheme.unavailable
+            idle || paused -> AstrionTheme.textSecondary
+            else -> AstrionTheme.good
+        }
+
         if (!config.bool("controls")) {
-            InfoLine(Icons.Filled.MusicNote, text, tint, "Now playing", config.bool("flush"))
+            InfoLine(stateIcon, text, stateTint, if (paused) "Paused" else "Now playing", config.bool("flush"))
             return
         }
 
-        // Thin mini-player: the whole strip is ONE target — tap anywhere on it
-        // to mute or unmute. The speaker icon on the right shows the state
-        // rather than being a separate, smaller button to aim for.
-        //
-        // Sonos mute is per speaker, so muting only the Club would leave
-        // anything grouped with it still playing. The tap sets the Club and
-        // every current group member to the SAME state — the opposite of the
-        // Club's — so they can't end up half muted.
-        val live = e != null && !e.isUnavailable && ctx.connected
-        val muted = e?.attrString("is_volume_muted") == "true"
+        val live = !unavailable && ctx.connected
+        val actualMuted = e?.attrString("is_volume_muted") == "true"
+        val mute = rememberOptimistic(actualMuted)
+        val muted = mute.show(actualMuted)
+        val action = rememberAction(ctx)
         val targets = (listOf(entityId) + (e?.attrStringList("group_members") ?: emptyList())).distinct()
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = Touch.min)
                 .then(
                     if (config.bool("flush")) Modifier
-                    else Modifier.clip(RoundedCornerShape(14.dp)).background(AstrionTheme.cardBgAlt)
+                    else Modifier.clip(RoundedCornerShape(Radius.control)).background(AstrionTheme.cardBg)
                 )
-                .tap(enabled = live) {
-                    targets.forEach { id ->
-                        ctx.client.callService(
-                            ServiceCall.of("media_player", "volume_mute", id, "is_volume_muted" to !muted)
-                        )
-                    }
+                .tap(enabled = live, onClickLabel = if (muted) "Unmute speakers" else "Mute speakers") {
+                    val want = !muted
+                    mute.set(want)
+                    action.run(
+                        *targets.map { id ->
+                            ServiceCall.of("media_player", "volume_mute", id, "is_volume_muted" to want)
+                        }.toTypedArray(),
+                        onFail = { mute.clear() },
+                    )
                 }
-                .padding(start = 12.dp, end = 5.dp, top = 3.dp, bottom = 3.dp),
+                .padding(start = Space.m, end = Space.xs),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            horizontalArrangement = Arrangement.spacedBy(Space.s),
         ) {
-            Icon(Icons.Filled.MusicNote, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+            Icon(stateIcon, contentDescription = null, tint = stateTint, modifier = Modifier.size(16.dp))
             Text(
                 text,
+                style = AstrionType.label,
                 color = tint,
-                fontSize = AstrionTheme.label,
-                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            MuteBadge(muted)
+            MuteBadge(muted, live, action.busy, action.failed)
         }
     }
 
-    /** 28dp round state badge: speaker on, or struck through in red when muted. */
+    /** 36dp round state badge: speaker on, or struck through in red when muted. */
     @Composable
-    private fun MuteBadge(muted: Boolean) {
+    private fun MuteBadge(muted: Boolean, live: Boolean, busy: Boolean, failed: Boolean) {
         Box(
             modifier = Modifier
-                .size(28.dp)
+                .size(36.dp)
+                .liveOrDim(live)
                 .clip(CircleShape)
-                .background(if (muted) AstrionTheme.dangerBg else AstrionTheme.controlBg),
+                .background(if (muted) AstrionTheme.dangerBg else AstrionTheme.controlBg)
+                .then(if (failed) Modifier.border(2.dp, AstrionTheme.danger, CircleShape) else Modifier)
+                .semantics { contentDescription = if (muted) "Muted" else "Sound on" },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                if (muted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
-                contentDescription = if (muted) "Muted — tap to unmute" else "Tap to mute",
-                tint = if (muted) AstrionTheme.danger else AstrionTheme.textOnControl,
-                modifier = Modifier.size(16.dp),
-            )
+            if (busy) {
+                PendingSpinner(size = 16.dp, color = AstrionTheme.textOnControl)
+            } else {
+                Icon(
+                    if (muted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                    contentDescription = null,
+                    tint = if (muted) AstrionTheme.danger else AstrionTheme.textOnControl,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
     }
 }
 
 /**
- * One row, two facts: the next diary entry on the left, the next alarm on the
- * right.
+ * When a speaker is carrying the TV ("TV" / "TV Audio"), the entity from
+ * [candidates] that actually describes what's on. Shared by the media cards.
+ */
+internal fun borrowTvEntity(
+    e: EntityState?,
+    candidates: List<String>,
+    lookup: (String) -> EntityState?,
+): EntityState? {
+    val onTvSource = e?.attrString("source") == "TV" ||
+        e?.attrString("media_title") in listOf("TV", "TV Audio")
+    if (!onTvSource) return null
+    val live = candidates.mapNotNull(lookup).filterNot { it.isUnavailable }
+    return live.firstOrNull { !it.attrString("media_title").isNullOrBlank() }
+        ?: live.firstOrNull { it.state == "playing" }
+}
+
+/**
+ * Two facts on one row: the next diary entry, and the next alarm.
  *
- *   📅 Next event: Tue 8:15 HQ          ⏰ Next alarm: 7:05 Tue
+ *   📅 Next event: Tue 8:15am HQ          ⏰ Next alarm: Tue 7:05am
  *
- * The alarm is the earliest one still to come across `alarm_entities`
- * (timestamp sensors). It honours the same switches Home Assistant does:
- * everything is "off" while `enabled_entity` is off, and while
- * `off_today_entity` is on, today's alarms are skipped — except those listed
- * in `always_entities` (the WFH alarm, which "stop for today" never cancels).
+ * The alarm is the earliest one still to come across `alarm_entities`. It
+ * honours HA's switches: "off" while `enabled_entity` is off; while
+ * `off_today_entity` is on, today's alarms are skipped except those in
+ * `always_entities`. Both facts use the same "Day h:mma" form.
  *
- * Config shape:
- *   { "type": "next_up", "options": {
- *       "calendar_entity": "calendar.work", "title_separator": " - ",
- *       "alarm_entities": ["sensor.work_alarm_1", "sensor.work_alarm_2", "sensor.work_alarm_wfh"],
- *       "always_entities": ["sensor.work_alarm_wfh"],
- *       "enabled_entity": "input_boolean.work_alarms_enabled",
- *       "off_today_entity": "input_boolean.work_alarms_off_today"
- *   } }
+ * Config: { "type": "next_up", "options": {
+ *     "calendar_entity": "calendar.work", "title_separator": " - ",
+ *     "alarm_entities": [...], "always_entities": [...],
+ *     "enabled_entity": "input_boolean.…", "off_today_entity": "input_boolean.…" } }
  */
 class NextUpCard : CardRenderer {
     override val type = "next_up"
@@ -276,69 +297,78 @@ class NextUpCard : CardRenderer {
                 now = System.currentTimeMillis()
             }
         }
+        val dayKey = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US) }
+        val dayName = remember { SimpleDateFormat("EEE", Locale.getDefault()) }
 
         val event = config.string("calendar_entity")?.let {
             nextCalendarEvent(ctx.entity(it), now, config.string("title_separator"))
         }
-        val alarm = nextAlarm(config, ctx, now)
+        val alarm = nextAlarm(config, ctx, now, dayKey, dayName)
         if (event == null && alarm == null) return
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // The event owns everything left of the alarm and ellipsises if it
-            // must; the alarm hugs the right edge, a fixed gap between them.
             Box(Modifier.weight(1f)) {
                 if (event != null) {
-                    Fact(Icons.Filled.Event, "Next event:", event, AstrionTheme.accent, Modifier)
+                    Fact(Icons.Filled.Event, "Next event:", event, AstrionTheme.accent)
                 }
             }
             if (alarm != null) {
-                Spacer(Modifier.width(12.dp))
-                Fact(Icons.Filled.Alarm, "Next alarm:", alarm, AstrionTheme.on, Modifier)
+                Spacer(Modifier.width(Space.m))
+                val off = alarm == "off"
+                Fact(
+                    if (off) Icons.Filled.AlarmOff else Icons.Filled.Alarm,
+                    "Next alarm:", alarm,
+                    if (off) AstrionTheme.textSecondary else AstrionTheme.on,
+                )
             }
         }
     }
 
     @Composable
-    private fun Fact(icon: ImageVector, label: String, value: String, tint: Color, modifier: Modifier) {
-        Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(13.dp))
-            Spacer(Modifier.width(4.dp))
+    private fun Fact(icon: ImageVector, label: String, value: String, tint: Color) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(Space.xs))
             Text(
                 buildAnnotatedString {
                     withStyle(SpanStyle(color = AstrionTheme.textSecondary)) { append("$label ") }
-                    withStyle(SpanStyle(color = tint, fontWeight = FontWeight.Medium)) { append(value) }
+                    withStyle(SpanStyle(color = tint)) { append(value) }
                 },
-                fontSize = 12.sp,
+                style = AstrionType.label,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
     }
 
-    /** "7:05 Tue", "off", or null when no alarm is configured or due. */
-    private fun nextAlarm(config: CardConfig, ctx: CardContext, nowMs: Long): String? {
+    /** "Tue 7:05am", "off", or null when no alarm is configured or due. */
+    private fun nextAlarm(
+        config: CardConfig,
+        ctx: CardContext,
+        nowMs: Long,
+        dayKey: SimpleDateFormat,
+        dayName: SimpleDateFormat,
+    ): String? {
         val ids = config.stringList("alarm_entities")
         if (ids.isEmpty()) return null
         config.string("enabled_entity")?.let { if (ctx.entity(it)?.state == "off") return "off" }
         val offToday = config.string("off_today_entity")?.let { ctx.entity(it)?.state == "on" } == true
         val always = config.stringList("always_entities").toSet()
 
-        val dayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-        val today = dayKey.format(java.util.Date(nowMs))
+        val today = dayKey.format(Date(nowMs))
         val next = ids.mapNotNull { id ->
             val iso = ctx.entity(id)?.state ?: return@mapNotNull null
             val t = runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
                 ?: return@mapNotNull null
             if (t <= nowMs) return@mapNotNull null
-            if (offToday && id !in always && dayKey.format(java.util.Date(t)) == today) return@mapNotNull null
+            if (offToday && id !in always && dayKey.format(Date(t)) == today) return@mapNotNull null
             t
         }.minOrNull() ?: return null
 
-        val d = java.util.Date(next)
-        return java.text.SimpleDateFormat("h:mm", java.util.Locale.getDefault()).format(d) + " " +
-            java.text.SimpleDateFormat("EEE", java.util.Locale.getDefault()).format(d)
+        val d = Date(next)
+        return dayName.format(d) + " " + shortTime(d)
     }
 }

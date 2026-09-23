@@ -1,6 +1,5 @@
 package com.custom.astrion.cards.impl
 
-import android.graphics.BitmapFactory
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -9,25 +8,22 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Lightbulb
@@ -35,10 +31,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.produceState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,34 +38,53 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.AstrionSheet
+import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.AstrionType
+import com.custom.astrion.ui.LocalOverlay
+import com.custom.astrion.ui.OverlayController
+import com.custom.astrion.ui.PendingSpinner
+import com.custom.astrion.ui.Radius
+import com.custom.astrion.ui.liveOrDim
+import com.custom.astrion.ui.parseHexColor
+import com.custom.astrion.ui.rememberAction
+import com.custom.astrion.ui.rememberOptimistic
 import com.custom.astrion.ui.rememberSampledBitmap
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.File
+import com.custom.astrion.ui.tap
+import com.custom.astrion.ui.tapAndHold
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
-import com.custom.astrion.ui.tap
 
 /**
- * Floorplan card — the picture-elements equivalent. Draws a background image
- * (loaded safely off-thread) with tappable icons positioned by percentage,
- * each toggling a light and lighting up (amber) when that entity is on.
- * Long-pressing a light icon opens the same colour/brightness detail popup
- * as the bubble_light card on the Lights page.
+ * Floorplan — the picture-elements equivalent and the heart of Main: a plan
+ * of the flat with every light where it physically is, live mmWave presence
+ * dots, and the robot vacuum in its current room.
+ *
+ * - Each icon is its own composable that reads only its own entity, so a
+ *   radar dot moving no longer recomposes the plan and its 15 lights.
+ * - Tap a light: it flips optimistically (amber the instant you tap), spins
+ *   if HA is slow, outlines red if refused. Long-press a light: the colour /
+ *   brightness sheet.
+ * - Unavailable lights show a lilac cloud-off glyph and are NOT tappable;
+ *   with the socket down every icon is dimmed and inert.
+ * - The plan photo is darkened with a Multiply tint (`dim`, default on) so
+ *   it isn't the brightest thing in a dark room; icons draw above it at full
+ *   strength.
+ *
+ * Config: image, aspect, max_crop (0.12), fill / pin:"fill", flush,
+ * dim (default true), elements [{entity_id,left,top} | {service,targets,
+ * icon:"power",left,top}], radars (or legacy radar), vacuum {…}.
  */
 class PictureElementsCard : CardRenderer {
     override val type = "picture_elements"
@@ -83,48 +94,28 @@ class PictureElementsCard : CardRenderer {
     override fun Render(config: CardConfig, ctx: CardContext) {
         val imagePath = config.string("image") ?: "/sdcard/astrion/floorplan.png"
         val elements = (config.options["elements"] as? List<Map<String, Any?>>) ?: emptyList()
-        var showVacuumDialog by remember { mutableStateOf(false) }
-        var detailEntity by remember { mutableStateOf<String?>(null) }
+        val overlay = LocalOverlay.current
 
-        // Decoded off-thread AND downsampled. The floorplan on this device is
-        // 1089 x 1047, i.e. 4.56 MB resident as ARGB_8888, held for the life of
-        // the card to fill about 460 px of screen.
+        // Off-thread, downsampled, cached (no pop-in on return visits).
         val bitmap by rememberSampledBitmap(imagePath, targetPx = 720)
 
         val aspect = bitmap?.let { it.width.toFloat() / it.height.toFloat() }
             ?: (config.options["aspect"] as? Number)?.toFloat() ?: 1.3f
-
-        // With "pin": "fill" the card is handed a weighted slot and should take
-        // all of it, so the plan grows to close out the page rather than
-        // sizing itself from its own aspect ratio and leaving a gap. Element
-        // and radar positions are percentages of this box, so they follow.
         val fill = config.bool("fill", false) || config.options["pin"] == "fill"
+        val flush = config.bool("flush")
+        val dim = config.bool("dim", true)
 
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (fill) Modifier.fillMaxHeight() else Modifier.aspectRatio(aspect))
-                // Inside a `stack` the container clips the outer corners; a
-                // second rounding here would notch the joins.
-                .then(if (config.bool("flush")) Modifier else Modifier.clip(RoundedCornerShape(18.dp)))
-                // Flush inside a stack, any letterbox margin shows the card's
-                // own fill, so it reads as spacing rather than black bars.
-                .then(if (config.bool("flush")) Modifier else Modifier.background(Color(0xFF0E1116))),
+                .then(if (flush) Modifier else Modifier.clip(RoundedCornerShape(Radius.card)))
+                .then(if (flush) Modifier else Modifier.background(AstrionTheme.planBg)),
             contentAlignment = Alignment.Center,
         ) {
-            // Where the plan is actually drawn — every icon, radar dot and the
-            // vacuum below is laid out inside this rectangle, so their
-            // percentages are percentages of the IMAGE.
-            //
-            // This used to draw with ContentScale.Crop into whatever box the
-            // page handed it while placing the overlays as percentages of the
-            // BOX. Whenever the two shapes differed the picture was zoomed and
-            // cropped but the icons weren't, so they drifted off their rooms;
-            // and this plan runs edge to edge, so the crop cut off real rooms.
-            //
-            // Now: scale up to cover the box, but crop at most `max_crop` of the
-            // plan's width or height (default 12%, i.e. 6% a side — outer walls
-            // and window frames, not rooms). Past that it letterboxes instead.
+            // Where the plan is drawn: overlays are placed as percentages of
+            // the IMAGE, not the box, so they never drift off their rooms.
+            // Cover the box but crop at most `max_crop`; past that, letterbox.
             val boxW = maxWidth
             val boxH = if (maxHeight.value.isFinite()) maxHeight else maxWidth / aspect
             val maxCrop = ((config.options["max_crop"] as? Number)?.toFloat() ?: 0.12f).coerceIn(0f, 0.5f)
@@ -132,135 +123,136 @@ class PictureElementsCard : CardRenderer {
             val w = minOf(coverW, if (boxW / boxH > aspect) boxH * aspect * (1 + maxCrop) else boxW * (1 + maxCrop))
             val h = w / aspect
 
-            // Read out here: the vacuum dialog below, outside the image box,
-            // needs it too.
             val vacuumOpts = config.options["vacuum"] as? Map<String, Any?>
 
-            // requiredSize, not size: when covering, the rectangle is LARGER
-            // than the box and must overflow it (centred, clipped by the card)
-            // rather than be squeezed back into it.
             Box(Modifier.requiredSize(w, h)) {
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap!!,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    // The box already has the image's proportions.
-                    contentScale = ContentScale.FillBounds,
-                )
-            }
-
-            val iconBox = 40.dp
-
-            elements.forEach { el ->
-                val leftPct = (el["left"] as? Number)?.toFloat() ?: 50f
-                val topPct = (el["top"] as? Number)?.toFloat() ?: 50f
-                val entityId = el["entity_id"] as? String
-                val service = el["service"] as? String
-                val isPower = (el["icon"] as? String) == "power"
-
-                val entity = entityId?.let { ctx.entities[it] }
-                val on = entity?.isOn == true
-                // A Zigbee light that dropped off the mesh used to render as a
-                // dark icon — identical to one deliberately turned off — so the
-                // floorplan actively misreported the state of the house.
-                val elUnavailable = entityId != null && (entity == null || entity.isUnavailable)
-
-                // Position using cheap Modifier.offset instead of expensive layout padding
-                val x = w * (leftPct / 100f) - iconBox / 2
-                val y = h * (topPct / 100f) - iconBox / 2
-
-                val bg = when {
-                    elUnavailable -> Color(0x44803030)
-                    on -> Color(0x66FFC24B)
-                    else -> Color(0x33000000)
-                }
-                val tint = when {
-                    elUnavailable -> Color(0xFFC98A8A)
-                    on -> Color(0xFFFFD37A)
-                    else -> Color(0xFFE8ECF2)
-                }
-                val icon = when {
-                    isPower -> Icons.Filled.PowerSettingsNew
-                    elUnavailable -> Icons.Filled.HelpOutline
-                    on -> Icons.Filled.Lightbulb
-                    else -> Icons.Outlined.Lightbulb
+                bitmap?.let { bmp ->
+                    Image(
+                        bitmap = bmp,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.FillBounds,
+                        colorFilter = if (dim) ColorFilter.tint(AstrionTheme.planDim, BlendMode.Multiply) else null,
+                    )
                 }
 
-                Icon(
-                    imageVector = icon,
-                    contentDescription = entityId,
-                    tint = tint,
-                    modifier = Modifier
-                        .offset(x = x.coerceAtLeast(0.dp), y = y.coerceAtLeast(0.dp))
-                        .size(iconBox)
-                        .clip(CircleShape)
-                        .background(bg)
-                        .pointerInput(entityId, service) {
-                            detectTapGestures(
-                                // Long-press a light icon → colour/brightness popup
-                                // (same dialog as the bubble_light card).
-                                onLongPress = if (entityId?.startsWith("light.") == true) {
-                                    { _ -> detailEntity = entityId }
-                                } else null,
-                                onTap = {
-                                    when {
-                                        entityId != null -> ctx.client.toggle(entityId)
-                                        service != null -> {
-                                            val domain = service.substringBefore('.')
-                                            val svc = service.substringAfter('.')
-                                            val targets = (el["targets"] as? List<*>)?.filterIsInstance<String>().orEmpty()
-                                            if (targets.isEmpty()) {
-                                                ctx.client.callService(ServiceCall(domain, svc))
-                                            } else {
-                                                targets.forEach { t ->
-                                                    ctx.client.callService(ServiceCall(domain, svc, entityId = t))
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                            )
+                elements.forEach { el -> PlanIcon(el, ctx, overlay, w, h) }
+
+                val radarList = (config.options["radars"] as? List<Map<String, Any?>>)
+                    ?: listOfNotNull(config.options["radar"] as? Map<String, Any?>)
+                radarList.forEach { RadarDots(it, ctx, w, h) }
+
+                if (vacuumOpts != null) {
+                    VacuumOverlay(vacuumOpts, ctx, w, h) {
+                        overlay.show {
+                            AstrionSheet(onDismiss = { overlay.dismiss() }, title = null) {
+                                VacuumPanelContent(vacuumOpts, ctx)
+                            }
                         }
-                        .padding(6.dp),
-                )
-            }
-
-            // Radar overlays: plot mmWave target dots (e.g. LD2450) on the plan.
-            // `radars` is a list (one block per sensor); `radar` is the older
-            // single-sensor form, still accepted.
-            val radarList = (config.options["radars"] as? List<Map<String, Any?>>)
-                ?: listOfNotNull(config.options["radar"] as? Map<String, Any?>)
-            radarList.forEach { RadarDots(it, ctx, w, h) }
-
-            // Vacuum overlay: a robot-vacuum icon at its current room (or dock).
-            if (vacuumOpts != null) {
-                VacuumOverlay(vacuumOpts, ctx, w, h) { showVacuumDialog = true }
-            }
-            } // image rectangle
-
-            detailEntity?.let { id ->
-                LightDetailDialog(
-                    entityId = id,
-                    e = ctx.entities[id],
-                    client = ctx.client,
-                    onClose = { detailEntity = null },
-                )
-            }
-
-            if (showVacuumDialog && vacuumOpts != null) {
-                Dialog(onDismissRequest = { showVacuumDialog = false }) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xFF1B343D))
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        VacuumPanelContent(vacuumOpts, ctx)
                     }
                 }
+            }
+        }
+    }
+
+    /** One element on the plan. Reads its own entity only. */
+    @Composable
+    private fun PlanIcon(el: Map<String, Any?>, ctx: CardContext, overlay: OverlayController, w: Dp, h: Dp) {
+        val leftPct = (el["left"] as? Number)?.toFloat() ?: 50f
+        val topPct = (el["top"] as? Number)?.toFloat() ?: 50f
+        val entityId = el["entity_id"] as? String
+        val service = el["service"] as? String
+        val isPower = (el["icon"] as? String) == "power"
+
+        val entity = entityId?.let { ctx.entity(it) }
+        val unavailable = entityId != null && (entity == null || entity.isUnavailable)
+        val actualOn = entity?.isOn == true
+        val opt = rememberOptimistic(actualOn)
+        val on = opt.show(actualOn)
+        val action = rememberAction(ctx)
+        val live = ctx.connected && !unavailable
+
+        val iconBox = 40.dp
+        val x = (w * (leftPct / 100f) - iconBox / 2).coerceAtLeast(0.dp)
+        val y = (h * (topPct / 100f) - iconBox / 2).coerceAtLeast(0.dp)
+
+        val well = when {
+            unavailable -> AstrionTheme.planUnavailableWell
+            on -> AstrionTheme.planOnWell
+            else -> AstrionTheme.planOffWell
+        }
+        val tint = when {
+            unavailable -> AstrionTheme.unavailable
+            on -> AstrionTheme.planIconOn
+            else -> AstrionTheme.planIconOff
+        }
+        val icon = when {
+            isPower -> Icons.Filled.PowerSettingsNew
+            unavailable -> Icons.Filled.CloudOff
+            on -> Icons.Filled.Lightbulb
+            else -> Icons.Outlined.Lightbulb
+        }
+        val name = entity?.friendlyName ?: entityId?.substringAfter('.') ?: service ?: "Button"
+        val isLight = entityId?.startsWith("light.") == true
+
+        fun fire() {
+            when {
+                entityId != null -> {
+                    opt.set(!actualOn)
+                    val domain = entityId.substringBefore('.')
+                    action.run(ServiceCall(domain, "toggle", entityId), onFail = { opt.clear() })
+                }
+                service != null -> {
+                    val domain = service.substringBefore('.')
+                    val svc = service.substringAfter('.')
+                    val targets = (el["targets"] as? List<*>)?.filterIsInstance<String>().orEmpty()
+                    if (targets.isEmpty()) {
+                        action.run(ServiceCall(domain, svc))
+                    } else {
+                        action.run(*targets.map { ServiceCall(domain, svc, entityId = it) }.toTypedArray())
+                    }
+                }
+            }
+        }
+
+        val shape = CircleShape
+        val base = Modifier
+            .offset(x = x, y = y)
+            .size(iconBox)
+            // Socket down: every icon visibly inert, not just silent.
+            .liveOrDim(ctx.connected)
+            .clip(shape)
+            .background(well)
+            .then(if (action.failed) Modifier.border(2.dp, AstrionTheme.danger, shape) else Modifier)
+        val interactive = if (isLight) {
+            base.tapAndHold(
+                enabled = live,
+                onClick = ::fire,
+                onLongClick = {
+                    val id = entityId ?: return@tapAndHold
+                    overlay.show { LightDetailSheet(id, ctx, onClose = { overlay.dismiss() }) }
+                },
+            )
+        } else {
+            base.tap(enabled = live || (entityId == null && ctx.connected), onClick = ::fire)
+        }
+        Box(
+            modifier = interactive.semantics {
+                contentDescription = when {
+                    unavailable -> "$name, unavailable"
+                    isPower -> name
+                    else -> "$name, ${if (on) "on" else "off"}"
+                }
+            },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (action.busy) {
+                PendingSpinner(size = 20.dp, color = tint)
+            } else {
+                Icon(
+                    icon, contentDescription = null, tint = tint,
+                    modifier = Modifier.size(24.dp),
+                )
             }
         }
     }
@@ -275,9 +267,9 @@ class PictureElementsCard : CardRenderer {
         onOpen: () -> Unit,
     ) {
         val entityId = opts["entity_id"] as? String ?: return
-        val state = ctx.entities[entityId]?.state ?: "unknown"
+        val state = ctx.entity(entityId)?.state ?: "unknown"
         val roomEntity = opts["room_entity"] as? String
-        val currentRoom = roomEntity?.let { ctx.entities[it]?.state }
+        val currentRoom = roomEntity?.let { ctx.entity(it)?.state }
         val roomPositions = opts["room_positions"] as? Map<String, List<Number>>
         val dockPosition = (opts["dock_position"] as? List<*>)?.filterIsInstance<Number>()
 
@@ -293,15 +285,19 @@ class PictureElementsCard : CardRenderer {
         }
         val (leftPct, topPct) = pos
         val vac = 30.dp
-        val iconW = vac
-        val iconH = if (docked) vac * 1.35f else vac
-        val x = (w * (leftPct / 100f) - iconW / 2).coerceAtLeast(0.dp)
-        val y = (h * (topPct / 100f) - iconH / 2).coerceAtLeast(0.dp)
+        // 44dp touch target around the 30dp robot (it was a 30dp target).
+        val target = 44.dp
+        val x = (w * (leftPct / 100f) - target / 2).coerceAtLeast(0.dp)
+        val y = (h * (topPct / 100f) - target / 2).coerceAtLeast(0.dp)
 
         Box(
             modifier = Modifier
                 .offset(x = x, y = y)
-                .tap(onClick = onOpen),
+                .size(target)
+                .clip(CircleShape)
+                .tap(onClick = onOpen)
+                .semantics { contentDescription = "Robot vacuum, ${state.replace('_', ' ')}. Open controls" },
+            contentAlignment = Alignment.Center,
         ) {
             RoboVacIcon(vac = vac, docked = docked, moving = active)
         }
@@ -309,9 +305,6 @@ class PictureElementsCard : CardRenderer {
 
     @Composable
     private fun RoboVacIcon(vac: Dp, docked: Boolean, moving: Boolean) {
-        val body = Color(0xFF3A4A52)
-        val bump = Color(0xFF7B8C96)
-
         if (docked) {
             Box(modifier = Modifier.size(width = vac, height = vac * 1.35f)) {
                 Box(
@@ -320,154 +313,114 @@ class PictureElementsCard : CardRenderer {
                         .fillMaxWidth()
                         .height(vac * 0.5f)
                         .clip(RoundedCornerShape(5.dp))
-                        .background(Color(0xFF1E262C)),
+                        .background(AstrionTheme.vacDock),
                 )
-                VacBody(vac * 0.92f, body, bump, Modifier.align(Alignment.BottomCenter))
+                VacBody(vac * 0.92f, Modifier.align(Alignment.BottomCenter))
             }
+        } else if (moving) {
+            // The only continuous animation on Main, and only while the
+            // robot is actually out cleaning.
+            val t = rememberInfiniteTransition(label = "vacrock")
+            val angle by t.animateFloat(
+                initialValue = -10f,
+                targetValue = 10f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(650, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "angle",
+            )
+            VacBody(vac, Modifier.rotate(angle))
         } else {
-            val angle = if (moving) {
-                val t = rememberInfiniteTransition(label = "vacrock")
-                t.animateFloat(
-                    initialValue = -10f,
-                    targetValue = 10f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(650, easing = FastOutSlowInEasing),
-                        repeatMode = RepeatMode.Reverse,
-                    ),
-                    label = "angle",
-                ).value
-            } else {
-                0f
-            }
-            VacBody(vac, body, bump, Modifier.rotate(angle))
+            VacBody(vac)
         }
     }
 
     @Composable
-    private fun VacBody(d: Dp, body: Color, bump: Color, modifier: Modifier = Modifier) {
-        Box(modifier = modifier.size(d).clip(CircleShape).background(body)) {
+    private fun VacBody(d: Dp, modifier: Modifier = Modifier) {
+        Box(modifier = modifier.size(d).clip(CircleShape).background(AstrionTheme.vacBody)) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = d * 0.12f)
                     .size(d * 0.24f)
                     .clip(CircleShape)
-                    .background(bump),
+                    .background(AstrionTheme.vacBump),
             )
         }
     }
 
     @Composable
-    private fun RadarDots(
-        radar: Map<String, Any?>,
-        ctx: CardContext,
-        w: Dp,
-        h: Dp,
-    ) {
+    private fun RadarDots(radar: Map<String, Any?>, ctx: CardContext, w: Dp, h: Dp) {
         val prefix = radar["prefix"] as? String ?: return
         val nTargets = (radar["targets"] as? Number)?.toInt() ?: 3
-        val originL = (radar["origin_left"] as? Number)?.toFloat() ?: 50f
-        val originT = (radar["origin_top"] as? Number)?.toFloat() ?: 10f
-        val scaleX = (radar["scale_x"] as? Number)?.toFloat() ?: 8f
-        val scaleXRight = (radar["scale_x_right"] as? Number)?.toFloat() ?: scaleX
-        val scaleY = (radar["scale_y"] as? Number)?.toFloat() ?: 8f
-        val topOffsetLeft = (radar["top_offset_left"] as? Number)?.toFloat() ?: 0f
-        val rot = ((radar["rotation"] as? Number)?.toFloat() ?: 0f) * (PI.toFloat() / 180f)
-        val flipX = radar["flip_x"] as? Boolean ?: false
-        val flipY = radar["flip_y"] as? Boolean ?: false
-        val blend = parseBlend(radar["blend"] as? String)
-        // Sensors differ in reported units: the Apollo publishes metres, the
-        // bare ESPHome LD2450 boards publish millimetres. Normalise to metres
-        // before the affine transform so one set of scale values means the
-        // same thing everywhere. "unit": "mm" | "m", or an explicit divisor.
-        val divisor = (radar["units_per_metre"] as? Number)?.toFloat()
-            ?: if ((radar["unit"] as? String)?.lowercase() == "mm") 1000f else 1f
-        // Per-sensor dot colours so you can tell which radar a dot came from.
-        val fill = parseArgb(radar["color"] as? String) ?: Color(0xD9155E6E)
-        val accent = parseArgb(radar["accent_color"] as? String) ?: Color(0xFF33CBDA)
-        val label = radar["label"] as? String ?: ""
-
-        // Loop handles layout of children, but child states are read ONLY inside child scopes!
-        for (i in 1..nTargets) {
-            RadarDot(
-                id = i,
-                prefix = prefix,
-                ctx = ctx,
-                w = w,
-                h = h,
-                originL = originL,
-                originT = originT,
-                scaleX = scaleX,
-                scaleXRight = scaleXRight,
-                scaleY = scaleY,
-                topOffsetLeft = topOffsetLeft,
-                rot = rot,
-                flipX = flipX,
-                flipY = flipY,
-                blend = blend,
-                divisor = divisor,
-                fill = fill,
-                accent = accent,
-                label = label,
-            )
-        }
+        val spec = RadarSpec(
+            originL = (radar["origin_left"] as? Number)?.toFloat() ?: 50f,
+            originT = (radar["origin_top"] as? Number)?.toFloat() ?: 10f,
+            scaleX = (radar["scale_x"] as? Number)?.toFloat() ?: 8f,
+            scaleXRight = (radar["scale_x_right"] as? Number)?.toFloat()
+                ?: (radar["scale_x"] as? Number)?.toFloat() ?: 8f,
+            scaleY = (radar["scale_y"] as? Number)?.toFloat() ?: 8f,
+            topOffsetLeft = (radar["top_offset_left"] as? Number)?.toFloat() ?: 0f,
+            rot = ((radar["rotation"] as? Number)?.toFloat() ?: 0f) * (PI.toFloat() / 180f),
+            flipX = radar["flip_x"] as? Boolean ?: false,
+            flipY = radar["flip_y"] as? Boolean ?: false,
+            blend = parseBlend(radar["blend"] as? String),
+            // Apollo publishes metres, bare ESPHome LD2450 boards millimetres.
+            divisor = (radar["units_per_metre"] as? Number)?.toFloat()
+                ?: if ((radar["unit"] as? String)?.lowercase() == "mm") 1000f else 1f,
+            fill = parseHexColor(radar["color"] as? String) ?: AstrionTheme.radarFill,
+            accent = parseHexColor(radar["accent_color"] as? String) ?: AstrionTheme.radarAccent,
+            label = radar["label"] as? String ?: "",
+        )
+        for (i in 1..nTargets) RadarDot(i, prefix, ctx, w, h, spec)
     }
 
-    /** Parse "#AARRGGBB" / "#RRGGBB" to a Color; null if absent or malformed. */
-    private fun parseArgb(s: String?): Color? {
-        val hex = s?.removePrefix("#") ?: return null
-        val v = hex.toLongOrNull(16) ?: return null
-        return if (hex.length <= 6) Color(v or 0xFF000000L) else Color(v)
-    }
+    /** Everything about one radar block that its dots share. */
+    private class RadarSpec(
+        val originL: Float,
+        val originT: Float,
+        val scaleX: Float,
+        val scaleXRight: Float,
+        val scaleY: Float,
+        val topOffsetLeft: Float,
+        val rot: Float,
+        val flipX: Boolean,
+        val flipY: Boolean,
+        val blend: BlendMode?,
+        val divisor: Float,
+        val fill: Color,
+        val accent: Color,
+        val label: String,
+    )
 
-    /**
-     * Isolated Radar Dot. Splitting this out prevents coordinate updates of target #1
-     * from forcing target #2, #3, or the rest of the floorplan card to recompose.
-     */
+    /** One target: reads only its own two coordinate entities. */
     @Composable
-    private fun RadarDot(
-        id: Int,
-        prefix: String,
-        ctx: CardContext,
-        w: Dp,
-        h: Dp,
-        originL: Float,
-        originT: Float,
-        scaleX: Float,
-        scaleXRight: Float,
-        scaleY: Float,
-        topOffsetLeft: Float,
-        rot: Float,
-        flipX: Boolean,
-        flipY: Boolean,
-        blend: BlendMode?,
-        divisor: Float,
-        fill: Color,
-        accent: Color,
-        label: String,
-    ) {
-        // A target with no lock reports "unknown" — toFloatOrNull drops it, so
-        // the dot simply isn't drawn.
-        val rawX = ctx.entities["${prefix}_${id}_x"]?.state?.toFloatOrNull() ?: return
-        val rawY = ctx.entities["${prefix}_${id}_y"]?.state?.toFloatOrNull() ?: return
-        val xm = rawX / divisor
-        val ym = rawY / divisor
+    private fun RadarDot(id: Int, prefix: String, ctx: CardContext, w: Dp, h: Dp, s: RadarSpec) {
+        // A target with no lock reports "unknown" — not drawn.
+        val rawX = ctx.entity("${prefix}_${id}_x")?.state?.toFloatOrNull() ?: return
+        val rawY = ctx.entity("${prefix}_${id}_y")?.state?.toFloatOrNull() ?: return
+        val xm = rawX / s.divisor
+        val ym = rawY / s.divisor
 
-        val cosR = cos(rot)
-        val sinR = sin(rot)
+        val cosR = cos(s.rot)
+        val sinR = sin(s.rot)
         var rx = xm * cosR - ym * sinR
         var ry = xm * sinR + ym * cosR
-        if (flipX) rx = -rx
-        if (flipY) ry = -ry
+        if (s.flipX) rx = -rx
+        if (s.flipY) ry = -ry
 
-        val sx = if (rx >= 0f) scaleXRight else scaleX
-        val extraTop = if (rx < 0f) topOffsetLeft else 0f
-        val leftPct = (originL + rx * sx).coerceIn(0f, 100f)
-        val topPct = (originT + ry * scaleY + extraTop).coerceIn(0f, 100f)
+        val sx = if (rx >= 0f) s.scaleXRight else s.scaleX
+        val extraTop = if (rx < 0f) s.topOffsetLeft else 0f
+        val leftPct = (s.originL + rx * sx).coerceIn(0f, 100f)
+        val topPct = (s.originT + ry * s.scaleY + extraTop).coerceIn(0f, 100f)
 
         val dot = 26.dp
         val dx = (w * (leftPct / 100f) - dot / 2).coerceAtLeast(0.dp)
         val dy = (h * (topPct / 100f) - dot / 2).coerceAtLeast(0.dp)
+        val fill = s.fill
+        val accent = s.accent
+        val blend = s.blend
 
         Box(
             modifier = Modifier
@@ -479,7 +432,7 @@ class PictureElementsCard : CardRenderer {
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Text("$label$id", color = Color(0xFFDCF1F4), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("${s.label}$id", style = AstrionType.label, color = AstrionTheme.radarLabel)
         }
     }
 
@@ -490,7 +443,6 @@ class PictureElementsCard : CardRenderer {
         "softlight" -> BlendMode.Softlight
         "hardlight" -> BlendMode.Hardlight
         "difference" -> BlendMode.Difference
-        "overlay", null -> BlendMode.Overlay
         else -> BlendMode.Overlay
     }
 }
