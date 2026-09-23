@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — UI rebuild
+
+A ground-up rebuild of the UI on a real design system, driven by
+`docs/UI_AUDIT_2026-09.md`. Nothing was removed: see
+`docs/REBUILD_FEATURE_INVENTORY.md` (every capability ticked) and
+`docs/REBUILD_NOTES.md` (design system, per-page changes, device test list).
+
+- Design tokens and one component family; no colour literals outside `ui/Theme.kt`.
+- Every tap: optimistic state → spinner if slow → red outline + reason if HA refuses.
+- Unavailable is lilac + icon + word everywhere, at full contrast.
+- Touch navigation: tap any page header for the page picker and the button map.
+- Popups are in-window sheets, so the physical buttons keep working while they're open.
+- Per-entity recomposition, sized + cached images, cached forecast / Plex / shelves.
+- Climate setpoint taps add up; off reads as off; every mode shown.
+- Alarm snoozes from OK / shortcut buttons; front door Unlock and vacuum rooms are press-and-hold.
+
 ## v1.1.0 — 2026-09-22
 
 A big one: a redesigned home page, a proper TV/Plex page, music shelves, an alarm
