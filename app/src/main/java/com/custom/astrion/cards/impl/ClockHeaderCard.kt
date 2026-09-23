@@ -4,9 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,44 +20,39 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.AstrionType
+import com.custom.astrion.ui.LocalNav
+import com.custom.astrion.ui.Radius
+import com.custom.astrion.ui.Space
+import com.custom.astrion.ui.Touch
+import com.custom.astrion.ui.tap
 import kotlinx.coroutines.delay
-import kotlin.math.roundToInt
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /**
- * A slim page header: the page's name (or the date) on the left, with the time
- * trailing on the right,
- * at the section-label size used elsewhere ("Recently Played", "Playlists").
- * Pages other than Main have no clock otherwise, and the status bar is hidden
- * in kiosk mode.
+ * The page header: page name (or the live date) on the left, the next diary
+ * entry in the middle, the time on the right.
+ *
+ * The left half is THE touch navigation: tap it (it shows a chevron) for the
+ * page picker, which also leads to the map of the physical buttons. It is
+ * 44dp tall and spans half the screen, in the band every page starts with.
  *
  * Reads the device clock, so it renders instantly and never waits on HA.
- *
- * `date_format` replaces the page name with the live date, for a page whose
- * name is already obvious from what's on it — Main uses it so the date has a
- * home up here instead of costing a line inside the weather card.
- *
- * `calendar_entity` fills the middle with the next diary entry, in the same
- * accent blue and glyph the standalone `calendar_line` card uses. Set it only
- * on the page that wants it; the slot collapses to nothing when it is absent
- * or the calendar has no upcoming event.
  *
  * Config: { "type": "clock_header",
  *           "options": { "title": "Plex", "time_format": 12,
  *                        "date_format": "EEE, d MMM",
  *                        "calendar_entity": "calendar.work",
- *                        "title_separator": " - ",
- *                        "weather_entity": "weather.home" } }
+ *                        "title_separator": " - " } }
  */
 class ClockHeaderCard : CardRenderer {
     override val type = "clock_header"
@@ -63,13 +61,13 @@ class ClockHeaderCard : CardRenderer {
     override fun Render(config: CardConfig, ctx: CardContext) {
         val is24 = config.int("time_format", 12) == 24
         val dateFormat = config.string("date_format")
+        val nav = LocalNav.current
 
         var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
         LaunchedEffect(Unit) {
             while (true) {
                 now = System.currentTimeMillis()
-                // Re-tick just after the minute rolls over rather than on a
-                // fixed interval, so the displayed minute is never stale.
+                // Re-tick just after the minute rolls over.
                 delay(60_000 - (System.currentTimeMillis() % 60_000) + 250)
             }
         }
@@ -84,37 +82,47 @@ class ClockHeaderCard : CardRenderer {
             nextCalendarLine(ctx.entity(it), now, config.string("title_separator"))
         }
 
-        // Three slots, with EQUAL weights on the two ends. That is what puts
-        // the diary entry on the true centre line of the screen rather than
-        // the midpoint of whatever the date and time leave over — the date is
-        // the wider of the two, so a SpaceBetween row would push the middle
-        // right by half the difference. Equal end weights also stop a long
-        // event title from ever colliding with either end: it ellipsises
-        // inside its own slot instead.
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = Touch.compact),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Equal end weights put the diary entry on the true centre line.
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                HeaderText(heading)
+                Row(
+                    modifier = Modifier
+                        .heightIn(min = Touch.compact)
+                        .clip(RoundedCornerShape(Radius.control))
+                        .tap(enabled = nav != null, onClickLabel = "Change page") { nav?.openPicker() },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        heading, style = AstrionType.header, color = AstrionTheme.textPrimary,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    if (nav != null) {
+                        Icon(
+                            Icons.Filled.ExpandMore, contentDescription = null,
+                            tint = AstrionTheme.textSecondary, modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
             }
             Box(Modifier.weight(1.5f), contentAlignment = Alignment.Center) {
                 if (event != null) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Space.xs),
                     ) {
                         Icon(
                             Icons.Filled.Event,
                             contentDescription = "Next diary entry",
                             tint = AstrionTheme.accent,
-                            modifier = Modifier.size(13.dp),
+                            modifier = Modifier.size(14.dp),
                         )
                         Text(
                             event.plain(),
+                            style = AstrionType.label,
                             color = AstrionTheme.accent,
-                            fontSize = AstrionTheme.label,
-                            fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -122,21 +130,11 @@ class ClockHeaderCard : CardRenderer {
                 }
             }
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-                HeaderText(fmt.format(Date(now)))
+                Text(
+                    fmt.format(Date(now)), style = AstrionType.header, color = AstrionTheme.textPrimary,
+                    maxLines = 1,
+                )
             }
         }
-    }
-
-    @Composable
-    private fun HeaderText(text: String) {
-        Text(
-            text,
-            color = AstrionTheme.textPrimary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }

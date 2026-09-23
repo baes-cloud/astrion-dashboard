@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.WindowManager
 import android.widget.Toast
@@ -29,11 +30,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.custom.astrion.config.DashboardConfig
 import com.custom.astrion.config.DashboardLoader
@@ -48,6 +54,16 @@ import com.custom.astrion.ir.IrModeOverlay
 import com.custom.astrion.ui.AlarmOverlay
 import com.custom.astrion.ui.AlarmUiState
 import com.custom.astrion.ui.Dashboard
+import com.custom.astrion.ui.FeedbackController
+import com.custom.astrion.ui.FeedbackStrip
+import com.custom.astrion.ui.HoldProgress
+import com.custom.astrion.ui.KeyMapSheet
+import com.custom.astrion.ui.LocalFeedback
+import com.custom.astrion.ui.LocalOverlay
+import com.custom.astrion.ui.OverlayController
+import com.custom.astrion.ui.OverlayHost
+import com.custom.astrion.ui.describeHotkey
+import com.custom.astrion.ui.keyLabel
 import com.custom.astrion.voice.VoiceOverlay
 import com.custom.astrion.voice.VoicePhase
 import com.custom.astrion.voice.VoiceSession
@@ -133,6 +149,16 @@ class MainActivity : ComponentActivity() {
         // "moved", and a cooldown so a single lift fires one wake.
         const val MOTION_THRESHOLD = 0.9f
         const val WAKE_COOLDOWN_MS = 2000L
+
+        /**
+         * While the alarm is RINGING these buttons snooze it (one press, no
+         * aiming at glass at 7am). Stop is never on a button: it cancels the
+         * day's alarms, so it stays a deliberate press-and-hold on screen.
+         */
+        val SNOOZE_KEYS = setOf(
+            HardwareKey.CENTER,
+            HardwareKey.LIGHT, HardwareKey.CURTAIN, HardwareKey.SCENE, HardwareKey.AC,
+        )
     }
 
     // Long-press timing state.
@@ -204,6 +230,19 @@ class MainActivity : ComponentActivity() {
     // ---- Voice --------------------------------------------------------------
     private lateinit var voice: VoiceSession
 
+    // ---- UI hosts -------------------------------------------------------------
+    /** In-window sheets (page picker, key map, light / vacuum / source popups). */
+    private val overlay = OverlayController()
+    /** Bottom feedback strip: failures and hardware hold / double confirmations. */
+    private val feedback = FeedbackController()
+
+    /** Hardware hold in progress: which key (label) and when it went down. */
+    private var holdLabel by mutableStateOf<String?>(null)
+    private var holdStartedAt by mutableLongStateOf(0L)
+
+    /** A key whose ACTION_UP must be swallowed because its DOWN was consumed. */
+    private var swallowUpCode = -1
+
     private val storagePermission = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { reloadDashboard() }
@@ -251,9 +290,17 @@ class MainActivity : ComponentActivity() {
         setContent {
             val entities = client.entities.collectAsState()
             val connection = client.connection.collectAsState()
+            // Every refused / unsent service call surfaces in the strip.
+            LaunchedEffect(Unit) {
+                client.errors.collect { feedback.error(it) }
+            }
             // Overlays are stacked in the SAME window as the dashboard (not
             // Dialogs) so this Activity keeps key focus and dispatchKeyEvent
             // continues to fire while they're on screen.
+            CompositionLocalProvider(
+                LocalOverlay provides overlay,
+                LocalFeedback provides feedback,
+            ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 Dashboard(
                     client = client,
@@ -264,6 +311,10 @@ class MainActivity : ComponentActivity() {
                     navTarget = navTarget,
                     onNavHandled = { navTarget = null },
                 )
+
+                // Sheets opened from cards / the header (page picker, light
+                // colour, vacuum, pickers) — above the pages, below modes.
+                OverlayHost(overlay)
 
                 // IR Mode modal sits above the dashboard while active.
                 if (irMode) {
@@ -277,8 +328,9 @@ class MainActivity : ComponentActivity() {
                 }
 
                 // Work alarm: above the dashboard and IR Mode, since it's the
-                // one overlay that must not be missed.
-                val alarm = alarmUiState(entities.value)
+                // one overlay that must not be missed. Reads only the alarm's
+                // own entities (per-entity cells), not the whole map.
+                val alarm = alarmUiState { id -> client.cell(id).value }
                 if (alarm != null && !alarmHidden) {
                     AlarmOverlay(
                         state = alarm,
@@ -298,6 +350,13 @@ class MainActivity : ComponentActivity() {
                         else voice.cancel()
                     },
                 )
+
+                // Bottom band: hardware-hold progress, then the feedback strip.
+                Column(modifier = Modifier.align(Alignment.BottomCenter)) {
+                    HoldProgress(label = holdLabel, startedAt = holdStartedAt, durationMs = LONG_PRESS_MS)
+                    FeedbackStrip(feedback)
+                }
+            }
             }
         }
     }
@@ -314,7 +373,12 @@ class MainActivity : ComponentActivity() {
         val away = System.currentTimeMillis() - pausedAtMs
         if (pausedAtMs > 0L && away >= COLD_ARRIVAL_MS) {
             navTarget = dashboard.config.startPage
+            // A sheet left open before sleep is stale context on a cold arrival.
+            overlay.dismiss()
         }
+        // After sleep the WiFi may have dropped under a socket that still
+        // says CONNECTED; probe it so taps don't go into a dead socket.
+        alarmScope.launch { client.ensureAlive() }
     }
 
     override fun onPause() {
@@ -348,12 +412,18 @@ class MainActivity : ComponentActivity() {
         long.forEach { hk ->
             val key = runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
                 ?: return@forEach
-            keyRouter.onLong(key) { runHotkey(hk) }
+            keyRouter.onLong(key) {
+                announce("Hold ${keyLabel(hk.key)}", hk)
+                runHotkey(hk)
+            }
         }
         double.forEach { hk ->
             val key = runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
                 ?: return@forEach
-            keyRouter.onDouble(key) { runHotkey(hk) }
+            keyRouter.onDouble(key) {
+                announce("Double ${keyLabel(hk.key)}", hk)
+                runHotkey(hk)
+            }
         }
 
         // Refresh the IR code table from config, then claim the toggle key.
@@ -379,7 +449,35 @@ class MainActivity : ComponentActivity() {
         val useLong = (opts["toggle_long"] as? Boolean) ?: false
         val key = runCatching { HardwareKey.valueOf(keyName.uppercase()) }.getOrNull() ?: return
         val toggle = { toggleIrMode(); true }
-        if (useLong) keyRouter.onLong(key, toggle) else keyRouter.on(key, toggle)
+        if (useLong) {
+            keyRouter.onLong(key, toggle)
+        } else {
+            keyRouter.on(key, toggle)
+            // Discoverability: HOLD the same key for the button map — unless
+            // the config already gives that key a long-press of its own.
+            val holdTaken = dashboard.config.longHotkeys.any { it.key.equals(keyName, ignoreCase = true) }
+            if (!holdTaken) keyRouter.onLong(key) { showKeyMap(); true }
+        }
+    }
+
+    /** The on-screen map of every physical button (also in the page picker). */
+    private fun showKeyMap() {
+        if (irMode) {
+            // The map would open underneath the IR popup.
+            feedback.show("Exit IR Mode to see the button map")
+            return
+        }
+        val cfg = dashboard.config
+        overlay.show { KeyMapSheet(cfg, onDismiss = { overlay.dismiss() }) }
+    }
+
+    /**
+     * A hardware hold / double-tap just fired: a haptic tick and a line in
+     * the feedback strip, so you know you held long enough and what it did.
+     */
+    private fun announce(gesture: String, hk: HotkeyConfig) {
+        window.decorView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        feedback.show("$gesture · ${describeHotkey(hk)}")
     }
 
     private fun toggleIrMode() {
@@ -389,7 +487,7 @@ class MainActivity : ComponentActivity() {
         irMode = !irMode
         irLastKey = null
         if (irMode && !irBlaster.available) {
-            Toast.makeText(this, "No IR emitter available on this device", Toast.LENGTH_LONG).show()
+            feedback.error("No IR emitter available on this device")
         }
     }
 
@@ -408,12 +506,12 @@ class MainActivity : ComponentActivity() {
      * mirror of HA: ringing = the `ringing_entity` flag, snoozed = the snooze
      * timer running while that flag is still on.
      */
-    private fun alarmUiState(entities: com.custom.astrion.ha.EntityMap): AlarmUiState? {
+    private fun alarmUiState(entity: (String) -> com.custom.astrion.ha.EntityState?): AlarmUiState? {
         val opts = alarmOptions()
         val ringingId = opts["ringing_entity"] as? String ?: return null
-        if (entities[ringingId]?.state != "on") return null
+        if (entity(ringingId)?.state != "on") return null
 
-        val timer = (opts["snooze_timer"] as? String)?.let { entities[it] }
+        val timer = (opts["snooze_timer"] as? String)?.let { entity(it) }
         val snoozeEnds = timer?.takeIf { it.state == "active" }?.attrString("finishes_at")?.let { iso ->
             runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
         }
@@ -424,7 +522,7 @@ class MainActivity : ComponentActivity() {
             ?.takeIf { it.size == 3 }?.let { (h, m, sec) -> (h * 3600 + m * 60 + sec) * 1000 }
             ?: 300_000L
 
-        val info = (opts["info_entity"] as? String)?.let { entities[it] }
+        val info = (opts["info_entity"] as? String)?.let { entity(it) }
         val startsAt = info?.state?.let { iso ->
             runCatching {
                 val t = java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli()
@@ -438,12 +536,17 @@ class MainActivity : ComponentActivity() {
             title = info?.attrString("summary")?.takeIf { it.isNotBlank() },
             place = info?.attrString("location")?.takeIf { it.isNotBlank() },
             startsAt = startsAt,
+            snoozeMinutes = (snoozeTotalMs / 60_000L).toInt().coerceAtLeast(1),
         )
     }
 
     /** 0 = no alarm, 1 = ringing, 2 = snoozed. */
     private fun alarmPhase(entities: com.custom.astrion.ha.EntityMap): Int =
-        alarmUiState(entities)?.let { if (it.ringing) 1 else 2 } ?: 0
+        alarmUiState { id -> entities[id] }?.let { if (it.ringing) 1 else 2 } ?: 0
+
+    /** True while the alarm popup is up and ringing (not snoozed, not hidden). */
+    private fun alarmRinging(): Boolean =
+        !alarmHidden && alarmUiState { id -> client.peek(id) }?.ringing == true
 
     /**
      * React to the alarm starting and stopping, screen on or off. Starting
@@ -621,6 +724,26 @@ class MainActivity : ComponentActivity() {
         val code = event.keyCode
         val key = HardwareKey.fromKeyCode(code)
 
+        // The release of a press we already consumed (snooze, sheet close).
+        if (event.action == KeyEvent.ACTION_UP && code == swallowUpCode) {
+            swallowUpCode = -1
+            return true
+        }
+
+        // ---- Alarm: shortcut buttons / OK snooze while ringing -------------
+        if (key in SNOOZE_KEYS && alarmRinging()) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                cancelPendingLong()
+                cancelPendingSingle()
+                activeLongKey = -1
+                clearHold()
+                fireAlarmAction("snooze")
+                feedback.show("Snoozed")
+                swallowUpCode = code
+            }
+            return true
+        }
+
         // ---- IR Mode intercept ---------------------------------------------
         // Highest priority: while the popup is up these buttons must NOT reach
         // their normal Android-TV bindings, so we consume them outright (both
@@ -640,6 +763,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
             return true // swallow: no TV service call, no Android navigation
+        }
+
+        // ---- Open sheet: BACK closes it (instead of going to the TV) -------
+        if (key == HardwareKey.BACK && overlay.isOpen) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                overlay.dismiss()
+                swallowUpCode = code
+            }
+            return true
         }
 
         // Voice button: start (or stop) an Assist session.
@@ -685,8 +817,10 @@ class MainActivity : ComponentActivity() {
                         cancelPendingLong()
                         longFired = false
                         activeLongKey = code
+                        startHold(key)
                         val r = Runnable {
                             longFired = true
+                            clearHold()
                             longH.invoke()
                         }
                         pendingLong = r
@@ -707,6 +841,7 @@ class MainActivity : ComponentActivity() {
             KeyEvent.ACTION_UP -> {
                 if ((longH != null || doubleH != null) && code == activeLongKey) {
                     cancelPendingLong()
+                    clearHold()
                     activeLongKey = -1
                     // Released before the hold threshold → it was a tap.
                     if (!longFired) {
@@ -730,6 +865,16 @@ class MainActivity : ComponentActivity() {
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    /** Show the hold-progress bar for a long-capable key. */
+    private fun startHold(key: HardwareKey) {
+        holdLabel = keyLabel(key.name)
+        holdStartedAt = android.os.SystemClock.uptimeMillis()
+    }
+
+    private fun clearHold() {
+        holdLabel = null
     }
 
     private fun cancelPendingLong() {

@@ -146,6 +146,12 @@ object AstrionTheme {
         val glyphWell = Color(0xFF2B4A77)
     }
 
+    // ---- the remote's coloured buttons (key map legend) -------------------------
+    val keyRed = Color(0xFFE05555)
+    val keyGreen = Color(0xFF4CB860)
+    val keyBlue = Color(0xFF4A8FE0)
+    val keyYellow = Color(0xFFE8C440)
+
     // ---- IR mode ---------------------------------------------------------------
     val irBadge = Color(0xFFE0663A)
     val irBadgeInk = Color(0xFF20120C)

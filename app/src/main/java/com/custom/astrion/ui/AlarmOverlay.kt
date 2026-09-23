@@ -82,6 +82,8 @@ data class AlarmUiState(
     val place: String?,
     /** When it starts, e.g. "8:15 AM". */
     val startsAt: String?,
+    /** Snooze length for the button label, from the timer's duration. */
+    val snoozeMinutes: Int = 5,
 )
 
 // This screen's own palette. Deep night navy, one warm dawn light, and the two

@@ -1,7 +1,11 @@
 package com.custom.astrion.ui
 
 import android.os.SystemClock
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -90,5 +95,38 @@ fun FeedbackStrip(controller: FeedbackController, modifier: Modifier = Modifier)
         Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(Space.s))
         Text(msg.text, style = AstrionType.bodyStrong, color = fg, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/**
+ * A hardware button is being held and has a long-press action: after 250 ms
+ * a slim bar fills over the remaining hold time, so you can see when you've
+ * held long enough (the hold used to be 1.5 s of nothing).
+ */
+@Composable
+fun HoldProgress(label: String?, startedAt: Long, durationMs: Long) {
+    if (label == null) return
+    val progress = remember(startedAt) { Animatable(0f) }
+    var visible by remember(startedAt) { mutableStateOf(false) }
+    LaunchedEffect(startedAt) {
+        delay(250)
+        visible = true
+        val elapsed = SystemClock.uptimeMillis() - startedAt
+        val remaining = (durationMs - elapsed).coerceAtLeast(0L)
+        progress.snapTo((elapsed.toFloat() / durationMs).coerceIn(0f, 1f))
+        progress.animateTo(1f, tween(remaining.toInt(), easing = LinearEasing))
+    }
+    if (!visible) return
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Space.gutter)
+            .clip(RoundedCornerShape(Radius.control))
+            .background(AstrionTheme.raised)
+            .padding(horizontal = Space.m, vertical = Space.s),
+    ) {
+        Text("Holding $label…", style = AstrionType.label, color = AstrionTheme.textPrimary)
+        Spacer(Modifier.size(Space.xs))
+        LevelBar(fraction = progress.value, color = AstrionTheme.accent, height = 4.dp)
     }
 }
