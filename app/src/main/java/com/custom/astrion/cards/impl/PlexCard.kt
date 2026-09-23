@@ -1,9 +1,18 @@
 package com.custom.astrion.cards.impl
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,21 +25,28 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.AstrionType
+import com.custom.astrion.ui.ImageCache
+import com.custom.astrion.ui.LocalFeedback
+import com.custom.astrion.ui.PendingSpinner
+import com.custom.astrion.ui.Radius
+import com.custom.astrion.ui.SectionLabel
+import com.custom.astrion.ui.Space
+import com.custom.astrion.ui.StateKind
+import com.custom.astrion.ui.StateLine
+import com.custom.astrion.ui.decodeSampledBytes
+import com.custom.astrion.ui.rememberRemoteBitmap
 import com.custom.astrion.ui.tap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -44,6 +60,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
@@ -110,23 +127,25 @@ class PlexCard : CardRenderer {
 
     private data class Shelf(val title: String, val items: List<PlexItem>)
 
+    /** Result of loading the rows: `reachable` false = the server never answered. */
+    private data class ShelfLoad(val shelves: List<Shelf>, val reachable: Boolean)
+
     private companion object {
         val http: OkHttpClient = OkHttpClient.Builder()
             .callTimeout(12, TimeUnit.SECONDS)
             .build()
         val json = Json { ignoreUnknownKeys = true }
 
-        // Small LRU so swiping back and forth doesn't refetch posters.
-        val posterCache = object : LinkedHashMap<String, ImageBitmap>(0, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > 48
-        }
-
-        @Synchronized fun cacheGet(k: String): ImageBitmap? = posterCache[k]
-        @Synchronized fun cachePut(k: String, v: ImageBitmap) { posterCache[k] = v }
+        /** App-scope row cache: key → (load, fetched-at). */
+        val shelfCache = ConcurrentHashMap<String, Pair<ShelfLoad, Long>>()
+        val machineIds = ConcurrentHashMap<String, String>()
+        const val TTL_MS = 5 * 60 * 1000L
 
         // ~3.5 tiles across a 480px/220dpi panel.
         val TILE_W = 92.dp
         val POSTER_H = 132.dp
+        /** Posters are drawn at ~127×182 px; ask the server for about that. */
+        const val POSTER_PX = 184
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -140,37 +159,55 @@ class PlexCard : CardRenderer {
         val wakeTimeoutMs = config.int("wake_timeout", 25).coerceIn(5, 60) * 1000L
         val limit = config.int("limit", 10).coerceIn(1, 30)
         val rowSpecs = (config.options["rows"] as? List<Map<String, Any?>>) ?: emptyList()
+        val feedback = LocalFeedback.current
 
         // machineIdentifier is needed to build the plex:// play id. Read it
         // from the server rather than pinning it in config.
-        val machineId by produceState<String?>(initialValue = config.string("machine_id"), host, token) {
+        val machineId by produceState<String?>(
+            initialValue = config.string("machine_id") ?: machineIds[host], host, token,
+        ) {
             if (value == null) {
                 value = get(url(host, token, "/identity"))?.mc()?.str("machineIdentifier")
+                value?.let { machineIds[host] = it }
             }
         }
 
-        val shelves by produceState<List<Shelf>?>(initialValue = null, host, token, limit) {
-            value = rowSpecs.mapNotNull { spec ->
+        // Rows are cached app-wide for a few minutes, so coming back to the
+        // TV page shows posters on the first frame instead of "loading…".
+        val key = "$host|$token|$limit|$rowSpecs"
+        var load by remember(key) { mutableStateOf(shelfCache[key]?.first) }
+        LaunchedEffect(key) {
+            val cached = shelfCache[key]
+            if (cached != null && System.currentTimeMillis() - cached.second < TTL_MS) return@LaunchedEffect
+            var anyReached = false
+            val shelves = rowSpecs.mapNotNull { spec ->
                 val title = spec["title"] as? String ?: return@mapNotNull null
                 val path = spec["path"] as? String ?: return@mapNotNull null
                 val items = fetchItems(host, token, path, limit)
+                if (items != null) anyReached = true
                 if (items.isNullOrEmpty()) null else Shelf(title, items)
             }
+            val result = ShelfLoad(shelves, reachable = anyReached || rowSpecs.isEmpty())
+            if (result.reachable) shelfCache[key] = result to System.currentTimeMillis()
+            load = result
         }
 
-        // Starting cold takes several seconds (wake the TV, wait for ADB, fire
-        // the intent, wait for Plex to buffer). Without a line saying so, a tap
-        // looks exactly like the old do-nothing bug.
-        var status by remember { mutableStateOf<String?>(null) }
+        // Which poster is starting (null = none). Starting cold takes several
+        // seconds; a second tap meanwhile used to launch a second sequence.
+        var startingKey by remember { mutableStateOf<String?>(null) }
         val scope = rememberCoroutineScope()
 
         fun play(item: PlexItem) {
+            if (startingKey != null) {
+                feedback.show("Already starting — give it a moment")
+                return
+            }
             val mid = machineId ?: run {
-                status = "Plex server unreachable"
+                feedback.error("Plex server unreachable")
                 return
             }
             if (adbEntity == null) {
-                // No ADB bridge configured: the old session-only path.
+                // No ADB bridge configured: the session-only path.
                 val id = "plex://$mid/${item.ratingKey}" + if (item.resume) "?resume=1" else ""
                 ctx.client.callService(
                     ServiceCall.of(
@@ -179,52 +216,73 @@ class PlexCard : CardRenderer {
                         "media_content_id" to id,
                     )
                 )
+                feedback.show("Playing ${item.title}")
                 return
             }
+            startingKey = item.ratingKey
             scope.launch {
-                status = "Starting ${item.title}…"
-                // ADB can't reach a sleeping TV, so wake it over the
-                // androidtv_remote protocol first and wait for the bridge.
-                if (isAsleep(ctx.entity(adbEntity)?.state)) {
-                    if (tvEntity != null) {
-                        ctx.client.callService(
-                            ServiceCall(domain = "media_player", service = "turn_on", entityId = tvEntity)
+                try {
+                    feedback.show("Starting ${item.title}…")
+                    // ADB can't reach a sleeping TV: wake it over the
+                    // androidtv_remote protocol first and wait for the bridge.
+                    if (isAsleep(ctx.client.peek(adbEntity)?.state)) {
+                        if (tvEntity != null) {
+                            ctx.client.callService(
+                                ServiceCall(domain = "media_player", service = "turn_on", entityId = tvEntity)
+                            )
+                            feedback.show("Waking the TV…")
+                        }
+                        val awake = withTimeoutOrNull(wakeTimeoutMs) {
+                            while (isAsleep(ctx.client.peek(adbEntity)?.state)) delay(500)
+                            true
+                        }
+                        if (awake == null) {
+                            feedback.error("TV didn't wake — try again")
+                            return@launch
+                        }
+                    }
+                    feedback.show("Opening Plex…")
+                    ctx.client.callService(
+                        ServiceCall.of(
+                            "androidtv", "adb_command", adbEntity,
+                            "command" to deepLink(mid, item.ratingKey),
                         )
-                        status = "Waking the TV…"
-                    }
-                    val awake = withTimeoutOrNull(wakeTimeoutMs) {
-                        while (isAsleep(ctx.entity(adbEntity)?.state)) delay(500)
-                        true
-                    }
-                    if (awake == null) {
-                        status = "TV didn't wake — try again"
-                        delay(4000); status = null
-                        return@launch
-                    }
-                }
-                status = "Opening Plex…"
-                ctx.client.callService(
-                    ServiceCall.of(
-                        "androidtv", "adb_command", adbEntity,
-                        "command" to deepLink(mid, item.ratingKey),
                     )
-                )
-                delay(4000)
-                status = null
+                    delay(4000)
+                } finally {
+                    startingKey = null
+                }
             }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            status?.let { ShelfLabel(it) }
+        Column(verticalArrangement = Arrangement.spacedBy(Space.m)) {
+            val current = load
             when {
-                shelves == null -> ShelfLabel("Plex — loading…")
-                shelves!!.isEmpty() -> ShelfLabel("Plex — nothing to show")
-                else -> shelves!!.forEach { shelf ->
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ShelfLabel(shelf.title)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                current == null -> {
+                    SectionLabel("Plex")
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+                        repeat(4) {
+                            Box(
+                                Modifier
+                                    .width(TILE_W)
+                                    .height(POSTER_H)
+                                    .clip(RoundedCornerShape(Radius.small))
+                                    .background(AstrionTheme.raised),
+                            )
+                        }
+                    }
+                }
+                !current.reachable -> StateLine("Plex server unreachable", StateKind.Danger)
+                current.shelves.isEmpty() -> StateLine("Plex — nothing to show")
+                else -> current.shelves.forEach { shelf ->
+                    Column(verticalArrangement = Arrangement.spacedBy(Space.s)) {
+                        SectionLabel(shelf.title)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                             items(shelf.items) { item ->
-                                PosterTile(host, token, item) { play(item) }
+                                PosterTile(
+                                    host, token, item,
+                                    starting = startingKey == item.ratingKey,
+                                ) { play(item) }
                             }
                         }
                     }
@@ -234,65 +292,72 @@ class PlexCard : CardRenderer {
     }
 
     @Composable
-    private fun ShelfLabel(text: String) {
-        Text(
-            text,
-            color = Color(0xFF9FBAC0),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.sp,
-        )
-    }
-
-    @Composable
-    private fun PosterTile(host: String, token: String, item: PlexItem, onClick: () -> Unit) {
+    private fun PosterTile(host: String, token: String, item: PlexItem, starting: Boolean, onClick: () -> Unit) {
         val posterUrl = item.thumb?.let { thumbUrl(host, token, it) }
-        var bmp by remember(posterUrl) { mutableStateOf(posterUrl?.let { cacheGet(it) }) }
-        LaunchedEffect(posterUrl) {
-            if (bmp == null && posterUrl != null) {
-                val loaded = withContext(Dispatchers.IO) {
-                    runCatching {
-                        http.newCall(Request.Builder().url(posterUrl).build()).execute().use { r ->
-                            r.body?.bytes()?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
-                        }
-                    }.getOrNull()?.asImageBitmap()
-                }
-                if (loaded != null) { cachePut(posterUrl, loaded); bmp = loaded }
-            }
+        val cacheKey = posterUrl?.let { ImageCache.remoteKey(it, POSTER_PX) }
+        val bmp by rememberRemoteBitmap(cacheKey) {
+            val u = posterUrl ?: return@rememberRemoteBitmap null
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    http.newCall(Request.Builder().url(u).build()).execute().use { r ->
+                        r.body?.bytes()?.let { decodeSampledBytes(it, POSTER_PX) }
+                    }
+                }.getOrNull()
+            }?.also { img -> cacheKey?.let { ImageCache.put(it, img) } }
         }
+        val shape = RoundedCornerShape(Radius.small)
 
         Column(
             modifier = Modifier
                 .width(TILE_W)
-                .tap(onClick = onClick),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+                .clip(RoundedCornerShape(Radius.small))
+                .tap(onClickLabel = "Play ${item.title}", onClick = onClick),
+            verticalArrangement = Arrangement.spacedBy(Space.xs),
         ) {
-            val posterMod = Modifier
-                .fillMaxWidth()
-                .height(POSTER_H)
-                .clip(RoundedCornerShape(8.dp))
-            if (bmp != null) {
-                Image(bmp!!, contentDescription = item.title, modifier = posterMod, contentScale = ContentScale.Crop)
-            } else {
-                Box(posterMod.background(AstrionTheme.raised))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(POSTER_H)
+                    .clip(shape)
+                    .background(AstrionTheme.raised)
+                    .then(if (starting) Modifier.border(2.dp, AstrionTheme.accent, shape) else Modifier),
+            ) {
+                bmp?.let {
+                    Image(it, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                }
+                // Episode / year badge on the poster itself (was a 10sp line).
+                if (item.subtitle.isNotBlank()) {
+                    Text(
+                        item.subtitle,
+                        style = AstrionType.label,
+                        color = AstrionTheme.textPrimary,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(Space.xs)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(AstrionTheme.pinnedTopBg)
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+                if (starting) {
+                    Box(
+                        Modifier
+                            .align(Alignment.Center)
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(AstrionTheme.pinnedTopBg),
+                        contentAlignment = Alignment.Center,
+                    ) { PendingSpinner(size = 24.dp) }
+                }
             }
             Text(
                 item.title,
+                style = AstrionType.label,
                 color = AstrionTheme.textPrimary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (item.subtitle.isNotBlank()) {
-                Text(
-                    item.subtitle,
-                    color = AstrionTheme.textSecondary,
-                    fontSize = 10.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
     }
 
@@ -306,7 +371,7 @@ class PlexCard : CardRenderer {
     /** Server-side scaled poster — keeps the decode tiny on a 1GB device. */
     private fun thumbUrl(host: String, token: String, thumb: String): String {
         val inner = URLEncoder.encode(thumb, "UTF-8")
-        val q = "/photo/:/transcode?width=200&height=300&minSize=1&upscale=1&url=$inner"
+        val q = "/photo/:/transcode?width=128&height=184&minSize=1&upscale=1&url=$inner"
         return url(host, token, q)
     }
 
