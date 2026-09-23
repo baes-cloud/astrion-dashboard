@@ -1,10 +1,21 @@
 package com.custom.astrion.cards.impl
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -13,47 +24,41 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.AstrionType
+import com.custom.astrion.ui.PendingSpinner
+import com.custom.astrion.ui.Radius
+import com.custom.astrion.ui.SectionLabel
+import com.custom.astrion.ui.Touch
+import com.custom.astrion.ui.liveOrDim
+import com.custom.astrion.ui.rememberAction
 import com.custom.astrion.ui.rememberSampledBitmap
-import com.custom.astrion.ui.tap
-import java.io.File
 
 /**
- * Generic grid of action buttons, each firing a HA service call. Buttons can
- * carry a PNG icon loaded from a file path (e.g. /sdcard/astrion/icons/mos.png),
- * a text label, or both. Used for the TV-app row, Group/Ungroup, and the
- * playlist buttons.
+ * Grid of action buttons, each firing a HA service call; a button can carry
+ * a PNG icon from a file path, a label, or both (playlist buttons, TV apps,
+ * Group / Ungroup).
  *
- * `tile_height`, `icon_size` and `spacing` (all dp) shrink the buttons where a
- * grid has to share a page with taller cards — the playlist grid sits under the
- * media stack and would otherwise be cut in half by the bottom of the screen.
+ * Tiles use a MINIMUM height (`tile_height`), not a fixed one, so larger
+ * system text grows the tile instead of clipping the label. Each tile shows
+ * a spinner while its call is in flight and a red outline if refused.
  *
- * Config shape:
- *   { "type": "button_grid", "options": {
- *       "columns": 3,
- *       "tile_height": 56,
- *       "icon_size": 26,
- *       "buttons": [
- *         { "name": "Group",   "service": "script.group" },
- *         { "name": "Disco",   "icon": "/sdcard/astrion/icons/disco.png",
- *           "service": "script.playlist_disco" },
- *         { "name": "Netflix", "service": "media_player.play_media",
- *           "entity_id": "media_player.the_club_tvv",
- *           "data": { "media_content_type": "app", "media_content_id": "com.netflix.ninja" } }
- *       ]
- *   } }
+ * Config: { "type": "button_grid", "options": {
+ *     "title": "Playlists", "columns": 3, "tile_height": 56, "icon_size": 26,
+ *     "spacing": 8,
+ *     "buttons": [ { "name": "Disco", "icon": "/sdcard/astrion/icons/disco.png",
+ *                    "service": "script.play_disco", "entity_id": …, "data": {…} } ] } }
  */
 class ButtonGridCard : CardRenderer {
     override val type = "button_grid"
@@ -69,16 +74,14 @@ class ButtonGridCard : CardRenderer {
         val spacing = config.int("spacing", 10).coerceIn(2, 24).dp
 
         Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
-            if (title != null) {
-                Text(title, color = Color(0xFF9FBAC0), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-            }
+            if (title != null) SectionLabel(title)
             buttons.chunked(columns).forEach { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(spacing),
                 ) {
                     row.forEach { b ->
-                        GridButton(b, Modifier.weight(1f), tileHeight, iconSize) { fire(ctx, b) }
+                        GridButton(ctx, b, Modifier.weight(1f), tileHeight, iconSize)
                     }
                     repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
@@ -87,60 +90,73 @@ class ButtonGridCard : CardRenderer {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun fire(ctx: CardContext, b: Map<String, Any?>) {
-        val service = b["service"] as? String ?: return
-        val domain = service.substringBefore('.')
-        val svc = service.substringAfter('.')
-        val entityId = b["entity_id"] as? String
-        val data = (b["data"] as? Map<String, Any?>).orEmpty()
-        ctx.client.callService(
-            ServiceCall.of(domain, svc, entityId, *data.entries.map { it.key to it.value }.toTypedArray())
-        )
-    }
-
     @Composable
     private fun GridButton(
+        ctx: CardContext,
         b: Map<String, Any?>,
         modifier: Modifier,
         tileHeight: Dp?,
         iconSize: Dp?,
-        onClick: () -> Unit,
     ) {
         val name = b["name"] as? String
         val iconPath = b["icon"] as? String
-        // Off-thread and downsampled — these are drawn into a 32dp box but
-        // were being decoded at native resolution (up to 78 KB apiece) on the
-        // composition thread, six at a time, when the Media page first drew.
+        // Off-thread, downsampled, cached.
         val bitmap by rememberSampledBitmap(iconPath, targetPx = 96)
         val hasIcon = bitmap != null
-
-        val height = tileHeight ?: if (hasIcon) 68.dp else 48.dp
+        val height = tileHeight ?: if (hasIcon) 68.dp else Touch.min
         val glyph = iconSize ?: 32.dp
+        val action = rememberAction(ctx)
+        val live = ctx.connected
+        val interaction = remember { MutableInteractionSource() }
+        val pressed by interaction.collectIsPressedAsState()
+        val haptics = LocalHapticFeedback.current
+        val shape = RoundedCornerShape(Radius.control)
 
-        Column(
+        Box(
             modifier = modifier
-                .height(height)
-                .clip(RoundedCornerShape(14.dp))
-                .background(AstrionTheme.raised)
-                .tap(onClick = onClick)
+                .heightIn(min = height.coerceAtLeast(Touch.min))
+                .liveOrDim(live)
+                .clip(shape)
+                .background(if (pressed) AstrionTheme.controlPressed else AstrionTheme.raised)
+                .then(if (action.failed) Modifier.border(2.dp, AstrionTheme.danger, shape) else Modifier)
+                .clickable(
+                    interactionSource = interaction,
+                    indication = null,
+                    enabled = live,
+                    role = Role.Button,
+                ) {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val service = b["service"] as? String ?: return@clickable
+                    val data = (b["data"] as? Map<String, Any?>).orEmpty()
+                    action.run(
+                        ServiceCall.of(
+                            service.substringBefore('.'), service.substringAfter('.'),
+                            b["entity_id"] as? String,
+                            *data.entries.map { it.key to it.value }.toTypedArray(),
+                        )
+                    )
+                }
                 .padding(6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+            contentAlignment = Alignment.Center,
         ) {
-            bitmap?.let { bmp ->
-                Image(bitmap = bmp, contentDescription = name, modifier = Modifier.size(glyph))
-                if (!name.isNullOrBlank()) Spacer(Modifier.height(3.dp))
-            }
-            if (!name.isNullOrBlank()) {
-                Text(
-                    name,
-                    color = Color(0xFFE6F0F1),
-                    fontSize = if (hasIcon) 12.sp else 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                )
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                val bmp = bitmap
+                if (action.busy) {
+                    PendingSpinner(size = glyph.coerceAtMost(24.dp), color = AstrionTheme.accent)
+                } else if (bmp != null) {
+                    Image(bitmap = bmp, contentDescription = null, modifier = Modifier.size(glyph))
+                }
+                if (!name.isNullOrBlank()) {
+                    if (hasIcon || action.busy) Spacer(Modifier.height(3.dp))
+                    Text(
+                        name,
+                        style = if (hasIcon) AstrionType.label else AstrionType.bodyStrong,
+                        color = AstrionTheme.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
         }
     }

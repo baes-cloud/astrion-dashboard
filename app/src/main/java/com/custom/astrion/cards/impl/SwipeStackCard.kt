@@ -1,55 +1,51 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
-import com.custom.astrion.ui.tap
+import com.custom.astrion.ui.ChoiceChip
+import com.custom.astrion.ui.Radius
+import com.custom.astrion.ui.Space
+import com.custom.astrion.ui.TouchTarget
 import kotlinx.coroutines.launch
 
 /**
- * Generic swipeable container: stacks child cards on top of each other and
- * swipes between them, with a title and pagination dots.
+ * Children stacked one behind another, swiped between — e.g. the full player
+ * and the music shelves in one slot on Media.
  *
- * The sibling of [RowCard] — that one puts children side by side, this one
- * puts them one behind the other. Used on Media to keep the big player and the
- * Sonos shelves in the same slot instead of making the page twice as long.
+ * With `titles`, the switcher is a segmented tab bar ("Player | Media",
+ * 44dp tall, the current tab filled) instead of the old 7dp dots: children
+ * built from LazyRows eat horizontal drags, so the tabs are the way through
+ * that always works, and they say what's behind each page. Without titles,
+ * dots in 44dp targets.
  *
- * The dots are tappable, not decoration. Children like `media_shelves` are
- * built from LazyRows, which eat horizontal drags for their own scrolling, so
- * on those pages the only reliable swipe surface is the gaps between rows —
- * the dots give a way through that always works.
+ * Children are top-aligned (a shorter child used to be vertically centred in
+ * the fixed height, leaving blank bands above and below it).
  *
- * Config shape:
- *   { "type": "swipe_stack", "options": {
- *       "titles": ["Player", "Media"],
- *       "height": 330,
- *       "cards": [
- *         { "type": "media_player",  "options": { ... } },
- *         { "type": "media_shelves", "options": { ... } }
- *       ]
- *   } }
- *
- * `height` is in dp and fixes the swipe area. Left at 0 the pager sizes to its
- * content, which makes the whole page jump as you drag between children of
- * different heights.
+ * Config: { "type": "swipe_stack", "options": {
+ *     "titles": ["Player", "Media"], "height": 420,
+ *     "cards": [ { "type": …, "options": { … } }, … ] } }
  */
 class SwipeStackCard : CardRenderer {
     override val type = "swipe_stack"
@@ -65,42 +61,38 @@ class SwipeStackCard : CardRenderer {
         val pagerState = rememberPagerState(pageCount = { children.size })
         val scope = rememberCoroutineScope()
 
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    titles.getOrNull(pagerState.currentPage).orEmpty(),
-                    color = AstrionTheme.textSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.sp,
-                )
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s)) {
+            if (titles.size >= children.size) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radius.control))
+                        .background(AstrionTheme.controlSunken)
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    children.indices.forEach { i ->
+                        ChoiceChip(
+                            label = titles[i],
+                            selected = i == pagerState.currentPage,
+                            onClick = { scope.launch { pagerState.animateScrollToPage(i) } },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
                 ) {
                     children.indices.forEach { i ->
                         val current = i == pagerState.currentPage
-                        Box(
-                            modifier = Modifier
-                                // The dot is 7dp but the touch target is 22dp:
-                                // a 7dp target is a third of the 24dp minimum
-                                // and this is the fallback control for a page
-                                // you may not be able to swipe to.
-                                .size(22.dp)
-                                .tap { scope.launch { pagerState.animateScrollToPage(i) } },
-                            contentAlignment = Alignment.Center,
-                        ) {
+                        TouchTarget(onClick = { scope.launch { pagerState.animateScrollToPage(i) } }) {
                             Box(
-                                modifier = Modifier
-                                    .size(if (current) 8.dp else 7.dp)
+                                Modifier
+                                    .size(if (current) 10.dp else 8.dp)
                                     .clip(CircleShape)
-                                    .background(
-                                        if (current) AstrionTheme.accent else AstrionTheme.controlBg
-                                    ),
+                                    .background(if (current) AstrionTheme.accent else AstrionTheme.controlBg),
                             )
                         }
                     }
@@ -110,13 +102,16 @@ class SwipeStackCard : CardRenderer {
             HorizontalPager(
                 state = pagerState,
                 modifier = if (height > 0) Modifier.height(height.dp) else Modifier,
+                verticalAlignment = Alignment.Top,
             ) { page ->
                 val child = children[page]
                 val childType = child["type"] as? String
                 val childOptions = (child["options"] as? Map<String, Any?>) ?: emptyMap()
                 val renderer = childType?.let { CardRegistry.get(it) }
                 Box(Modifier.fillMaxWidth()) {
-                    renderer?.Render(CardConfig(childType, childOptions), ctx)
+                    if (childType != null && renderer != null) {
+                        renderer.Render(CardConfig(childType, childOptions), ctx)
+                    }
                 }
             }
         }

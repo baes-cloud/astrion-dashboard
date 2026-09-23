@@ -115,6 +115,12 @@ object AstrionTheme {
     val vacBump = Color(0xFF9FB0B8)
     val vacDock = Color(0xFF1E262C)
 
+    // ---- media ------------------------------------------------------------------
+    /** Multiply tint that darkens the blurred album-art backdrop (no alpha layer). */
+    val artBackdropTint = Color(0xFF3C4B50)
+    /** Placeholder well when there is no art. */
+    val artPlaceholder = Color(0xFF284955)
+
     // ---- scenes ---------------------------------------------------------------
     val sceneDefault = Color(0xFF2A4954)
     val sceneInkDark = Color(0xFF141414)
