@@ -11,6 +11,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ui.Space
 
 /**
  * Generic horizontal container: lays out child cards side by side with equal
@@ -32,7 +33,7 @@ class RowCard : CardRenderer {
         val children = (config.options["cards"] as? List<Map<String, Any?>>) ?: emptyList()
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(Space.gutter),
         ) {
             children.forEach { child ->
                 val childType = child["type"] as? String ?: return@forEach

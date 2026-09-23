@@ -2,11 +2,23 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,17 +37,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.AstrionType
+import com.custom.astrion.ui.PendingSpinner
+import com.custom.astrion.ui.Radius
+import com.custom.astrion.ui.SectionLabel
+import com.custom.astrion.ui.Space
+import com.custom.astrion.ui.liveOrDim
+import com.custom.astrion.ui.parseHexColor
+import com.custom.astrion.ui.rememberAction
 
 /**
  * Scene grid — packs N scene buttons into a configurable grid, each tile a
@@ -66,42 +86,31 @@ class SceneGridCard : CardRenderer {
         val row = config.string("layout") == "row"
         val title = config.string("title")
 
-        fun activate(entityId: String) {
-            // scene.* → scene.turn_on, script.* → script.turn_on, etc.
-            val domain = entityId.substringBefore('.')
-            ctx.client.callService(ServiceCall(domain = domain, service = "turn_on", entityId = entityId))
-        }
         fun nameOf(scene: Map<String, Any?>, entityId: String) =
-            scene["name"] as? String ?: ctx.entities[entityId]?.friendlyName ?: entityId
+            scene["name"] as? String ?: ctx.client.peek(entityId)?.friendlyName ?: entityId
         fun colorOf(scene: Map<String, Any?>): Color =
-            (scene["color"] as? String)?.let(::parseHexColor) ?: Color(0xFF2A4954)
+            parseHexColor(scene["color"] as? String) ?: AstrionTheme.sceneDefault
         fun iconOf(scene: Map<String, Any?>): ImageVector? = sceneIcon(scene["icon"] as? String)
 
         if (title != null) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    title,
-                    color = Color(0xFF93AFB6),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.sp,
-                )
-                SceneGridBody(row, columns, scenes, ::nameOf, ::colorOf, ::iconOf, ::activate)
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s)) {
+                SectionLabel(title)
+                SceneGridBody(ctx, row, columns, scenes, ::nameOf, ::colorOf, ::iconOf)
             }
         } else {
-            SceneGridBody(row, columns, scenes, ::nameOf, ::colorOf, ::iconOf, ::activate)
+            SceneGridBody(ctx, row, columns, scenes, ::nameOf, ::colorOf, ::iconOf)
         }
     }
 
     @Composable
     private fun SceneGridBody(
+        ctx: CardContext,
         row: Boolean,
         columns: Int,
         scenes: List<Map<String, Any?>>,
         nameOf: (Map<String, Any?>, String) -> String,
         colorOf: (Map<String, Any?>) -> Color,
         iconOf: (Map<String, Any?>) -> ImageVector?,
-        activate: (String) -> Unit,
     ) {
         if (row) {
             // Horizontally scrollable row.
@@ -131,11 +140,13 @@ class SceneGridCard : CardRenderer {
                     scenes.forEach { scene ->
                         val entityId = scene["entity_id"] as? String ?: return@forEach
                         SceneButton(
+                            ctx = ctx,
+                            entityId = entityId,
                             name = nameOf(scene, entityId),
                             color = colorOf(scene),
                             icon = iconOf(scene),
                             modifier = Modifier.width(tileW),
-                        ) { activate(entityId) }
+                        )
                     }
                 }
             }
@@ -146,11 +157,13 @@ class SceneGridCard : CardRenderer {
                         chunk.forEach { scene ->
                             val entityId = scene["entity_id"] as? String ?: return@forEach
                             SceneButton(
+                                ctx = ctx,
+                                entityId = entityId,
                                 name = nameOf(scene, entityId),
                                 color = colorOf(scene),
                                 icon = iconOf(scene),
                                 modifier = Modifier.weight(1f),
-                            ) { activate(entityId) }
+                            )
                         }
                         // Pad the final short row so tiles keep equal width.
                         repeat(columns - chunk.size) { Spacer(Modifier.weight(1f)) }
@@ -158,13 +171,6 @@ class SceneGridCard : CardRenderer {
                 }
             }
         }
-    }
-
-    /** Parse "#RRGGBB" (treated opaque) or "#AARRGGBB" to a Color. */
-    private fun parseHexColor(s: String): Color? {
-        val h = s.removePrefix("#")
-        val v = h.toLongOrNull(16) ?: return null
-        return if (h.length <= 6) Color(0xFF000000L or v) else Color(v)
     }
 
     /** Perceived luminance of the base RGB (0..1) — used to pick a readable text colour. */
@@ -181,26 +187,41 @@ class SceneGridCard : CardRenderer {
         else -> null
     }
 
+    /**
+     * A raised face over a darker lip; pressing sinks the face onto the lip
+     * (one animated Dp — the app's signature press). The tile then shows a
+     * spinner if the scene is slow to confirm, and a red outline if HA
+     * refused it, so a scene is never fired twice "to be sure".
+     * Colours are opaque blends toward the page, not alpha layers.
+     */
     @Composable
-    private fun SceneButton(name: String, color: Color, icon: ImageVector?, modifier: Modifier, onClick: () -> Unit) {
-        // Dark text/icon on light tiles (e.g. the white scene), light otherwise.
-        val fg = if (luminance(color) > 0.75f) Color(0xFF141414) else Color(0xFFF0F2F6)
-        // Semi-transparent face (darker/faded over the band) plus a darker,
-        // faded "lip" the raised face sits on — its thickness. Pressing sinks
-        // the face onto the lip (a 3D press-in).
-        val face = color.copy(alpha = 0.55f)
-        val base = Color(color.red * 0.5f, color.green * 0.5f, color.blue * 0.5f, 0.62f)
+    private fun SceneButton(
+        ctx: CardContext,
+        entityId: String,
+        name: String,
+        color: Color,
+        icon: ImageVector?,
+        modifier: Modifier,
+    ) {
+        val action = rememberAction(ctx)
+        val face = lerp(AstrionTheme.pageBg, color, 0.62f)
+        val base = lerp(AstrionTheme.pageBg, Color(color.red * 0.5f, color.green * 0.5f, color.blue * 0.5f), 0.7f)
+        // Dark ink on light tiles (e.g. the white scene), light otherwise.
+        val fg = if (luminance(face) > 0.6f) AstrionTheme.sceneInkDark else AstrionTheme.sceneInkLight
         val interaction = remember { MutableInteractionSource() }
         val pressed by interaction.collectIsPressedAsState()
         val haptics = LocalHapticFeedback.current
         val lip = 5.dp
         val faceH = if (icon != null) 60.dp else 48.dp
         val sink by animateDpAsState(if (pressed) lip else 0.dp, label = "sink")
+        val live = ctx.connected
+        val shape = RoundedCornerShape(Radius.control)
 
         Box(
             modifier = modifier
                 .height(faceH + lip)
-                .clip(RoundedCornerShape(14.dp))
+                .liveOrDim(live)
+                .clip(shape)
                 .background(base),
         ) {
             Column(
@@ -209,26 +230,24 @@ class SceneGridCard : CardRenderer {
                     .height(faceH)
                     .align(Alignment.TopCenter)
                     .offset(y = sink)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(shape)
                     .background(face)
-                    .clickable(interactionSource = interaction, indication = null) {
+                    .then(if (action.failed) Modifier.border(2.dp, AstrionTheme.danger, shape) else Modifier)
+                    .clickable(interactionSource = interaction, indication = null, enabled = live) {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onClick()
+                        // scene.* → scene.turn_on, script.* → script.turn_on, etc.
+                        action.run(ServiceCall(entityId.substringBefore('.'), "turn_on", entityId))
                     }
                     .padding(horizontal = 6.dp, vertical = 7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = if (icon != null) Arrangement.SpaceBetween else Arrangement.Center,
             ) {
-                if (icon != null) {
+                if (action.busy) {
+                    PendingSpinner(size = 18.dp, color = fg)
+                } else if (icon != null) {
                     Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
                 }
-                Text(
-                    name,
-                    color = fg,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                )
+                Text(name, style = AstrionType.bodyStrong, color = fg, textAlign = TextAlign.Center, maxLines = 1)
             }
         }
     }

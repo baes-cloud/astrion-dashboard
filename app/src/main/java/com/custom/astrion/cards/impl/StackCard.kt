@@ -15,6 +15,7 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Radius
 
 /**
  * Vertical container that joins its children into ONE card: a single shape
@@ -49,8 +50,8 @@ class StackCard : CardRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (hasFill) Modifier.fillMaxHeight() else Modifier)
-                .clip(RoundedCornerShape(18.dp))
-                .background(AstrionTheme.cardBgAlt),
+                .clip(RoundedCornerShape(Radius.card))
+                .background(AstrionTheme.cardBg),
         ) {
             children.forEach { child ->
                 val childType = child["type"] as? String ?: return@forEach
