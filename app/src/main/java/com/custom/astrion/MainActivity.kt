@@ -383,6 +383,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         inFront = false
+        clearHold()
         pausedAtMs = System.currentTimeMillis()
         super.onPause()
     }

@@ -7,7 +7,8 @@ import com.custom.astrion.cards.CardConfig
  * from /sdcard/astrion/dashboard.json (and writes this out as the initial file
  * when none exists). Edit the JSON and reopen the app to change things.
  *
- * Four swipeable pages, each also reachable by a physical shortcut button:
+ * Four pages, each reachable by a physical shortcut button or by tapping the
+ * page header (page picker):
  *   0  TV       — Curtain button — TV now-playing + Plex shelves
  *   1  Main     — Light button   — clock/weather, floorplan, compact media
  *   2  Media    — Music button   — full player + group/ungroup + playlists + Sonos shelves
@@ -515,6 +516,12 @@ object DashboardConfig {
         tvKey("POWER", "POWER"),
         // Mute also mutes/unmutes the club speakers, matching whatever they're
         // currently set to (astrion.toggle_mute reads the live state).
+        //
+        // FLAG (UI audit F-C13, deliberately NOT changed in the rebuild): the
+        // base action sends HOME to the Android TV, not a mute. If that is
+        // intended, say why here; if not, the likely intent is "MUTE" or no
+        // TV command at all. The on-screen button map shows it as
+        // "TV · Home + Mute / unmute speakers" so it is at least visible.
         tvKey("MUTE", "HOME").copy(
             then = listOf(HotkeyConfig("", service = "astrion.toggle_mute", entityId = CLUB_MEDIA)),
         ),
