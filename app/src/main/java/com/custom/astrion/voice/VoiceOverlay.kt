@@ -32,9 +32,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import java.io.File
-import com.custom.astrion.ui.tap
+import com.custom.astrion.ui.AstrionButton
+import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.AstrionType
+import com.custom.astrion.ui.Radius
+import com.custom.astrion.ui.Space
+import com.custom.astrion.ui.decodeSampled
+import androidx.compose.ui.graphics.lerp
 
 /**
  * Voice assistant modal, shown while a [VoiceSession] is running.
@@ -64,7 +69,7 @@ fun VoiceOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xCC050B0D))
+            .background(AstrionTheme.scrim)
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
@@ -75,10 +80,10 @@ fun VoiceOverlay(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF14262D))
-                .padding(20.dp),
+                .padding(horizontal = Space.xl)
+                .clip(RoundedCornerShape(Radius.sheet))
+                .background(AstrionTheme.cardBg)
+                .padding(Space.xl),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -114,7 +119,7 @@ fun VoiceOverlay(
                     ) {
                         Icon(
                             Icons.Filled.Mic, contentDescription = null,
-                            tint = Color(0xFF0F1E24), modifier = Modifier.size(40.dp),
+                            tint = AstrionTheme.pinnedTopBg, modifier = Modifier.size(40.dp),
                         )
                     }
                 }
@@ -123,47 +128,36 @@ fun VoiceOverlay(
             Text(
                 phaseLabel(state.phase),
                 color = accentColor(state.phase),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.5.sp,
+                style = AstrionType.shout,
             )
 
             if (state.transcript.isNotBlank()) {
                 Text(
                     "“${state.transcript}”",
-                    color = Color(0xFFF3F8F9), fontSize = 16.sp,
+                    color = AstrionTheme.textPrimary, style = AstrionType.title,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                 )
             }
             if (state.reply.isNotBlank()) {
                 Text(
                     state.reply,
-                    color = Color(0xFF9FBAC0), fontSize = 14.sp,
+                    color = AstrionTheme.textSecondary, style = AstrionType.body,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                 )
             }
             state.error?.let {
                 Text(
                     it,
-                    color = Color(0xFFE06767), fontSize = 13.sp,
+                    color = AstrionTheme.danger, style = AstrionType.bodyStrong,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF2C4D59))
-                    .tap(onClick = onDismiss),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    if (state.phase == VoicePhase.LISTENING) "Stop" else "Close",
-                    color = Color(0xFFE6F0F1), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                )
-            }
+            AstrionButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                label = if (state.phase == VoicePhase.LISTENING) "Stop (or press Mic)" else "Close",
+            )
         }
     }
 }
@@ -197,14 +191,15 @@ private fun phaseLabel(p: VoicePhase) = when (p) {
 }
 
 private fun accentColor(p: VoicePhase) = when (p) {
-    VoicePhase.LISTENING -> Color(0xFFFFC24B)
-    VoicePhase.PROCESSING -> Color(0xFF6EA8FE)
-    VoicePhase.SPEAKING -> Color(0xFF5FD3A0)
-    VoicePhase.ERROR -> Color(0xFFE06767)
-    else -> Color(0xFF9FBAC0)
+    VoicePhase.LISTENING -> AstrionTheme.on
+    VoicePhase.PROCESSING -> AstrionTheme.accent
+    VoicePhase.SPEAKING -> AstrionTheme.good
+    VoicePhase.ERROR -> AstrionTheme.danger
+    else -> AstrionTheme.textSecondary
 }
 
-private fun haloColor(p: VoicePhase) = accentColor(p).copy(alpha = 0.14f)
+/** Opaque blend toward the card — no alpha layer under the pulsing avatar. */
+private fun haloColor(p: VoicePhase) = lerp(AstrionTheme.cardBg, accentColor(p), 0.18f)
 
 /** `<dir>/<phase>.png`, falling back to `<dir>/idle.png`, else null. */
 private fun loadPhaseImage(dir: String, phase: VoicePhase): ImageBitmap? {
@@ -219,8 +214,8 @@ private fun loadPhaseImage(dir: String, phase: VoicePhase): ImageBitmap? {
     for (n in names) {
         val f = File(dir, "$n.png")
         if (f.exists()) {
-            runCatching { BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() }
-                .getOrNull()?.let { return it }
+            // Downsampled to the 112dp it's drawn at, and cached.
+            decodeSampled(f.absolutePath, 160)?.let { return it }
         }
     }
     return null

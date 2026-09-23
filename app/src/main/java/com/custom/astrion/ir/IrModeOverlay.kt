@@ -1,9 +1,20 @@
 package com.custom.astrion.ir
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -18,16 +29,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
-import com.custom.astrion.ui.tap
+import com.custom.astrion.ui.AstrionButton
+import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.AstrionType
+import com.custom.astrion.ui.Radius
+import com.custom.astrion.ui.SectionLabel
+import com.custom.astrion.ui.Space
+import com.custom.astrion.ui.StateKind
+import com.custom.astrion.ui.StateLine
+import com.custom.astrion.ui.Tone
+import com.custom.astrion.ui.Touch
 
 /**
  * The "IR Mode" modal.
@@ -130,7 +145,7 @@ fun IrModeOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xCC050B0D))
+            .background(AstrionTheme.scrim)
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
@@ -141,45 +156,44 @@ fun IrModeOverlay(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF1C3740))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = Space.l)
+                .clip(RoundedCornerShape(Radius.sheet))
+                .background(AstrionTheme.cardBg)
+                .border(2.dp, AstrionTheme.irBadge, RoundedCornerShape(Radius.sheet))
+                .padding(Space.l),
+            verticalArrangement = Arrangement.spacedBy(Space.m),
         ) {
             // Header — unmistakable that the remote is in a different mode.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.m),
             ) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(44.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFE0663A)),
+                        .background(AstrionTheme.irBadge),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Filled.SettingsRemote, contentDescription = null,
-                        tint = Color(0xFF20120C), modifier = Modifier.size(22.dp),
+                        tint = AstrionTheme.irBadgeInk, modifier = Modifier.size(24.dp),
                     )
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        "IR MODE",
-                        color = Color(0xFFFFC24B), fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 2.sp,
-                    )
+                    Text("IR MODE", color = AstrionTheme.on, style = AstrionType.shout)
                     Text(
                         "Hardware buttons blast to the TV",
-                        color = Color(0xFF9FBAC0), fontSize = 12.sp,
+                        color = AstrionTheme.textSecondary, style = AstrionType.label,
                     )
                 }
             }
 
             // Capability line — makes a dead emitter obvious instead of silent.
-            val statusColor = if (blaster.available) Color(0xFF5FD3A0) else Color(0xFFE06767)
-            Text(blaster.statusLine(), color = statusColor, fontSize = 11.sp)
+            StateLine(
+                blaster.statusLine(),
+                if (blaster.available) StateKind.Good else StateKind.Danger,
+            )
 
             Divider()
 
@@ -187,51 +201,36 @@ fun IrModeOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF14262D))
-                    .padding(vertical = 12.dp),
+                    .heightIn(min = Touch.min)
+                    .clip(RoundedCornerShape(Radius.control))
+                    .background(AstrionTheme.controlSunken)
+                    .padding(horizontal = Space.m),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     toast ?: lastKeyLabel ?: "Press a hardware button…",
-                    color = if (toast != null) Color(0xFFFFC24B) else Color(0xFFCBDCE0),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
+                    color = if (toast != null) AstrionTheme.on else AstrionTheme.textOnControl,
+                    style = AstrionType.bodyStrong,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
 
-            Text(
-                "NETWORK CONTROLS",
-                color = Color(0xFF9FBAC0), fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
-            )
+            SectionLabel("Network controls")
 
             // On-screen buttons → HA over the network.
             buttons.chunked(3).forEach { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(Space.s),
                 ) {
                     row.forEach { b ->
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF2C4D59))
-                                .tap { press(b) },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                b["name"] as? String ?: "?",
-                                color = Color(0xFFE6F0F1), fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center,
-                            )
-                        }
+                        AstrionButton(
+                            onClick = { press(b) },
+                            modifier = Modifier.weight(1f),
+                            label = b["name"] as? String ?: "?",
+                            textStyle = AstrionType.label,
+                        )
                     }
                     repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
@@ -239,20 +238,13 @@ fun IrModeOverlay(
 
             Divider()
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF3A2E2E))
-                    .tap(onClick = onClose),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    "Exit IR Mode",
-                    color = Color(0xFFE79A9A), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                )
-            }
+            AstrionButton(
+                onClick = onClose,
+                modifier = Modifier.fillMaxWidth(),
+                label = "Exit IR Mode",
+                tone = Tone.Danger,
+                description = "Exit IR Mode (or press Menu again)",
+            )
         }
     }
 }
@@ -263,7 +255,7 @@ private fun Divider() {
         modifier = Modifier
             .fillMaxWidth()
             .height(1.dp)
-            .background(Color(0x332C4D59)),
+            .background(AstrionTheme.divider),
     )
 }
 

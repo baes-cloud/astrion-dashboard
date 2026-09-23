@@ -197,6 +197,15 @@ object AstrionType {
     val section = TextStyle(
         fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, lineHeight = 16.sp,
     )
+    /** Alarm popup clock and its am/pm. */
+    val alarmClock = TextStyle(fontSize = 88.sp, fontWeight = FontWeight.ExtraLight, lineHeight = 92.sp)
+    val alarmAmPm = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.Light, lineHeight = 32.sp)
+    /** Snooze countdown inside its ring. */
+    val countdown = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.Light, lineHeight = 32.sp)
+    /** Letter-spaced status words ("WAKE UP", "IR MODE"). */
+    val shout = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp, lineHeight = 18.sp)
+    /** Big pill-button labels (alarm). */
+    val button = TextStyle(fontSize = 19.sp, fontWeight = FontWeight.SemiBold, lineHeight = 24.sp)
     /** The page header's date / time. */
     val header = TextStyle(
         fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp, lineHeight = 18.sp,

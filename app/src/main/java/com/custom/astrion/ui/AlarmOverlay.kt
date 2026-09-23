@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -86,22 +87,22 @@ data class AlarmUiState(
     val snoozeMinutes: Int = 5,
 )
 
-// This screen's own palette. Deep night navy, one warm dawn light, and the two
-// buttons as the only saturated things on it.
-private val NavyTop = Color(0xFF16345A)
-private val NavyMid = Color(0xFF10284A)
-private val NavyBottom = Color(0xFF0A1A31)
-private val Dawn = Color(0xFFFFB347)
-private val Dusk = Color(0xFF6EA8FE)
-private val Ink = Color(0xFFF3F6FA)
-private val InkSoft = Color(0xFFAFC0D2)
-private val InkFaint = Color(0xFF7F93A9)
-private val GoldHi = Color(0xFFF6C75A)
-private val GoldLo = Color(0xFFDC9A22)
-private val GoldInk = Color(0xFF3A2605)
-private val Wine = Color(0xFF6E1520)
-private val WineHi = Color(0xFFD23A48)
-private val WineInk = Color(0xFFF8D3D7)
+// This screen's own palette (tokens in AstrionTheme.Alarm): deep night navy,
+// one warm dawn light, and the two buttons as the only saturated things on it.
+private val NavyTop = AstrionTheme.Alarm.navyTop
+private val NavyMid = AstrionTheme.Alarm.navyMid
+private val NavyBottom = AstrionTheme.Alarm.navyBottom
+private val Dawn = AstrionTheme.Alarm.dawn
+private val Dusk = AstrionTheme.Alarm.dusk
+private val Ink = AstrionTheme.Alarm.ink
+private val InkSoft = AstrionTheme.Alarm.inkSoft
+private val InkFaint = AstrionTheme.Alarm.inkFaint
+private val GoldHi = AstrionTheme.Alarm.goldHi
+private val GoldLo = AstrionTheme.Alarm.goldLo
+private val GoldInk = AstrionTheme.Alarm.goldInk
+private val Wine = AstrionTheme.dangerStrong
+private val WineHi = AstrionTheme.dangerStrongHi
+private val WineInk = AstrionTheme.dangerInk
 
 /**
  * The work-alarm popup: almost, but not quite, full screen.
@@ -122,7 +123,13 @@ private val WineInk = Color(0xFFF8D3D7)
  * itself underneath.
  *
  * Like the IR and voice overlays this draws in the Activity's own window, not
- * a Dialog, so hardware buttons keep working underneath it.
+ * a Dialog, so hardware buttons keep working underneath it — and while it
+ * rings, OK or any shortcut button snoozes (MainActivity), which the popup
+ * says in words under the buttons.
+ *
+ * Cheap to draw: no glows (the concentric alpha rectangles are gone — a 1dp
+ * edge in the button's colour instead), and the ripple only animates while
+ * actually ringing.
  */
 @Composable
 fun AlarmOverlay(
@@ -146,7 +153,7 @@ fun AlarmOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xF0040A10))
+            .background(AstrionTheme.scrim)
             // Swallow taps on the scrim so nothing underneath is hit by mistake.
             .clickable(
                 indication = null,
@@ -180,9 +187,7 @@ fun AlarmOverlay(
             Text(
                 if (state.ringing) "WAKE UP" else "SNOOZING",
                 color = light,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 3.sp,
+                style = AstrionType.shout,
             )
 
             Spacer(Modifier.weight(0.5f))
@@ -191,20 +196,18 @@ fun AlarmOverlay(
                 Text(
                     timeFmt.format(Date(now)),
                     color = Ink,
-                    fontSize = 88.sp,
-                    fontWeight = FontWeight.ExtraLight,
+                    style = AstrionType.alarmClock,
                     modifier = Modifier.alignByBaseline(),
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
                     ampmFmt.format(Date(now)),
                     color = InkSoft,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Light,
+                    style = AstrionType.alarmAmPm,
                     modifier = Modifier.alignByBaseline(),
                 )
             }
-            Text(dateFmt.format(Date(now)), color = InkSoft, fontSize = 15.sp)
+            Text(dateFmt.format(Date(now)), color = InkSoft, style = AstrionType.body)
 
             Spacer(Modifier.weight(0.5f))
 
@@ -222,7 +225,7 @@ fun AlarmOverlay(
             if (state.ringing) {
                 PillButton(
                     icon = Icons.Filled.Snooze,
-                    label = "Snooze · 5 min",
+                    label = "Snooze · ${state.snoozeMinutes} min",
                     ink = GoldInk,
                     brush = Brush.horizontalGradient(listOf(GoldHi, GoldLo)),
                     glowColor = GoldLo,
@@ -233,15 +236,23 @@ fun AlarmOverlay(
 
             HoldToStop(onDismiss)
 
-            if (!state.ringing) {
+            if (state.ringing) {
+                // The physical-button path, said out loud.
+                Text(
+                    "OK or any shortcut button snoozes",
+                    color = InkFaint,
+                    style = AstrionType.label,
+                )
+            } else {
                 Text(
                     "Hide until it rings again",
                     color = InkSoft,
-                    fontSize = 14.sp,
+                    style = AstrionType.body,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .heightIn(min = Touch.min)
+                        .clip(RoundedCornerShape(Radius.control))
                         .tap(onClick = onHide)
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                        .padding(horizontal = Space.card, vertical = 14.dp),
                 )
             }
         }
@@ -251,6 +262,12 @@ fun AlarmOverlay(
 /** The alarm glyph, with rings pulsing out of it while it rings. */
 @Composable
 private fun Ripple(ringing: Boolean, tint: Color) {
+    if (!ringing) {
+        // Snoozed: a still glyph. The infinite transition used to keep
+        // redrawing every frame for the whole snooze.
+        RippleGlyph(ringing = false, tint = tint, modifier = Modifier.size(64.dp))
+        return
+    }
     val t = rememberInfiniteTransition(label = "ripple")
     val p by t.animateFloat(
         initialValue = 0f,
@@ -275,11 +292,18 @@ private fun Ripple(ringing: Boolean, tint: Color) {
             },
         contentAlignment = Alignment.Center,
     ) {
+        RippleGlyph(ringing = true, tint = tint)
+    }
+}
+
+@Composable
+private fun RippleGlyph(ringing: Boolean, tint: Color, modifier: Modifier = Modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(tint.copy(alpha = 0.18f)),
+                .background(AstrionTheme.Alarm.glyphWell),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -298,17 +322,17 @@ private fun ShiftCard(state: AlarmUiState) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0x14FFFFFF))
-            .border(1.dp, Color(0x1FFFFFFF), RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(Radius.card))
+            .background(AstrionTheme.Alarm.card)
+            .border(1.dp, AstrionTheme.Alarm.cardEdge, RoundedCornerShape(Radius.card))
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
                 .size(38.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(Color(0x336EA8FE)),
+                .clip(RoundedCornerShape(Radius.control))
+                .background(AstrionTheme.Alarm.glyphWell),
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Filled.Event, contentDescription = null, tint = Dusk, modifier = Modifier.size(20.dp))
@@ -318,15 +342,14 @@ private fun ShiftCard(state: AlarmUiState) {
             Text(
                 state.title ?: "Work",
                 color = Ink,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
+                style = AstrionType.title,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 listOfNotNull(state.place, state.startsAt?.let { "starts $it" }).joinToString("  ·  "),
                 color = InkSoft,
-                fontSize = 13.sp,
+                style = AstrionType.label,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -346,7 +369,7 @@ private fun SnoozeRing(endsMs: Long, totalMs: Long, nowMs: Long) {
             val inset = w / 2
             val arcSize = Size(size.width - w, size.height - w)
             drawArc(
-                color = Color(0x22FFFFFF), startAngle = 0f, sweepAngle = 360f, useCenter = false,
+                color = AstrionTheme.Alarm.ringTrack, startAngle = 0f, sweepAngle = 360f, useCenter = false,
                 topLeft = Offset(inset, inset), size = arcSize, style = Stroke(width = w),
             )
             drawArc(
@@ -355,27 +378,12 @@ private fun SnoozeRing(endsMs: Long, totalMs: Long, nowMs: Long) {
             )
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("%d:%02d".format(secs / 60, secs % 60), color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Light)
-            Text("BACK IN", color = InkFaint, fontSize = 10.sp, letterSpacing = 2.sp)
+            Text("%d:%02d".format(secs / 60, secs % 60), color = Ink, style = AstrionType.countdown)
+            Text("BACK IN", color = InkFaint, style = AstrionType.section)
         }
     }
 }
 
-/**
- * Soft coloured glow around a pill. Android 8.1 has neither blur nor coloured
- * shadows, so this is a few concentric rounded rectangles at falling alpha.
- */
-private fun Modifier.glow(color: Color, corner: Dp): Modifier = drawBehind {
-    for (i in 6 downTo 1) {
-        val g = 2.5.dp.toPx() * i
-        drawRoundRect(
-            color = color.copy(alpha = 0.06f),
-            topLeft = Offset(-g, -g),
-            size = Size(size.width + g * 2, size.height + g * 2),
-            cornerRadius = CornerRadius(corner.toPx() + g),
-        )
-    }
-}
 
 @Composable
 private fun PillButton(
@@ -390,16 +398,16 @@ private fun PillButton(
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
-            .glow(glowColor, 32.dp)
             .clip(RoundedCornerShape(32.dp))
             .background(brush)
+            .border(1.dp, glowColor, RoundedCornerShape(32.dp))
             .tap(onClick = onClick),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(10.dp))
-        Text(label, color = ink, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = ink, style = AstrionType.button)
     }
 }
 
@@ -428,10 +436,9 @@ private fun HoldToStop(onDismiss: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .glow(WineHi, 32.dp)
                 .clip(RoundedCornerShape(32.dp))
                 .background(Wine)
-                .border(1.dp, Color(0x55F07A86), RoundedCornerShape(32.dp))
+                .border(1.dp, WineHi, RoundedCornerShape(32.dp))
                 .pointerInput(Unit) {
                     detectTapGestures(onPress = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -457,7 +464,7 @@ private fun HoldToStop(onDismiss: () -> Unit) {
                 Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(progress.value)
-                    .background(Brush.horizontalGradient(listOf(Color(0xFF9E1E2C), WineHi))),
+                    .background(Brush.horizontalGradient(listOf(Wine, WineHi))),
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -466,12 +473,12 @@ private fun HoldToStop(onDismiss: () -> Unit) {
             ) {
                 Icon(Icons.Filled.AlarmOff, contentDescription = null, tint = WineInk, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("Hold to stop", color = WineInk, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                Text("Hold to stop", color = WineInk, style = AstrionType.button)
             }
         }
         // Fixed-height slot so the hint appearing never shifts the buttons.
         Box(Modifier.height(24.dp), contentAlignment = Alignment.Center) {
-            if (hint) Text("Keep holding — stops alarms for today", color = WineInk, fontSize = 12.sp)
+            if (hint) Text("Keep holding — stops alarms for today", color = WineInk, style = AstrionType.label)
         }
     }
 }
