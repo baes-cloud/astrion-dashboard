@@ -1,38 +1,30 @@
 package com.custom.astrion.cards.impl
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ui.AstrionCard
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.AstrionType
+import com.custom.astrion.ui.Space
+import com.custom.astrion.ui.UnavailableBadge
 
 /**
- * Sensor / monitor card — the native equivalent of the stock
- * `custom:aiks-switch-monitor-card` (StatisticsCardParser): a labelled list of
- * read-only entity values (temperature, humidity, power, etc.) with their unit.
+ * Sensor / monitor card: a titled list of read-only entity values with their
+ * unit (temperature, humidity, power…). Current value only — no history
+ * graph, kept light for the MT6580. An unavailable sensor says so, in lilac
+ * with an icon, instead of an anonymous dash.
  *
- * Reads each entity's live state plus its `unit_of_measurement` attribute; no
- * history graph (kept light for the MT6580), just the current value.
- *
- * Config shape:
- *   { "type": "monitor", "options": {
- *       "title": "Sensors",
- *       "entities": [
- *         { "entity_id": "sensor.lounge_temperature", "name": "Lounge" },
- *         { "entity_id": "sensor.power_now", "name": "Power" }
- *       ]
- *   } }
+ * Config: { "type": "monitor", "options": { "title": "Sensors",
+ *     "entities": [ { "entity_id": "sensor.lounge_temperature", "name": "Lounge" } ] } }
  */
 class MonitorCard : CardRenderer {
     override val type = "monitor"
@@ -43,45 +35,40 @@ class MonitorCard : CardRenderer {
         val title = config.string("title")
         val entities = (config.options["entities"] as? List<Map<String, Any?>>) ?: emptyList()
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1B343D))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            if (!title.isNullOrBlank()) {
-                Text(
-                    title,
-                    color = Color(0xFFE6F0F1),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            entities.forEach { row ->
-                val entityId = row["entity_id"] as? String ?: return@forEach
-                val e = ctx.entities[entityId]
-                val name = row["name"] as? String ?: e?.friendlyName ?: entityId
-                val unit = e?.attrString("unit_of_measurement").orEmpty()
-                // Uses the shared helper rather than its own inline string
-                // comparison, and says "Unavailable" instead of an anonymous
-                // dash that reads the same as a sensor reporting nothing.
-                val rowUnavailable = e == null || e.isUnavailable
-                val value = if (rowUnavailable) "Unavailable" else e!!.state
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(name, color = Color(0xFF93AFB6), fontSize = 14.sp, modifier = Modifier.weight(1f))
-                    Text(
-                        if (rowUnavailable || unit.isBlank()) value else "$value $unit",
-                        color = if (rowUnavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
+        AstrionCard {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.gutter)) {
+                if (!title.isNullOrBlank()) {
+                    Text(title, style = AstrionType.title, color = AstrionTheme.textPrimary)
                 }
+                entities.forEach { row ->
+                    val entityId = row["entity_id"] as? String ?: return@forEach
+                    MonitorRow(ctx, entityId, row["name"] as? String)
+                }
+            }
+        }
+    }
+
+    /** One value; reads only its own entity. */
+    @Composable
+    private fun MonitorRow(ctx: CardContext, entityId: String, configName: String?) {
+        val e = ctx.entity(entityId)
+        val name = configName ?: e?.friendlyName ?: entityId
+        val unit = e?.attrString("unit_of_measurement").orEmpty()
+        val unavailable = e == null || e.isUnavailable
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(name, style = AstrionType.body, color = AstrionTheme.textSecondary, modifier = Modifier.weight(1f))
+            if (unavailable) {
+                UnavailableBadge()
+            } else {
+                val v = e!!.state
+                Text(
+                    if (unit.isBlank()) v else "$v $unit",
+                    style = AstrionType.bodyStrong,
+                    color = AstrionTheme.textPrimary,
+                )
             }
         }
     }

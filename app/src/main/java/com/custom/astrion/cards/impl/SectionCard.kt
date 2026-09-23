@@ -1,18 +1,17 @@
 package com.custom.astrion.cards.impl
 
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.Modifier
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ui.SectionLabel
+import com.custom.astrion.ui.Space
 
 /**
- * A bare section heading, matching the labels the button_grid ("Playlists")
- * and light_zones cards draw above their contents. Lets any page group its
- * cards under a divider without that card type needing its own title option.
+ * A bare section heading — the same [SectionLabel] every card uses above its
+ * contents, so a page can group cards without a card type needing a title.
  *
  * Config: { "type": "section", "options": { "title": "Blinds" } }
  */
@@ -22,12 +21,6 @@ class SectionCard : CardRenderer {
     @Composable
     override fun Render(config: CardConfig, ctx: CardContext) {
         val title = config.string("title") ?: return
-        Text(
-            title,
-            color = Color(0xFF9FBAC0),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.sp,
-        )
+        SectionLabel(title, modifier = Modifier.padding(top = Space.xs))
     }
 }

@@ -121,6 +121,12 @@ object AstrionTheme {
     /** Placeholder well when there is no art. */
     val artPlaceholder = Color(0xFF284955)
 
+    // ---- tiles ------------------------------------------------------------------
+    /** Default `switch` card fill while on (its `on_color` overrides). */
+    val switchOnDefault = Color(0xFF2E5A46)
+    /** `fan` card fill while on. */
+    val fanOnBg = Color(0xFF2B3A67)
+
     // ---- scenes ---------------------------------------------------------------
     val sceneDefault = Color(0xFF2A4954)
     val sceneInkDark = Color(0xFF141414)

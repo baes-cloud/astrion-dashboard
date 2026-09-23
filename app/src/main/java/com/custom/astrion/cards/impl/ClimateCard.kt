@@ -1,50 +1,64 @@
 package com.custom.astrion.cards.impl
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.AstrionCard
 import com.custom.astrion.ui.AstrionTheme
-import com.custom.astrion.ui.UnavailableLabel
-import com.custom.astrion.ui.dimIfUnavailable
+import com.custom.astrion.ui.AstrionType
+import com.custom.astrion.ui.ChoiceChip
+import com.custom.astrion.ui.IconAction
+import com.custom.astrion.ui.PendingSpinner
+import com.custom.astrion.ui.SectionLabel
+import com.custom.astrion.ui.Space
+import com.custom.astrion.ui.StateKind
+import com.custom.astrion.ui.StateLine
+import com.custom.astrion.ui.Tone
 import com.custom.astrion.ui.humanise
-import com.custom.astrion.ui.tap
+import com.custom.astrion.ui.rememberAction
+import com.custom.astrion.ui.rememberOptimistic
+import kotlinx.coroutines.delay
 
 /**
- * Climate / thermostat card.
+ * Climate / aircon.
  *
- * Big setpoint readout with +/- steppers, current temperature, and a row of
- * HVAC mode chips read live from the entity's `hvac_modes` attribute.
+ * Fixes from the audit:
+ * - Setpoint taps ADD UP. Each tap used to send HA's last-echoed target ±
+ *   step, so three quick taps sent the same +0.5 three times. Now the card
+ *   keeps a local target, shows it immediately (in accent, with a spinner),
+ *   and sends ONE set_temperature 600 ms after the last tap.
+ * - "Off" reads as off: the setpoint drops to a muted colour, the line under
+ *   it says "Off", no mode or fan chip is lit, and the power button is the
+ *   one lit thing (tap it to turn the unit on again).
+ * - Every HVAC mode shows (in rows of three, `off` left to the power
+ *   button) — `take(4)` used to drop the fifth and sixth silently.
  *
- * Uses:
- *   climate.set_temperature { entity_id, temperature }
- *   climate.set_hvac_mode   { entity_id, hvac_mode }
- *
- * Config shape:
- *   CardConfig("climate", mapOf(
- *       "entity_id" to "climate.lounge",
- *       "step" to 0.5,          // optional, default 0.5
- *   ))
+ * Config: { "type": "climate", "options": {
+ *     "entity_id": "climate.lounge", "name": "Aircon", "step": 0.5,
+ *     "fan_modes": ["low", "medium", "high", "auto"] } }
+ * Step: the entity's `target_temp_step`, else `step`, else 1.0.
  */
 class ClimateCard : CardRenderer {
     override val type = "climate"
@@ -52,146 +66,195 @@ class ClimateCard : CardRenderer {
     @Composable
     override fun Render(config: CardConfig, ctx: CardContext) {
         val entityId = config.string("entity_id") ?: return
-        val e = ctx.entities[entityId]
-        // Prefer the entity's real step; a 1° aircon ignores 0.5° changes and
-        // the down button looks broken (25.5 rounds back to 26).
+        val e = ctx.entity(entityId)
         val step = e?.attrDouble("target_temp_step")
             ?: (config.options["step"] as? Number)?.toDouble()
             ?: 1.0
         val minT = e?.attrDouble("min_temp")
         val maxT = e?.attrDouble("max_temp")
-
         val target = e?.attrDouble("temperature")
         val current = e?.attrDouble("current_temperature")
-        val mode = e?.state ?: "off"
-        val modes = e?.attrStringList("hvac_modes") ?: emptyList()
+        val actualMode = e?.state ?: "off"
+        val modes = (e?.attrStringList("hvac_modes") ?: emptyList()).filter { it != "off" }
         val name = config.string("name") ?: e?.friendlyName ?: entityId
-        val fanMode = e?.attrString("fan_mode")
+        val actualFan = e?.attrString("fan_mode")
         val fanModes = config.stringList("fan_modes").ifEmpty { listOf("low", "medium", "high", "auto") }
-
-        fun setTemp(t: Double) {
-            val clamped = t.coerceIn(minT ?: t, maxT ?: t)
-            ctx.client.callService(
-                ServiceCall.of("climate", "set_temperature", entityId, "temperature" to clamped)
-            )
-        }
-        fun setMode(m: String) {
-            ctx.client.callService(
-                ServiceCall.of("climate", "set_hvac_mode", entityId, "hvac_mode" to m)
-            )
-        }
-        fun setFan(f: String) {
-            ctx.client.callService(
-                ServiceCall.of("climate", "set_fan_mode", entityId, "fan_mode" to f)
-            )
-        }
-        fun turnOff() {
-            ctx.client.callService(ServiceCall("climate", "turn_off", entityId))
-        }
-
-        val isOff = mode == "off"
         val unavailable = e == null || e.isUnavailable
         val live = !unavailable && ctx.connected
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .dimIfUnavailable(unavailable)
-                .clip(RoundedCornerShape(20.dp))
-                .background(AstrionTheme.cardBg)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            // Header: name + a dedicated off button.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(name, color = Color(0xFFE6F0F1), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(if (isOff) AstrionTheme.dangerBg else AstrionTheme.controlBg)
-                        .tap(enabled = live) { turnOff() },
-                    contentAlignment = Alignment.Center,
+        val modeOpt = rememberOptimistic(actualMode)
+        val mode = modeOpt.show(actualMode)
+        val fanOpt = rememberOptimistic(actualFan)
+        val fan = fanOpt.show(actualFan)
+        val isOff = mode == "off"
+        val powerAction = rememberAction(ctx)
+        val modeAction = rememberAction(ctx)
+        val fanAction = rememberAction(ctx)
+        val tempAction = rememberAction(ctx)
+
+        // Local setpoint while tapping; one call after the taps stop.
+        var pendingTarget by remember { mutableStateOf<Double?>(null) }
+        var lastTap by remember { mutableLongStateOf(0L) }
+        LaunchedEffect(lastTap) {
+            val want = pendingTarget ?: return@LaunchedEffect
+            delay(600)
+            tempAction.run(
+                ServiceCall.of("climate", "set_temperature", entityId, "temperature" to want),
+                onFail = { pendingTarget = null },
+            )
+        }
+        // HA caught up (or moved elsewhere): drop the local value.
+        LaunchedEffect(target) {
+            if (pendingTarget != null && target == pendingTarget) pendingTarget = null
+        }
+        val shownTarget = pendingTarget ?: target
+
+        fun nudge(delta: Double) {
+            val base = shownTarget ?: return
+            var next = base + delta
+            if (minT != null) next = next.coerceAtLeast(minT)
+            if (maxT != null) next = next.coerceAtMost(maxT)
+            pendingTarget = next
+            lastTap = System.currentTimeMillis()
+        }
+
+        AstrionCard(padding = androidx.compose.foundation.layout.PaddingValues(Space.l)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.card)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(
+                    Column(Modifier.weight(1f)) {
+                        Text(name, style = AstrionType.headline, color = AstrionTheme.textPrimary)
+                        when {
+                            unavailable -> StateLine("", StateKind.Unavailable)
+                            isOff -> StateLine("Off")
+                            else -> StateLine(
+                                (e?.attrString("hvac_action") ?: mode).humanise(),
+                                StateKind.On,
+                            )
+                        }
+                    }
+                    IconAction(
                         Icons.Filled.PowerSettingsNew,
-                        contentDescription = "Off",
-                        tint = if (isOff) Color(0xFFE06767) else Color(0xFFCBDCE0),
+                        if (isOff) "Turn $name on" else "Turn $name off",
+                        {
+                            val turnOn = isOff
+                            modeOpt.set(if (turnOn) (e?.attrStringList("hvac_modes")?.firstOrNull { it != "off" } ?: "on") else "off")
+                            powerAction.run(
+                                ServiceCall("climate", if (turnOn) "turn_on" else "turn_off", entityId),
+                                onFail = { modeOpt.clear() },
+                            )
+                        },
+                        tone = if (isOff) Tone.Danger else Tone.On,
+                        enabled = live,
+                        pending = powerAction.busy,
+                        failed = powerAction.failed,
                     )
                 }
-            }
 
-            // Setpoint with steppers
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Stepper(Icons.Filled.Remove, "Lower target temperature", live) {
-                    target?.let { setTemp(it - step) }
+                // Setpoint with steppers
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconAction(
+                        Icons.Filled.Remove, "Lower target temperature", { nudge(-step) },
+                        size = 60.dp, enabled = live && shownTarget != null, failed = tempAction.failed,
+                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                shownTarget?.let { "${trim(it)}°" } ?: "—",
+                                style = AstrionType.hero,
+                                color = when {
+                                    unavailable -> AstrionTheme.unavailable
+                                    pendingTarget != null -> AstrionTheme.accent
+                                    isOff -> AstrionTheme.textMuted
+                                    else -> AstrionTheme.textPrimary
+                                },
+                            )
+                            if (tempAction.busy) {
+                                Spacer(Modifier.size(Space.xs))
+                                PendingSpinner(size = 16.dp)
+                            }
+                        }
+                        if (!unavailable) {
+                            Text(
+                                listOfNotNull(
+                                    if (isOff) "Off" else null,
+                                    current?.let { "now ${trim(it)}°" },
+                                ).joinToString(" · ").replaceFirstChar { it.uppercase() },
+                                style = AstrionType.body,
+                                color = AstrionTheme.textSecondary,
+                            )
+                        }
+                    }
+                    IconAction(
+                        Icons.Filled.Add, "Raise target temperature", { nudge(step) },
+                        size = 60.dp, enabled = live && shownTarget != null, failed = tempAction.failed,
+                    )
                 }
 
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        target?.let { "${trim(it)}°" } ?: "—",
-                        color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
-                        fontSize = 44.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    // The steppers silently no-op when there is no target, so
-                    // an unreachable aircon used to look like a working one
-                    // showing a dash. Say so instead.
-                    if (unavailable) {
-                        UnavailableLabel(13.sp)
-                    } else {
-                        Text(
-                            current?.let { "Now ${trim(it)}°" } ?: "",
-                            color = AstrionTheme.textSecondary,
-                            fontSize = 13.sp,
+                if (modes.isNotEmpty()) {
+                    SectionLabel("Mode")
+                    ChipRows(modes, selected = if (isOff) null else mode, enabled = live, busy = modeAction.busy) { m ->
+                        modeOpt.set(m)
+                        modeAction.run(
+                            ServiceCall.of("climate", "set_hvac_mode", entityId, "hvac_mode" to m),
+                            onFail = { modeOpt.clear() },
                         )
                     }
                 }
-
-                Stepper(Icons.Filled.Add, "Raise target temperature", live) {
-                    target?.let { setTemp(it + step) }
-                }
-            }
-
-            // HVAC mode chips
-            if (modes.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    modes.take(4).forEach { m ->
-                        ModeChip(
-                            label = m.humanise(),
-                            selected = m == mode,
-                            modifier = Modifier.weight(1f),
-                            enabled = live,
-                        ) { setMode(m) }
+                if (fanModes.isNotEmpty()) {
+                    SectionLabel("Fan")
+                    // While off, no fan chip is lit — the brightest thing on
+                    // the page used to be the fan speed of a unit that was off.
+                    ChipRows(
+                        fanModes,
+                        selected = if (isOff) null else fanModes.firstOrNull { it.equals(fan, ignoreCase = true) },
+                        enabled = live,
+                        busy = fanAction.busy,
+                    ) { f ->
+                        fanOpt.set(f)
+                        fanAction.run(
+                            ServiceCall.of("climate", "set_fan_mode", entityId, "fan_mode" to f),
+                            onFail = { fanOpt.clear() },
+                        )
                     }
                 }
             }
+        }
+    }
 
-            // Fan mode chips
-            if (fanModes.isNotEmpty()) {
+    /** Chips in rows of up to four (three when there are 5–6, so none is dropped). */
+    @Composable
+    private fun ChipRows(
+        options: List<String>,
+        selected: String?,
+        enabled: Boolean,
+        busy: Boolean,
+        onPick: (String) -> Unit,
+    ) {
+        val perRow = if (options.size <= 4) options.size else 3
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s)) {
+            options.chunked(perRow.coerceAtLeast(1)).forEach { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(Space.s),
                 ) {
-                    fanModes.forEach { f ->
-                        ModeChip(
-                            label = f.humanise(),
-                            selected = fanMode?.equals(f, ignoreCase = true) == true,
+                    row.forEach { opt ->
+                        ChoiceChip(
+                            label = opt.humanise(),
+                            selected = opt == selected,
+                            onClick = { onPick(opt) },
                             modifier = Modifier.weight(1f),
-                            enabled = live,
-                        ) { setFan(f) }
+                            enabled = enabled,
+                            pending = busy && opt == selected,
+                        )
                     }
+                    repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
@@ -199,52 +262,4 @@ class ClimateCard : CardRenderer {
 
     private fun trim(d: Double): String =
         if (d == d.toLong().toDouble()) d.toLong().toString() else d.toString()
-
-    @Composable
-    private fun Stepper(
-        icon: androidx.compose.ui.graphics.vector.ImageVector,
-        description: String? = null,
-        enabled: Boolean = true,
-        onClick: () -> Unit,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(AstrionTheme.controlBg)
-                .tap(enabled = enabled, onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(icon, contentDescription = description, tint = AstrionTheme.textOnControl)
-        }
-    }
-
-    @Composable
-    private fun ModeChip(
-        label: String,
-        selected: Boolean,
-        modifier: Modifier,
-        enabled: Boolean = true,
-        onClick: () -> Unit,
-    ) {
-        Box(
-            modifier = modifier
-                // Raised from 40dp; this is the row that carries mode state.
-                .height(44.dp)
-                .clip(RoundedCornerShape(12.dp))
-                // accentStrong is a darkened 0xFF4C6EF5 — white 13sp on the
-                // original measured 4.32:1, the only real contrast failure in
-                // the app, and it was on the selected chip.
-                .background(if (selected) AstrionTheme.accentStrong else AstrionTheme.controlSunken)
-                .tap(enabled = enabled, onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                label,
-                color = if (selected) Color.White else AstrionTheme.textSecondary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-            )
-        }
-    }
 }
