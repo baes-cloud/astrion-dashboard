@@ -208,6 +208,36 @@ class HaClient(
     }
 
     /**
+     * Call a service that returns data (`return_response`), e.g.
+     * `music_assistant.get_library`. Returns the `response` object, or null on
+     * timeout / error.
+     */
+    suspend fun callServiceForResponse(
+        domain: String,
+        service: String,
+        data: JsonObject = JsonObject(emptyMap()),
+        entityId: String? = null,
+        timeoutMs: Long = 10_000,
+    ): JsonObject? {
+        val id = idCounter.getAndIncrement()
+        val deferred = CompletableDeferred<JsonObject>()
+        pending[id] = deferred
+        val msg = buildJsonObject {
+            put("id", id)
+            put("type", "call_service")
+            put("domain", domain)
+            put("service", service)
+            put("service_data", data)
+            entityId?.let { put("target", buildJsonObject { put("entity_id", it) }) }
+            put("return_response", true)
+        }
+        send(msg)
+        val reply = withTimeoutOrNull(timeoutMs) { deferred.await() }
+        pending.remove(id)
+        return reply?.get("result")?.jsonObject?.get("response")?.jsonObject
+    }
+
+    /**
      * Start a streaming command (e.g. `assist_pipeline/run`) whose progress
      * arrives as a series of `event` messages sharing one request id.
      *

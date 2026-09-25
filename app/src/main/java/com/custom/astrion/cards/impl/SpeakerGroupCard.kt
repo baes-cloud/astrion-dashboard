@@ -92,13 +92,17 @@ class SpeakerGroupCard : CardRenderer {
         // together, and the per-speaker controls read as belonging to whichever
         // name happened to be nearest.
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                config.string("title") ?: "Speakers",
-                color = AstrionTheme.textSecondary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.sp,
-            )
+            // "title": "" hides the heading (e.g. under a tab that already names it).
+            val title = config.string("title") ?: "Speakers"
+            if (title.isNotEmpty()) {
+                Text(
+                    title,
+                    color = AstrionTheme.textSecondary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
+                )
+            }
             SpeakerRow(ctx, master, config.string("name"), config.string("icon"), isMaster = true, master = master)
             speakers.forEach { sp ->
                 val id = sp["entity_id"] as? String ?: return@forEach

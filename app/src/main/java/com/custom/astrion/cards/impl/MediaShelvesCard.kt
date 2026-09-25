@@ -4,6 +4,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,12 +32,16 @@ import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.tap
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.put
 
 /**
  * Swipeable shelves of media pulled straight from Home Assistant's
@@ -57,6 +63,17 @@ import kotlinx.serialization.json.booleanOrNull
  *           "content_type": "favorites_folder" }
  *       ]
  *   } }
+ *
+ * A row can instead come from Music Assistant's library (e.g. a random pick
+ * of albums, like MA's own "Random albums" shelf). A fresh set is fetched each
+ * time the card is shown, and a tap plays it on the MA player:
+ *   { "title": "Random albums", "source": "music_assistant",
+ *     "config_entry_id": "01KVF3KES1KSZ0JYSXJ405AKVA",
+ *     "player": "media_player.club_2",
+ *     "media_type": "album", "order_by": "random", "limit": 12 }
+ *
+ * Inside a fixed-height parent (swipe_stack `height`) the shelves scroll
+ * themselves; otherwise they take their full height and the page scrolls.
  */
 class MediaShelvesCard : CardRenderer {
     override val type = "media_shelves"
@@ -66,6 +83,8 @@ class MediaShelvesCard : CardRenderer {
         val contentId: String,
         val contentType: String,
         val thumb: String?,
+        /** Music Assistant player to play on; null = the card's media_player. */
+        val maPlayer: String? = null,
     )
 
     private data class Shelf(val title: String, val items: List<Item>)
@@ -85,6 +104,10 @@ class MediaShelvesCard : CardRenderer {
         val shelves by produceState<List<Shelf>?>(initialValue = null, entityId, limit) {
             value = rowSpecs.mapNotNull { spec ->
                 val title = spec["title"] as? String ?: return@mapNotNull null
+                if (spec["source"] == "music_assistant") {
+                    val items = musicAssistantItems(ctx, spec, limit)
+                    return@mapNotNull if (items.isEmpty()) null else Shelf(title, items)
+                }
                 val cid = spec["content_id"] as? String ?: return@mapNotNull null
                 val ctype = spec["content_type"] as? String ?: return@mapNotNull null
                 val result = ctx.client.browseMedia(entityId, cid, ctype) ?: return@mapNotNull null
@@ -96,17 +119,34 @@ class MediaShelvesCard : CardRenderer {
             }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            when {
-                shelves == null -> ShelfLabel("Loading…")
-                shelves!!.isEmpty() -> ShelfLabel("Nothing to show")
-                else -> shelves!!.forEach { shelf ->
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ShelfLabel(shelf.title)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(shelf.items) { item ->
-                                Tile(ctx, item) {
-                                    ctx.client.playMedia(entityId, item.contentId, item.contentType)
+        // Scroll inside a fixed-height parent (swipe_stack "height"); with no
+        // fixed height the page itself scrolls, and nesting would crash.
+        BoxWithConstraints {
+            Column(
+                modifier = if (constraints.hasBoundedHeight) Modifier.verticalScroll(rememberScrollState()) else Modifier,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                when {
+                    shelves == null -> ShelfLabel("Loading…")
+                    shelves!!.isEmpty() -> ShelfLabel("Nothing to show")
+                    else -> shelves!!.forEach { shelf ->
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ShelfLabel(shelf.title)
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(shelf.items) { item ->
+                                    Tile(ctx, item) {
+                                        if (item.maPlayer != null) {
+                                            ctx.client.callService(
+                                                ServiceCall.of(
+                                                    "music_assistant", "play_media", item.maPlayer,
+                                                    "media_id" to item.contentId,
+                                                    "media_type" to item.contentType,
+                                                )
+                                            )
+                                        } else {
+                                            ctx.client.playMedia(entityId, item.contentId, item.contentType)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -116,15 +156,29 @@ class MediaShelvesCard : CardRenderer {
         }
     }
 
+    /**
+     * Shelf heading: a small, darker uppercase label followed by a hairline
+     * running the rest of the width, so shelves read as sections without the
+     * heading competing with the art.
+     */
     @Composable
     private fun ShelfLabel(text: String) {
-        Text(
-            text,
-            color = Color(0xFF9FBAC0),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.sp,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text.uppercase(),
+                color = Color(0xFF7F9AA2),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.2.sp,
+            )
+            Spacer(Modifier.width(10.dp))
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(1.dp)
+                    .background(AstrionTheme.controlSunken),
+            )
+        }
     }
 
     @Composable
@@ -133,27 +187,73 @@ class MediaShelvesCard : CardRenderer {
         LaunchedEffect(item.thumb) {
             art = item.thumb?.let { ctx.client.fetchBitmap(it) }
         }
-        // Art only — no caption. The cover is the label, and dropping the text
-        // keeps the shelf short. The title still rides on contentDescription
-        // for accessibility.
-        val mod = Modifier
-            .size(TILE)
-            .clip(RoundedCornerShape(8.dp))
-            .tap(onClick = onClick)
-        if (art != null) {
-            Image(art!!, contentDescription = item.title, modifier = mod, contentScale = ContentScale.Crop)
-        } else {
-            // Much of this art lives on internet CDNs (Spotify/YouTube/
-            // SoundCloud). If the panel can't reach them the tile would
-            // otherwise be an empty box that looks broken, so show a glyph.
-            Box(mod.background(AstrionTheme.raised), contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.Filled.MusicNote,
-                    contentDescription = item.title,
-                    tint = Color(0xFF5C7783),
-                    modifier = Modifier.size(26.dp),
-                )
+        // Art with a caption underneath: covers alone don't say which playlist
+        // is which.
+        Column(
+            modifier = Modifier.width(TILE).tap(onClick = onClick),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            val mod = Modifier.size(TILE).clip(RoundedCornerShape(8.dp))
+            if (art != null) {
+                Image(art!!, contentDescription = null, modifier = mod, contentScale = ContentScale.Crop)
+            } else {
+                // Much of this art lives on internet CDNs (Spotify/YouTube/
+                // SoundCloud). If the panel can't reach them the tile would
+                // otherwise be an empty box that looks broken, so show a glyph.
+                Box(mod.background(AstrionTheme.raised), contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Filled.MusicNote,
+                        contentDescription = null,
+                        tint = Color(0xFF5C7783),
+                        modifier = Modifier.size(26.dp),
+                    )
+                }
             }
+            // Up to two lines in a muted tone so the art leads. minLines keeps
+            // every caption two lines tall, so tiles in a row stay aligned.
+            Text(
+                item.title,
+                color = AstrionTheme.textSecondary,
+                fontSize = 11.sp,
+                lineHeight = 13.sp,
+                minLines = 2,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+
+    /** One Music Assistant row via `music_assistant.get_library`. */
+    private suspend fun musicAssistantItems(
+        ctx: CardContext,
+        spec: Map<String, Any?>,
+        defaultLimit: Int,
+    ): List<Item> {
+        val entry = spec["config_entry_id"] as? String ?: return emptyList()
+        val player = spec["player"] as? String ?: return emptyList()
+        val mediaType = spec["media_type"] as? String ?: "album"
+        val limit = (spec["limit"] as? Number)?.toInt() ?: defaultLimit
+        val data = buildJsonObject {
+            put("config_entry_id", entry)
+            put("media_type", mediaType)
+            put("order_by", spec["order_by"] as? String ?: "random")
+            put("limit", limit)
+            (spec["favorite"] as? Boolean)?.let { put("favorite", it) }
+        }
+        val response = ctx.client.callServiceForResponse("music_assistant", "get_library", data)
+            ?: return emptyList()
+        return (response["items"] as? JsonArray).orEmpty().mapNotNull { el ->
+            val o = el as? JsonObject ?: return@mapNotNull null
+            fun str(k: String) = (o[k] as? JsonPrimitive)?.contentOrNull
+            val uri = str("uri") ?: return@mapNotNull null
+            Item(
+                title = str("name") ?: uri,
+                contentId = uri,
+                contentType = str("media_type") ?: mediaType,
+                // MA's imageproxy serves full size at size=0; tiles need ~256px.
+                thumb = str("image")?.replace("size=0", "size=256"),
+                maPlayer = player,
+            )
         }
     }
 

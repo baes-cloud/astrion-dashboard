@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -13,6 +14,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,7 +28,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Generic swipeable container: stacks child cards on top of each other and
- * swipes between them, with a title and pagination dots.
+ * swipes between them. With `titles`, a segmented tab bar picks the page;
+ * without, a title and pagination dots.
  *
  * The sibling of [RowCard] — that one puts children side by side, this one
  * puts them one behind the other. Used on Media to keep the big player and the
@@ -47,6 +50,9 @@ import kotlinx.coroutines.launch
  *       ]
  *   } }
  *
+ * A tab can hold several cards: { "type": "column", "options": {
+ *   "spacing": 10, "cards": [ ... ] } }.
+ *
  * `height` is in dp and fixes the swipe area. Left at 0 the pager sizes to its
  * content, which makes the whole page jump as you drag between children of
  * different heights.
@@ -66,7 +72,39 @@ class SwipeStackCard : CardRenderer {
         val scope = rememberCoroutineScope()
 
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(
+            if (titles.size >= children.size) {
+                // Segmented tab bar ("Player | Media"): says what's behind each
+                // page and, unlike a swipe, always gets through children built
+                // from LazyRows (which eat horizontal drags).
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(AstrionTheme.controlSunken)
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    children.indices.forEach { i ->
+                        val current = i == pagerState.currentPage
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (current) AstrionTheme.accentStrong else AstrionTheme.controlSunken)
+                                .tap { scope.launch { pagerState.animateScrollToPage(i) } },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                titles[i],
+                                color = if (current) Color.White else AstrionTheme.textSecondary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                }
+            } else Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
@@ -110,13 +148,28 @@ class SwipeStackCard : CardRenderer {
             HorizontalPager(
                 state = pagerState,
                 modifier = if (height > 0) Modifier.height(height.dp) else Modifier,
+                // Shorter tabs sit at the top rather than centred in the pager.
+                verticalAlignment = Alignment.Top,
             ) { page ->
                 val child = children[page]
                 val childType = child["type"] as? String
                 val childOptions = (child["options"] as? Map<String, Any?>) ?: emptyMap()
-                val renderer = childType?.let { CardRegistry.get(it) }
                 Box(Modifier.fillMaxWidth()) {
-                    renderer?.Render(CardConfig(childType, childOptions), ctx)
+                    if (childType == "column") {
+                        // A tab holding several cards, spaced like the page.
+                        val cards = (childOptions["cards"] as? List<Map<String, Any?>>) ?: emptyList()
+                        val gap = (childOptions["spacing"] as? Number)?.toInt() ?: 10
+                        Column(verticalArrangement = Arrangement.spacedBy(gap.dp)) {
+                            cards.forEach { c ->
+                                val t = c["type"] as? String ?: return@forEach
+                                val o = (c["options"] as? Map<String, Any?>) ?: emptyMap()
+                                CardRegistry.get(t)?.Render(CardConfig(t, o), ctx)
+                            }
+                        }
+                    } else {
+                        childType?.let { CardRegistry.get(it) }
+                            ?.Render(CardConfig(childType, childOptions), ctx)
+                    }
                 }
             }
         }

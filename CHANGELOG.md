@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased — 2026-09-25
+
+A reworked Media page: Player / Media / Zones tabs, a Music Assistant
+"Random albums" shelf, and neater shelves.
+
+### New
+
+- **Tabbed `swipe_stack`.** With `titles`, the page switcher is a segmented tab
+  bar (the current tab filled blue) instead of a caption and dots; without
+  titles the dots remain. A tab can hold several cards with
+  `{ "type": "column", "options": { "spacing": 10, "cards": [ ... ] } }`, and
+  shorter tabs now sit at the top of the pager.
+- **Music Assistant shelves.** A `media_shelves` row with
+  `"source": "music_assistant"` fills itself from `music_assistant.get_library`
+  (e.g. `"order_by": "random"` for a fresh random pick of albums on each visit)
+  and plays with `music_assistant.play_media` on the MA player given in
+  `"player"`. Needs `config_entry_id`; optional `media_type`, `limit`,
+  `favorite`.
+- `HaClient.callServiceForResponse()` for any service that returns data.
+
+### Changed
+
+- **Shelf tiles have captions**: up to two lines in a muted tone, fixed at two
+  lines tall so a row stays aligned.
+- **Shelf headings** are small uppercase labels followed by a hairline across
+  the rest of the width.
+- **Shelves scroll themselves only inside a fixed-height parent**
+  (`swipe_stack` `height`); otherwise they take their full height and the page
+  scrolls.
+- `speaker_group` `"title": ""` hides the heading.
+
 ## v1.1.0 — 2026-09-22
 
 A big one: a redesigned home page, a proper TV/Plex page, music shelves, an alarm
