@@ -34,6 +34,8 @@ import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.tap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -121,6 +123,11 @@ class PlexCard : CardRenderer {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > 48
         }
 
+        // Last shelves per host: the page is recomposed from scratch every
+        // time you navigate to it, and a cold load of five rows took ~10 s on
+        // this SoC — so show the previous result at once and refresh behind it.
+        val shelfCache = java.util.concurrent.ConcurrentHashMap<String, List<Shelf>>()
+
         @Synchronized fun cacheGet(k: String): ImageBitmap? = posterCache[k]
         @Synchronized fun cachePut(k: String, v: ImageBitmap) { posterCache[k] = v }
 
@@ -149,12 +156,22 @@ class PlexCard : CardRenderer {
             }
         }
 
-        val shelves by produceState<List<Shelf>?>(initialValue = null, host, token, limit) {
-            value = rowSpecs.mapNotNull { spec ->
-                val title = spec["title"] as? String ?: return@mapNotNull null
-                val path = spec["path"] as? String ?: return@mapNotNull null
-                val items = fetchItems(host, token, path, limit)
-                if (items.isNullOrEmpty()) null else Shelf(title, items)
+        val shelves by produceState<List<Shelf>?>(initialValue = shelfCache[host], host, token, limit) {
+            // All rows at once rather than one after another.
+            val fresh = kotlinx.coroutines.coroutineScope {
+                rowSpecs.map { spec ->
+                    async {
+                        val title = spec["title"] as? String ?: return@async null
+                        val path = spec["path"] as? String ?: return@async null
+                        val items = fetchItems(host, token, path, limit)
+                        if (items.isNullOrEmpty()) null else Shelf(title, items)
+                    }
+                }.awaitAll().filterNotNull()
+            }
+            // A failed refresh keeps what was already on screen.
+            if (fresh.isNotEmpty() || value == null) {
+                value = fresh
+                shelfCache[host] = fresh
             }
         }
 
