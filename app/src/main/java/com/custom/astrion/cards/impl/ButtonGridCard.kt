@@ -53,6 +53,10 @@ import java.io.File
  *           "entity_id": "media_player.the_club_tvv",
  *           "data": { "media_content_type": "app", "media_content_id": "com.netflix.ninja" } }
  *       ]
+ *
+ * Optional per button: `color` ("#RRGGBB", tile background — e.g. a brand
+ * colour for text-only app tiles) and `text_color` (defaults to white or dark
+ * ink, whichever reads on `color`).
  *   } }
  */
 class ButtonGridCard : CardRenderer {
@@ -113,6 +117,10 @@ class ButtonGridCard : CardRenderer {
         // composition thread, six at a time, when the Media page first drew.
         val bitmap by rememberSampledBitmap(iconPath, targetPx = 96)
         val hasIcon = bitmap != null
+        val tileColor = (b["color"] as? String)?.let(::parseHexColor)
+        val inkColor = (b["text_color"] as? String)?.let(::parseHexColor)
+            ?: tileColor?.let { if (0.2126f * it.red + 0.7152f * it.green + 0.0722f * it.blue > 0.6f) Color(0xFF14181A) else Color.White }
+            ?: Color(0xFFE6F0F1)
 
         val height = tileHeight ?: if (hasIcon) 68.dp else 48.dp
         val glyph = iconSize ?: 32.dp
@@ -121,7 +129,7 @@ class ButtonGridCard : CardRenderer {
             modifier = modifier
                 .height(height)
                 .clip(RoundedCornerShape(14.dp))
-                .background(AstrionTheme.raised)
+                .background(tileColor ?: AstrionTheme.raised)
                 .tap(onClick = onClick)
                 .padding(6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -134,14 +142,21 @@ class ButtonGridCard : CardRenderer {
             if (!name.isNullOrBlank()) {
                 Text(
                     name,
-                    color = Color(0xFFE6F0F1),
-                    fontSize = if (hasIcon) 12.sp else 15.sp,
-                    fontWeight = FontWeight.Medium,
+                    color = inkColor,
+                    fontSize = if (hasIcon) 12.sp else if (name.length > 8) 13.sp else 15.sp,
+                    fontWeight = if (tileColor != null && !hasIcon) FontWeight.Bold else FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
                 )
             }
         }
+    }
+
+    /** "#RRGGBB" (opaque) or "#AARRGGBB". */
+    private fun parseHexColor(s: String): Color? {
+        val h = s.removePrefix("#")
+        val v = h.toLongOrNull(16) ?: return null
+        return if (h.length <= 6) Color(0xFF000000L or v) else Color(v)
     }
 }

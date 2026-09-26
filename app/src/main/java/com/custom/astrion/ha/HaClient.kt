@@ -72,6 +72,14 @@ class HaClient(
 
     private var socket: WebSocket? = null
 
+    /**
+     * Bumped on every (re)connect. Streaming handler ids (assist audio) are
+     * per-connection, so anything holding one checks this to know its id is
+     * stale — otherwise it keeps pushing frames HA can't route.
+     */
+    @Volatile var epoch = 0
+        private set
+
     /** Outstanding request/response commands (e.g. browse_media), keyed by id. */
     private val pending = ConcurrentHashMap<Int, CompletableDeferred<JsonObject>>()
 
@@ -99,6 +107,7 @@ class HaClient(
     // ---- public API ---------------------------------------------------------
 
     fun connect() {
+        epoch++
         _connection.value = ConnectionState.CONNECTING
         val wsUrl = toWebSocketUrl(baseUrl)
         Log.i(TAG, "Connecting to $wsUrl")
@@ -266,7 +275,8 @@ class HaClient(
      * `[handler_id byte] + [raw PCM]`; a frame containing only the handler
      * byte signals end-of-audio.
      */
-    fun sendAudioChunk(handlerId: Int, pcm: ByteArray, length: Int): Boolean {
+    fun sendAudioChunk(handlerId: Int, pcm: ByteArray, length: Int, forEpoch: Int = epoch): Boolean {
+        if (forEpoch != epoch) return false
         val sock = socket ?: return false
         val frame = ByteArray(length + 1)
         frame[0] = handlerId.toByte()
@@ -330,7 +340,11 @@ class HaClient(
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
             Log.w(TAG, "Socket closed $code $reason")
-            if (_connection.value != ConnectionState.DISCONNECTED) scheduleReconnect()
+            if (_connection.value != ConnectionState.DISCONNECTED) {
+                // HA closed us (e.g. a restart): scheduleReconnect only acts on ERROR.
+                _connection.value = ConnectionState.ERROR
+                scheduleReconnect()
+            }
         }
     }
 
@@ -385,9 +399,13 @@ class HaClient(
     }
 
     private fun startHeartbeat() {
+        val mine = epoch
         scope.launch {
-            while (_connection.value == ConnectionState.CONNECTED) {
+            while (_connection.value == ConnectionState.CONNECTED && epoch == mine) {
                 kotlinx.coroutines.delay(PING_INTERVAL_MS)
+                // Re-check after the sleep: a ping landing on a fresh,
+                // not-yet-authenticated socket makes HA drop the connection.
+                if (_connection.value != ConnectionState.CONNECTED || epoch != mine) break
                 val ping = buildJsonObject {
                     put("id", idCounter.getAndIncrement())
                     put("type", "ping")

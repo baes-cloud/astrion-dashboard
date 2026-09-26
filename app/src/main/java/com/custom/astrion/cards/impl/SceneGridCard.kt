@@ -222,12 +222,21 @@ class SceneGridCard : CardRenderer {
                 if (icon != null) {
                     Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
                 }
+                // One line, stepping down for longer names — narrow row tiles
+                // were breaking "Santorini" mid-word.
                 Text(
                     name,
                     color = fg,
-                    fontSize = 15.sp,
+                    fontSize = when {
+                        name.length > 10 -> 12.sp
+                        name.length > 7 -> 13.sp
+                        else -> 15.sp
+                    },
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
             }
         }

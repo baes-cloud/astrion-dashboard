@@ -55,6 +55,10 @@ import com.custom.astrion.ir.IrBlaster
 import com.custom.astrion.ir.IrModeOverlay
 import com.custom.astrion.ui.AlarmOverlay
 import com.custom.astrion.ui.AlarmUiState
+import com.custom.astrion.ui.AlertAction
+import com.custom.astrion.ui.AlertOverlay
+import com.custom.astrion.ui.AlertSpec
+import com.custom.astrion.ui.activeAlerts
 import com.custom.astrion.ui.Dashboard
 import com.custom.astrion.ui.Screensaver
 import com.custom.astrion.ui.screensaverIsNight
@@ -220,6 +224,12 @@ class MainActivity : ComponentActivity() {
     private val alarmScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     /** "Hide until it rings again", set from the snoozed popup. */
     private var alarmHidden by mutableStateOf(false)
+    // ---- Alerts (leak / intruder / washer / door…) ---------------------------
+    /** Tokens ("id@last_changed") hidden from this remote until they re-fire. */
+    private var hiddenAlerts by mutableStateOf(setOf<String>())
+    /** Clock for `for_seconds` alerts; ticked by [watchAlerts]. */
+    private var alertNow by mutableStateOf(System.currentTimeMillis())
+
     /** Whether this Activity is in front, so a ring only reorders when needed. */
     private var inFront = false
 
@@ -296,6 +306,7 @@ class MainActivity : ComponentActivity() {
         )
         client.connect()
         watchAlarm()
+        watchAlerts()
         watchWakeWord()
         // Sticky broadcast: registering hands back the current state at once.
         registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
@@ -343,9 +354,23 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                // Configured alerts: above IR Mode, below the work alarm.
+                val alarm = alarmUiState(entities.value)
+                val alerts = activeAlerts(alertSpecs(), entities.value, alertNow)
+                    .filter { it.token !in hiddenAlerts }
+                if (alerts.isNotEmpty() && (alarm == null || alarmHidden)) {
+                    val top = alerts.first()
+                    AlertOverlay(
+                        alert = top,
+                        moreCount = alerts.size - 1,
+                        nowMs = alertNow,
+                        onAction = { fireAlertAction(it) },
+                        onHide = { hiddenAlerts = hiddenAlerts + top.token },
+                    )
+                }
+
                 // Work alarm: above the dashboard and IR Mode, since it's the
                 // one overlay that must not be missed.
-                val alarm = alarmUiState(entities.value)
                 if (alarm != null && !alarmHidden) {
                     AlarmOverlay(
                         state = alarm,
@@ -564,6 +589,73 @@ class MainActivity : ComponentActivity() {
                     }
                 }
         }
+    }
+
+    /** `alerts` list from dashboard.json. */
+    private fun alertSpecs(): List<AlertSpec> = AlertSpec.parse(dashboard.config.options["alerts"])
+
+    /**
+     * Like [watchAlarm] for the configured alerts. Polls (every 3 s) rather
+     * than collecting, because `for_seconds` alerts become due with no state
+     * change. A new "alarm" wakes the screen and keeps it on until cleared or
+     * hidden; a "warning" wakes it once; an "info" just waits to be seen.
+     */
+    private fun watchAlerts() {
+        var lastToken: String? = null
+        var keepAwake: kotlinx.coroutines.Job? = null
+        alarmScope.launch {
+            while (true) {
+                alertNow = System.currentTimeMillis()
+                val top = activeAlerts(alertSpecs(), client.entities.value, alertNow)
+                    .firstOrNull { it.token !in hiddenAlerts }
+                if (top?.token != lastToken) {
+                    keepAwake?.cancel()
+                    keepAwake = null
+                    when (top?.spec?.severity) {
+                        "alarm" -> {
+                            hideScreensaver()
+                            wakeForAlarm()
+                            keepAwake = alarmScope.launch {
+                                while (true) {
+                                    delay(20_000)
+                                    wakeForAlarm()
+                                }
+                            }
+                        }
+                        "warning" -> {
+                            hideScreensaver()
+                            wakeForAlarm()
+                        }
+                    }
+                    // Nothing urgent left: let the screen time out again,
+                    // unless the work alarm is the one holding it on.
+                    if (top?.spec?.severity != "alarm" && top?.spec?.severity != "warning" &&
+                        alarmPhase(client.entities.value) != 1
+                    ) {
+                        @Suppress("DEPRECATION")
+                        window.clearFlags(
+                            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                        )
+                        applyDockKeepAwake()
+                    }
+                    lastToken = top?.token
+                }
+                delay(3_000)
+            }
+        }
+    }
+
+    private fun fireAlertAction(action: AlertAction) {
+        client.callService(
+            ServiceCall.of(
+                action.service.substringBefore('.'),
+                action.service.substringAfter('.'),
+                action.entityId,
+                *action.data.entries.map { it.key to it.value }.toTypedArray(),
+            )
+        )
     }
 
     private fun wakeForAlarm() {
@@ -837,7 +929,10 @@ class MainActivity : ComponentActivity() {
         markActivity()
         if (ev.actionMasked == MotionEvent.ACTION_DOWN && screensaverOn) {
             hideScreensaver()
-            swallowTouch = true
+            // An alert popup is drawn above the screensaver and is what the
+            // finger is aimed at — let that tap land ("Emptied", "Lock it").
+            swallowTouch = activeAlerts(alertSpecs(), client.entities.value, alertNow)
+                .none { it.token !in hiddenAlerts }
         }
         if (swallowTouch) {
             if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
@@ -915,6 +1010,8 @@ class MainActivity : ComponentActivity() {
         val idleMs = ((screensaverOptions()["idle_seconds"] as? Number)?.toLong() ?: 45L) * 1000
         if (System.currentTimeMillis() - lastActivityMs < idleMs) return
         screensaverOn = true
+        // Waking it lands on the start page, not wherever it was left.
+        navTarget = dashboard.config.startPage
         applyScreensaverBrightness()
     }
 

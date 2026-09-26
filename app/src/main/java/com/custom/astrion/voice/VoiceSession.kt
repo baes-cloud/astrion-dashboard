@@ -81,6 +81,8 @@ class VoiceSession(
          * `wake-word-timeout` (its default is only 3 s). The caller re-arms.
          */
         private const val WAKE_TIMEOUT_S = 3_600
+        /** Roll the armed run over this long before HA's wake timeout would. */
+        private const val ROLLOVER_EARLY_S = 90
 
         // End-of-speech detection for wake word runs. HA's own VAD ends the
         // STT stage almost immediately when it follows a wake word (the run
@@ -110,6 +112,10 @@ class VoiceSession(
 
     @Volatile private var handlerId: Int? = null
     @Volatile private var streaming = false
+    /** HaClient.epoch the current run's handler id belongs to. */
+    @Volatile private var runEpoch = 0
+    /** When the current armed run started (0 = not armed). */
+    @Volatile private var armedSince = 0L
     /** When the current command started (push-to-talk, or wake word fired). */
     @Volatile private var listenStartedAt = 0L
 
@@ -160,6 +166,7 @@ class VoiceSession(
             return
         }
         subscriptionId = id
+        runEpoch = client.epoch
         listenStartedAt = System.currentTimeMillis()
     }
 
@@ -194,6 +201,8 @@ class VoiceSession(
             return
         }
         subscriptionId = id
+        runEpoch = client.epoch
+        armedSince = System.currentTimeMillis()
     }
 
     /** Stop waiting for the wake word. No-op unless armed. */
@@ -215,6 +224,7 @@ class VoiceSession(
     /** Tear everything down (overlay dismissed / mic pressed again). */
     fun cancel() {
         endpointing = false
+        armedSince = 0L
         // An armed run would otherwise sit in HA until its hour-long timeout;
         // end-of-audio makes HA abort it now.
         if (_state.value.armed && streaming) handlerId?.let { client.sendAudioChunk(it, ByteArray(0), 0) }
@@ -358,7 +368,18 @@ class VoiceSession(
                         if (read < 0) Log.w(TAG, "AudioRecord.read error $read")
                         continue
                     }
-                    if (!client.sendAudioChunk(hid, buf, read)) {
+                    // read() blocks ~32 ms; the run may have ended meanwhile
+                    // (HA already dropped the handler) — don't send into the void.
+                    if (!streaming || handlerId != hid) break
+                    if (_state.value.armed && armedSince > 0 &&
+                        System.currentTimeMillis() - armedSince > (WAKE_TIMEOUT_S - ROLLOVER_EARLY_S) * 1000L
+                    ) {
+                        // End the hour-long wait ourselves, cleanly, before HA's
+                        // timeout closes the handler under us. The caller re-arms.
+                        rolloverArmedRun()
+                        break
+                    }
+                    if (!client.sendAudioChunk(hid, buf, read, runEpoch)) {
                         fail("Lost connection while streaming audio")
                         return@launch
                     }
@@ -474,9 +495,17 @@ class VoiceSession(
         }
     }
 
+    /** Finish an armed run from our side: end-of-audio, then drop it. */
+    private fun rolloverArmedRun() {
+        streaming = false
+        handlerId?.let { client.sendAudioChunk(it, ByteArray(0), 0, runEpoch) }
+        disarmQuietly(failed = false)
+    }
+
     /** Tear down an armed run without showing anything. */
     private fun disarmQuietly(failed: Boolean) {
         endpointing = false
+        armedSince = 0L
         if (failed) lastWakeFailureAt = System.currentTimeMillis()
         streaming = false
         releaseRecorder()
