@@ -3,11 +3,15 @@ package com.custom.astrion
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.BatteryManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -21,6 +25,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -39,6 +44,7 @@ import com.custom.astrion.config.DashboardConfig
 import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HotkeyConfig
 import com.custom.astrion.config.JsonPlain
+import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.input.HardwareKey
@@ -113,6 +119,12 @@ class MainActivity : ComponentActivity() {
          * jump still feels like a button press.
          */
         const val DOUBLE_TAP_MS = 280L
+
+        /** How often the wake word watcher re-checks dock/config/connection. */
+        const val WAKE_WORD_POLL_MS = 2_000L
+
+        /** Pause before re-arming after a wake word run failed. */
+        const val WAKE_WORD_BACKOFF_MS = 15_000L
 
         /**
          * Treat a resume after this long as a "cold arrival" and reset to the
@@ -240,6 +252,7 @@ class MainActivity : ComponentActivity() {
         client = HaClient(baseUrl = BuildConfig.HA_URL, token = BuildConfig.HA_TOKEN)
         irBlaster = IrBlaster(this)
         voice = VoiceSession(this, client)
+        voice.onWakeWord = { runOnUiThread { onWakeWordHeard() } }
         bindHotkeys(
             dashboard.config.hotkeys,
             dashboard.config.longHotkeys,
@@ -247,6 +260,7 @@ class MainActivity : ComponentActivity() {
         )
         client.connect()
         watchAlarm()
+        watchWakeWord()
 
         setContent {
             val entities = client.entities.collectAsState()
@@ -743,6 +757,77 @@ class MainActivity : ComponentActivity() {
         pendingSingleKey = -1
     }
 
+    // ---- wake word while docked ---------------------------------------------
+
+    /** Partial wake lock held while armed, so the CPU keeps feeding the mic. */
+    private var wakeWordLock: PowerManager.WakeLock? = null
+
+    /** Created on first wake word, so installs that never use it never open one. */
+    private var chime: ToneGenerator? = null
+
+    /**
+     * `voice.wake_word` in dashboard.json: "docked" (default) listens for the
+     * pipeline's wake word only while charging, "always" listens on battery
+     * too, "off" disables it. Polled, so docking, config edits and reconnects
+     * all take effect without a restart.
+     */
+    private fun watchWakeWord() {
+        alarmScope.launch {
+            while (true) {
+                delay(WAKE_WORD_POLL_MS)
+                val mode = (voiceOptions()["wake_word"] as? String) ?: "docked"
+                val want = when (mode) {
+                    "always" -> true
+                    "docked" -> isDocked()
+                    else -> false
+                } && voice.hasPermission && client.connection.value == ConnectionState.CONNECTED
+
+                val s = voice.state.value
+                if (want && !s.armed && s.phase == VoicePhase.IDLE &&
+                    System.currentTimeMillis() - voice.lastWakeFailureAt > WAKE_WORD_BACKOFF_MS
+                ) {
+                    voice.armWakeWord(voicePipelineId())
+                } else if (!want && s.armed) {
+                    voice.disarm()
+                }
+                holdWakeWordLock(voice.state.value.armed)
+            }
+        }
+    }
+
+    private fun isDocked(): Boolean {
+        val battery = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return false
+        return battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
+    }
+
+    private fun holdWakeWordLock(on: Boolean) {
+        if (on && wakeWordLock?.isHeld != true) {
+            val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+            wakeWordLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "astrion:wakeword").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        } else if (!on) {
+            wakeWordLock?.let { if (it.isHeld) it.release() }
+            wakeWordLock = null
+        }
+    }
+
+    /** Wake word heard: light the screen, come to the front, short chime. */
+    private fun onWakeWordHeard() {
+        lastWakeMs = 0L // a spoken wake must never be eaten by the motion cooldown
+        wakeScreen()
+        if (!inFront) {
+            startActivity(
+                Intent(this, MainActivity::class.java).addFlags(
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_NEW_TASK
+                )
+            )
+        }
+        if (chime == null) chime = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 60) }.getOrNull()
+        chime?.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
+    }
+
     // ---- motion wake --------------------------------------------------------
 
     private fun setupMotionWake() {
@@ -776,6 +861,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         alarmScope.cancel()
+        voice.cancel()
+        holdWakeWordLock(false)
+        chime?.release()
         sensorManager?.unregisterListener(motionListener)
         client.disconnect()
         super.onDestroy()

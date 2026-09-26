@@ -39,6 +39,11 @@ data class VoiceState(
     val error: String? = null,
     /** 0..1 mic level, drives the UI animation. */
     val level: Float = 0f,
+    /**
+     * Mic open and streaming to HA's wake word engine, waiting for the wake
+     * word. The phase stays IDLE while armed, so no overlay is shown.
+     */
+    val armed: Boolean = false,
 )
 
 /**
@@ -52,6 +57,10 @@ data class VoiceState(
  *  4. HA's VAD decides you stopped talking → `stt-end` with the transcript
  *  5. `intent-end` carries the assistant's text reply
  *  6. `tts-end` carries a URL we play back through MediaPlayer
+ *
+ * Wake word mode ([armWakeWord]) is the same run started one stage earlier
+ * (start_stage=wake_word): audio streams to the pipeline's wake word engine
+ * until it fires `wake_word-end`, then carries straight on into STT.
  *
  * Audio format is fixed by the Assist API: 16-bit little-endian PCM, mono,
  * 16 kHz — which is also what AudioRecord gives us natively here.
@@ -67,6 +76,26 @@ class VoiceSession(
         private const val CHUNK_SAMPLES = 512
         /** Hard stop so a stuck pipeline can never record forever. */
         private const val MAX_LISTEN_MS = 30_000L
+        /**
+         * How long one armed run waits for the wake word before HA ends it with
+         * `wake-word-timeout` (its default is only 3 s). The caller re-arms.
+         */
+        private const val WAKE_TIMEOUT_S = 3_600
+
+        // End-of-speech detection for wake word runs. HA's own VAD ends the
+        // STT stage almost immediately when it follows a wake word (the run
+        // then fails with stt-stream-failed), so those runs use no_vad and
+        // we end the audio ourselves.
+        /** Speech = louder than the room by this factor... */
+        private const val SPEECH_FACTOR = 2.5
+        /** ...and never quieter than this (normalised RMS, about -44 dBFS). */
+        private const val MIN_SPEECH_RMS = 0.006
+        /** Ignore the wake word's tail and the chime right after detection. */
+        private const val WAKE_SETTLE_MS = 300L
+        /** Quiet this long after speaking = you've finished. */
+        private const val END_SILENCE_MS = 900L
+        /** Nothing said this long after the wake word = give up. */
+        private const val NO_SPEECH_MS = 5_000L
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -81,6 +110,21 @@ class VoiceSession(
 
     @Volatile private var handlerId: Int? = null
     @Volatile private var streaming = false
+    /** When the current command started (push-to-talk, or wake word fired). */
+    @Volatile private var listenStartedAt = 0L
+
+    // Local end-of-speech state (wake word runs only, see SPEECH_FACTOR).
+    @Volatile private var endpointing = false
+    private var noiseFloor = 0.0
+    private var speechSeen = false
+    private var lastLoudAt = 0L
+
+    /** Last time an armed run failed for a reason other than its own timeout. */
+    @Volatile var lastWakeFailureAt = 0L
+        private set
+
+    /** Called (on an IO thread) when the wake word is heard. */
+    var onWakeWord: (() -> Unit)? = null
 
     val hasPermission: Boolean
         get() = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
@@ -88,6 +132,8 @@ class VoiceSession(
 
     /** Begin a voice interaction. No-ops if one is already running. */
     fun start(pipelineId: String? = null) {
+        // Push-to-talk wins over a waiting wake word run.
+        if (_state.value.armed) cancel()
         if (_state.value.phase != VoicePhase.IDLE && _state.value.phase != VoicePhase.DONE &&
             _state.value.phase != VoicePhase.ERROR
         ) return
@@ -98,6 +144,7 @@ class VoiceSession(
         }
 
         stopPlayback()
+        endpointing = false // push-to-talk keeps HA's VAD
         _state.value = VoiceState(phase = VoicePhase.LISTENING)
 
         val id = client.startSubscription(build = {
@@ -113,6 +160,45 @@ class VoiceSession(
             return
         }
         subscriptionId = id
+        listenStartedAt = System.currentTimeMillis()
+    }
+
+    /**
+     * Open the mic and wait for the pipeline's wake word (the pipeline must
+     * have a wake word engine set). Silent until it fires; failures just
+     * disarm and stamp [lastWakeFailureAt] so the caller can back off.
+     */
+    fun armWakeWord(pipelineId: String? = null) {
+        if (_state.value.phase != VoicePhase.IDLE || _state.value.armed || !hasPermission) return
+
+        _state.value = VoiceState(armed = true)
+        endpointing = false
+        noiseFloor = 0.0
+        val id = client.startSubscription(build = {
+            put("type", "assist_pipeline/run")
+            put("start_stage", "wake_word")
+            put("end_stage", "tts")
+            // Whole-run cap (HA default 300 s): must outlast the wake timeout
+            // plus a spoken command, or HA kills the run with code "timeout".
+            put("timeout", WAKE_TIMEOUT_S + 120)
+            pipelineId?.let { put("pipeline", it) }
+            put("input", buildJsonObject {
+                put("sample_rate", SAMPLE_RATE)
+                put("timeout", WAKE_TIMEOUT_S)
+                put("no_vad", true)
+            })
+        }, onEvent = ::onPipelineEvent)
+
+        if (id == null) {
+            disarmQuietly(failed = true)
+            return
+        }
+        subscriptionId = id
+    }
+
+    /** Stop waiting for the wake word. No-op unless armed. */
+    fun disarm() {
+        if (_state.value.armed) cancel()
     }
 
     /** Stop sending audio but let the pipeline finish thinking/replying. */
@@ -128,6 +214,10 @@ class VoiceSession(
 
     /** Tear everything down (overlay dismissed / mic pressed again). */
     fun cancel() {
+        endpointing = false
+        // An armed run would otherwise sit in HA until its hour-long timeout;
+        // end-of-audio makes HA abort it now.
+        if (_state.value.armed && streaming) handlerId?.let { client.sendAudioChunk(it, ByteArray(0), 0) }
         streaming = false
         recordJob?.cancel()
         recordJob = null
@@ -152,6 +242,18 @@ class VoiceSession(
                 } else {
                     handlerId = hid
                     startRecording(hid)
+                }
+            }
+
+            "wake_word-end" -> {
+                val heard = event["data"]?.jsonObject?.get("wake_word_output") as? JsonObject
+                if (_state.value.armed && !heard.isNullOrEmpty()) {
+                    listenStartedAt = System.currentTimeMillis()
+                    speechSeen = false
+                    lastLoudAt = listenStartedAt
+                    endpointing = true
+                    _state.value = VoiceState(phase = VoicePhase.LISTENING)
+                    onWakeWord?.invoke()
                 }
             }
 
@@ -186,6 +288,10 @@ class VoiceSession(
             }
 
             "run-end" -> {
+                if (_state.value.armed) {
+                    disarmQuietly(failed = false)
+                    return
+                }
                 // If TTS produced nothing there's nothing left to wait for.
                 if (_state.value.phase != VoicePhase.SPEAKING) finish()
                 subscriptionId?.let { client.endSubscription(it) }
@@ -193,6 +299,13 @@ class VoiceSession(
             }
 
             "error" -> {
+                if (_state.value.armed) {
+                    val code = event["data"]?.jsonObject?.get("code")?.jsonPrimitive?.content
+                    val expected = code == "wake-word-timeout" || code == "timeout"
+                    if (!expected) Log.w(TAG, "wake word run ended: $code")
+                    disarmQuietly(failed = !expected)
+                    return
+                }
                 val msg = event["data"]?.jsonObject?.get("message")?.jsonPrimitive?.content
                     ?: "Assist pipeline error"
                 fail(msg)
@@ -239,7 +352,6 @@ class VoiceSession(
             val buf = ByteArray(CHUNK_SAMPLES * 2)
             try {
                 rec.startRecording()
-                val startedAt = System.currentTimeMillis()
                 while (streaming) {
                     val read = rec.read(buf, 0, buf.size)
                     if (read <= 0) {
@@ -250,9 +362,22 @@ class VoiceSession(
                         fail("Lost connection while streaming audio")
                         return@launch
                     }
-                    _state.value = _state.value.copy(level = rmsLevel(buf, read))
+                    val rms = rawRms(buf, read)
+                    // While armed nobody is watching the level; just learn
+                    // how loud the room is for end-of-speech detection.
+                    if (_state.value.armed) {
+                        noiseFloor = if (noiseFloor == 0.0) rms else noiseFloor * 0.98 + rms * 0.02
+                        continue
+                    }
+                    // Speech sits low in the linear range; scale so it reads well visually.
+                    _state.value = _state.value.copy(level = (rms * 4.0).coerceIn(0.0, 1.0).toFloat())
 
-                    if (System.currentTimeMillis() - startedAt > MAX_LISTEN_MS) {
+                    if (endpointing && speechEnded(rms)) {
+                        stopListening()
+                        break
+                    }
+
+                    if (System.currentTimeMillis() - listenStartedAt > MAX_LISTEN_MS) {
                         stopListening()
                         break
                     }
@@ -265,8 +390,20 @@ class VoiceSession(
         }
     }
 
-    /** Rough RMS of a 16-bit LE buffer, normalised to 0..1 for the UI. */
-    private fun rmsLevel(buf: ByteArray, len: Int): Float {
+    /** After the wake word: has the user spoken and then gone quiet? */
+    private fun speechEnded(rms: Double): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - listenStartedAt < WAKE_SETTLE_MS) return false
+        if (rms > maxOf(noiseFloor * SPEECH_FACTOR, MIN_SPEECH_RMS)) {
+            speechSeen = true
+            lastLoudAt = now
+        }
+        val quietFor = now - lastLoudAt
+        return if (speechSeen) quietFor > END_SILENCE_MS else quietFor > NO_SPEECH_MS
+    }
+
+    /** RMS of a 16-bit LE buffer, normalised to 0..1 of full scale. */
+    private fun rawRms(buf: ByteArray, len: Int): Double {
         var sum = 0.0
         var n = 0
         var i = 0
@@ -276,10 +413,7 @@ class VoiceSession(
             n++
             i += 2
         }
-        if (n == 0) return 0f
-        val rms = Math.sqrt(sum / n) / 32768.0
-        // Speech sits low in the linear range; scale so it reads well visually.
-        return (rms * 4.0).coerceIn(0.0, 1.0).toFloat()
+        return if (n == 0) 0.0 else Math.sqrt(sum / n) / 32768.0
     }
 
     private fun releaseRecorder() {
@@ -329,6 +463,7 @@ class VoiceSession(
     // ---- terminal states ----------------------------------------------------
 
     private fun finish() {
+        endpointing = false
         streaming = false
         releaseRecorder()
         _state.value = _state.value.copy(phase = VoicePhase.DONE, level = 0f)
@@ -339,7 +474,25 @@ class VoiceSession(
         }
     }
 
+    /** Tear down an armed run without showing anything. */
+    private fun disarmQuietly(failed: Boolean) {
+        endpointing = false
+        if (failed) lastWakeFailureAt = System.currentTimeMillis()
+        streaming = false
+        releaseRecorder()
+        subscriptionId?.let { client.endSubscription(it) }
+        subscriptionId = null
+        handlerId = null
+        _state.value = VoiceState()
+    }
+
     private fun fail(message: String) {
+        endpointing = false
+        if (_state.value.armed) {
+            Log.w(TAG, "wake word failure: $message")
+            disarmQuietly(failed = true)
+            return
+        }
         Log.w(TAG, "voice failure: $message")
         streaming = false
         releaseRecorder()
