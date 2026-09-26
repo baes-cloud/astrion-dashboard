@@ -1,0 +1,945 @@
+{
+ "startPage": 1,
+ "pages": [
+  {
+   "name": "TV",
+   "cards": [
+    {
+     "type": "clock_header",
+     "options": {
+      "pin": "top",
+      "time_format": 12,
+      "title": "TV",
+      "weather_entity": "weather.forecast_home"
+     }
+    },
+    {
+     "type": "media_player",
+     "options": {
+      "entity_id": "media_player.the_club_tv",
+      "variant": "tv",
+      "placeholder": "/sdcard/astrion/serif_tv.png",
+      "volume_entity": "media_player.club",
+      "apps": [
+       {
+        "name": "iview",
+        "color": "#2BC4B6",
+        "service": "media_player.select_source",
+        "entity_id": "media_player.club_android_tv_10_0_0_248_club_tv",
+        "data": {
+         "source": "au.net.abc.iview"
+        },
+        "wordmark": true
+       },
+       {
+        "name": "Plex",
+        "color": "#E5A00D",
+        "service": "media_player.select_source",
+        "entity_id": "media_player.club_android_tv_10_0_0_248_club_tv",
+        "data": {
+         "source": "com.plexapp.android"
+        },
+        "badge": ">"
+       },
+       {
+        "name": "Jellyfin",
+        "color": "#A77BF3",
+        "service": "media_player.select_source",
+        "entity_id": "media_player.club_android_tv_10_0_0_248_club_tv",
+        "data": {
+         "source": "org.jellyfin.androidtv"
+        },
+        "badge": "J"
+       },
+       {
+        "name": "Netflix",
+        "color": "#E50914",
+        "service": "media_player.select_source",
+        "entity_id": "media_player.club_android_tv_10_0_0_248_club_tv",
+        "data": {
+         "source": "com.netflix.ninja"
+        },
+        "badge": "N",
+        "dim": true
+       }
+      ]
+     }
+    },
+    {
+     "type": "plex",
+     "options": {
+      "host": "http://10.0.0.10:32400",
+      "play_entity": "media_player.plex_plex_for_android_tv_tv",
+      "tv_entity": "media_player.the_club_tvv",
+      "adb_entity": "media_player.club_android_tv_10_0_0_248_club_tv",
+      "wake_timeout": 25,
+      "limit": 15,
+      "rows": [
+       {
+        "title": "On Deck",
+        "path": "/library/onDeck"
+       },
+       {
+        "title": "Continue Watching",
+        "path": "/hubs/home/continueWatching"
+       },
+       {
+        "title": "Recently Released",
+        "path": "/library/sections/2/newest"
+       },
+       {
+        "title": "Recently Added TV",
+        "path": "/library/sections/2/recentlyAdded"
+       },
+       {
+        "title": "Recently Added Movies",
+        "path": "/library/sections/1/recentlyAdded"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "Main",
+   "cards": [
+    {
+     "type": "clock_header",
+     "options": {
+      "pin": "top",
+      "time_format": 12,
+      "title": "Main",
+      "weather_entity": "weather.forecast_home",
+      "date_format": "EEE, d MMM"
+     }
+    },
+    {
+     "type": "clock_weather",
+     "options": {
+      "entity_id": "weather.forecast_home",
+      "time_format": 12,
+      "forecast_rows": 2,
+      "show_time": false,
+      "show_date": false,
+      "watermark_size": 0,
+      "bare": true,
+      "pin": "top"
+     }
+    },
+    {
+     "type": "next_up",
+     "options": {
+      "pin": "top",
+      "calendar_entity": "calendar.mmworkcalendar_gmail_com",
+      "title_separator": " - ",
+      "alarm_entities": [
+       "sensor.work_alarm_1",
+       "sensor.work_alarm_2",
+       "sensor.work_alarm_wfh"
+      ],
+      "always_entities": [
+       "sensor.work_alarm_wfh"
+      ],
+      "enabled_entity": "input_boolean.work_alarms_enabled",
+      "off_today_entity": "input_boolean.work_alarms_off_today"
+     }
+    },
+    {
+     "type": "lock",
+     "options": {
+      "entity_id": "lock.lock_pro_0fa0",
+      "name": "Front Door",
+      "hold_entity": "input_boolean.front_door_keep_unlocked"
+     }
+    },
+    {
+     "type": "scene_grid",
+     "options": {
+      "style": "pill",
+      "scenes": [
+       {
+        "entity_id": "scene.home_home_tokyo",
+        "name": "Tokyo",
+        "color": "#EC4899"
+       },
+       {
+        "entity_id": "scene.home_home_soho",
+        "name": "Soho",
+        "color": "#F43F5E"
+       },
+       {
+        "entity_id": "scene.home_home_santorini",
+        "name": "Santorini",
+        "color": "#3B82F6"
+       },
+       {
+        "entity_id": "scene.home_home_disturbia",
+        "name": "Disturbia",
+        "color": "#8B5CF6"
+       },
+       {
+        "entity_id": "scene.home_home_miami",
+        "name": "Miami",
+        "color": "#14B8A6"
+       },
+       {
+        "entity_id": "scene.home_home_tyrell",
+        "name": "Tyrell",
+        "color": "#F97316"
+       },
+       {
+        "entity_id": "scene.home_home_precious",
+        "name": "Precious",
+        "color": "#F9A8D4"
+       },
+       {
+        "entity_id": "scene.home_home_snow_capped",
+        "name": "Snow capped",
+        "color": "#BAE6FD"
+       }
+      ]
+     }
+    },
+    {
+     "type": "picture_elements",
+     "options": {
+      "image": "/sdcard/astrion/floorplan.png",
+      "pin": "fill",
+      "aspect": 1.3,
+      "elements": [
+       {
+        "entity_id": "light.hue_play",
+        "left": 16,
+        "top": 9
+       },
+       {
+        "entity_id": "light.tv_art_lights",
+        "left": 45,
+        "top": 11
+       },
+       {
+        "entity_id": "light.art_group",
+        "left": 64,
+        "top": 8
+       },
+       {
+        "entity_id": "light.bar_spotlights",
+        "left": 85,
+        "top": 13
+       },
+       {
+        "entity_id": "light.couch",
+        "left": 27,
+        "top": 30
+       },
+       {
+        "entity_id": "light.downlights",
+        "left": 65,
+        "top": 28
+       },
+       {
+        "entity_id": "light.kitchen_console_candles",
+        "left": 93,
+        "top": 33
+       },
+       {
+        "entity_id": "light.club_led_group",
+        "left": 12,
+        "top": 46
+       },
+       {
+        "entity_id": "light.bedroom_cupboard_light",
+        "left": 51,
+        "top": 54
+       },
+       {
+        "entity_id": "light.kitchen_group",
+        "left": 73,
+        "top": 54
+       },
+       {
+        "entity_id": "light.send_nudes",
+        "left": 28,
+        "top": 64
+       },
+       {
+        "entity_id": "light.office_lights",
+        "left": 93,
+        "top": 67
+       },
+       {
+        "entity_id": "light.wardrobes",
+        "left": 77,
+        "top": 86
+       },
+       {
+        "entity_id": "light.bathroom_downlights",
+        "left": 57,
+        "top": 90
+       },
+       {
+        "entity_id": "light.bedroom_lights",
+        "left": 29,
+        "top": 90
+       }
+      ],
+      "radars": [
+       {
+        "prefix": "sensor.club_apollo_r_pro_1_ld2450_target",
+        "targets": 3,
+        "unit": "m",
+        "origin_left": 53,
+        "origin_top": 10,
+        "scale_x": 8.66,
+        "scale_x_right": 17.32,
+        "scale_y": 9.01,
+        "top_offset_left": 7.88,
+        "rotation": 0,
+        "flip_x": false,
+        "flip_y": false,
+        "blend": "overlay",
+        "color": "#D9155E6E",
+        "accent_color": "#FF33CBDA"
+       },
+       {
+        "prefix": "sensor.ld2450_tracker_target",
+        "targets": 3,
+        "unit": "mm",
+        "origin_left": 29,
+        "origin_top": 56,
+        "scale_x": 9.0,
+        "scale_y": 9.0,
+        "rotation": 0,
+        "flip_x": false,
+        "flip_y": false,
+        "blend": "overlay",
+        "color": "#D96E2C7A",
+        "accent_color": "#FFB06CD9",
+        "label": "B"
+       },
+       {
+        "prefix": "sensor.ld2450_tracker_2_target",
+        "targets": 3,
+        "unit": "mm",
+        "origin_left": 97,
+        "origin_top": 78,
+        "scale_x": 9.0,
+        "scale_y": 9.0,
+        "rotation": 90,
+        "flip_x": false,
+        "flip_y": false,
+        "blend": "overlay",
+        "color": "#D9146B4A",
+        "accent_color": "#FF4FD98C",
+        "label": "O"
+       }
+      ],
+      "vacuum": {
+       "entity_id": "vacuum.roborock_qrevo_master",
+       "name": "Vacuum",
+       "map_image": "image.kitchen_roborock_qrevo_master_map_0_custom",
+       "map_rotation": 90,
+       "rooms": [
+        {
+         "name": "Club",
+         "id": 17
+        },
+        {
+         "name": "Kitchen",
+         "id": 18
+        },
+        {
+         "name": "Bedroom",
+         "id": 22
+        },
+        {
+         "name": "Bathroom",
+         "id": 16
+        },
+        {
+         "name": "Office",
+         "id": 21
+        }
+       ],
+       "room_entity": "sensor.roborock_qrevo_master_current_room",
+       "room_positions": {
+        "Club": [
+         42,
+         44
+        ],
+        "Kitchen": [
+         69,
+         57
+        ],
+        "Bedroom": [
+         29,
+         90
+        ],
+        "Bathroom": [
+         57,
+         90
+        ],
+        "Office": [
+         88,
+         82
+        ]
+       },
+       "dock_position": [
+        6,
+        63
+       ]
+      },
+      "overlay": {
+       "top": 77,
+       "left": 4,
+       "right": 4,
+       "card": {
+        "type": "now_playing",
+        "options": {
+         "entity_id": "media_player.club",
+         "tv_entities": [
+          "media_player.plex_plex_for_android_tv_tv",
+          "media_player.the_club_tv"
+         ],
+         "controls": true
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "Media",
+   "cards": [
+    {
+     "type": "clock_header",
+     "options": {
+      "pin": "top",
+      "time_format": 12,
+      "title": "Sonos",
+      "weather_entity": "weather.forecast_home"
+     }
+    },
+    {
+     "type": "swipe_stack",
+     "options": {
+      "titles": [
+       "Player",
+       "Media",
+       "Zones"
+      ],
+      "cards": [
+       {
+        "type": "column",
+        "options": {
+         "spacing": 10,
+         "cards": [
+          {
+           "type": "media_player",
+           "options": {
+            "entity_id": "media_player.club",
+            "tv_entities": [
+             "media_player.plex_plex_for_android_tv_tv",
+             "media_player.the_club_tv"
+            ],
+            "variant": "full"
+           }
+          },
+          {
+           "type": "button_grid",
+           "options": {
+            "columns": 4,
+            "tile_height": 56,
+            "icon_size": 26,
+            "spacing": 8,
+            "buttons": [
+             {
+              "name": "Disco",
+              "icon": "/sdcard/astrion/icons/disco.png",
+              "service": "script.play_disco"
+             },
+             {
+              "name": "House",
+              "icon": "/sdcard/astrion/icons/house.png",
+              "service": "script.play_house"
+             },
+             {
+              "name": "Purple Disco",
+              "icon": "/sdcard/astrion/icons/turntable.png",
+              "service": "script.play_pdm"
+             },
+             {
+              "name": "Dimitri From",
+              "icon": "/sdcard/astrion/icons/paris.png",
+              "service": "script.play_dfp"
+             }
+            ]
+           }
+          }
+         ]
+        }
+       },
+       {
+        "type": "media_shelves",
+        "options": {
+         "entity_id": "media_player.club",
+         "limit": 10,
+         "rows": [
+          {
+           "title": "Random albums",
+           "source": "music_assistant",
+           "config_entry_id": "01KVF3KES1KSZ0JYSXJ405AKVA",
+           "player": "media_player.club_2",
+           "media_type": "album",
+           "order_by": "random",
+           "limit": 12
+          },
+          {
+           "title": "Spotify Albums",
+           "content_id": "spotify://01kqjrgbzw0346tka5e7ay95ex/current_user_saved_albums",
+           "content_type": "spotify://current_user_saved_albums"
+          },
+          {
+           "title": "Favourite Songs",
+           "content_id": "object.item.audioItem.musicTrack",
+           "content_type": "favorites_folder"
+          },
+          {
+           "title": "Favourite Playlists",
+           "content_id": "object.container.playlistContainer",
+           "content_type": "favorites_folder"
+          }
+         ]
+        }
+       },
+       {
+        "type": "speaker_group",
+        "options": {
+         "title": "",
+         "master": "media_player.club",
+         "name": "Club",
+         "icon": "sub",
+         "speakers": [
+          {
+           "entity_id": "media_player.living_room_sonos",
+           "name": "Living Room",
+           "icon": "play3"
+          },
+          {
+           "entity_id": "media_player.bathroom_sonos",
+           "name": "Bathroom",
+           "icon": "move"
+          },
+          {
+           "entity_id": "media_player.bedroom_sonos",
+           "name": "Bedroom",
+           "icon": "lamp"
+          },
+          {
+           "entity_id": "media_player.office_sonos",
+           "name": "Office",
+           "icon": "play1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "Climate",
+   "cards": [
+    {
+     "type": "clock_header",
+     "options": {
+      "pin": "top",
+      "time_format": 12,
+      "title": "Climate",
+      "weather_entity": "weather.forecast_home"
+     }
+    },
+    {
+     "type": "climate",
+     "options": {
+      "entity_id": "climate.aircon",
+      "name": "Aircon",
+      "step": 0.5
+     }
+    },
+    {
+     "type": "section",
+     "options": {
+      "title": "Blinds"
+     }
+    },
+    {
+     "type": "cover",
+     "options": {
+      "entity_id": "cover.blinds",
+      "name": "Sofa",
+      "invert_position": true
+     }
+    },
+    {
+     "type": "cover",
+     "options": {
+      "entity_id": "cover.club_sheer_blinds",
+      "name": "Sheer"
+     }
+    },
+    {
+     "type": "cover",
+     "options": {
+      "entity_id": "cover.smart_blinds_curtain",
+      "name": "Bed",
+      "invert_position": true,
+      "invert_buttons": true
+     }
+    }
+   ]
+  }
+ ],
+ "hotkeys": [
+  {
+   "key": "UP",
+   "service": "remote.send_command",
+   "entityId": "remote.the_club_tvv",
+   "data": {
+    "command": "DPAD_UP"
+   }
+  },
+  {
+   "key": "DOWN",
+   "service": "remote.send_command",
+   "entityId": "remote.the_club_tvv",
+   "data": {
+    "command": "DPAD_DOWN"
+   }
+  },
+  {
+   "key": "LEFT",
+   "service": "remote.send_command",
+   "entityId": "remote.the_club_tvv",
+   "data": {
+    "command": "DPAD_LEFT"
+   }
+  },
+  {
+   "key": "RIGHT",
+   "service": "remote.send_command",
+   "entityId": "remote.the_club_tvv",
+   "data": {
+    "command": "DPAD_RIGHT"
+   }
+  },
+  {
+   "key": "CENTER",
+   "service": "remote.send_command",
+   "entityId": "remote.the_club_tvv",
+   "data": {
+    "command": "DPAD_CENTER"
+   }
+  },
+  {
+   "key": "HOME",
+   "service": "remote.send_command",
+   "entityId": "remote.the_club_tvv",
+   "data": {
+    "command": "HOME"
+   }
+  },
+  {
+   "key": "BACK",
+   "service": "remote.send_command",
+   "entityId": "remote.the_club_tvv",
+   "data": {
+    "command": "BACK"
+   }
+  },
+  {
+   "key": "POWER",
+   "service": "remote.send_command",
+   "entityId": "remote.the_club_tvv",
+   "data": {
+    "command": "POWER"
+   }
+  },
+  {
+   "key": "MUTE",
+   "service": "remote.send_command",
+   "entityId": "remote.the_club_tvv",
+   "data": {
+    "command": "HOME"
+   },
+   "then": [
+    {
+     "service": "astrion.toggle_mute",
+     "entityId": "media_player.club"
+    }
+   ]
+  },
+  {
+   "key": "VOLUME_UP",
+   "service": "media_player.volume_up",
+   "entityId": "media_player.club"
+  },
+  {
+   "key": "VOLUME_DOWN",
+   "service": "media_player.volume_down",
+   "entityId": "media_player.club"
+  },
+  {
+   "key": "PAGE_UP",
+   "service": "script.turn_on",
+   "entityId": "script.increase_club_brightness_on_lights_only"
+  },
+  {
+   "key": "PAGE_DOWN",
+   "service": "script.turn_on",
+   "entityId": "script.decrease_club_brightness_on_lights_only"
+  },
+  {
+   "key": "LIGHT",
+   "page": "Main"
+  },
+  {
+   "key": "CURTAIN",
+   "page": "TV"
+  },
+  {
+   "key": "SCENE",
+   "page": "Media"
+  },
+  {
+   "key": "AC",
+   "page": "Climate"
+  },
+  {
+   "key": "CUSTOM_1",
+   "service": "media_player.select_source",
+   "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
+   "data": {
+    "source": "com.netflix.ninja"
+   }
+  },
+  {
+   "key": "CUSTOM_2",
+   "service": "media_player.select_source",
+   "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
+   "data": {
+    "source": "com.plexapp.android"
+   }
+  },
+  {
+   "key": "CUSTOM_3",
+   "service": "media_player.select_source",
+   "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
+   "data": {
+    "source": "au.net.abc.iview"
+   }
+  },
+  {
+   "key": "CUSTOM_4",
+   "service": "media_player.select_source",
+   "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
+   "data": {
+    "source": "org.videolan.vlc"
+   }
+  }
+ ],
+ "longHotkeys": [
+  {
+   "key": "CENTER",
+   "service": "media_player.media_play_pause",
+   "entityId": "media_player.club"
+  },
+  {
+   "key": "PAGE_UP",
+   "service": "script.open_blinds"
+  },
+  {
+   "key": "PAGE_DOWN",
+   "service": "script.close_blinds"
+  },
+  {
+   "key": "LIGHT",
+   "service": "script.long_lights"
+  },
+  {
+   "key": "CURTAIN",
+   "service": "script.long_curtain"
+  },
+  {
+   "key": "SCENE",
+   "service": "script.long_music",
+   "then": [
+    {
+     "service": "astrion.unjoin_others",
+     "entityId": "media_player.club"
+    }
+   ]
+  },
+  {
+   "key": "AC",
+   "service": "script.long_aircon"
+  },
+  {
+   "key": "CUSTOM_1",
+   "service": "script.long_red"
+  },
+  {
+   "key": "CUSTOM_2",
+   "service": "script.long_green"
+  },
+  {
+   "key": "CUSTOM_3",
+   "service": "script.long_blue"
+  },
+  {
+   "key": "CUSTOM_4",
+   "service": "script.long_yellow"
+  }
+ ],
+ "doubleHotkeys": [
+  {
+   "key": "SCENE",
+   "service": "media_player.media_next_track",
+   "entityId": "media_player.club"
+  }
+ ],
+ "ir_mode": {
+  "toggle_key": "MENU",
+  "toggle_long": false,
+  "repeat": 1,
+  "tv_entity": "media_player.the_serif_qa55ls01dawxxy",
+  "remote_entity": "remote.the_serif_qa55ls01dawxxy",
+  "codes": {},
+  "buttons": [
+   {
+    "name": "Netflix",
+    "app": "Netflix"
+   },
+   {
+    "name": "YouTube",
+    "app": "YouTube"
+   },
+   {
+    "name": "Plex",
+    "app": "Plex"
+   },
+   {
+    "name": "TV",
+    "source": "TV"
+   },
+   {
+    "name": "HDMI",
+    "source": "HDMI"
+   },
+   {
+    "name": "Source",
+    "ir": "SOURCE"
+   },
+   {
+    "name": "Menu",
+    "ir": "MENU"
+   },
+   {
+    "name": "Guide",
+    "ir": "GUIDE"
+   },
+   {
+    "name": "Exit",
+    "ir": "EXIT"
+   }
+  ]
+ },
+ "voice": {
+  "pipeline": null,
+  "image_dir": "/sdcard/astrion/voice"
+ },
+ "alarm": {
+  "ringing_entity": "input_boolean.work_alarm_ringing",
+  "snooze_timer": "timer.work_alarm_snooze",
+  "info_entity": "sensor.work_start",
+  "snooze": {
+   "service": "script.turn_on",
+   "entity_id": "script.work_alarm_snooze"
+  },
+  "stop": {
+   "service": "script.turn_on",
+   "entity_id": "script.work_alarm_stop"
+  }
+ },
+ "alerts": [
+  {
+   "id": "leak",
+   "entity": "binary_sensor.0x0c2a6ffffe605def_water_leak",
+   "state": "on",
+   "severity": "alarm",
+   "icon": "leak",
+   "title": "Water leak",
+   "message": "Leak sensor by the washing machine \u2014 since {since}"
+  },
+  {
+   "id": "intruder",
+   "entity": "input_boolean.intruder_alert_active",
+   "state": "on",
+   "severity": "alarm",
+   "icon": "intruder",
+   "title": "Intruder alert",
+   "message": "Radar saw someone while away mode was on ({since})",
+   "actions": [
+    {
+     "name": "All clear",
+     "service": "input_boolean.turn_off",
+     "entity_id": "input_boolean.intruder_alert_active"
+    }
+   ]
+  },
+  {
+   "id": "door",
+   "entity": "lock.lock_pro_0fa0",
+   "state": "unlocked",
+   "for_seconds": 600,
+   "unless": {
+    "entity": "input_boolean.front_door_keep_unlocked",
+    "state": "on"
+   },
+   "severity": "warning",
+   "icon": "door",
+   "title": "Front door unlocked",
+   "message": "Unlocked for {minutes} min (since {since})",
+   "actions": [
+    {
+     "name": "Lock it",
+     "service": "lock.lock",
+     "entity_id": "lock.lock_pro_0fa0"
+    },
+    {
+     "name": "Keep unlocked",
+     "service": "input_boolean.turn_on",
+     "entity_id": "input_boolean.front_door_keep_unlocked"
+    }
+   ]
+  },
+  {
+   "id": "washer",
+   "entity": "input_boolean.washer_done",
+   "state": "on",
+   "severity": "info",
+   "icon": "washer",
+   "title": "Washing's done",
+   "message": "Finished at {since}",
+   "actions": [
+    {
+     "name": "Emptied",
+     "service": "input_boolean.turn_off",
+     "entity_id": "input_boolean.washer_done"
+    }
+   ]
+  }
+ ]
+}

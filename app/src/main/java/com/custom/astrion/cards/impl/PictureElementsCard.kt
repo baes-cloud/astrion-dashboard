@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -148,6 +150,37 @@ class PictureElementsCard : CardRenderer {
                     // The box already has the image's proportions.
                     contentScale = ContentScale.FillBounds,
                 )
+            }
+
+            // Optional embedded card floated over the plan (e.g. the
+            // now-playing strip in the empty band across the bedroom /
+            // bathroom / office), so the plan can run to the bottom of the
+            // page. Drawn before the icons and radar dots, which stay on top.
+            //   "overlay": { "top": 77, "left": 4, "right": 4,
+            //                "card": { "type": "now_playing", "options": { … } } }
+            (config.options["overlay"] as? Map<String, Any?>)?.let { ov ->
+                val card = ov["card"] as? Map<String, Any?>
+                val type = card?.get("type") as? String
+                val renderer = type?.let { com.custom.astrion.cards.CardRegistry.get(it) }
+                if (renderer != null) {
+                    val topPct = (ov["top"] as? Number)?.toFloat() ?: 77f
+                    val leftPct = (ov["left"] as? Number)?.toFloat() ?: 4f
+                    val rightPct = (ov["right"] as? Number)?.toFloat() ?: 4f
+                    val barH = 40.dp
+                    Box(
+                        modifier = Modifier
+                            .offset(x = w * (leftPct / 100f), y = h * (topPct / 100f) - barH / 2)
+                            .width(w * (1f - (leftPct + rightPct) / 100f))
+                            .height(barH)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xD90C1A1D))
+                            .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(14.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        val opts = ((card["options"] as? Map<String, Any?>) ?: emptyMap()) + ("flush" to true)
+                        renderer.Render(com.custom.astrion.cards.CardConfig(type, opts), ctx)
+                    }
+                }
             }
 
             val iconBox = 40.dp

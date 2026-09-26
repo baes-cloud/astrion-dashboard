@@ -16,6 +16,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VolumeDown
+import androidx.compose.material.icons.filled.VolumeMute
+import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -62,6 +64,17 @@ import com.custom.astrion.ui.tap
  * Config:
  *   { "type": "media_player", "options": { "entity_id": "media_player.club",
  *       "variant": "full" } }   // omit variant for compact
+ *
+ * "tv" variant (the TV page): wide hero artwork — the poster, or a
+ * `placeholder` image file when nothing is showing — with the title and an
+ * on/idle status over a gradient, a plain control row (mute / prev / play /
+ * next / volume, sent to `volume_entity` for the volume pair), and an `apps`
+ * row of launcher tiles inside the same card:
+ *   "apps": [ { "name": "Plex", "badge": ">", "color": "#E5A00D",
+ *               "service": "media_player.select_source", "entity_id": "…",
+ *               "data": { "source": "com.plexapp.android" } },
+ *             { "name": "iview", "wordmark": true, "color": "#2BC4B6", … },
+ *             { "name": "Netflix", "badge": "N", "color": "#E50914", "dim": true, … } ]
  */
 class MediaPlayerCard : CardRenderer {
     override val type = "media_player"
@@ -149,7 +162,14 @@ class MediaPlayerCard : CardRenderer {
                 Box(modifier = Modifier.matchParentSize().background(Color(0xB30D1E24)))
             }
 
-            if (full) {
+            if (config.string("variant") == "tv") {
+                TvContent(
+                    ctx, entityId, e, title, playing, art, ::mp, live,
+                    placeholder = config.string("placeholder"),
+                    volumeEntity = config.string("volume_entity") ?: entityId,
+                    apps = (config.options["apps"] as? List<Map<String, Any?>>) ?: emptyList(),
+                )
+            } else if (full) {
                 FullContent(
                     ctx, title, artist, playing, art, ::mp, topButtons, sourceEntity, live,
                     showControls = config.bool("show_controls", true),
@@ -170,6 +190,175 @@ class MediaPlayerCard : CardRenderer {
         ctx.client.callService(
             ServiceCall.of(domain, svc, entityId, *data.entries.map { it.key to it.value }.toTypedArray())
         )
+    }
+
+    // ---- tv (TV page): hero art + status, plain controls, app tiles ----------
+    @Composable
+    private fun TvContent(
+        ctx: CardContext,
+        entityId: String,
+        e: com.custom.astrion.ha.EntityState?,
+        title: String,
+        playing: Boolean,
+        art: ImageBitmap?,
+        mp: (String, Array<out Pair<String, Any?>>) -> Unit,
+        enabled: Boolean,
+        placeholder: String?,
+        volumeEntity: String,
+        apps: List<Map<String, Any?>>,
+    ) {
+        val placeholderArt by com.custom.astrion.ui.rememberSampledBitmap(placeholder, targetPx = 720)
+        val hero = art ?: placeholderArt
+        val state = e?.state ?: "unavailable"
+        val on = state !in listOf("off", "unavailable", "unknown", "standby")
+        val app = e?.attrString("app_name")?.takeIf { it.isNotBlank() }
+        val status = when (state) {
+            "playing" -> listOfNotNull("Playing", app).joinToString(" • ")
+            "paused" -> listOfNotNull("Paused", app).joinToString(" • ")
+            "off", "standby" -> "Off"
+            "unavailable", "unknown" -> "Unavailable"
+            else -> listOfNotNull("On", app ?: "Idle").joinToString(" • ")
+        }
+        val muted = ctx.entities[volumeEntity]?.attributes?.get("is_volume_muted")
+            ?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content == "true" } ?: false
+        fun vol(service: String, vararg data: Pair<String, Any?>) {
+            ctx.client.callService(ServiceCall.of("media_player", service, volumeEntity, *data))
+        }
+
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1.6f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(AstrionTheme.raised),
+            ) {
+                if (hero != null) {
+                    Image(hero, null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+                } else {
+                    Icon(
+                        Icons.Filled.Movie, contentDescription = null, tint = Color(0xFF44606C),
+                        modifier = Modifier.size(56.dp).align(Alignment.Center),
+                    )
+                }
+                // Legibility scrim for the overlaid title.
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                0.45f to Color.Transparent,
+                                1f to Color(0xE60A1719),
+                            )
+                        )
+                )
+                Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 14.dp, vertical = 12.dp)) {
+                    Text(
+                        title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier.size(7.dp).clip(CircleShape)
+                                .background(if (on) AstrionTheme.good else Color(0xFF6B7F86))
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(status, color = Color(0xFFC9D6DA), fontSize = 13.sp, maxLines = 1)
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PlainControl(if (muted) Icons.Filled.VolumeOff else Icons.Filled.VolumeMute, "Mute", enabled) {
+                    vol("volume_mute", "is_volume_muted" to !muted)
+                }
+                PlainControl(Icons.Filled.SkipPrevious, "Previous", enabled) {
+                    mp("media_previous_track", emptyArray())
+                }
+                CircleControl(
+                    if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, 60.dp,
+                    description = if (playing) "Pause" else "Play",
+                    accent = true, enabled = enabled,
+                ) { mp("media_play_pause", emptyArray()) }
+                PlainControl(Icons.Filled.SkipNext, "Next", enabled) {
+                    mp("media_next_track", emptyArray())
+                }
+                PlainControl(Icons.Filled.VolumeUp, "Volume up", enabled) { vol("volume_up") }
+            }
+
+            if (apps.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    apps.forEach { a ->
+                        AppTile(a, Modifier.weight(1f), ctx.connected) { fireService(ctx, a) }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun PlainControl(icon: ImageVector, description: String, enabled: Boolean, onClick: () -> Unit) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .tap(enabled = enabled, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = description, tint = Color(0xFFA9BCC1), modifier = Modifier.size(26.dp))
+        }
+    }
+
+    /** Launcher tile: a tinted letter badge over a small-caps name, or a coloured wordmark. */
+    @Composable
+    private fun AppTile(a: Map<String, Any?>, modifier: Modifier, enabled: Boolean, onClick: () -> Unit) {
+        val name = a["name"] as? String ?: ""
+        val color = (a["color"] as? String)?.let { hex ->
+            val h = hex.removePrefix("#")
+            h.toLongOrNull(16)?.let { v -> if (h.length <= 6) Color(0xFF000000L or v) else Color(v) }
+        } ?: Color(0xFF8FB3BA)
+        val dim = a["dim"] as? Boolean ?: false
+        val badge = a["badge"] as? String
+        Column(
+            modifier = modifier
+                .height(76.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0x55102326))
+                .tap(enabled = enabled, onClick = onClick)
+                .padding(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            val alpha = if (dim) 0.5f else 1f
+            if (badge != null && a["wordmark"] != true) {
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(color.copy(alpha = 0.22f * alpha)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(badge, color = color.copy(alpha = alpha), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    name.uppercase(), color = Color(0xFF9FB3B8).copy(alpha = alpha), fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, maxLines = 1,
+                )
+            } else {
+                Text(name, color = color.copy(alpha = alpha), fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+        }
     }
 
     // ---- compact (main page): one row, transport + volume ---------------------

@@ -2,7 +2,10 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -20,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +56,10 @@ import com.custom.astrion.ha.ServiceCall
  *       ),
  *   ))
  *
+ * `"style": "pill"` draws a scrolling row of pills instead: a glowing colour
+ * dot + name, with the most recently activated scene (the scene entity's
+ * state is its last-activated time; within 12 h) lit up.
+ *
  * Recognised `icon` keys: "mood", "night", "white", "day", "club", "off" —
  * anything else (or omitted) shows no icon, just the label.
  */
@@ -65,6 +73,11 @@ class SceneGridCard : CardRenderer {
         val scenes = (config.options["scenes"] as? List<Map<String, Any?>>) ?: emptyList()
         val row = config.string("layout") == "row"
         val title = config.string("title")
+
+        if (config.string("style") == "pill") {
+            PillRow(scenes, ctx)
+            return
+        }
 
         fun activate(entityId: String) {
             // scene.* → scene.turn_on, script.* → script.turn_on, etc.
@@ -90,6 +103,78 @@ class SceneGridCard : CardRenderer {
             }
         } else {
             SceneGridBody(row, columns, scenes, ::nameOf, ::colorOf, ::iconOf, ::activate)
+        }
+    }
+
+    @Composable
+    private fun PillRow(scenes: List<Map<String, Any?>>, ctx: CardContext) {
+        fun activatedAt(id: String): Long? = ctx.entities[id]?.state?.let { iso ->
+            runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
+        }
+        val ids = scenes.mapNotNull { it["entity_id"] as? String }
+        val latest = ids.mapNotNull { id -> activatedAt(id)?.let { id to it } }.maxByOrNull { it.second }
+        // Optimistic: light the tapped pill at once, until HA reports a newer one.
+        var tapped by remember { androidx.compose.runtime.mutableStateOf<Pair<String, Long>?>(null) }
+        val active = tapped?.takeIf { t -> latest == null || latest.second < t.second }?.first
+            ?: latest?.takeIf { System.currentTimeMillis() - it.second < 12 * 3_600_000L }?.first
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            scenes.forEach { scene ->
+                val entityId = scene["entity_id"] as? String ?: return@forEach
+                val color = (scene["color"] as? String)?.let(::parseHexColor) ?: Color(0xFF5BD6CF)
+                val name = scene["name"] as? String ?: ctx.entities[entityId]?.friendlyName ?: entityId
+                val isActive = entityId == active
+                val haptics = LocalHapticFeedback.current
+                Row(
+                    modifier = Modifier
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (isActive) Color(0xFF1E3C3F) else Color(0xFF12282A))
+                        .then(if (isActive) Modifier.background(color.copy(alpha = 0.10f)) else Modifier)
+                        .then(
+                            if (isActive) Modifier.border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(16.dp))
+                            else Modifier
+                        )
+                        .clickable {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            tapped = entityId to System.currentTimeMillis()
+                            ctx.client.callService(
+                                ServiceCall(domain = entityId.substringBefore('.'), service = "turn_on", entityId = entityId)
+                            )
+                        }
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Glowing dot. No coloured shadows on Android 8.1, so the
+                    // glow is a few fading rings drawn behind it.
+                    Box(
+                        modifier = Modifier
+                            .size(if (isActive) 13.dp else 12.dp)
+                            .drawBehind {
+                                if (isActive) for (i in 4 downTo 1) {
+                                    drawCircle(color.copy(alpha = 0.10f), radius = size.minDimension / 2 + i * 2.5.dp.toPx())
+                                }
+                            }
+                            .clip(CircleShape)
+                            .background(if (isActive) color else color.copy(alpha = 0.8f)),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        name,
+                        color = if (isActive) Color.White else Color(0xFF9CA3AF),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.3.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
+            }
         }
     }
 
