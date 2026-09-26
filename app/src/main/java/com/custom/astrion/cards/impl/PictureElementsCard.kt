@@ -128,7 +128,10 @@ class PictureElementsCard : CardRenderer {
             // plan's width or height (default 12%, i.e. 6% a side — outer walls
             // and window frames, not rooms). Past that it letterboxes instead.
             val boxW = maxWidth
-            val boxH = if (maxHeight.value.isFinite()) maxHeight else maxWidth / aspect
+            // A bottom-pinned overlay bar reserves its strip: the plan is laid
+            // out in the space above it and only its overflow runs underneath.
+            val bottomReserve = if ((config.options["overlay"] as? Map<*, *>)?.get("anchor") == "bottom") 48.dp else 0.dp
+            val boxH = (if (maxHeight.value.isFinite()) maxHeight else maxWidth / aspect) - bottomReserve
             val maxCrop = ((config.options["max_crop"] as? Number)?.toFloat() ?: 0.12f).coerceIn(0f, 0.5f)
             val coverW = if (boxW / boxH > aspect) boxW else boxH * aspect
             val w = minOf(coverW, if (boxW / boxH > aspect) boxH * aspect * (1 + maxCrop) else boxW * (1 + maxCrop))
@@ -141,7 +144,7 @@ class PictureElementsCard : CardRenderer {
             // requiredSize, not size: when covering, the rectangle is LARGER
             // than the box and must overflow it (centred, clipped by the card)
             // rather than be squeezed back into it.
-            Box(Modifier.requiredSize(w, h)) {
+            Box(Modifier.offset(y = -bottomReserve / 2).requiredSize(w, h)) {
             if (bitmap != null) {
                 Image(
                     bitmap = bitmap!!,
@@ -158,29 +161,17 @@ class PictureElementsCard : CardRenderer {
             // page. Drawn before the icons and radar dots, which stay on top.
             //   "overlay": { "top": 77, "left": 4, "right": 4,
             //                "card": { "type": "now_playing", "options": { … } } }
-            (config.options["overlay"] as? Map<String, Any?>)?.let { ov ->
-                val card = ov["card"] as? Map<String, Any?>
-                val type = card?.get("type") as? String
-                val renderer = type?.let { com.custom.astrion.cards.CardRegistry.get(it) }
-                if (renderer != null) {
-                    val topPct = (ov["top"] as? Number)?.toFloat() ?: 77f
-                    val leftPct = (ov["left"] as? Number)?.toFloat() ?: 4f
-                    val rightPct = (ov["right"] as? Number)?.toFloat() ?: 4f
-                    val barH = 40.dp
-                    Box(
-                        modifier = Modifier
-                            .offset(x = w * (leftPct / 100f), y = h * (topPct / 100f) - barH / 2)
-                            .width(w * (1f - (leftPct + rightPct) / 100f))
-                            .height(barH)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xD90C1A1D))
-                            .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(14.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        val opts = ((card["options"] as? Map<String, Any?>) ?: emptyMap()) + ("flush" to true)
-                        renderer.Render(com.custom.astrion.cards.CardConfig(type, opts), ctx)
-                    }
-                }
+            val overlayOpts = config.options["overlay"] as? Map<String, Any?>
+            if (overlayOpts != null && overlayOpts["anchor"] != "bottom") {
+                val topPct = (overlayOpts["top"] as? Number)?.toFloat() ?: 77f
+                val leftPct = (overlayOpts["left"] as? Number)?.toFloat() ?: 4f
+                val rightPct = (overlayOpts["right"] as? Number)?.toFloat() ?: 4f
+                OverlayBar(
+                    overlayOpts, ctx,
+                    Modifier
+                        .offset(x = w * (leftPct / 100f), y = h * (topPct / 100f) - 20.dp)
+                        .width(w * (1f - (leftPct + rightPct) / 100f)),
+                )
             }
 
             val iconBox = 40.dp
@@ -272,6 +263,19 @@ class PictureElementsCard : CardRenderer {
             }
             } // image rectangle
 
+            // Bottom-anchored overlay: pinned to the card's bottom edge (over
+            // the strip of plan the cover-crop trims anyway), not to a plan row.
+            val bottomOverlay = config.options["overlay"] as? Map<String, Any?>
+            if (bottomOverlay != null && bottomOverlay["anchor"] == "bottom") {
+                OverlayBar(
+                    bottomOverlay, ctx,
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                )
+            }
+
             detailEntity?.let { id ->
                 LightDetailDialog(
                     entityId = id,
@@ -337,6 +341,31 @@ class PictureElementsCard : CardRenderer {
                 .tap(onClick = onOpen),
         ) {
             RoboVacIcon(vac = vac, docked = docked, moving = active)
+        }
+    }
+
+    /**
+     * Another card floated over the plan in a frosted strip. Config:
+     *   "overlay": { "anchor": "bottom" }            // pinned to the card's bottom edge
+     *   "overlay": { "top": 77, "left": 4, "right": 4 } // or at a % row of the plan
+     *   … plus "card": { "type": "now_playing", "options": { … } }
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Composable
+    private fun OverlayBar(ov: Map<String, Any?>, ctx: CardContext, modifier: Modifier) {
+        val card = ov["card"] as? Map<String, Any?> ?: return
+        val type = card["type"] as? String ?: return
+        val renderer = com.custom.astrion.cards.CardRegistry.get(type) ?: return
+        Box(
+            modifier = modifier
+                .height(40.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xD90C1A1D))
+                .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(14.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            val opts = ((card["options"] as? Map<String, Any?>) ?: emptyMap()) + ("flush" to true)
+            renderer.Render(com.custom.astrion.cards.CardConfig(type, opts), ctx)
         }
     }
 

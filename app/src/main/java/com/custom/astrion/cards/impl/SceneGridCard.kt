@@ -122,7 +122,7 @@ class SceneGridCard : CardRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             scenes.forEach { scene ->
                 val entityId = scene["entity_id"] as? String ?: return@forEach
@@ -132,12 +132,12 @@ class SceneGridCard : CardRenderer {
                 val haptics = LocalHapticFeedback.current
                 Row(
                     modifier = Modifier
-                        .height(46.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(13.dp))
                         .background(if (isActive) Color(0xFF1E3C3F) else Color(0xFF12282A))
                         .then(if (isActive) Modifier.background(color.copy(alpha = 0.10f)) else Modifier)
                         .then(
-                            if (isActive) Modifier.border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(16.dp))
+                            if (isActive) Modifier.border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(13.dp))
                             else Modifier
                         )
                         .clickable {
@@ -147,27 +147,27 @@ class SceneGridCard : CardRenderer {
                                 ServiceCall(domain = entityId.substringBefore('.'), service = "turn_on", entityId = entityId)
                             )
                         }
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 13.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Glowing dot. No coloured shadows on Android 8.1, so the
                     // glow is a few fading rings drawn behind it.
                     Box(
                         modifier = Modifier
-                            .size(if (isActive) 13.dp else 12.dp)
+                            .size(if (isActive) 11.dp else 10.dp)
                             .drawBehind {
                                 if (isActive) for (i in 4 downTo 1) {
-                                    drawCircle(color.copy(alpha = 0.10f), radius = size.minDimension / 2 + i * 2.5.dp.toPx())
+                                    drawCircle(color.copy(alpha = 0.10f), radius = size.minDimension / 2 + i * 2.dp.toPx())
                                 }
                             }
                             .clip(CircleShape)
                             .background(if (isActive) color else color.copy(alpha = 0.8f)),
                     )
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text(
                         name,
                         color = if (isActive) Color.White else Color(0xFF9CA3AF),
-                        fontSize = 15.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         letterSpacing = 0.3.sp,
                         maxLines = 1,

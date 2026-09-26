@@ -390,9 +390,7 @@
        ]
       },
       "overlay": {
-       "top": 77,
-       "left": 4,
-       "right": 4,
+       "anchor": "bottom",
        "card": {
         "type": "now_playing",
         "options": {
