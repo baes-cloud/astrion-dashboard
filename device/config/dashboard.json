@@ -66,6 +66,11 @@
         "dim": true,
         "icon": "/sdcard/astrion/icons/logo_netflix.png"
        }
+      ],
+      "art_entities": [
+       "media_player.plex_plex_for_android_tv_tv",
+       "media_player.the_club_tv",
+       "media_player.club_android_tv_10_0_0_248_club_tv"
       ]
      }
     },

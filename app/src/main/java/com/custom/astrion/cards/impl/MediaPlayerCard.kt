@@ -126,7 +126,17 @@ class MediaPlayerCard : CardRenderer {
                 ?: e?.attrString("app_name")
                 ?: "—"
         }
-        val artPath = (if (tv != null) tv.attrString("entity_picture") else null)
+        // tv variant: borrow the poster and title from whichever of
+        // `art_entities` is actually showing something (the Plex client has
+        // the real poster; the cast entity only has the app's icon).
+        val watching = if (config.string("variant") != "tv") null else config.stringList("art_entities")
+            .mapNotNull { ctx.entities[it] }
+            .firstOrNull {
+                !it.isUnavailable && it.state in listOf("playing", "paused") &&
+                    !it.attrString("entity_picture").isNullOrBlank()
+            }
+        val artPath = watching?.attrString("entity_picture")
+            ?: (if (tv != null) tv.attrString("entity_picture") else null)
             ?: e?.attrString("entity_picture")
 
         var art by remember(artPath) { mutableStateOf<ImageBitmap?>(null) }
@@ -165,7 +175,9 @@ class MediaPlayerCard : CardRenderer {
 
             if (config.string("variant") == "tv") {
                 TvContent(
-                    ctx, entityId, e, title, playing, art, ::mp, live,
+                    ctx, entityId, e, watching?.attrString("media_title")?.takeIf { it.isNotBlank() } ?: title,
+                    playing || watching?.state == "playing", art, ::mp, live,
+                    showing = watching?.attrString("media_series_title") ?: watching?.attrString("app_name"),
                     placeholder = config.string("placeholder"),
                     volumeEntity = config.string("volume_entity") ?: entityId,
                     apps = (config.options["apps"] as? List<Map<String, Any?>>) ?: emptyList(),
@@ -204,6 +216,7 @@ class MediaPlayerCard : CardRenderer {
         art: ImageBitmap?,
         mp: (String, Array<out Pair<String, Any?>>) -> Unit,
         enabled: Boolean,
+        showing: String?,
         placeholder: String?,
         volumeEntity: String,
         apps: List<Map<String, Any?>>,
@@ -212,7 +225,7 @@ class MediaPlayerCard : CardRenderer {
         val hero = art ?: placeholderArt
         val state = e?.state ?: "unavailable"
         val on = state !in listOf("off", "unavailable", "unknown", "standby")
-        val app = e?.attrString("app_name")?.takeIf { it.isNotBlank() }
+        val app = showing?.takeIf { it.isNotBlank() } ?: e?.attrString("app_name")?.takeIf { it.isNotBlank() }
         val status = when (state) {
             "playing" -> listOfNotNull("Playing", app).joinToString(" • ")
             "paused" -> listOfNotNull("Paused", app).joinToString(" • ")
@@ -228,8 +241,19 @@ class MediaPlayerCard : CardRenderer {
 
         Column(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            // App launchers across the top: slim, logo-only.
+            if (apps.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    apps.forEach { a ->
+                        AppTile(a, Modifier.weight(1f), ctx.connected) { fireService(ctx, a) }
+                    }
+                }
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -294,16 +318,6 @@ class MediaPlayerCard : CardRenderer {
                 PlainControl(Icons.Filled.VolumeUp, "Volume up", enabled) { vol("volume_up") }
             }
 
-            if (apps.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    apps.forEach { a ->
-                        AppTile(a, Modifier.weight(1f), ctx.connected) { fireService(ctx, a) }
-                    }
-                }
-            }
         }
     }
 
@@ -330,13 +344,14 @@ class MediaPlayerCard : CardRenderer {
         } ?: Color(0xFF8FB3BA)
         val dim = a["dim"] as? Boolean ?: false
         val badge = a["badge"] as? String
+        val hasIcon = a["icon"] is String
         Column(
             modifier = modifier
-                .height(76.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .height(if (hasIcon) 44.dp else 76.dp)
+                .clip(RoundedCornerShape(12.dp))
                 .background(Color(0x55102326))
                 .tap(enabled = enabled, onClick = onClick)
-                .padding(6.dp),
+                .padding(if (hasIcon) 3.dp else 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
@@ -346,7 +361,7 @@ class MediaPlayerCard : CardRenderer {
                 // Logo only — no label.
                 Image(
                     logo!!, contentDescription = name, alpha = alpha,
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier.size(28.dp),
                 )
             } else if (badge != null && a["wordmark"] != true) {
                 Box(
