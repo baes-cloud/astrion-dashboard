@@ -666,8 +666,8 @@ object DashboardConfig {
         "trigger" to "docked",
         "idle_seconds" to 45,
         // Backlight while showing, 0–1. Night = sun.sun below the horizon.
-        "brightness" to 0.2,
-        "night_brightness" to 0.03,
+        "brightness" to 0.22,
+        "night_brightness" to 0.05,
         "keep_screen_on" to true,
         "keys_pass_through" to true,
         "time_format" to 12,

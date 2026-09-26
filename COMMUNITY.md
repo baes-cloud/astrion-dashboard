@@ -180,7 +180,7 @@ Schema sketch:
                "snooze": { "service": "script.turn_on", "entity_id": "script.work_alarm_snooze" },
                "stop":   { "service": "script.turn_on", "entity_id": "script.work_alarm_stop" } },
   "screensaver": { "trigger": "docked", "idle_seconds": 45,
-                   "brightness": 0.2, "night_brightness": 0.03,
+                   "brightness": 0.22, "night_brightness": 0.05,
                    "weather_entity": "weather.home", "media_entities": ["media_player.club"],
                    "alerts": [ { "entity_id": "lock.front_door", "state": "unlocked",
                                  "text": "Front door unlocked", "icon": "lock_open" } ] }

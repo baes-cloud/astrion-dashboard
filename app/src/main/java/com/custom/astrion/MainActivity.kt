@@ -922,9 +922,9 @@ class MainActivity : ComponentActivity() {
         val opts = screensaverOptions()
         val night = screensaverIsNight(client.entities.value, System.currentTimeMillis())
         val level = if (night) {
-            (opts["night_brightness"] as? Number)?.toFloat() ?: 0.03f
+            (opts["night_brightness"] as? Number)?.toFloat() ?: 0.05f
         } else {
-            (opts["brightness"] as? Number)?.toFloat() ?: 0.2f
+            (opts["brightness"] as? Number)?.toFloat() ?: 0.22f
         }
         setWindowBrightness(level.coerceIn(0.01f, 1f))
     }
