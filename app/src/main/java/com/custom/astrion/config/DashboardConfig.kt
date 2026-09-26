@@ -654,12 +654,60 @@ object DashboardConfig {
         "image_dir" to "/sdcard/astrion/voice",
     )
 
+    // ---- Docked screensaver ---------------------------------------------------
+    // Black, dim and warm at night: a big faded clock, plus whatever is worth a
+    // glance right now — what's playing, running timers, tonight's alarm, the
+    // next diary entry, the door left unlocked, the vacuum out. Any touch or
+    // button wakes it (and that press does nothing else); lifting the remote
+    // out of the dock takes it down at once.
+    private val screensaver: Map<String, Any?> = mapOf(
+        "enabled" to true,
+        // "docked" = only while on the charger; "always" = whenever idle.
+        "trigger" to "docked",
+        "idle_seconds" to 45,
+        // Backlight while showing, 0–1. Night = sun.sun below the horizon.
+        "brightness" to 0.2,
+        "night_brightness" to 0.03,
+        "keep_screen_on" to true,
+        "keys_pass_through" to false,
+        "time_format" to 12,
+        "weather_entity" to WEATHER,
+        // Checked first; then any other player that's playing (media_any).
+        "media_entities" to listOf(CLUB_MEDIA) + CLUB_TV_MEDIA,
+        "media_any" to true,
+        "timers" to true,
+        "calendar_entity" to CALENDAR,
+        "title_separator" to " - ",
+        "event_within_hours" to 12,
+        "alarm_entities" to listOf("sensor.work_alarm_1", "sensor.work_alarm_2", "sensor.work_alarm_wfh"),
+        "always_entities" to listOf("sensor.work_alarm_wfh"),
+        "enabled_entity" to "input_boolean.work_alarms_enabled",
+        "off_today_entity" to "input_boolean.work_alarms_off_today",
+        "alarm_within_hours" to 12,
+        // Shown only while the entity is in (one of) `state`. {name} and
+        // {state} are filled in; icon: lock_open, vacuum, timer, info, music,
+        // warning (default).
+        "alerts" to listOf(
+            mapOf(
+                "entity_id" to FRONT_LOCK, "state" to "unlocked",
+                "text" to "Front door unlocked", "icon" to "lock_open",
+            ),
+            mapOf(
+                "entity_id" to "vacuum.roborock_qrevo_master",
+                "state" to listOf("cleaning", "returning"),
+                "text" to "Vacuum {state}", "icon" to "vacuum", "warn" to false,
+            ),
+        ),
+    )
+
     val default = AppConfig(
         pages = listOf(tvPage, mainPage, mediaPage, climatePage),
         startPage = 1, // open on Main
         hotkeys = hotkeys,
         longHotkeys = longHotkeys,
         doubleHotkeys = doubleHotkeys,
-        options = mapOf("ir_mode" to irMode, "voice" to voice, "alarm" to alarm),
+        options = mapOf(
+            "ir_mode" to irMode, "voice" to voice, "alarm" to alarm, "screensaver" to screensaver,
+        ),
     )
 }
