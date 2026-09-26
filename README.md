@@ -79,6 +79,11 @@ overlay and popup (`robovac-*.png`), and the light colour popup (`light-*.png`).
 - **Climate** — aircon with HVAC and fan modes, and the blinds.
 - **Alarm popup** — wakes the screen for a Home Assistant alarm; snooze with a
   tap, stop with a hold.
+- **Docked screensaver** — sit the remote in its dock and leave it: after 45 s
+  it goes black with a big faded clock, dims the backlight (warm and very dim
+  at night), and shows what's playing, running timers, tonight's alarm, the
+  next diary entry and anything that needs attention (door unlocked). Any touch
+  or button wakes it; lifting it off the dock takes it down.
 - **IR Mode** — tap ☰ and the hardware buttons drive a Samsung TV over IR.
 - **Every physical button** is configurable, with tap, 1.5 s hold and (opt-in)
   double-tap actions.
@@ -137,6 +142,7 @@ standard Android `KeyEvent`s, intercepted in `dispatchKeyEvent`.
 | `config/DashboardLoader.kt` | Reads/writes `/sdcard/astrion/dashboard.json`, falls back to the compiled default |
 | `ui/Dashboard.kt` | Renders the card list, page pager, pinned top/bottom sections |
 | `ui/AlarmOverlay.kt` | The alarm popup |
+| `ui/Screensaver.kt` | The docked screensaver (MainActivity owns the dock/idle detection and backlight) |
 | `ui/Theme.kt`, `ui/CardKit.kt` | Shared palette, type scale and card building blocks |
 | `ir/IrBlaster.kt`, `ir/IrModeOverlay.kt` | Samsung IR encoder over the built-in emitter, and the IR Mode popup |
 | `input/HardwareKeys.kt` | HA100 keycode map + router (tap, long-press, double-tap) |

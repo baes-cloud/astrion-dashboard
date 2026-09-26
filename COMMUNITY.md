@@ -178,7 +178,12 @@ Schema sketch:
   "alarm":   { "ringing_entity": "input_boolean.work_alarm_ringing",
                "snooze_timer": "timer.work_alarm_snooze", "info_entity": "sensor.work_start",
                "snooze": { "service": "script.turn_on", "entity_id": "script.work_alarm_snooze" },
-               "stop":   { "service": "script.turn_on", "entity_id": "script.work_alarm_stop" } }
+               "stop":   { "service": "script.turn_on", "entity_id": "script.work_alarm_stop" } },
+  "screensaver": { "trigger": "docked", "idle_seconds": 45,
+                   "brightness": 0.2, "night_brightness": 0.03,
+                   "weather_entity": "weather.home", "media_entities": ["media_player.club"],
+                   "alerts": [ { "entity_id": "lock.front_door", "state": "unlocked",
+                                 "text": "Front door unlocked", "icon": "lock_open" } ] }
 }
 ```
 
@@ -196,6 +201,37 @@ because Compose stops drawing while the display is off), keeps it on, and
 re-asserts every 20 s while ringing. Snooze is one tap; stop is a ~1 s
 **press-and-hold** with a fill, since "stop for today" cancels later alarms too.
 Full spec for rebuilding it on other screens (e.g. ESPHome): `docs/ALARM_POPUP_SPEC.md`.
+
+## Docked screensaver
+
+When the remote is on external power (its dock) and nobody has touched it for
+`idle_seconds`, the dashboard gives way to a black, night-friendly face: a big
+thin clock at about half opacity, the date and current weather, and — only when
+relevant — what's playing (art, title, artist, progress), running or paused
+`timer.*` countdowns, the next alarm if it's within `alarm_within_hours`, the
+next diary entry if it's within `event_within_hours`, and your own `alerts`
+(an entity in a given state: door unlocked, vacuum out, garage open). HA being
+unreachable and the remote's charge are shown too.
+
+The backlight drops to `brightness` by day and `night_brightness` at night
+(`sun.sun` below the horizon, else 21:00–07:00), and at night the colours turn
+warm amber. The content drifts a few dp each minute. While docked the screen
+is kept on (`keep_screen_on`), so the screensaver is actually what you see.
+
+Any touch or button wakes it, and that press does nothing else
+(`keys_pass_through: true` lets buttons act as well). Lifting the remote off
+the dock takes it down at once. `trigger: "always"` runs it on idle even off
+the dock; `enabled: false` turns it off. The alarm popup and voice overlay
+always interrupt it. A `dashboard.json` with no `screensaver` block uses the
+built-in defaults.
+
+Every key is optional: `enabled`, `trigger`, `idle_seconds`, `brightness`,
+`night_brightness`, `keep_screen_on`, `keys_pass_through`, `time_format`,
+`weather_entity`, `media_entities`, `media_any`, `timers`, `calendar_entity`,
+`title_separator`, `event_within_hours`, `alarm_entities`, `always_entities`,
+`enabled_entity`, `off_today_entity`, `alarm_within_hours`, `alerts`
+(`entity_id`, `state` as a string or list, `text` with `{name}`/`{state}`,
+`icon`: `lock_open`/`vacuum`/`timer`/`info`/`music`/`warning`, `warn`).
 
 ## IR Mode
 
