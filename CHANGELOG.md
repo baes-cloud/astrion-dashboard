@@ -1,12 +1,20 @@
 # Changelog
 
-## Unreleased — 2026-09-25
+## Unreleased — 2026-09-26
 
 A reworked Media page: Player / Media / Zones tabs, a Music Assistant
 "Random albums" shelf, and neater shelves.
 
 ### New
 
+- **Docked screensaver.** Leave the remote in its dock for 45 s and it switches
+  to a black screen with a big faded clock, the date and weather, and only
+  what's relevant right now: what's playing, running timers, the next alarm
+  and diary entry if they're soon, and alerts such as the front door being
+  unlocked. The backlight dims, and at night it goes warm amber and dimmer
+  still. A touch or a button press wakes it without doing anything else, and
+  lifting the remote off the dock takes it down. Configure it with the
+  `screensaver` block (see `COMMUNITY.md`).
 - **Tabbed `swipe_stack`.** With `titles`, the page switcher is a segmented tab
   bar (the current tab filled blue) instead of a caption and dots; without
   titles the dots remain. A tab can hold several cards with

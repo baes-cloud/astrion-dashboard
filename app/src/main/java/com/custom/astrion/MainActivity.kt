@@ -1,6 +1,7 @@
 package com.custom.astrion
 
 import android.Manifest
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -18,6 +19,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.Toast
 import kotlin.math.abs
@@ -54,6 +56,8 @@ import com.custom.astrion.ir.IrModeOverlay
 import com.custom.astrion.ui.AlarmOverlay
 import com.custom.astrion.ui.AlarmUiState
 import com.custom.astrion.ui.Dashboard
+import com.custom.astrion.ui.Screensaver
+import com.custom.astrion.ui.screensaverIsNight
 import com.custom.astrion.voice.VoiceOverlay
 import com.custom.astrion.voice.VoicePhase
 import com.custom.astrion.voice.VoiceSession
@@ -145,6 +149,9 @@ class MainActivity : ComponentActivity() {
         // "moved", and a cooldown so a single lift fires one wake.
         const val MOTION_THRESHOLD = 0.9f
         const val WAKE_COOLDOWN_MS = 2000L
+
+        /** How often the idle timer checks whether the screensaver is due. */
+        const val SCREENSAVER_TICK_MS = 5_000L
     }
 
     // Long-press timing state.
@@ -216,6 +223,32 @@ class MainActivity : ComponentActivity() {
     // ---- Voice --------------------------------------------------------------
     private lateinit var voice: VoiceSession
 
+    // ---- Docked screensaver -------------------------------------------------
+    /** On external power, i.e. sitting in the dock. From ACTION_BATTERY_CHANGED. */
+    private var docked by mutableStateOf(false)
+    private var batteryPct by mutableStateOf<Int?>(null)
+    private var charging by mutableStateOf(false)
+    private var screensaverOn by mutableStateOf(false)
+    /** Last touch or key press, for the idle timeout. */
+    private var lastActivityMs = System.currentTimeMillis()
+    /**
+     * The touch gesture / key press that dismissed the screensaver is eaten
+     * whole, so waking it never also taps whatever was underneath.
+     */
+    private var swallowTouch = false
+    private var swallowKey = -1
+
+    private val batteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = onBatteryChanged(intent)
+    }
+
+    private val screensaverTick = object : Runnable {
+        override fun run() {
+            checkScreensaver()
+            keyHandler.postDelayed(this, SCREENSAVER_TICK_MS)
+        }
+    }
+
     private val storagePermission = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { reloadDashboard() }
@@ -261,6 +294,9 @@ class MainActivity : ComponentActivity() {
         client.connect()
         watchAlarm()
         watchWakeWord()
+        // Sticky broadcast: registering hands back the current state at once.
+        registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            ?.let { onBatteryChanged(it) }
 
         setContent {
             val entities = client.entities.collectAsState()
@@ -278,6 +314,20 @@ class MainActivity : ComponentActivity() {
                     navTarget = navTarget,
                     onNavHandled = { navTarget = null },
                 )
+
+                // Docked screensaver: above the dashboard, below everything
+                // that must interrupt it (alarm, voice) — and those also
+                // dismiss it outright, see hideScreensaver's callers.
+                if (screensaverOn) {
+                    Screensaver(
+                        options = screensaverOptions(),
+                        entities = entities.value,
+                        client = client,
+                        connected = connection.value == com.custom.astrion.ha.ConnectionState.CONNECTED,
+                        batteryPct = batteryPct,
+                        charging = charging,
+                    )
+                }
 
                 // IR Mode modal sits above the dashboard while active.
                 if (irMode) {
@@ -329,10 +379,16 @@ class MainActivity : ComponentActivity() {
         if (pausedAtMs > 0L && away >= COLD_ARRIVAL_MS) {
             navTarget = dashboard.config.startPage
         }
+        markActivity()
+        applyDockKeepAwake()
+        keyHandler.removeCallbacks(screensaverTick)
+        keyHandler.postDelayed(screensaverTick, SCREENSAVER_TICK_MS)
     }
 
     override fun onPause() {
         inFront = false
+        keyHandler.removeCallbacks(screensaverTick)
+        hideScreensaver()
         pausedAtMs = System.currentTimeMillis()
         super.onPause()
     }
@@ -479,6 +535,7 @@ class MainActivity : ComponentActivity() {
                     when (phase) {
                         1 -> {
                             alarmHidden = false
+                            hideScreensaver()
                             wakeForAlarm()
                             keepAwake = alarmScope.launch {
                                 while (true) {
@@ -487,7 +544,10 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
-                        2 -> window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        2 -> {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                            applyDockKeepAwake()
+                        }
                         else -> {
                             alarmHidden = false
                             @Suppress("DEPRECATION")
@@ -496,6 +556,7 @@ class MainActivity : ComponentActivity() {
                                     WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
                                     WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
                             )
+                            applyDockKeepAwake()
                         }
                     }
                 }
@@ -635,6 +696,26 @@ class MainActivity : ComponentActivity() {
         val code = event.keyCode
         val key = HardwareKey.fromKeyCode(code)
 
+        // ---- Screensaver ----------------------------------------------------
+        // Any button wakes it. By default that press is only the wake — the
+        // same as a touch — so reaching for the remote in the dark doesn't
+        // also skip a track or change the TV. `keys_pass_through` makes the
+        // waking press act as well.
+        markActivity()
+        if (screensaverOn) {
+            hideScreensaver()
+            if (event.action == KeyEvent.ACTION_DOWN &&
+                screensaverOptions()["keys_pass_through"] as? Boolean != true
+            ) {
+                swallowKey = code
+                return true
+            }
+        }
+        if (code == swallowKey) {
+            if (event.action == KeyEvent.ACTION_UP) swallowKey = -1
+            return true
+        }
+
         // ---- IR Mode intercept ---------------------------------------------
         // Highest priority: while the popup is up these buttons must NOT reach
         // their normal Android-TV bindings, so we consume them outright (both
@@ -746,6 +827,120 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    /**
+     * Touches reset the idle timer. The one that dismisses the screensaver is
+     * consumed down to its UP, so it can't land on a button underneath.
+     */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        markActivity()
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN && screensaverOn) {
+            hideScreensaver()
+            swallowTouch = true
+        }
+        if (swallowTouch) {
+            if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+                swallowTouch = false
+            }
+            return true
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    // ---- docked screensaver -------------------------------------------------
+
+    /**
+     * `screensaver` block from dashboard.json. A file written before the
+     * screensaver existed has no such block, so fall back to the compiled-in
+     * one rather than leaving the feature switched off until someone edits it.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun screensaverOptions(): Map<String, Any?> =
+        (dashboard.config.options["screensaver"] as? Map<String, Any?>)
+            ?: (DashboardConfig.default.options["screensaver"] as? Map<String, Any?>)
+            ?: emptyMap()
+
+    private fun screensaverEnabled(): Boolean = screensaverOptions()["enabled"] as? Boolean ?: true
+
+    /** "docked" (default): only on external power. "always": whenever idle. */
+    private fun screensaverArmed(): Boolean =
+        screensaverEnabled() && (docked || screensaverOptions()["trigger"] == "always")
+
+    private fun markActivity() {
+        lastActivityMs = System.currentTimeMillis()
+    }
+
+    private fun onBatteryChanged(intent: Intent) {
+        val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
+        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
+        batteryPct = if (level >= 0 && scale > 0) level * 100 / scale else null
+        charging = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1) == BatteryManager.BATTERY_STATUS_CHARGING
+        if (plugged != docked) {
+            docked = plugged
+            // Dropping it in the dock starts the idle countdown from now;
+            // lifting it out takes the screensaver down at once.
+            markActivity()
+            if (!screensaverArmed()) hideScreensaver()
+            applyDockKeepAwake()
+        }
+    }
+
+    /**
+     * Docked, the screen stays on so the screensaver is actually seen rather
+     * than the system timeout blanking the panel first (`keep_screen_on`).
+     * The alarm manages the same flag, so it calls back in here after clearing.
+     */
+    private fun applyDockKeepAwake() {
+        val keep = docked && screensaverEnabled() && screensaverOptions()["keep_screen_on"] as? Boolean != false
+        if (keep) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else if (alarmPhase(client.entities.value) != 1) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    /** Idle tick: show the screensaver when due, and keep its backlight right. */
+    private fun checkScreensaver() {
+        if (screensaverOn) {
+            // Re-evaluated each tick so the backlight follows sunset/sunrise.
+            applyScreensaverBrightness()
+            return
+        }
+        if (!inFront || !screensaverArmed() || irMode) return
+        if (alarmUiState(client.entities.value) != null && !alarmHidden) return
+        val phase = voice.state.value.phase
+        if (phase != VoicePhase.IDLE && phase != VoicePhase.DONE) return
+        val idleMs = ((screensaverOptions()["idle_seconds"] as? Number)?.toLong() ?: 45L) * 1000
+        if (System.currentTimeMillis() - lastActivityMs < idleMs) return
+        screensaverOn = true
+        applyScreensaverBrightness()
+    }
+
+    private fun applyScreensaverBrightness() {
+        val opts = screensaverOptions()
+        val night = screensaverIsNight(client.entities.value, System.currentTimeMillis())
+        val level = if (night) {
+            (opts["night_brightness"] as? Number)?.toFloat() ?: 0.03f
+        } else {
+            (opts["brightness"] as? Number)?.toFloat() ?: 0.2f
+        }
+        setWindowBrightness(level.coerceIn(0.01f, 1f))
+    }
+
+    private fun hideScreensaver() {
+        if (!screensaverOn) return
+        screensaverOn = false
+        markActivity()
+        setWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
+    }
+
+    private fun setWindowBrightness(value: Float) {
+        val lp = window.attributes
+        if (lp.screenBrightness == value) return
+        lp.screenBrightness = value
+        window.attributes = lp
+    }
+
     private fun cancelPendingLong() {
         pendingLong?.let { keyHandler.removeCallbacks(it) }
         pendingLong = null
@@ -817,6 +1012,7 @@ class MainActivity : ComponentActivity() {
     private fun onWakeWordHeard() {
         lastWakeMs = 0L // a spoken wake must never be eaten by the motion cooldown
         wakeScreen()
+        hideScreensaver() // restore full backlight for the voice overlay
         if (!inFront) {
             startActivity(
                 Intent(this, MainActivity::class.java).addFlags(
@@ -864,6 +1060,8 @@ class MainActivity : ComponentActivity() {
         voice.cancel()
         holdWakeWordLock(false)
         chime?.release()
+        keyHandler.removeCallbacks(screensaverTick)
+        runCatching { unregisterReceiver(batteryReceiver) }
         sensorManager?.unregisterListener(motionListener)
         client.disconnect()
         super.onDestroy()

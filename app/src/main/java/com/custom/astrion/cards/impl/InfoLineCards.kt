@@ -323,22 +323,41 @@ class NextUpCard : CardRenderer {
         val ids = config.stringList("alarm_entities")
         if (ids.isEmpty()) return null
         config.string("enabled_entity")?.let { if (ctx.entity(it)?.state == "off") return "off" }
-        val offToday = config.string("off_today_entity")?.let { ctx.entity(it)?.state == "on" } == true
-        val always = config.stringList("always_entities").toSet()
-
-        val dayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-        val today = dayKey.format(java.util.Date(nowMs))
-        val next = ids.mapNotNull { id ->
-            val iso = ctx.entity(id)?.state ?: return@mapNotNull null
-            val t = runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
-                ?: return@mapNotNull null
-            if (t <= nowMs) return@mapNotNull null
-            if (offToday && id !in always && dayKey.format(java.util.Date(t)) == today) return@mapNotNull null
-            t
-        }.minOrNull() ?: return null
+        val next = nextAlarmMs(
+            ctx.entities, nowMs, ids,
+            offTodayEntity = config.string("off_today_entity"),
+            alwaysEntities = config.stringList("always_entities").toSet(),
+        ) ?: return null
 
         val d = java.util.Date(next)
         return java.text.SimpleDateFormat("h:mm", java.util.Locale.getDefault()).format(d) + " " +
             java.text.SimpleDateFormat("EEE", java.util.Locale.getDefault()).format(d)
     }
+}
+
+/**
+ * Epoch ms of the earliest alarm still to come across [ids] (timestamp
+ * sensors), or null. While [offTodayEntity] is on, today's alarms are skipped
+ * except those in [alwaysEntities]. Shared by `next_up` and the screensaver;
+ * the `enabled_entity` switch is the caller's to check, since `next_up` says
+ * "off" where the screensaver just says nothing.
+ */
+internal fun nextAlarmMs(
+    entities: com.custom.astrion.ha.EntityMap,
+    nowMs: Long,
+    ids: List<String>,
+    offTodayEntity: String?,
+    alwaysEntities: Set<String>,
+): Long? {
+    val offToday = offTodayEntity?.let { entities[it]?.state == "on" } == true
+    val dayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+    val today = dayKey.format(java.util.Date(nowMs))
+    return ids.mapNotNull { id ->
+        val iso = entities[id]?.state ?: return@mapNotNull null
+        val t = runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
+            ?: return@mapNotNull null
+        if (t <= nowMs) return@mapNotNull null
+        if (offToday && id !in alwaysEntities && dayKey.format(java.util.Date(t)) == today) return@mapNotNull null
+        t
+    }.minOrNull()
 }
