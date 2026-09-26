@@ -127,6 +127,9 @@ class MainActivity : ComponentActivity() {
         /** How often the wake word watcher re-checks dock/config/connection. */
         const val WAKE_WORD_POLL_MS = 2_000L
 
+        /** `voice.wake_word_undocked_minutes` default: keep listening this long off the dock. */
+        const val WAKE_WORD_UNDOCKED_MIN = 10
+
         /** Pause before re-arming after a wake word run failed. */
         const val WAKE_WORD_BACKOFF_MS = 15_000L
 
@@ -697,15 +700,14 @@ class MainActivity : ComponentActivity() {
         val key = HardwareKey.fromKeyCode(code)
 
         // ---- Screensaver ----------------------------------------------------
-        // Any button wakes it. By default that press is only the wake — the
-        // same as a touch — so reaching for the remote in the dark doesn't
-        // also skip a track or change the TV. `keys_pass_through` makes the
-        // waking press act as well.
+        // Any button wakes it, and by default that press also does its normal
+        // job, so the first press is never lost. `keys_pass_through: false`
+        // makes it only the wake — the same as a touch.
         markActivity()
         if (screensaverOn) {
             hideScreensaver()
             if (event.action == KeyEvent.ACTION_DOWN &&
-                screensaverOptions()["keys_pass_through"] as? Boolean != true
+                screensaverOptions()["keys_pass_through"] as? Boolean == false
             ) {
                 swallowKey = code
                 return true
@@ -962,18 +964,24 @@ class MainActivity : ComponentActivity() {
 
     /**
      * `voice.wake_word` in dashboard.json: "docked" (default) listens for the
-     * pipeline's wake word only while charging, "always" listens on battery
+     * pipeline's wake word while charging and for `wake_word_undocked_minutes`
+     * (default 10) after it leaves the dock, "always" listens on battery
      * too, "off" disables it. Polled, so docking, config edits and reconnects
      * all take effect without a restart.
      */
     private fun watchWakeWord() {
         alarmScope.launch {
+            var lastDockedMs = 0L
             while (true) {
                 delay(WAKE_WORD_POLL_MS)
+                val now = System.currentTimeMillis()
+                if (isDocked()) lastDockedMs = now
+                val graceMs = ((voiceOptions()["wake_word_undocked_minutes"] as? Number)?.toLong()
+                    ?: WAKE_WORD_UNDOCKED_MIN.toLong()) * 60_000
                 val mode = (voiceOptions()["wake_word"] as? String) ?: "docked"
                 val want = when (mode) {
                     "always" -> true
-                    "docked" -> isDocked()
+                    "docked" -> lastDockedMs > 0 && now - lastDockedMs < graceMs
                     else -> false
                 } && voice.hasPermission && client.connection.value == ConnectionState.CONNECTED
 

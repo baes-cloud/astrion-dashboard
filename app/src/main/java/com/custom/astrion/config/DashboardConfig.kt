@@ -669,7 +669,7 @@ object DashboardConfig {
         "brightness" to 0.2,
         "night_brightness" to 0.03,
         "keep_screen_on" to true,
-        "keys_pass_through" to false,
+        "keys_pass_through" to true,
         "time_format" to 12,
         "weather_entity" to WEATHER,
         // Checked first; then any other player that's playing (media_any).

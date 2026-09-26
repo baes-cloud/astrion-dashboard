@@ -12,9 +12,14 @@ A reworked Media page: Player / Media / Zones tabs, a Music Assistant
   what's relevant right now: what's playing, running timers, the next alarm
   and diary entry if they're soon, and alerts such as the front door being
   unlocked. The backlight dims, and at night it goes warm amber and dimmer
-  still. A touch or a button press wakes it without doing anything else, and
+  still. A touch wakes it without doing anything else, a button press wakes it
+  and does its normal job (`keys_pass_through: false` to only wake), and
   lifting the remote off the dock takes it down. Configure it with the
   `screensaver` block (see `COMMUNITY.md`).
+- **Docked wake word.** `voice.wake_word`: `"docked"` (default) listens for the
+  pipeline's wake word while on the charger and for
+  `voice.wake_word_undocked_minutes` (default 10) after it's lifted off;
+  `"always"` listens on battery too; `"off"` disables it.
 - **Tabbed `swipe_stack`.** With `titles`, the page switcher is a segmented tab
   bar (the current tab filled blue) instead of a caption and dots; without
   titles the dots remain. A tab can hold several cards with

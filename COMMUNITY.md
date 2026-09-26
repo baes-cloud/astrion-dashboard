@@ -218,8 +218,8 @@ The backlight drops to `brightness` by day and `night_brightness` at night
 warm amber. The content drifts a few dp each minute. While docked the screen
 is kept on (`keep_screen_on`), so the screensaver is actually what you see.
 
-Any touch or button wakes it, and that press does nothing else
-(`keys_pass_through: true` lets buttons act as well). Lifting the remote off
+Any touch or button wakes it. A touch only wakes it; a button also does its
+normal job (`keys_pass_through: false` makes buttons only wake it too). Lifting the remote off
 the dock takes it down at once. `trigger: "always"` runs it on idle even off
 the dock; `enabled: false` turns it off. The alarm popup and voice overlay
 always interrupt it. A `dashboard.json` with no `screensaver` block uses the
