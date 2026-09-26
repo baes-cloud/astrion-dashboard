@@ -75,6 +75,7 @@ import com.custom.astrion.ui.tap
  *               "data": { "source": "com.plexapp.android" } },
  *             { "name": "iview", "wordmark": true, "color": "#2BC4B6", … },
  *             { "name": "Netflix", "badge": "N", "color": "#E50914", "dim": true, … } ]
+ * An app with an `icon` (PNG path) shows just that logo, no label.
  */
 class MediaPlayerCard : CardRenderer {
     override val type = "media_player"
@@ -340,7 +341,14 @@ class MediaPlayerCard : CardRenderer {
             verticalArrangement = Arrangement.Center,
         ) {
             val alpha = if (dim) 0.5f else 1f
-            if (badge != null && a["wordmark"] != true) {
+            val logo by com.custom.astrion.ui.rememberSampledBitmap(a["icon"] as? String, targetPx = 128)
+            if (logo != null) {
+                // Logo only — no label.
+                Image(
+                    logo!!, contentDescription = name, alpha = alpha,
+                    modifier = Modifier.size(40.dp),
+                )
+            } else if (badge != null && a["wordmark"] != true) {
                 Box(
                     modifier = Modifier
                         .size(30.dp)

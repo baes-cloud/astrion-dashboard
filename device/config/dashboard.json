@@ -29,7 +29,8 @@
         "data": {
          "source": "au.net.abc.iview"
         },
-        "wordmark": true
+        "wordmark": true,
+        "icon": "/sdcard/astrion/icons/logo_iview.png"
        },
        {
         "name": "Plex",
@@ -39,7 +40,8 @@
         "data": {
          "source": "com.plexapp.android"
         },
-        "badge": ">"
+        "badge": ">",
+        "icon": "/sdcard/astrion/icons/logo_plex.png"
        },
        {
         "name": "Jellyfin",
@@ -49,7 +51,8 @@
         "data": {
          "source": "org.jellyfin.androidtv"
         },
-        "badge": "J"
+        "badge": "J",
+        "icon": "/sdcard/astrion/icons/logo_jellyfin.png"
        },
        {
         "name": "Netflix",
@@ -60,7 +63,8 @@
          "source": "com.netflix.ninja"
         },
         "badge": "N",
-        "dim": true
+        "dim": true,
+        "icon": "/sdcard/astrion/icons/logo_netflix.png"
        }
       ]
      }
