@@ -134,8 +134,25 @@ class PictureElementsCard : CardRenderer {
             val boxH = (if (maxHeight.value.isFinite()) maxHeight else maxWidth / aspect) - bottomReserve
             val maxCrop = ((config.options["max_crop"] as? Number)?.toFloat() ?: 0.12f).coerceIn(0f, 0.5f)
             val coverW = if (boxW / boxH > aspect) boxW else boxH * aspect
-            val w = minOf(coverW, if (boxW / boxH > aspect) boxH * aspect * (1 + maxCrop) else boxW * (1 + maxCrop))
-            val h = w / aspect
+            val coverWidth = minOf(coverW, if (boxW / boxH > aspect) boxH * aspect * (1 + maxCrop) else boxW * (1 + maxCrop))
+
+            // "stretch": fill the slot exactly instead of cover-cropping — the
+            // plan is squashed/stretched a little, nothing is cut off, and the
+            // icons (percentages of the image) stay on their rooms. With a
+            // bottom-pinned overlay the plan runs down behind the bar only as
+            // far as keeps the lowest icon clear of it.
+            val stretch = config.bool("stretch", false)
+            val fullH = boxH + bottomReserve
+            val lowestPct = elements.maxOfOrNull { (it["top"] as? Number)?.toFloat() ?: 0f }?.coerceAtLeast(50f) ?: 90f
+            val w = if (stretch) boxW else coverWidth
+            val h = when {
+                !stretch -> w / aspect
+                bottomReserve > 0.dp -> minOf(fullH, (fullH - bottomReserve - 24.dp) / (lowestPct / 100f))
+                else -> fullH
+            }
+            // Where the image box sits vertically (it is centred in the card by
+            // default): stretched plans hang from the top edge.
+            val imageShift = if (stretch) (h - fullH) / 2 else -bottomReserve / 2
 
             // Read out here: the vacuum dialog below, outside the image box,
             // needs it too.
@@ -144,7 +161,7 @@ class PictureElementsCard : CardRenderer {
             // requiredSize, not size: when covering, the rectangle is LARGER
             // than the box and must overflow it (centred, clipped by the card)
             // rather than be squeezed back into it.
-            Box(Modifier.offset(y = -bottomReserve / 2).requiredSize(w, h)) {
+            Box(Modifier.offset(y = imageShift).requiredSize(w, h)) {
             if (bitmap != null) {
                 Image(
                     bitmap = bitmap!!,

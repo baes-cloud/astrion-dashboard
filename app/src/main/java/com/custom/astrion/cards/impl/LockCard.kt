@@ -38,13 +38,10 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
 /**
- * Door-lock card: current state, how long it has been that way, and a two-chip
- * segmented control that locks or unlocks it.
- *
- * A single toggle button was the obvious shape, but a lock is the one control
- * in the house where firing the wrong way costs something real — so the two
- * states are always both on screen with the live one lit, and a tap names the
- * state you want rather than "the other one".
+ * Door-lock card: name, how long the bolt has been where it is, and one
+ * button that shows the current state (Locked, green / Unlocked, amber) and
+ * toggles it. (It used to be a two-chip Lock | Unlock segmented control;
+ * Martin preferred the single state button, 2026-09-27.)
  *
  * `locking` / `unlocking` are transient states the lock reports while the bolt
  * is actually moving; they get their own label so a slow motor doesn't look
@@ -169,7 +166,7 @@ class LockCard : CardRenderer {
                         // how long ago the bolt last moved, so it takes the
                         // age's place rather than overflowing the line.
                         listOfNotNull(
-                            state.humanise(),
+                            if (keepUnlocked || age == null) state.humanise() else null,
                             // "keep unlocked" spelled out pushes the line past
                             // the ~23 characters this column fits once the
                             // state word is "Unlocked", and it ellipsised.
@@ -182,46 +179,50 @@ class LockCard : CardRenderer {
                     )
                 }
             }
-            // One recessed track with the live state raised inside it — a
-            // segmented toggle. It used to be two separate chips with the
-            // active one in solid accent blue, which made a rarely-used
-            // control the loudest thing on the home screen.
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(AstrionTheme.controlSunken)
-                    .padding(2.dp),
-            ) {
-                StateChip("Lock", active = locked, live = live && !locked) { call("lock") }
-                StateChip("Unlock", active = !locked && !moving && !unavailable, live = live && locked) {
-                    call("unlock")
-                }
-            }
+            // One button that shows the state and flips it (Martin's call:
+            // the two-chip segmented control was more than the door needs).
+            // Inert while the bolt is moving or the lock is unreachable.
+            StateButton(
+                state = state,
+                locked = locked,
+                moving = moving,
+                live = live && !moving,
+            ) { call(if (locked) "unlock" else "lock") }
         }
     }
 
-    /**
-     * One half of the segmented control. `active` lights the chip that matches
-     * the lock's current state; `live` is whether tapping it would do anything
-     * — the chip you are already on is deliberately inert, so a stray tap on
-     * the lit side can never re-fire the bolt.
-     */
     @Composable
-    private fun StateChip(label: String, active: Boolean, live: Boolean, onClick: () -> Unit) {
-        Box(
+    private fun StateButton(state: String, locked: Boolean, moving: Boolean, live: Boolean, onClick: () -> Unit) {
+        val tint = when {
+            moving -> AstrionTheme.textSecondary
+            locked -> AstrionTheme.good
+            else -> AstrionTheme.on
+        }
+        Row(
             modifier = Modifier
-                .width(58.dp)
-                .height(30.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(if (active) AstrionTheme.raised else Color.Transparent)
-                .tap(enabled = live, onClick = onClick),
-            contentAlignment = Alignment.Center,
+                .height(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(tint.copy(alpha = 0.16f))
+                .tap(enabled = live, onClick = onClick)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            Icon(
+                if (locked) Icons.Filled.Lock else Icons.Filled.LockOpen,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(15.dp),
+            )
+            Spacer(Modifier.width(6.dp))
             Text(
-                label,
-                color = if (active) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
-                fontSize = 12.sp,
-                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                when {
+                    moving -> state.humanise() + "…"
+                    locked -> "Locked"
+                    else -> "Unlocked"
+                },
+                color = tint,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }
