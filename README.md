@@ -54,12 +54,14 @@ Requirements: Android Studio (Ladybug or newer) with the Android SDK.
 | Main | TV / Plex | Sonos |
 |---|---|---|
 | ![Main](screenshots/main.png) | ![TV and Plex](screenshots/tv-plex.png) | ![Sonos player](screenshots/sonos-player.png) |
-| **Plex rows** | **Music shelves** (swipe) | **Climate** |
-| ![Plex rows](screenshots/tv-plex-rows.png) | ![Music shelves](screenshots/sonos-media.png) | ![Climate](screenshots/climate.png) |
-| **Alarm** | **Alarm — snoozed** | **IR Mode** |
-| ![Alarm ringing](screenshots/alarm-ringing.png) | ![Alarm snoozed](screenshots/alarm-snoozed.png) | ![IR Mode](screenshots/ir-mode.png) |
-| **Speaker group** | | |
-| ![Speaker group and volume](screenshots/sonos-group.png) | | |
+| **TV — nothing on** | **Plex rows** | **Music shelves** (tab) |
+| ![TV idle](screenshots/tv-idle.png) | ![Plex rows](screenshots/tv-plex-rows.png) | ![Music shelves](screenshots/sonos-media.png) |
+| **Speaker zones** (tab) | **Climate** | **Alert popup** |
+| ![Speaker zones](screenshots/sonos-group.png) | ![Climate](screenshots/climate.png) | ![Washer done alert](screenshots/alert-washer.png) |
+| **Docked screensaver** | **Alarm** | **Alarm — snoozed** |
+| ![Screensaver](screenshots/screensaver.png) | ![Alarm ringing](screenshots/alarm-ringing.png) | ![Alarm snoozed](screenshots/alarm-snoozed.png) |
+| **IR Mode** | | |
+| ![IR Mode](screenshots/ir-mode.png) | | |
 
 ![Hold to stop the alarm](screenshots/alarm-hold-to-stop.gif)
 
@@ -70,12 +72,18 @@ overlay and popup (`robovac-*.png`), and the light colour popup (`light-*.png`).
 ### What it does
 
 - **Main** — a glance panel (date, time, weather now + 5 days, next diary entry
-  and next alarm), a door-lock card, a live floorplan with tappable lights,
-  mmWave presence dots and the robot vacuum, and a one-tap mute strip.
-- **TV / Plex** — what's on the TV, plus Plex poster rows where one tap plays
-  the exact episode or film, even from a switched-off TV.
-- **Media** — the full Sonos player with album-art shelves swiped in behind it,
-  playlist shortcuts and speaker grouping.
+  and next alarm), a one-button door lock, a row of scene pills (the last one
+  used glows), and a live floorplan with tappable lights, mmWave presence dots
+  and the robot vacuum, with the now-playing / mute strip floating along its
+  bottom edge.
+- **TV / Plex** — one-tap app logos, the poster and title of what's being
+  watched (a Samsung Serif illustration when nothing is on) with transport and
+  volume, plus Plex poster rows where one tap plays the exact episode or film,
+  even from a switched-off TV.
+- **Media** — the full Sonos player, with Player / Media / Zones tabs for
+  album-art shelves, playlist shortcuts and speaker grouping.
+- **Alerts** — leak, intruder, washer-done and door-left-unlocked popups in the
+  alarm's style, driven entirely by Home Assistant state.
 - **Climate** — aircon with HVAC and fan modes, and the blinds.
 - **Alarm popup** — wakes the screen for a Home Assistant alarm; snooze with a
   tap, stop with a hold.

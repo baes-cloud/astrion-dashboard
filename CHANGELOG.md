@@ -1,9 +1,45 @@
 # Changelog
 
-## Unreleased — 2026-09-26
+## v1.2.0 — 2026-09-27
 
-A reworked Media page: Player / Media / Zones tabs, a Music Assistant
-"Random albums" shelf, and neater shelves.
+A redesigned TV page and Main page, alert popups, a docked screensaver and
+wake word, and a reworked Media page (Player / Media / Zones tabs, a Music
+Assistant "Random albums" shelf, neater shelves).
+
+### New (2026-09-27)
+
+- **Alert popups.** An `alerts` list in dashboard.json raises a near-full-screen
+  popup in the alarm's style while an entity condition holds (`state`,
+  `for_seconds`, `unless`), with action buttons and Hide. `alarm` wakes the
+  screen and keeps it on, `warning` wakes it once, `info` waits to be seen.
+  Taps land even over the screensaver.
+- **TV card** (`media_player` `"variant": "tv"`): a wide hero with the poster,
+  title and series of what's on (from the first `art_entities` entry that is
+  playing), a `placeholder` image when nothing is, a plain mute / prev / play /
+  next / volume row (`volume_entity`), and an `apps` row of launcher tiles
+  across the top — logo-only with `icon`, or letter badge / wordmark.
+- **Scene pills** (`scene_grid` `"style": "pill"`): a scrolling row of pills with
+  a glowing colour dot; the most recently activated scene is lit.
+- **Floorplan overlay and stretch** (`picture_elements`): `overlay` floats
+  another card (e.g. `now_playing`) over the plan — at a % row or pinned to the
+  bottom edge — and `stretch` fills the slot without cropping, keeping the
+  lowest icon clear of a bottom overlay.
+- `button_grid` buttons take `color` / `text_color`.
+
+### Changed (2026-09-27)
+
+- **Door lock** is one button showing Locked / Unlocked that toggles it.
+- **Plex shelves** load in parallel and reappear instantly on revisits.
+
+### Fixed (2026-09-27)
+
+- The wake word no longer streams audio after Home Assistant has ended the run
+  (HA logged "binary message for non-existing handler" hundreds of times a
+  day): frames stop with the run, the hour-long wait is rolled over before
+  HA's timeout, and frames from a previous connection are dropped.
+- A heartbeat could ping a reconnected socket before authenticating (HA then
+  drops the connection), and a server-side close never reconnected.
+- Long scene / app labels no longer break mid-word.
 
 ### New
 
