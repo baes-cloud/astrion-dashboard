@@ -132,7 +132,7 @@ decimal number.
 Push it and reopen the app (config is re-read on every foreground):
 
 ```bash
-adb -s 10.0.1.141:5555 push dashboard.json /sdcard/astrion/dashboard.json
+adb -s <remote-ip>:5555 push dashboard.json /sdcard/astrion/dashboard.json
 ```
 
 Any button **not** listed keeps its built-in default, so you only need to

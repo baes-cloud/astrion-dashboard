@@ -41,7 +41,7 @@ import java.time.format.DateTimeFormatter
  * Door-lock card: name, how long the bolt has been where it is, and one
  * button that shows the current state (Locked, green / Unlocked, amber) and
  * toggles it. (It used to be a two-chip Lock | Unlock segmented control;
- * Martin preferred the single state button, 2026-09-27.)
+ * The owner preferred the single state button, 2026-09-27.)
  *
  * `locking` / `unlocking` are transient states the lock reports while the bolt
  * is actually moving; they get their own label so a slow motor doesn't look
@@ -179,7 +179,7 @@ class LockCard : CardRenderer {
                     )
                 }
             }
-            // One button that shows the state and flips it (Martin's call:
+            // One button that shows the state and flips it (owner's call:
             // the two-chip segmented control was more than the door needs).
             // Inert while the bolt is moving or the lock is unreachable.
             StateButton(

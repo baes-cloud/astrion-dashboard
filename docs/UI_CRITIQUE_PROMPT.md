@@ -57,8 +57,8 @@ single highest-value thing you can do — the code does not tell you how it
 actually looks at 480x800.
 
 ```bash
-adb connect 10.0.0.141
-adb -s 10.0.0.141:5555 exec-out screencap -p > /tmp/astrion-current.png
+adb connect <remote-ip>
+adb -s <remote-ip>:5555 exec-out screencap -p > /tmp/astrion-current.png
 ```
 
 You can move between the four pages by injecting the shortcut keycodes, then
@@ -70,9 +70,9 @@ screenshotting each one:
 - `137` → Climate page
 
 ```bash
-adb -s 10.0.0.141:5555 shell input keyevent 135
+adb -s <remote-ip>:5555 shell input keyevent 135
 sleep 2
-adb -s 10.0.0.141:5555 exec-out screencap -p > /tmp/astrion-main.png
+adb -s <remote-ip>:5555 exec-out screencap -p > /tmp/astrion-main.png
 ```
 
 Then read the PNGs with the Read tool and judge them as images.
@@ -80,7 +80,7 @@ Then read the PNGs with the Read tool and judge them as images.
 **Do not** inject keycodes `138`–`141` (the coloured buttons) — those launch
 apps on a real television in someone's living room. Avoid keycode `132`
 (power). Screenshots and page-nav keys only. Do not call any Home Assistant
-service, and do not touch the second remote at `10.0.0.113`.
+service, and do not touch the second remote at `<other-remote-ip>`.
 
 ## What to critique
 

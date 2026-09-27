@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * here (those are only needed if you later want the local IR-blaster path).
  */
 class HaClient(
-    private val baseUrl: String,   // e.g. "http://10.0.1.10:8123" or "https://ha.example.com"
+    private val baseUrl: String,   // e.g. "http://YOUR_HA_IP:8123" or "https://ha.example.com"
     private val token: String,     // long-lived access token
 ) {
     companion object {

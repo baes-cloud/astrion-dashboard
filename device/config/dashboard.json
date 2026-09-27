@@ -77,7 +77,7 @@
     {
      "type": "plex",
      "options": {
-      "host": "http://10.0.0.10:32400",
+      "host": "http://YOUR_PLEX_IP:32400",
       "play_entity": "media_player.plex_plex_for_android_tv_tv",
       "tv_entity": "media_player.the_club_tvv",
       "adb_entity": "media_player.club_android_tv_10_0_0_248_club_tv",

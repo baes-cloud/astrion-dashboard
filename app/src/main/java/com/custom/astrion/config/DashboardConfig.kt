@@ -26,7 +26,7 @@ object DashboardConfig {
 
     // Plex server on the LAN. Plain http: no TLS handshake to pay for on the
     // MT6580, and the server allows unauthenticated local access.
-    private const val PLEX_HOST = "http://10.0.0.10:32400"
+    private const val PLEX_HOST = "http://YOUR_PLEX_IP:32400"
 
     // Spotify library root, as exposed through the club's browse_media tree.
     private const val SPOTIFY_USER = "spotify://YOUR_SPOTIFY_ACCOUNT_ID"

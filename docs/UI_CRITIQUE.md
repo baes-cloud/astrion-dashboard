@@ -2,7 +2,7 @@
 
 Read-only design review. Grounded in the source at `app/src/main/java/com/custom/astrion/`,
 the live config pulled from `/sdcard/astrion/dashboard.json`, and **live screenshots captured
-over ADB from the remote at `10.0.0.141`** on 2026-08-17 (all four pages, plus a scrolled
+over ADB from the remote at `<remote-ip>`** on 2026-08-17 (all four pages, plus a scrolled
 Lights page). Where I am inferring rather than having seen something, I say so.
 
 Device facts established on the running unit, not assumed:
