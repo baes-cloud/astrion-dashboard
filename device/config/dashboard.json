@@ -662,7 +662,16 @@
    "entityId": "remote.the_club_tvv",
    "data": {
     "command": "HOME"
-   }
+   },
+   "then": [
+    {
+     "service": "androidtv.adb_command",
+     "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
+     "data": {
+      "command": "cmd hdmi_control onetouchplay"
+     }
+    }
+   ]
   },
   {
    "key": "BACK",
@@ -877,6 +886,14 @@
    "key": "CUSTOM_4",
    "service": "light.toggle",
    "entityId": "light.bedroom_cupboard_light"
+  },
+  {
+   "key": "MENU",
+   "service": "media_player.select_source",
+   "entityId": "media_player.55_the_serif_3",
+   "data": {
+    "source": "hdmi2"
+   }
   }
  ],
  "ir_mode": {
