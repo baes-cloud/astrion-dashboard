@@ -139,7 +139,7 @@
      "type": "next_up",
      "options": {
       "pin": "top",
-      "calendar_entity": "calendar.mmworkcalendar_gmail_com",
+      "calendar_entity": "calendar.your_calendar",
       "title_separator": " - ",
       "alarm_entities": [
        "sensor.work_alarm_1",
