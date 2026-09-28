@@ -732,35 +732,71 @@
   },
   {
    "key": "CUSTOM_1",
-   "service": "media_player.select_source",
+   "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "source": "com.netflix.ninja"
-   }
+    "command": "cmd hdmi_control onetouchplay"
+   },
+   "then": [
+    {
+     "service": "media_player.select_source",
+     "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
+     "data": {
+      "source": "com.netflix.ninja"
+     }
+    }
+   ]
   },
   {
    "key": "CUSTOM_2",
-   "service": "media_player.select_source",
+   "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "source": "com.plexapp.android"
-   }
+    "command": "cmd hdmi_control onetouchplay"
+   },
+   "then": [
+    {
+     "service": "media_player.select_source",
+     "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
+     "data": {
+      "source": "com.plexapp.android"
+     }
+    }
+   ]
   },
   {
    "key": "CUSTOM_3",
-   "service": "media_player.select_source",
+   "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "source": "au.net.abc.iview"
-   }
+    "command": "cmd hdmi_control onetouchplay"
+   },
+   "then": [
+    {
+     "service": "media_player.select_source",
+     "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
+     "data": {
+      "source": "au.net.abc.iview"
+     }
+    }
+   ]
   },
   {
    "key": "CUSTOM_4",
-   "service": "media_player.select_source",
+   "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "source": "org.videolan.vlc"
-   }
+    "command": "cmd hdmi_control onetouchplay"
+   },
+   "then": [
+    {
+     "service": "media_player.select_source",
+     "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
+     "data": {
+      "source": "org.videolan.vlc"
+     }
+    }
+   ]
   }
  ],
  "longHotkeys": [
