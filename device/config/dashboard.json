@@ -210,197 +210,203 @@
      }
     },
     {
-     "type": "picture_elements",
+     "type": "stack",
      "options": {
-      "image": "/sdcard/astrion/floorplan.png",
       "pin": "fill",
-      "aspect": 1.3,
-      "elements": [
+      "cards": [
        {
-        "entity_id": "light.hue_play",
-        "left": 16,
-        "top": 9
-       },
-       {
-        "entity_id": "light.tv_art_lights",
-        "left": 45,
-        "top": 11
-       },
-       {
-        "entity_id": "light.art_group",
-        "left": 64,
-        "top": 8
-       },
-       {
-        "entity_id": "light.bar_spotlights",
-        "left": 85,
-        "top": 13
-       },
-       {
-        "entity_id": "light.couch",
-        "left": 27,
-        "top": 30
-       },
-       {
-        "entity_id": "light.downlights",
-        "left": 65,
-        "top": 28
-       },
-       {
-        "entity_id": "light.kitchen_console_candles",
-        "left": 93,
-        "top": 33
-       },
-       {
-        "entity_id": "light.club_led_group",
-        "left": 12,
-        "top": 46
-       },
-       {
-        "entity_id": "light.bedroom_cupboard_light",
-        "left": 51,
-        "top": 54
-       },
-       {
-        "entity_id": "light.kitchen_group",
-        "left": 73,
-        "top": 54
-       },
-       {
-        "entity_id": "light.send_nudes",
-        "left": 28,
-        "top": 64
-       },
-       {
-        "entity_id": "light.office_lights",
-        "left": 93,
-        "top": 67
-       },
-       {
-        "entity_id": "light.wardrobes",
-        "left": 77,
-        "top": 86
-       },
-       {
-        "entity_id": "light.bathroom_downlights",
-        "left": 57,
-        "top": 90
-       },
-       {
-        "entity_id": "light.bedroom_lights",
-        "left": 29,
-        "top": 90
-       }
-      ],
-      "radars": [
-       {
-        "prefix": "sensor.club_apollo_r_pro_1_ld2450_target",
-        "targets": 3,
-        "unit": "m",
-        "origin_left": 53,
-        "origin_top": 10,
-        "scale_x": 8.66,
-        "scale_x_right": 17.32,
-        "scale_y": 9.01,
-        "top_offset_left": 7.88,
-        "rotation": 0,
-        "flip_x": false,
-        "flip_y": false,
-        "blend": "overlay",
-        "color": "#D9155E6E",
-        "accent_color": "#FF33CBDA"
-       },
-       {
-        "prefix": "sensor.ld2450_tracker_target",
-        "targets": 3,
-        "unit": "mm",
-        "origin_left": 29,
-        "origin_top": 56,
-        "scale_x": 9.0,
-        "scale_y": 9.0,
-        "rotation": 0,
-        "flip_x": false,
-        "flip_y": false,
-        "blend": "overlay",
-        "color": "#D96E2C7A",
-        "accent_color": "#FFB06CD9",
-        "label": "B"
-       },
-       {
-        "prefix": "sensor.ld2450_tracker_2_target",
-        "targets": 3,
-        "unit": "mm",
-        "origin_left": 97,
-        "origin_top": 78,
-        "scale_x": 9.0,
-        "scale_y": 9.0,
-        "rotation": 90,
-        "flip_x": false,
-        "flip_y": false,
-        "blend": "overlay",
-        "color": "#D9146B4A",
-        "accent_color": "#FF4FD98C",
-        "label": "O"
-       }
-      ],
-      "vacuum": {
-       "entity_id": "vacuum.roborock_qrevo_master",
-       "name": "Vacuum",
-       "map_image": "image.kitchen_roborock_qrevo_master_map_0_custom",
-       "map_rotation": 90,
-       "rooms": [
-        {
-         "name": "Club",
-         "id": 17
-        },
-        {
-         "name": "Kitchen",
-         "id": 18
-        },
-        {
-         "name": "Bedroom",
-         "id": 22
-        },
-        {
-         "name": "Bathroom",
-         "id": 16
-        },
-        {
-         "name": "Office",
-         "id": 21
+        "type": "picture_elements",
+        "options": {
+         "image": "/sdcard/astrion/floorplan.png",
+         "pin": "fill",
+         "aspect": 1.3,
+         "elements": [
+          {
+           "entity_id": "light.hue_play",
+           "left": 16,
+           "top": 9
+          },
+          {
+           "entity_id": "light.tv_art_lights",
+           "left": 45,
+           "top": 11
+          },
+          {
+           "entity_id": "light.art_group",
+           "left": 64,
+           "top": 8
+          },
+          {
+           "entity_id": "light.bar_spotlights",
+           "left": 85,
+           "top": 13
+          },
+          {
+           "entity_id": "light.couch",
+           "left": 27,
+           "top": 30
+          },
+          {
+           "entity_id": "light.downlights",
+           "left": 65,
+           "top": 28
+          },
+          {
+           "entity_id": "light.kitchen_console_candles",
+           "left": 93,
+           "top": 33
+          },
+          {
+           "entity_id": "light.club_led_group",
+           "left": 12,
+           "top": 46
+          },
+          {
+           "entity_id": "light.bedroom_cupboard_light",
+           "left": 51,
+           "top": 54
+          },
+          {
+           "entity_id": "light.kitchen_group",
+           "left": 73,
+           "top": 54
+          },
+          {
+           "entity_id": "light.send_nudes",
+           "left": 28,
+           "top": 64
+          },
+          {
+           "entity_id": "light.office_lights",
+           "left": 93,
+           "top": 67
+          },
+          {
+           "entity_id": "light.wardrobes",
+           "left": 77,
+           "top": 86
+          },
+          {
+           "entity_id": "light.bathroom_downlights",
+           "left": 57,
+           "top": 90
+          },
+          {
+           "entity_id": "light.bedroom_lights",
+           "left": 29,
+           "top": 90
+          }
+         ],
+         "radars": [
+          {
+           "prefix": "sensor.club_apollo_r_pro_1_ld2450_target",
+           "targets": 3,
+           "unit": "m",
+           "origin_left": 53,
+           "origin_top": 10,
+           "scale_x": 8.66,
+           "scale_x_right": 17.32,
+           "scale_y": 9.01,
+           "top_offset_left": 7.88,
+           "rotation": 0,
+           "flip_x": false,
+           "flip_y": false,
+           "blend": "overlay",
+           "color": "#D9155E6E",
+           "accent_color": "#FF33CBDA"
+          },
+          {
+           "prefix": "sensor.ld2450_tracker_target",
+           "targets": 3,
+           "unit": "mm",
+           "origin_left": 29,
+           "origin_top": 56,
+           "scale_x": 9.0,
+           "scale_y": 9.0,
+           "rotation": 0,
+           "flip_x": false,
+           "flip_y": false,
+           "blend": "overlay",
+           "color": "#D96E2C7A",
+           "accent_color": "#FFB06CD9",
+           "label": "B"
+          },
+          {
+           "prefix": "sensor.ld2450_tracker_2_target",
+           "targets": 3,
+           "unit": "mm",
+           "origin_left": 97,
+           "origin_top": 78,
+           "scale_x": 9.0,
+           "scale_y": 9.0,
+           "rotation": 90,
+           "flip_x": false,
+           "flip_y": false,
+           "blend": "overlay",
+           "color": "#D9146B4A",
+           "accent_color": "#FF4FD98C",
+           "label": "O"
+          }
+         ],
+         "vacuum": {
+          "entity_id": "vacuum.roborock_qrevo_master",
+          "name": "Vacuum",
+          "map_image": "image.kitchen_roborock_qrevo_master_map_0_custom",
+          "map_rotation": 90,
+          "rooms": [
+           {
+            "name": "Club",
+            "id": 17
+           },
+           {
+            "name": "Kitchen",
+            "id": 18
+           },
+           {
+            "name": "Bedroom",
+            "id": 22
+           },
+           {
+            "name": "Bathroom",
+            "id": 16
+           },
+           {
+            "name": "Office",
+            "id": 21
+           }
+          ],
+          "room_entity": "sensor.roborock_qrevo_master_current_room",
+          "room_positions": {
+           "Club": [
+            42,
+            44
+           ],
+           "Kitchen": [
+            69,
+            57
+           ],
+           "Bedroom": [
+            29,
+            90
+           ],
+           "Bathroom": [
+            57,
+            90
+           ],
+           "Office": [
+            88,
+            82
+           ]
+          },
+          "dock_position": [
+           6,
+           63
+          ]
+         },
+         "stretch": true
         }
-       ],
-       "room_entity": "sensor.roborock_qrevo_master_current_room",
-       "room_positions": {
-        "Club": [
-         42,
-         44
-        ],
-        "Kitchen": [
-         69,
-         57
-        ],
-        "Bedroom": [
-         29,
-         90
-        ],
-        "Bathroom": [
-         57,
-         90
-        ],
-        "Office": [
-         88,
-         82
-        ]
        },
-       "dock_position": [
-        6,
-        63
-       ]
-      },
-      "overlay": {
-       "anchor": "bottom",
-       "card": {
+       {
         "type": "now_playing",
         "options": {
          "entity_id": "media_player.club",
@@ -411,8 +417,7 @@
          "controls": true
         }
        }
-      },
-      "stretch": true
+      ]
      }
     }
    ]
@@ -889,7 +894,7 @@
    "severity": "alarm",
    "icon": "leak",
    "title": "Water leak",
-   "message": "Leak sensor by the washing machine \u2014 since {since}"
+   "message": "Leak sensor by the washing machine — since {since}"
   },
   {
    "id": "intruder",
