@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased
+
+Speed, memory and reliability work, mostly invisible but felt on the HA100's
+MT6580.
+
+### Changed
+
+- **Install the release build** (`./gradlew assembleRelease`, see README).
+  It's minified and signed with your debug key: ~1.7 MB against ~17 MB for
+  debug, and Compose runs much faster outside a debuggable build.
+- **Cards only redraw for their own entities.** A change anywhere in HA used
+  to redraw every card that read any entity (several times a second with the
+  floorplan's radar sensors); now each card follows just the entities it shows.
+- **Less traffic from HA:** entities arrive via `subscribe_entities`
+  (compact diffs) instead of the full old + new state of every change.
+- **Cover art is cached** in memory and on disk (up to 500 MB) for media
+  shelves, Plex posters and now-playing art, and decoded at display size, so
+  pages and the screensaver show art instantly and it's downloaded once.
+- Waking the screen no longer re-reads `dashboard.json` unless the file
+  changed.
+- The weather card's clock ticks on the minute.
+
+### Fixed
+
+- Requests made while connecting (e.g. the forecast at startup) were sent
+  before authentication, which makes HA drop the connection; they now wait
+  for it. A failed forecast retries after a minute instead of 30, and empty
+  media shelves reload when HA comes back.
+- Alarms and alerts are more reliable off the dock: a foreground service keeps
+  the app from being killed, and it asks once to be exempt from battery
+  optimisation so Doze doesn't cut the connection with the screen off.
+- Reconnects immediately when the network returns, and backs off (up to a
+  minute) while HA is unreachable instead of retrying every 3 s.
+- Entities deleted in HA disappear from the app instead of lingering.
+- The motion sensor only runs while the screen is off, where it's needed.
+
 ## v1.2.0 — 2026-09-27
 
 A redesigned TV page and Main page, alert popups, a docked screensaver and

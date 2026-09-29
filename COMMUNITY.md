@@ -26,8 +26,7 @@ nothing custom:
 │  (native,    │ ◄──────────────────────────────── │                │
 │   Compose)   │      auth_ok                      └────────────────┘
 │              │
-│              │  get_states            → seeds an in-memory entity map
-│              │  subscribe_events      → state_changed keeps it live
+│              │  subscribe_entities    → full snapshot, then compact diffs
 │              │  call_service          → every button/slider/tap
 │              │  weather.get_forecasts → forecast card (return_response)
 │              │  media_player/browse_media → media library dialog

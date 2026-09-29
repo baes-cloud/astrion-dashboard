@@ -47,6 +47,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.tap
 
@@ -139,8 +140,12 @@ class MediaPlayerCard : CardRenderer {
             ?: (if (tv != null) tv.attrString("entity_picture") else null)
             ?: e?.attrString("entity_picture")
 
-        var art by remember(artPath) { mutableStateOf<ImageBitmap?>(null) }
-        LaunchedEffect(artPath) { art = artPath?.let { ctx.client.fetchBitmap(it) } }
+        // Through ArtCache: the screensaver shows the same art, and a poster
+        // decoded at full size can be ~6 MB. 480px covers the panel's width.
+        var art by remember(artPath) { mutableStateOf(artPath?.let { ArtCache.peek(it) }) }
+        LaunchedEffect(artPath) {
+            art = artPath?.let { p -> ArtCache.load(p, 480) { ctx.client.fetchBytes(p) } }
+        }
 
         val blurredBg = remember(art) {
             art?.let { img ->

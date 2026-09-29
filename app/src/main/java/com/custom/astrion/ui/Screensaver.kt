@@ -416,8 +416,12 @@ private fun NowPlaying(
     val album = e.attrString("media_album_name")?.takeIf { it.isNotBlank() && it != title }
 
     val artPath = e.attrString("entity_picture")
-    var art by remember(artPath) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(artPath) { art = artPath?.let { client.fetchBitmap(it) } }
+    // Shared with the media player card via ArtCache, so it's usually
+    // already decoded; 76dp needs ~128px.
+    var art by remember(artPath) { mutableStateOf(artPath?.let { ArtCache.peek(it) }) }
+    LaunchedEffect(artPath) {
+        art = artPath?.let { p -> ArtCache.load(p, 128) { client.fetchBytes(p) } }
+    }
 
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(

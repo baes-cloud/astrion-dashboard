@@ -2,15 +2,21 @@ package com.custom.astrion.ha
 
 import android.graphics.BitmapFactory
 import android.util.Log
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -21,6 +27,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString.Companion.toByteString
+import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -34,8 +41,8 @@ import java.util.concurrent.atomic.AtomicInteger
  *   1. Server sends   { type: "auth_required" }
  *   2. We send        { type: "auth", access_token: "<long-lived token>" }
  *   3. Server sends   { type: "auth_ok" }  (or "auth_invalid")
- *   4. We call        get_states  to seed the entity cache
- *   5. We             subscribe_events (state_changed) for live updates
+ *   4. We             subscribe_entities: the first event carries every
+ *                     entity's state, later ones compact per-entity diffs
  *   6. Heartbeat via  { type: "ping" } / { type: "pong" }
  *
  * Because it's the stock protocol, this app needs nothing from Sanytron's
@@ -54,6 +61,10 @@ class HaClient(
         private const val TAG = "HaClient"
         private const val PING_INTERVAL_MS = 30_000L
         private const val PUBLISH_INTERVAL_MS = 120L
+        /** How long a request waits for the socket to (re)authenticate. */
+        private const val CONNECT_WAIT_MS = 15_000L
+        private const val RECONNECT_MIN_MS = 3_000L
+        private const val RECONNECT_MAX_MS = 60_000L
     }
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -70,7 +81,7 @@ class HaClient(
         .callTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    private var socket: WebSocket? = null
+    @Volatile private var socket: WebSocket? = null
 
     /**
      * Bumped on every (re)connect. Streaming handler ids (assist audio) are
@@ -104,10 +115,32 @@ class HaClient(
     @Volatile private var entitiesDirty = false
     @Volatile private var publisherStarted = false
 
+    /**
+     * One snapshot state per entity, for [entityState]. A composable that
+     * reads one of these recomposes only when THAT entity changes, whereas
+     * reading [entities] recomposes on any change anywhere in HA.
+     */
+    private val entityStates = ConcurrentHashMap<String, MutableState<EntityState?>>()
+    /** Entities changed since the last publish, for the per-entity states. */
+    private val changedIds = ConcurrentHashMap.newKeySet<String>()
+
+    /** Request id of the live subscribe_entities, whose events are diffs. */
+    @Volatile private var entitiesSubId = -1
+    /** True until the current subscription's first (full-snapshot) event. */
+    @Volatile private var awaitingSeed = false
+
+    private var reconnectJob: Job? = null
+    /** Consecutive failed connects, for backoff; reset on auth_ok. */
+    @Volatile private var reconnectAttempts = 0
+
     // ---- public API ---------------------------------------------------------
 
     fun connect() {
         epoch++
+        reconnectJob?.cancel()
+        // Retire any previous socket first; the listener ignores callbacks
+        // from sockets other than the current one, so this can't loop.
+        socket?.cancel()
         _connection.value = ConnectionState.CONNECTING
         val wsUrl = toWebSocketUrl(baseUrl)
         Log.i(TAG, "Connecting to $wsUrl")
@@ -116,10 +149,32 @@ class HaClient(
     }
 
     fun disconnect() {
+        reconnectJob?.cancel()
+        _connection.value = ConnectionState.DISCONNECTED
         socket?.close(1000, "client closing")
         socket = null
-        _connection.value = ConnectionState.DISCONNECTED
     }
+
+    /**
+     * The network just came (back) up: if we're waiting out a reconnect
+     * backoff, skip the wait. A live connection is left alone.
+     */
+    fun onNetworkAvailable() {
+        when (_connection.value) {
+            ConnectionState.ERROR, ConnectionState.AUTH_FAILED -> {
+                reconnectAttempts = 0
+                connect()
+            }
+            else -> {}
+        }
+    }
+
+    /**
+     * Live state of one entity, as Compose state. Reading its value inside a
+     * composable subscribes that scope to this entity alone.
+     */
+    fun entityState(entityId: String): State<EntityState?> =
+        entityStates.getOrPut(entityId) { mutableStateOf(entityStore[entityId]) }
 
     /** Fire a HA service call, e.g. light.toggle on light.kitchen. */
     fun callService(call: ServiceCall) {
@@ -178,6 +233,7 @@ class HaClient(
         contentId: String? = null,
         contentType: String? = null,
     ): JsonObject? {
+        if (!awaitConnected()) return null
         val id = idCounter.getAndIncrement()
         val deferred = CompletableDeferred<JsonObject>()
         pending[id] = deferred
@@ -200,6 +256,7 @@ class HaClient(
      * (each item: datetime, condition, temperature, templow), or null.
      */
     suspend fun getForecast(entityId: String, forecastType: String = "daily"): JsonArray? {
+        if (!awaitConnected()) return null
         val id = idCounter.getAndIncrement()
         val deferred = CompletableDeferred<JsonObject>()
         pending[id] = deferred
@@ -231,6 +288,7 @@ class HaClient(
         entityId: String? = null,
         timeoutMs: Long = 10_000,
     ): JsonObject? {
+        if (!awaitConnected()) return null
         val id = idCounter.getAndIncrement()
         val deferred = CompletableDeferred<JsonObject>()
         pending[id] = deferred
@@ -307,25 +365,40 @@ class HaClient(
 
     // ---- internals ----------------------------------------------------------
 
+    /**
+     * Wait (bounded) until the socket is authenticated. Anything sent before
+     * auth_ok is read by HA as a malformed auth message, and HA answers by
+     * dropping the connection — so requests made while (re)connecting, e.g. a
+     * card loading at startup, must wait rather than go out early.
+     */
+    private suspend fun awaitConnected(): Boolean =
+        _connection.value == ConnectionState.CONNECTED ||
+            withTimeoutOrNull(CONNECT_WAIT_MS) {
+                connection.first { it == ConnectionState.CONNECTED }
+            } != null
+
     private val listener = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
+            if (webSocket !== socket) return
             Log.i(TAG, "Socket open, waiting for auth_required")
             _connection.value = ConnectionState.AUTHENTICATING
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
+            if (webSocket !== socket) return
             try {
                 val obj = json.parseToJsonElement(text).jsonObject
                 when (obj["type"]?.jsonPrimitive?.content) {
                     "auth_required" -> sendAuth()
                     "auth_ok" -> onAuthOk()
-                    "auth_invalid" -> _connection.value = ConnectionState.AUTH_FAILED
+                    "auth_invalid" -> {
+                        Log.w(TAG, "auth_invalid: ${obj["message"]}")
+                        _connection.value = ConnectionState.AUTH_FAILED
+                    }
                     "result" -> {
-                        // Route replies to an awaiting command if one matches this
-                        // id; otherwise treat it as the get_states seed.
+                        // Route replies to the command awaiting this id, if any.
                         val id = obj["id"]?.jsonPrimitive?.intOrNull
-                        val waiter = id?.let { pending.remove(it) }
-                        if (waiter != null) waiter.complete(obj) else onResult(obj)
+                        id?.let { pending.remove(it) }?.complete(obj)
                     }
                     "event" -> onEvent(obj)
                     "pong" -> { /* heartbeat ok */ }
@@ -336,12 +409,14 @@ class HaClient(
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            if (webSocket !== socket) return
             Log.e(TAG, "Socket failure", t)
             _connection.value = ConnectionState.ERROR
             scheduleReconnect()
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            if (webSocket !== socket) return
             Log.w(TAG, "Socket closed $code $reason")
             if (_connection.value != ConnectionState.DISCONNECTED) {
                 // HA closed us (e.g. a restart): scheduleReconnect only acts on ERROR.
@@ -362,10 +437,10 @@ class HaClient(
 
     private fun onAuthOk() {
         Log.i(TAG, "Authenticated")
+        reconnectAttempts = 0
         _connection.value = ConnectionState.CONNECTED
         startPublisher()
-        requestStates()
-        subscribeStateChanges()
+        subscribeEntities()
         startHeartbeat()
     }
 
@@ -378,27 +453,28 @@ class HaClient(
                 kotlinx.coroutines.delay(PUBLISH_INTERVAL_MS)
                 if (entitiesDirty) {
                     entitiesDirty = false
-                    _entities.value = HashMap(entityStore)
+                    publish()
                 }
             }
         }
     }
 
-    private fun requestStates() {
-        val msg = buildJsonObject {
-            put("id", idCounter.getAndIncrement())
-            put("type", "get_states")
-        }
-        send(msg)
-    }
-
-    private fun subscribeStateChanges() {
-        val msg = buildJsonObject {
-            put("id", idCounter.getAndIncrement())
-            put("type", "subscribe_events")
-            put("event_type", "state_changed")
-        }
-        send(msg)
+    /**
+     * `subscribe_entities` rather than `subscribe_events: state_changed`: the
+     * latter sends the full old AND new state of every entity on every change,
+     * the former only the fields that changed. The first event under it is a
+     * full snapshot, so no separate get_states is needed. Unfiltered, because
+     * some cards look entities up by computed id (floorplan radar sensors) or
+     * scan all of them (screensaver), so a config-derived list would miss some.
+     */
+    private fun subscribeEntities() {
+        val id = idCounter.getAndIncrement()
+        entitiesSubId = id
+        awaitingSeed = true
+        send(buildJsonObject {
+            put("id", id)
+            put("type", "subscribe_entities")
+        })
     }
 
     private fun startHeartbeat() {
@@ -418,53 +494,117 @@ class HaClient(
         }
     }
 
-    /** Result of get_states arrives as an array in the `result` field. */
-    private fun onResult(obj: JsonObject) {
-        val result = obj["result"] as? JsonArray ?: return
-        for (el in result) {
-            val e = el.jsonObject
-            val entityId = e["entity_id"]?.jsonPrimitive?.content ?: continue
-            entityStore[entityId] = EntityState(
-                entityId = entityId,
-                state = e["state"]?.jsonPrimitive?.content ?: "unknown",
-                attributes = e["attributes"] as? JsonObject ?: JsonObject(emptyMap()),
-                lastChanged = e["last_changed"]?.jsonPrimitive?.content,
-                lastUpdated = e["last_updated"]?.jsonPrimitive?.content,
-            )
-        }
-        // Seed is important — publish immediately so the first frame has data.
+    /**
+     * Push the store to [entities] and to the per-entity states of changed ids.
+     * Synchronized: the publisher loop and the seed both call it, and two
+     * overlapping snapshots writing the same state would conflict.
+     */
+    @Synchronized
+    private fun publish() {
         _entities.value = HashMap(entityStore)
+        val ids = changedIds.toList()
+        changedIds.removeAll(ids.toSet())
+        // One snapshot, so a batch of changes lands in a single frame.
+        Snapshot.withMutableSnapshot {
+            for (id in ids) entityStates[id]?.let { st ->
+                val now = entityStore[id]
+                if (st.value != now) st.value = now
+            }
+        }
     }
 
-    /** state_changed events carry event.data.new_state. */
     private fun onEvent(obj: JsonObject) {
-        // Streaming commands (assist pipeline) claim their id first.
         val id = obj["id"]?.jsonPrimitive?.intOrNull
-        val handler = id?.let { eventHandlers[it] }
-        if (handler != null) {
-            (obj["event"] as? JsonObject)?.let(handler)
+        val event = obj["event"] as? JsonObject ?: return
+        if (id != null && id == entitiesSubId) {
+            onEntitiesEvent(event)
             return
         }
-        val data = obj["event"]?.jsonObject?.get("data")?.jsonObject ?: return
-        val newState = data["new_state"] as? JsonObject ?: return
-        val entityId = newState["entity_id"]?.jsonPrimitive?.content ?: return
-        entityStore[entityId] = EntityState(
-            entityId = entityId,
-            state = newState["state"]?.jsonPrimitive?.content ?: "unknown",
-            attributes = newState["attributes"] as? JsonObject ?: JsonObject(emptyMap()),
-            lastChanged = newState["last_changed"]?.jsonPrimitive?.content,
-            lastUpdated = newState["last_updated"]?.jsonPrimitive?.content,
-        )
-        entitiesDirty = true // published by the coalescing publisher loop
+        // Streaming commands (assist pipeline) claim their own ids.
+        id?.let { eventHandlers[it] }?.invoke(event)
     }
 
+    /**
+     * A subscribe_entities event, in HA's compressed form:
+     *   "a": { id: {s, a, c, lc, lu?} }            added (full state)
+     *   "c": { id: {"+": {...}, "-": {"a": [..]}} } changed (a diff)
+     *   "r": [ id, ... ]                           removed
+     * lc/lu are epoch seconds; lu is only sent when it differs from lc.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun onEntitiesEvent(event: JsonObject) {
+        val added = event["a"] as? JsonObject
+        val seeded = awaitingSeed && added != null
+        if (seeded) {
+            awaitingSeed = false
+            // The seed is the complete set: drop anything deleted from HA
+            // while we were disconnected.
+            for (gone in entityStore.keys - added!!.keys) {
+                entityStore.remove(gone)
+                changedIds += gone
+            }
+        }
+        added?.forEach { (entityId, el) ->
+            val c = el as? JsonObject ?: return@forEach
+            val lc = isoTime(c["lc"])
+            entityStore[entityId] = EntityState(
+                entityId = entityId,
+                state = c["s"]?.jsonPrimitive?.content ?: "unknown",
+                attributes = c["a"] as? JsonObject ?: JsonObject(emptyMap()),
+                lastChanged = lc,
+                lastUpdated = isoTime(c["lu"]) ?: lc,
+            )
+            changedIds += entityId
+        }
+        (event["c"] as? JsonObject)?.forEach { (entityId, el) ->
+            val diff = el as? JsonObject ?: return@forEach
+            val old = entityStore[entityId] ?: return@forEach
+            val plus = diff["+"] as? JsonObject
+            val minusAttrs = ((diff["-"] as? JsonObject)?.get("a") as? JsonArray)
+                ?.mapNotNull { it.jsonPrimitive.contentOrNull }?.toSet().orEmpty()
+            var attrs: Map<String, JsonElement> = old.attributes
+            if (minusAttrs.isNotEmpty()) attrs = attrs - minusAttrs
+            (plus?.get("a") as? JsonObject)?.let { attrs = attrs + it }
+            val lc = isoTime(plus?.get("lc"))
+            entityStore[entityId] = old.copy(
+                state = plus?.get("s")?.jsonPrimitive?.content ?: old.state,
+                attributes = if (attrs === old.attributes) old.attributes else JsonObject(attrs),
+                lastChanged = lc ?: old.lastChanged,
+                // A new last_changed implies the same last_updated.
+                lastUpdated = isoTime(plus?.get("lu")) ?: lc ?: old.lastUpdated,
+            )
+            changedIds += entityId
+        }
+        (event["r"] as? JsonArray)?.forEach { el ->
+            val entityId = el.jsonPrimitive.contentOrNull ?: return@forEach
+            entityStore.remove(entityId)
+            changedIds += entityId
+        }
+        // The seed is important — publish at once so the first frame has data.
+        if (seeded) publish() else entitiesDirty = true
+    }
+
+    /** HA's epoch-seconds timestamp as ISO-8601, the format cards parse. */
+    private fun isoTime(el: JsonElement?): String? =
+        (el as? JsonPrimitive)?.doubleOrNull?.let { Instant.ofEpochMilli((it * 1000).toLong()).toString() }
+
     private fun send(msg: JsonObject) {
+        // Never before auth_ok: HA drops a connection whose first message
+        // isn't the auth message (see awaitConnected).
+        if (_connection.value != ConnectionState.CONNECTED) {
+            Log.w(TAG, "Not connected; dropped ${msg["type"]}")
+            return
+        }
         socket?.send(msg.toString())
     }
 
+    /** Retry with backoff: 3 s, 6 s, 12 s… up to a minute while HA is unreachable. */
     private fun scheduleReconnect() {
-        scope.launch {
-            kotlinx.coroutines.delay(3_000)
+        val wait = (RECONNECT_MIN_MS shl reconnectAttempts.coerceAtMost(5)).coerceAtMost(RECONNECT_MAX_MS)
+        reconnectAttempts++
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch {
+            kotlinx.coroutines.delay(wait)
             if (_connection.value == ConnectionState.ERROR) connect()
         }
     }

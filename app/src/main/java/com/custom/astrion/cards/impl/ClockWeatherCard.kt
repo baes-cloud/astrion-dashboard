@@ -89,7 +89,9 @@ class ClockWeatherCard : CardRenderer {
         LaunchedEffect(Unit) {
             while (true) {
                 now = System.currentTimeMillis()
-                delay(10_000)
+                // Tick on the minute (like ClockHeaderCard) so the time is
+                // never up to 10 s stale, and wake 6x less often.
+                delay(60_000 - (System.currentTimeMillis() % 60_000) + 250)
             }
         }
         val timeFmt = remember(is24) {
@@ -97,14 +99,15 @@ class ClockWeatherCard : CardRenderer {
         }
         val dateFmt = remember { SimpleDateFormat("EEE, d MMM", Locale.getDefault()) }
 
-        // Fetch the forecast via the service; refresh every 30 min.
+        // Fetch the forecast via the service; refresh every 30 min, or after a
+        // minute if it failed (e.g. HA was still connecting at startup).
         var forecast by remember { mutableStateOf<List<Forecast>>(emptyList()) }
         LaunchedEffect(entityId) {
             while (true) {
                 val arr = ctx.client.getForecast(entityId)
                 val parsed = arr?.let { parseForecast(it) }.orEmpty()
                 if (parsed.isNotEmpty()) forecast = parsed
-                delay(30 * 60 * 1000L)
+                delay(if (parsed.isNotEmpty()) 30 * 60 * 1000L else 60_000L)
             }
         }
 

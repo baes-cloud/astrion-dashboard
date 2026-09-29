@@ -47,19 +47,17 @@ data class CardConfig(
  * Context handed to every card render. Gives the card read access to live
  * entity states and the ability to fire service calls back to HA.
  *
- * Holds the entity map as a [State] rather than as a plain `Map`, which matters
- * more than it looks. A `Map` is unstable to Compose regardless of annotation,
- * and this object used to be rebuilt on every recomposition — so a single
- * `state_changed` from anywhere in HA recomposed every card on every page,
- * including the three pages you cannot see (HorizontalPager keeps neighbours
- * composed). The Main page carries a floorplan with 11 light icons and three
- * radar blocks × 3 targets = 18 position sensors updating continuously as
- * people move through the room, so that was a full-tree recomposition on a
- * high-frequency event stream, on a 1GB MT6580.
+ * Built once per client (see Dashboard) so it never itself triggers
+ * recomposition. Entity reads are per entity: `ctx.entities[id]` and
+ * [entity] read [HaClient.entityState], so a composable recomposes only when
+ * an entity it actually read changes. The Main page's floorplan has 18 radar
+ * position sensors updating continuously as people move through the room;
+ * when every read went through the whole-map State, each of those updates
+ * recomposed every card that read any entity, several times a second, on a
+ * 1GB MT6580.
  *
- * Reading `ctx.entities` (or [entity]) inside a composable now subscribes only
- * that scope to the snapshot, which is what the deliberately-extracted
- * `RadarDot` in PictureElementsCard already assumed was happening.
+ * Only whole-map operations (iterating, `keys`, `size`…) subscribe to every
+ * entity, so reach for those only when a card genuinely needs them.
  */
 @Stable
 class CardContext(
@@ -67,11 +65,19 @@ class CardContext(
     val client: HaClient,
     private val connectionState: State<ConnectionState>,
 ) {
-    /** Live entity map. Reading this inside a composable scopes recomposition to it. */
-    val entities: EntityMap get() = entitiesState.value
+    /**
+     * Live entity map. `entities[id]` subscribes to that one entity; anything
+     * that walks the whole map subscribes to all of them.
+     */
+    val entities: EntityMap = object : AbstractMap<String, EntityState>() {
+        override fun get(key: String): EntityState? = client.entityState(key).value
+        override fun containsKey(key: String): Boolean = get(key) != null
+        override val entries: Set<Map.Entry<String, EntityState>>
+            get() = entitiesState.value.entries
+    }
 
-    /** Single-entity read — narrower subscription than pulling the whole map. */
-    fun entity(id: String): EntityState? = entitiesState.value[id]
+    /** Single-entity read; same as `entities[id]`. */
+    fun entity(id: String): EntityState? = client.entityState(id).value
 
     /**
      * False when the websocket is down. A dead socket is just "everything is

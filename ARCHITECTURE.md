@@ -68,7 +68,8 @@ Confirmed command types (managers: `AuthenticationManager`,
 - `auth/current_user`
 
 `HaClient.kt` in this project implements the subset needed for a dashboard
-(auth, get_states, subscribe state_changed, call_service, ping).
+(auth, `subscribe_entities` — a full snapshot, then compact per-entity
+diffs, in place of `get_states` + `subscribe_events` — call_service, ping).
 
 ## Sanytron-specific integration (custom events) — optional
 

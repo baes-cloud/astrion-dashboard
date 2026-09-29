@@ -12,11 +12,15 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.Uri
 import android.os.BatteryManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -36,19 +40,24 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.custom.astrion.ui.AstrionTheme
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.custom.astrion.config.DashboardConfig
 import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HotkeyConfig
 import com.custom.astrion.config.JsonPlain
+import com.custom.astrion.config.AppConfig
 import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
@@ -267,7 +276,7 @@ class MainActivity : ComponentActivity() {
 
     private val storagePermission = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { reloadDashboard() }
+    ) { reloadDashboard(force = true) }
 
     private val micPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -308,6 +317,9 @@ class MainActivity : ComponentActivity() {
             dashboard.config.doubleHotkeys,
         )
         client.connect()
+        startForegroundService(Intent(this, KeepAliveService::class.java))
+        requestBatteryExemptionOnce()
+        watchNetwork()
         watchAlarm()
         watchAlerts()
         watchWakeWord()
@@ -322,6 +334,15 @@ class MainActivity : ComponentActivity() {
             ) {
                 val entities = client.entities.collectAsState()
                 val connection = client.connection.collectAsState()
+                // Derived, so this root scope recomposes only when the alarm or
+                // the set of alerts actually changes — not on every HA update.
+                val alarm by remember { derivedStateOf { alarmUiState(entities.value) } }
+                val alerts by remember {
+                    derivedStateOf {
+                        activeAlerts(alertSpecs(), entities.value, alertNow)
+                            .filter { it.token !in hiddenAlerts }
+                    }
+                }
                 // Overlays are stacked in the SAME window as the dashboard (not
                 // Dialogs) so this Activity keeps key focus and dispatchKeyEvent
                 // continues to fire while they're on screen.
@@ -339,16 +360,7 @@ class MainActivity : ComponentActivity() {
                     // Docked screensaver: above the dashboard, below everything
                     // that must interrupt it (alarm, voice) — and those also
                     // dismiss it outright, see hideScreensaver's callers.
-                    if (screensaverOn) {
-                        Screensaver(
-                            options = screensaverOptions(),
-                            entities = entities.value,
-                            client = client,
-                            connected = connection.value == com.custom.astrion.ha.ConnectionState.CONNECTED,
-                            batteryPct = batteryPct,
-                            charging = charging,
-                        )
-                    }
+                    if (screensaverOn) ScreensaverHost(entities, connection)
 
                     // IR Mode modal sits above the dashboard while active.
                     if (irMode) {
@@ -362,9 +374,6 @@ class MainActivity : ComponentActivity() {
                     }
 
                     // Configured alerts: above IR Mode, below the work alarm.
-                    val alarm = alarmUiState(entities.value)
-                    val alerts = activeAlerts(alertSpecs(), entities.value, alertNow)
-                        .filter { it.token !in hiddenAlerts }
                     if (alerts.isNotEmpty() && (alarm == null || alarmHidden)) {
                         val top = alerts.first()
                         AlertOverlay(
@@ -378,9 +387,10 @@ class MainActivity : ComponentActivity() {
 
                     // Work alarm: above the dashboard and IR Mode, since it's the
                     // one overlay that must not be missed.
-                    if (alarm != null && !alarmHidden) {
+                    val ringing = alarm
+                    if (ringing != null && !alarmHidden) {
                         AlarmOverlay(
-                            state = alarm,
+                            state = ringing,
                             onSnooze = { fireAlarmAction("snooze") },
                             onDismiss = { fireAlarmAction("stop") },
                             onHide = { alarmHidden = true },
@@ -400,6 +410,25 @@ class MainActivity : ComponentActivity() {
                 }
                     }
 }
+    }
+
+    /**
+     * The screensaver reads the whole entity map; hosting it in its own scope
+     * keeps those reads from recomposing everything else at the root.
+     */
+    @Composable
+    private fun ScreensaverHost(
+        entities: State<com.custom.astrion.ha.EntityMap>,
+        connection: State<ConnectionState>,
+    ) {
+        Screensaver(
+            options = screensaverOptions(),
+            entities = entities.value,
+            client = client,
+            connected = connection.value == ConnectionState.CONNECTED,
+            batteryPct = batteryPct,
+            charging = charging,
+        )
     }
 
     override fun onResume() {
@@ -429,9 +458,23 @@ class MainActivity : ComponentActivity() {
         super.onPause()
     }
 
-    /** Load config from disk and (re)bind hotkeys. Synchronous — the file is tiny. */
-    private fun reloadDashboard() {
+    /** Modified time + size of the config file at the last load. */
+    private var loadedConfigStamp: Pair<Long, Long>? = null
+
+    /**
+     * Load config from disk and (re)bind hotkeys. Runs on every foreground, so
+     * an unchanged file is skipped: re-parsing it on the main thread delayed
+     * every screen wake, and swapping in an equal-but-new config rebuilt
+     * every card on every page.
+     */
+    private fun reloadDashboard(force: Boolean = false) {
+        val file = DashboardLoader.configFile
+        // lastModified() is 0 when the file is missing or unreadable, so the
+        // fallback paths (write defaults / no permission) always re-run.
+        val stamp = file.lastModified() to file.length()
+        if (!force && stamp.first != 0L && stamp == loadedConfigStamp) return
         val result = DashboardLoader.load()
+        loadedConfigStamp = file.lastModified() to file.length()
         dashboard = result
         bindHotkeys(result.config.hotkeys, result.config.longHotkeys, result.config.doubleHotkeys)
     }
@@ -600,7 +643,17 @@ class MainActivity : ComponentActivity() {
     }
 
     /** `alerts` list from dashboard.json. */
-    private fun alertSpecs(): List<AlertSpec> = AlertSpec.parse(dashboard.config.options["alerts"])
+    private fun alertSpecs(): List<AlertSpec> {
+        // Parsed once per loaded config rather than on every check.
+        val config = dashboard.config
+        if (config !== alertSpecsFor) {
+            alertSpecsCached = AlertSpec.parse(config.options["alerts"])
+            alertSpecsFor = config
+        }
+        return alertSpecsCached
+    }
+    private var alertSpecsFor: AppConfig? = null
+    private var alertSpecsCached: List<AlertSpec> = emptyList()
 
     /**
      * Like [watchAlarm] for the configured alerts. Polls (every 3 s) rather
@@ -1103,6 +1156,40 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Reconnect the moment the network returns (Wi-Fi drop, router reboot)
+     * instead of waiting out the client's reconnect backoff.
+     */
+    private fun watchNetwork() {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) = client.onNetworkAvailable()
+        }
+        cm.registerDefaultNetworkCallback(callback)
+        networkCallback = callback
+    }
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
+    /**
+     * Doze (screen off, on battery, lying still) cuts network access for
+     * apps that aren't exempt from battery optimisation — the HA connection
+     * then goes quiet and the alarm can't arrive. Ask for the exemption once;
+     * if it's declined, it can still be granted in Settings > Battery.
+     */
+    private fun requestBatteryExemptionOnce() {
+        val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+        if (pm.isIgnoringBatteryOptimizations(packageName)) return
+        val prefs = getSharedPreferences("astrion", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("asked_battery_exemption", false)) return
+        prefs.edit().putBoolean("asked_battery_exemption", true).apply()
+        runCatching {
+            @Suppress("BatteryLife")
+            startActivity(
+                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
+            )
+        }
+    }
+
     private fun isDocked(): Boolean {
         val battery = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return false
         return battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
@@ -1146,8 +1233,32 @@ class MainActivity : ComponentActivity() {
         motionSensor = sensorManager?.getSensorList(Sensor.TYPE_ACCELEROMETER)
             ?.firstOrNull { it.isWakeUpSensor }
             ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        motionSensor?.let {
-            sensorManager?.registerListener(motionListener, it, SensorManager.SENSOR_DELAY_NORMAL)
+        if (motionSensor == null) return
+        // Only listen while the screen is off: with it on, wakeScreen() has
+        // nothing to do, and a wake-up sensor otherwise delivers ~5 readings
+        // a second to the UI thread for nothing.
+        registerReceiver(screenReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+        })
+        val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        if (pm?.isInteractive == false) listenForMotion(true)
+    }
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) =
+            listenForMotion(intent.action == Intent.ACTION_SCREEN_OFF)
+    }
+
+    private fun listenForMotion(on: Boolean) {
+        val sm = sensorManager ?: return
+        val sensor = motionSensor ?: return
+        sm.unregisterListener(motionListener)
+        if (on) {
+            // A fresh baseline, so a reading from before the screen went off
+            // can't register as movement.
+            lastMagnitude = 0f
+            sm.registerListener(motionListener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
         }
     }
 
@@ -1176,7 +1287,12 @@ class MainActivity : ComponentActivity() {
         keyHandler.removeCallbacks(screensaverTick)
         runCatching { unregisterReceiver(batteryReceiver) }
         sensorManager?.unregisterListener(motionListener)
+        if (motionSensor != null) runCatching { unregisterReceiver(screenReceiver) }
+        networkCallback?.let { cb ->
+            runCatching { (getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(cb) }
+        }
         client.disconnect()
+        stopService(Intent(this, KeepAliveService::class.java))
         super.onDestroy()
     }
 }

@@ -105,7 +105,12 @@ class MediaShelvesCard : CardRenderer {
         val limit = config.int("limit", 10).coerceIn(1, 30)
         val rowSpecs = (config.options["rows"] as? List<Map<String, Any?>>) ?: emptyList()
 
-        val shelves by produceState<List<Shelf>?>(initialValue = null, entityId, limit) {
+        // Keyed on the connection too: shelves still empty when HA came back
+        // load then, instead of on the next visit. Shelves already showing are
+        // kept, so a reconnect doesn't reshuffle "Random albums" under you.
+        val connected = ctx.connected
+        val shelves by produceState<List<Shelf>?>(initialValue = null, entityId, limit, connected) {
+            if (!connected || !value.isNullOrEmpty()) return@produceState
             value = rowSpecs.mapNotNull { spec ->
                 val title = spec["title"] as? String ?: return@mapNotNull null
                 if (spec["source"] == "music_assistant") {

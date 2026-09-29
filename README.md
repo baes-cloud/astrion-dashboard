@@ -39,12 +39,16 @@ Requirements: Android Studio (Ladybug or newer) with the Android SDK.
    Create the token in HA: Profile → Security → Long-lived access tokens.
    These are injected as `BuildConfig.HA_URL` / `BuildConfig.HA_TOKEN` at build
    time, so a real token never lands in source control.
-3. Build the APK: **Build → Build App Bundle(s) / APK(s) → Build APK(s)**,
-   or from a terminal with the SDK on PATH: `./gradlew assembleDebug`.
+3. Build the release APK: in Android Studio pick the `release` variant
+   (**Build → Select Build Variant**) and **Build → Build APK(s)**, or from a
+   terminal with the SDK on PATH: `./gradlew assembleRelease`. Use release on
+   the remote — it's much faster than a debug build on the HA100's MT6580.
+   It's signed with your debug key, so no keystore setup is needed.
 4. Install onto the remote over ADB (same way you pulled the stock APK):
    ```
-   adb install app/build/outputs/apk/debug/app-debug.apk
+   adb install -r app/build/outputs/apk/release/app-release.apk
    ```
+   (`./gradlew assembleDebug` and `app-debug.apk` still work for debugging.)
 5. Launch it. To make it the default home experience you can set it as launcher
    or just open it manually; the stock HaRemote app can stay installed
    alongside.
@@ -142,7 +146,7 @@ standard Android `KeyEvent`s, intercepted in `dispatchKeyEvent`.
 
 | Path | Role |
 |------|------|
-| `ha/HaClient.kt` | Standard HA WebSocket client (auth, get_states, subscribe, call_service, ping) |
+| `ha/HaClient.kt` | Standard HA WebSocket client (auth, subscribe_entities, call_service, ping) |
 | `ha/HaModels.kt` | Entity state + connection models |
 | `cards/Card.kt` | `CardRenderer` interface + `CardRegistry` (extensibility core) |
 | `cards/impl/*` | 29 card types — see the table in `COMMUNITY.md` for what each one does |

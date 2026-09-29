@@ -34,8 +34,19 @@ android {
     }
 
     buildTypes {
+        // Install the release build on the remote: Compose runs markedly
+        // slower in a debuggable build, and R8 strips the unused bulk of
+        // material-icons-extended and friends (17 MB -> 1.7 MB). Signed with
+        // the debug key, so it installs over the debug APK with no keystore
+        // to manage; this app is sideloaded, never published.
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -46,6 +57,11 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+    }
+
+    // android.util.Log in HaClient returns defaults instead of throwing in JVM tests.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 
     buildFeatures {
@@ -71,4 +87,6 @@ dependencies {
 
     // OkHttp provides the WebSocket transport.
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    testImplementation("junit:junit:4.13.2")
 }
