@@ -668,7 +668,7 @@
      "service": "androidtv.adb_command",
      "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
      "data": {
-      "command": "cmd hdmi_control onetouchplay"
+      "command": "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay"
      }
     }
    ]
@@ -744,68 +744,32 @@
    "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "command": "cmd hdmi_control onetouchplay"
-   },
-   "then": [
-    {
-     "service": "media_player.select_source",
-     "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
-     "data": {
-      "source": "com.netflix.ninja"
-     }
-    }
-   ]
+    "command": "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay; monkey -p com.netflix.ninja -c android.intent.category.LEANBACK_LAUNCHER 1"
+   }
   },
   {
    "key": "CUSTOM_2",
    "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "command": "cmd hdmi_control onetouchplay"
-   },
-   "then": [
-    {
-     "service": "media_player.select_source",
-     "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
-     "data": {
-      "source": "com.plexapp.android"
-     }
-    }
-   ]
+    "command": "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay; monkey -p com.plexapp.android -c android.intent.category.LEANBACK_LAUNCHER 1"
+   }
   },
   {
    "key": "CUSTOM_3",
    "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "command": "cmd hdmi_control onetouchplay"
-   },
-   "then": [
-    {
-     "service": "media_player.select_source",
-     "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
-     "data": {
-      "source": "au.net.abc.iview"
-     }
-    }
-   ]
+    "command": "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay; monkey -p au.net.abc.iview -c android.intent.category.LEANBACK_LAUNCHER 1"
+   }
   },
   {
    "key": "CUSTOM_4",
    "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "command": "cmd hdmi_control onetouchplay"
-   },
-   "then": [
-    {
-     "service": "media_player.select_source",
-     "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
-     "data": {
-      "source": "org.videolan.vlc"
-     }
-    }
-   ]
+    "command": "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay; monkey -p org.videolan.vlc -c android.intent.category.LEANBACK_LAUNCHER 1"
+   }
   }
  ],
  "longHotkeys": [
