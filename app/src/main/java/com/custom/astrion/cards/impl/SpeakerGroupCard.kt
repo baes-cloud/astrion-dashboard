@@ -81,6 +81,10 @@ import kotlin.math.roundToInt
  * `"compact": true` fits the group on one screen: the master becomes a single
  * row (name and level on the left, mute / vol- / vol+ on the right, level bar
  * underneath) at about half the height, and every card is a little tighter.
+ * In compact mode the master's card holds the others: its controls run
+ * across the top and each speaker is a darker panel inside it. `"height"`
+ * (dp) fixes the whole card's height and the panels share what's left, so the
+ * group fills the screen exactly (the page scrolls, so it can't be measured).
  */
 class SpeakerGroupCard : CardRenderer {
     override val type = "speaker_group"
@@ -108,10 +112,34 @@ class SpeakerGroupCard : CardRenderer {
                     letterSpacing = 1.sp,
                 )
             }
-            SpeakerRow(ctx, master, config.string("name"), config.string("icon"), isMaster = true, master = master, compact = compact)
-            speakers.forEach { sp ->
-                val id = sp["entity_id"] as? String ?: return@forEach
-                SpeakerRow(ctx, id, sp["name"] as? String, sp["icon"] as? String, isMaster = false, master = master, compact = compact)
+            if (compact) {
+                val height = config.int("height", 0)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (height > 0) Modifier.height(height.dp) else Modifier)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(AstrionTheme.cardBg)
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    SpeakerRow(ctx, master, config.string("name"), config.string("icon"), isMaster = true, master = master, compact = true, panel = null)
+                    speakers.forEach { sp ->
+                        val id = sp["entity_id"] as? String ?: return@forEach
+                        SpeakerRow(
+                            ctx, id, sp["name"] as? String, sp["icon"] as? String,
+                            isMaster = false, master = master, compact = true,
+                            panel = AstrionTheme.trackBg,
+                            modifier = if (height > 0) Modifier.weight(1f) else Modifier,
+                        )
+                    }
+                }
+            } else {
+                SpeakerRow(ctx, master, config.string("name"), config.string("icon"), isMaster = true, master = master)
+                speakers.forEach { sp ->
+                    val id = sp["entity_id"] as? String ?: return@forEach
+                    SpeakerRow(ctx, id, sp["name"] as? String, sp["icon"] as? String, isMaster = false, master = master)
+                }
             }
         }
     }
@@ -135,6 +163,9 @@ class SpeakerGroupCard : CardRenderer {
         isMaster: Boolean,
         master: String,
         compact: Boolean = false,
+        /** Card fill; null draws no card of its own (the master inside its container). */
+        panel: Color? = AstrionTheme.cardBg,
+        modifier: Modifier = Modifier,
     ) {
         val e = ctx.entities[entityId]
         val label = name ?: e?.friendlyName ?: entityId
@@ -159,15 +190,20 @@ class SpeakerGroupCard : CardRenderer {
         }
 
         Column(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .dimIfUnavailable(unavailable)
-                .clip(RoundedCornerShape(18.dp))
-                .background(AstrionTheme.cardBg)
-                .padding(if (compact) 10.dp else 12.dp),
-            verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
+                .then(
+                    if (panel == null) Modifier
+                    else Modifier
+                        .clip(RoundedCornerShape(if (compact) 14.dp else 18.dp))
+                        .background(panel)
+                        .padding(if (compact) 10.dp else 12.dp)
+                ),
+            // Centred, so a panel given extra height keeps its controls together.
+            verticalArrangement = Arrangement.spacedBy(if (compact) 7.dp else 8.dp, Alignment.CenterVertically),
         ) {
-            val btnHeight = if (compact) 40.dp else 44.dp
+            val btnHeight = if (compact && isMaster) 40.dp else 44.dp
             @Composable
             fun Buttons(fill: Boolean) {
                 Row(

@@ -550,7 +550,8 @@
            "icon": "play1"
           }
          ],
-         "compact": true
+         "compact": true,
+         "height": 478
         }
        }
       ]

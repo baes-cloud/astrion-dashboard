@@ -10,8 +10,10 @@ MT6580.
 - **Media shelves load together** and each shows as soon as it arrives (the
   Spotify row takes ~1.3 s through HA and used to hold up the whole page);
   the last result is kept, so revisits show the shelves at once.
-- **Zones fit on one screen:** `speaker_group` takes `"compact": true`, which
-  puts the master on one row with its volume buttons and tightens the rest.
+- **Zones fit on one screen:** `speaker_group` takes `"compact": true`: the
+  master's card holds the group, its controls on one row across the top and
+  each speaker as a darker panel inside it; `"height"` makes it fill the
+  screen, the panels sharing the space.
 - **The Main page no longer shifts as it loads:** the weather card reserves
   its forecast's space until the forecast arrives, and the forecast and the
   decoded floorplan are kept between visits.
