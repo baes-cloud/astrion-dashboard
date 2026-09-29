@@ -92,6 +92,23 @@ class MediaShelvesCard : CardRenderer {
     private companion object {
         // Square album art, ~3.8 across the 480px panel (was 92dp).
         val TILE = 85.dp
+
+        // Decode floor for covers: 85dp is ~120px on this panel, so a 640px
+        // CDN cover decodes at 160px instead of full size.
+        const val ART_PX = 128
+
+        // Covers already fetched, by URL. The page is recomposed from scratch
+        // on every visit and LazyRow drops tiles scrolled off-screen, so
+        // without this every cover was refetched each time. The favourite
+        // rows barely change and "Random albums" draws from a finite library,
+        // so 120 covers holds the fixed rows plus several rotations of random
+        // picks. Covers are decoded at tile size (see ART_PX), ~100 KB each.
+        val artCache = object : LinkedHashMap<String, ImageBitmap>(0, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > 120
+        }
+
+        @Synchronized fun cacheGet(k: String): ImageBitmap? = artCache[k]
+        @Synchronized fun cachePut(k: String, v: ImageBitmap) { artCache[k] = v }
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -183,9 +200,15 @@ class MediaShelvesCard : CardRenderer {
 
     @Composable
     private fun Tile(ctx: CardContext, item: Item, onClick: () -> Unit) {
-        var art by remember(item.thumb) { mutableStateOf<ImageBitmap?>(null) }
+        var art by remember(item.thumb) { mutableStateOf(item.thumb?.let { cacheGet(it) }) }
         LaunchedEffect(item.thumb) {
-            art = item.thumb?.let { ctx.client.fetchBitmap(it) }
+            val thumb = item.thumb ?: return@LaunchedEffect
+            if (art == null) {
+                // Failures aren't cached, so an unreachable CDN is retried next visit.
+                val loaded = ctx.client.fetchBitmap(thumb, ART_PX) ?: return@LaunchedEffect
+                cachePut(thumb, loaded)
+                art = loaded
+            }
         }
         // Art with a caption underneath: covers alone don't say which playlist
         // is which.

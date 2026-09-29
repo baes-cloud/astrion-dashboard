@@ -149,15 +149,27 @@ class HaClient(
      * Fetch an image (e.g. a media_player `entity_picture`) as an ImageBitmap.
      * `path` may be absolute or an HA-relative path like /api/media_player_proxy/…;
      * the bearer token is attached so proxied/authenticated art loads too.
+     * With [minPx], large images are subsampled (by powers of two) while both
+     * sides stay at least that size — enough for a small tile, at a fraction
+     * of the memory of a full-size cover.
      */
-    suspend fun fetchBitmap(path: String): ImageBitmap? = withContext(Dispatchers.IO) {
+    suspend fun fetchBitmap(path: String, minPx: Int = 0): ImageBitmap? = withContext(Dispatchers.IO) {
         try {
             val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
             val req = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
             imageHttp.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@withContext null
                 val bytes = resp.body?.bytes() ?: return@withContext null
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                val opts = BitmapFactory.Options()
+                if (minPx > 0) {
+                    opts.inJustDecodeBounds = true
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+                    var sample = 1
+                    while (opts.outWidth / (sample * 2) >= minPx && opts.outHeight / (sample * 2) >= minPx) sample *= 2
+                    opts.inJustDecodeBounds = false
+                    opts.inSampleSize = sample
+                }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)?.asImageBitmap()
             }
         } catch (e: Exception) {
             Log.w(TAG, "fetchBitmap failed for $path", e)
