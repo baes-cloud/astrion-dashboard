@@ -64,14 +64,15 @@ Requirements: Android Studio (Ladybug or newer) with the Android SDK.
 | ![Speaker zones](screenshots/sonos-group.png) | ![Climate](screenshots/climate.png) | ![Washer done alert](screenshots/alert-washer.png) |
 | **Docked screensaver** | **Alarm** | **Alarm — snoozed** |
 | ![Screensaver](screenshots/screensaver.png) | ![Alarm ringing](screenshots/alarm-ringing.png) | ![Alarm snoozed](screenshots/alarm-snoozed.png) |
-| **IR Mode** | | |
-| ![IR Mode](screenshots/ir-mode.png) | | |
+| **IR Mode** | **Light popup** (long-press a light) | **Vacuum popup** |
+| ![IR Mode](screenshots/ir-mode.png) | ![Light popup](screenshots/light-control.png) | ![Vacuum popup](screenshots/robovac-control.png) |
 
 ![Hold to stop the alarm](screenshots/alarm-hold-to-stop.gif)
 
-More: `screenshots/LD2450-tracking.gif` (mmWave presence dots moving live on the
-floorplan), `sonos-control.gif` (speaker group + volume), the robot-vacuum
-overlay and popup (`robovac-*.png`), and the light colour popup (`light-*.png`).
+More (from earlier versions, in the old colours): `screenshots/LD2450-tracking.gif`
+(mmWave presence dots moving live on the floorplan), `sonos-control.gif`
+(speaker group + volume), the vacuum on the floorplan (`robovac-docked.png`,
+`robovac-kitchen.png`) and the colour light popup (`light-card.png`).
 
 ### What it does
 
