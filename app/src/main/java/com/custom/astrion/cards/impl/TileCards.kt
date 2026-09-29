@@ -97,8 +97,8 @@ class CoverCard : CardRenderer {
                     contentDescription = if (open) "$name, open" else "$name, closed",
                     tint = when {
                         unavailable -> AstrionTheme.unavailable
-                        open -> AstrionTheme.on
-                        else -> Color(0xFFBFCFC8)
+                        open -> AstrionTheme.blush
+                        else -> Color(0xFFC3D0CD)
                     },
                 )
             }
@@ -234,7 +234,7 @@ class SwitchCard : CardRenderer {
                     tint = when {
                         unavailable -> AstrionTheme.unavailable
                         on -> Color(0xFFE79A9A)
-                        else -> Color(0xFFBFCFC8)
+                        else -> Color(0xFFC3D0CD)
                     },
                 )
             }

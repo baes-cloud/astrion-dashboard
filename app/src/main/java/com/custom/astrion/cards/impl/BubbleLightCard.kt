@@ -63,7 +63,7 @@ class BubbleLightCard : CardRenderer {
     // Fixed quick-preset colours shown on any colour-capable light.
     private val presets = listOf(
         Color(0xFF9B59B6), // purple
-        Color(0xFF56736F), // blue
+        Color(0xFF4F726D), // blue
         Color(0xFFFFCBA4), // peach
     )
 
@@ -138,7 +138,7 @@ class BubbleLightCard : CardRenderer {
             if (r != null && g != null && b != null) Color(r, g, b) else null
         } else null
 
-        val fillColor = lightColor ?: Color(0xFF86A194) // neutral blue fallback
+        val fillColor = lightColor ?: Color(0xFF7FA9A2) // neutral blue fallback
         val iconBg = when {
             unavailable -> Color(0xFF323F4C)
             on -> AstrionTheme.on
@@ -147,7 +147,7 @@ class BubbleLightCard : CardRenderer {
         val iconTint = when {
             unavailable -> AstrionTheme.unavailable
             on -> AstrionTheme.onBg
-            else -> Color(0xFFBFCFC8)
+            else -> Color(0xFFC3D0CD)
         }
 
         // The pill IS the slider: brightness fills it left-to-right and you

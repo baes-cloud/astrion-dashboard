@@ -229,7 +229,7 @@ class TvRemoteCard : CardRenderer {
     @Composable
     private fun RoundIconButton(
         icon: ImageVector,
-        tint: Color = Color(0xFFD3DED9),
+        tint: Color = Color(0xFFD9E3E0),
         onClick: () -> Unit,
     ) {
         Box(

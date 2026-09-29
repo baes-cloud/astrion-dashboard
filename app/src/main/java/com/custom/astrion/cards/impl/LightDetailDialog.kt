@@ -106,7 +106,7 @@ fun LightDetailDialog(
                 fontFamily = AstrionTheme.headingFont, fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
             )
-            Text(name, color = Color(0xFFA4B7AF), fontSize = 13.sp)
+            Text(name, color = Color(0xFFA9BAB6), fontSize = 13.sp)
 
             // Vertical brightness pill: drag or tap to set; fill rises from the bottom.
             Box(
@@ -151,7 +151,7 @@ fun LightDetailDialog(
                 Icon(
                     Icons.Filled.PowerSettingsNew,
                     contentDescription = "Toggle",
-                    tint = if (on) Color(0xFF241A00) else Color(0xFFD3DED9),
+                    tint = if (on) Color(0xFF241A00) else Color(0xFFD9E3E0),
                 )
             }
 
@@ -189,7 +189,7 @@ fun LightDetailDialog(
                                 .tap { setKelvin(k) }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                         ) {
-                            Text(label, color = Color(0xFFD3DED9), fontSize = 12.sp)
+                            Text(label, color = Color(0xFFD9E3E0), fontSize = 12.sp)
                         }
                     }
                 }

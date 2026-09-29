@@ -296,8 +296,8 @@ object DashboardConfig {
                             "flip_x" to false,
                             "flip_y" to false,
                             "blend" to "overlay", // pop over light icons
-                            "color" to "#D94E6E69",
-                            "accent_color" to "#FF9CCDB8",
+                            "color" to "#D94F726D",
+                            "accent_color" to "#FFA9D2CB",
                         ),
                         // Bedroom — bare ESPHome LD2450, reports MILLIMETRES.
                         // Mounted beside the TV at the middle of the bedroom's

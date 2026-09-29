@@ -238,8 +238,8 @@ fun Screensaver(
 // Day: cool greys off the app's own palette. Night: warm, dim amber — blue-ish
 // light is the one that keeps people awake, and it reads softer in the dark.
 private val DayClock = Color(0xFFDDE7E3)
-private val DayInk = Color(0xFFA4B7AF)
-private val DayFaint = Color(0xFF6F8583)
+private val DayInk = Color(0xFFA9BAB6)
+private val DayFaint = Color(0xFF718583)
 private val DayAccent = Color(0xFFE8B25A)
 private val NightClock = Color(0xFFD9A06A)
 private val NightInk = Color(0xFF9C7556)

@@ -172,7 +172,7 @@ fun IrModeOverlay(
                     )
                     Text(
                         "Hardware buttons blast to the TV",
-                        color = Color(0xFFA9BDB5), fontSize = 12.sp,
+                        color = Color(0xFFAEBFBB), fontSize = 12.sp,
                     )
                 }
             }
@@ -194,7 +194,7 @@ fun IrModeOverlay(
             ) {
                 Text(
                     toast ?: lastKeyLabel ?: "Press a hardware button…",
-                    color = if (toast != null) Color(0xFFFFC24B) else Color(0xFFD3DED9),
+                    color = if (toast != null) Color(0xFFFFC24B) else Color(0xFFD9E3E0),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -204,7 +204,7 @@ fun IrModeOverlay(
 
             Text(
                 "NETWORK CONTROLS",
-                color = Color(0xFFA9BDB5), fontSize = 11.sp,
+                color = Color(0xFFAEBFBB), fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
             )
 

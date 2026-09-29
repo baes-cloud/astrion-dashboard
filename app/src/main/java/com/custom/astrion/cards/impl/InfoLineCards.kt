@@ -230,13 +230,13 @@ class NowPlayingLineCard : CardRenderer {
             modifier = Modifier
                 .size(28.dp)
                 .clip(CircleShape)
-                .background(if (muted) AstrionTheme.dangerBg else AstrionTheme.controlBg),
+                .background(if (muted) AstrionTheme.dangerBg else AstrionTheme.blush),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 if (muted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
                 contentDescription = if (muted) "Muted — tap to unmute" else "Tap to mute",
-                tint = if (muted) AstrionTheme.danger else AstrionTheme.textOnControl,
+                tint = if (muted) AstrionTheme.danger else AstrionTheme.onBlush,
                 modifier = Modifier.size(16.dp),
             )
         }
@@ -296,7 +296,7 @@ class NextUpCard : CardRenderer {
             }
             if (alarm != null) {
                 Spacer(Modifier.width(12.dp))
-                Fact(Icons.Filled.Alarm, "Next alarm:", alarm, AstrionTheme.on, Modifier)
+                Fact(Icons.Filled.Alarm, "Next alarm:", alarm, AstrionTheme.blush, Modifier)
             }
         }
     }

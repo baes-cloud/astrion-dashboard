@@ -66,7 +66,7 @@ class SourceSelectCard : CardRenderer {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(name, color = Color(0xFFA4B7AF), fontSize = 11.sp)
+                    Text(name, color = Color(0xFFA9BAB6), fontSize = 11.sp)
                     Text(
                         current ?: if (sources.isEmpty()) "No sources (device off?)" else "Select source…",
                         color = Color(0xFFEEF2EF),
@@ -78,7 +78,7 @@ class SourceSelectCard : CardRenderer {
                 Icon(
                     Icons.Filled.ArrowDropDown,
                     contentDescription = null,
-                    tint = if (sources.isEmpty()) Color(0xFF6F8583) else Color(0xFFD3DED9),
+                    tint = if (sources.isEmpty()) Color(0xFF718583) else Color(0xFFD9E3E0),
                 )
             }
 
@@ -94,7 +94,7 @@ class SourceSelectCard : CardRenderer {
                         text = {
                             Text(
                                 s,
-                                color = if (s == current) Color(0xFF8FC0AA) else Color(0xFFEEF2EF),
+                                color = if (s == current) Color(0xFF8CBDB5) else Color(0xFFEEF2EF),
                                 fontSize = 14.sp,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,

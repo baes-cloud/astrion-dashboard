@@ -138,7 +138,7 @@ fun VoiceOverlay(
             if (state.reply.isNotBlank()) {
                 Text(
                     state.reply,
-                    color = Color(0xFFA9BDB5), fontSize = 14.sp,
+                    color = Color(0xFFAEBFBB), fontSize = 14.sp,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -198,10 +198,10 @@ private fun phaseLabel(p: VoicePhase) = when (p) {
 
 private fun accentColor(p: VoicePhase) = when (p) {
     VoicePhase.LISTENING -> Color(0xFFFFC24B)
-    VoicePhase.PROCESSING -> Color(0xFF8FC0AA)
+    VoicePhase.PROCESSING -> Color(0xFF8CBDB5)
     VoicePhase.SPEAKING -> Color(0xFF5FD3A0)
     VoicePhase.ERROR -> Color(0xFFE06767)
-    else -> Color(0xFFA9BDB5)
+    else -> Color(0xFFAEBFBB)
 }
 
 private fun haloColor(p: VoicePhase) = accentColor(p).copy(alpha = 0.14f)

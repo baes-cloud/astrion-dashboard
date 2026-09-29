@@ -166,7 +166,7 @@ class MediaShelvesCard : CardRenderer {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text.uppercase(),
-                color = Color(0xFF86A194),
+                color = Color(0xFF7FA9A2),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.2.sp,
@@ -204,7 +204,7 @@ class MediaShelvesCard : CardRenderer {
                     Icon(
                         Icons.Filled.MusicNote,
                         contentDescription = null,
-                        tint = Color(0xFF6F8583),
+                        tint = Color(0xFF718583),
                         modifier = Modifier.size(26.dp),
                     )
                 }

@@ -133,7 +133,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(name, color = Color(0xFFEEF2EF), fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f))
-        Text(prettyVacuumLabel(state), color = Color(0xFFA4B7AF), fontSize = 13.sp)
+        Text(prettyVacuumLabel(state), color = Color(0xFFA9BAB6), fontSize = 13.sp)
     }
 
     // Map (includes the robot, rooms, path — rendered by the integration).
@@ -180,10 +180,10 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Cleaning mode", color = Color(0xFFA4B7AF), fontSize = 11.sp)
+                    Text("Cleaning mode", color = Color(0xFFA9BAB6), fontSize = 11.sp)
                     Text(fanSpeed?.let(::prettyVacuumLabel) ?: "—", color = Color(0xFFEEF2EF), fontSize = 15.sp)
                 }
-                Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = Color(0xFFD3DED9))
+                Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = Color(0xFFD9E3E0))
             }
             DropdownMenu(
                 expanded = fanExpanded,
@@ -195,7 +195,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                         text = {
                             Text(
                                 prettyVacuumLabel(f),
-                                color = if (f == fanSpeed) Color(0xFF8FC0AA) else Color(0xFFEEF2EF),
+                                color = if (f == fanSpeed) Color(0xFF8CBDB5) else Color(0xFFEEF2EF),
                                 fontSize = 14.sp,
                             )
                         },
@@ -245,7 +245,7 @@ private fun VacuumCtrlBtn(icon: ImageVector, accent: Boolean = false, onClick: (
         modifier = Modifier
             .size(52.dp)
             .clip(CircleShape)
-            .background(if (accent) Color(0xFF4E6E69) else Color(0xFF3A4F57))
+            .background(if (accent) Color(0xFF4F726D) else Color(0xFF3A4F57))
             .tap(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

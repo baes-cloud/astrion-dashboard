@@ -94,7 +94,7 @@ class SceneGridCard : CardRenderer {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     title,
-                    color = Color(0xFFA4B7AF),
+                    color = Color(0xFFA9BAB6),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.sp,
@@ -126,7 +126,7 @@ class SceneGridCard : CardRenderer {
         ) {
             scenes.forEach { scene ->
                 val entityId = scene["entity_id"] as? String ?: return@forEach
-                val color = (scene["color"] as? String)?.let(::parseHexColor) ?: Color(0xFF9CCDB8)
+                val color = (scene["color"] as? String)?.let(::parseHexColor) ?: Color(0xFFA9D2CB)
                 val name = scene["name"] as? String ?: ctx.entities[entityId]?.friendlyName ?: entityId
                 val isActive = entityId == active
                 val haptics = LocalHapticFeedback.current

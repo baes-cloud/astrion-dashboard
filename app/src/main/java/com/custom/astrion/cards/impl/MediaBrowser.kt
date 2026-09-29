@@ -104,13 +104,13 @@ fun MediaBrowser(entityId: String, client: HaClient, onClose: () -> Unit) {
 
             when {
                 items == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFF8FC0AA))
+                    CircularProgressIndicator(color = Color(0xFF8CBDB5))
                 }
                 error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(error!!, color = Color(0xFFE0A0A0), fontSize = 14.sp)
                 }
                 items!!.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Nothing here", color = Color(0xFFA4B7AF), fontSize = 14.sp)
+                    Text("Nothing here", color = Color(0xFFA9BAB6), fontSize = 14.sp)
                 }
                 else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     items(items!!) { item ->
@@ -149,9 +149,9 @@ private fun MediaRow(item: MediaItem, onClick: () -> Unit) {
             modifier = Modifier.weight(1f),
         )
         if (item.canExpand) {
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color(0xFFA4B7AF))
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color(0xFFA9BAB6))
         } else if (item.canPlay) {
-            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color(0xFF8FC0AA))
+            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color(0xFF8CBDB5))
         }
     }
 }
@@ -164,7 +164,7 @@ private fun IconBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, onCli
             .tap(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = Color(0xFFD3DED9))
+        Icon(icon, contentDescription = null, tint = Color(0xFFD9E3E0))
     }
 }
 

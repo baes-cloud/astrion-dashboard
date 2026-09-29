@@ -120,7 +120,7 @@ class ClimateCard : CardRenderer {
                     Icon(
                         Icons.Filled.PowerSettingsNew,
                         contentDescription = "Off",
-                        tint = if (isOff) Color(0xFFE06767) else Color(0xFFD3DED9),
+                        tint = if (isOff) Color(0xFFE06767) else Color(0xFFD9E3E0),
                     )
                 }
             }

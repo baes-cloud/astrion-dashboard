@@ -15,11 +15,11 @@ import androidx.compose.ui.unit.sp
  */
 object AstrionTheme {
 
-    // Palette: Porter's Paints card, 2026-09 — Explorer Blue #A4B7AF,
-    // Dark Newport Blue #86A194, Gunmetal Grey #56736F, Yacht Race #2F3E4C.
-    // Yacht Race is the base the surfaces are built from (darkened for the
-    // page, stepped up for cards and controls); the three greens carry text,
-    // accents and selected state.
+    // Palette: Porter's Paints, 2026-09 — Baby Doll #E6BCB6, Hailstorm #6E9E97,
+    // Gunmetal Grey #4F726D, Yacht Race #2F3E4C. Yacht Race is the base the
+    // surfaces are built from (darkened for the page, stepped up for cards and
+    // controls); Hailstorm and Gunmetal carry accents and selected state, Baby
+    // Doll is the warm accent (attention states, the next alarm, mute badge).
 
     // ---- surfaces -----------------------------------------------------------
     val pageBg = Color(0xFF1A232C)
@@ -44,22 +44,25 @@ object AstrionTheme {
 
     // ---- text ---------------------------------------------------------------
     val textPrimary = Color(0xFFEEF2EF)
-    /** Explorer Blue. */
-    val textSecondary = Color(0xFFA4B7AF)
-    val textOnControl = Color(0xFFD3DED9)
-    val textMuted = Color(0xFF6F8583)
+    val textSecondary = Color(0xFFA9BAB6)
+    val textOnControl = Color(0xFFD9E3E0)
+    val textMuted = Color(0xFF718583)
 
     // ---- state --------------------------------------------------------------
-    /** A lifted Dark Newport Blue, readable as text/icons on the dark cards. */
-    val accent = Color(0xFF8FC0AA)
+    /** Hailstorm, lifted to read as text/icons on the dark cards. */
+    val accent = Color(0xFF8CBDB5)
     /** Gunmetal Grey: selected chips and filled buttons under white text. */
-    val accentStrong = Color(0xFF4E6E69)
+    val accentStrong = Color(0xFF4F726D)
     /** "On" amber — lights stay warm; the palette has no warm colour. */
     val on = Color(0xFFFFC24B)
     val onBg = Color(0xFF241A00)
+    /** Baby Doll: the warm accent — "needs attention" (unlocked, open) and
+     *  the next alarm. Text/icons on it use [onBlush]. */
+    val blush = Color(0xFFE6BCB6)
+    val onBlush = Color(0xFF4A2A26)
     val danger = Color(0xFFE06767)
     val dangerBg = Color(0xFF3A2E2E)
-    val good = Color(0xFF86C0A6)
+    val good = Color(0xFF8CBDB5)
 
     /**
      * Unavailable / unknown. Deliberately a desaturated slate that is NOT the

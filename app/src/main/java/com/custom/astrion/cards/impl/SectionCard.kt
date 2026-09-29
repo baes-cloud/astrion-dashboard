@@ -24,7 +24,7 @@ class SectionCard : CardRenderer {
         val title = config.string("title") ?: return
         Text(
             title,
-            color = Color(0xFFA9BDB5),
+            color = Color(0xFFAEBFBB),
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.sp,

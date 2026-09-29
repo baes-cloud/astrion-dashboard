@@ -176,7 +176,7 @@ class ClockWeatherCard : CardRenderer {
                     if (showDate) {
                         Text(
                             dateFmt.format(Date(now)),
-                            color = if (dense) Color(0xFFEEF2EF) else Color(0xFFA4B7AF),
+                            color = if (dense) Color(0xFFEEF2EF) else Color(0xFFA9BAB6),
                             fontSize = if (dense) 15.sp else 13.sp,
                             fontWeight = if (dense) FontWeight.Medium else FontWeight.Normal,
                         )
@@ -200,7 +200,7 @@ class ClockWeatherCard : CardRenderer {
                     if (showDate) {
                         Text(
                             weatherLabel(condition),
-                            color = Color(0xFFA4B7AF),
+                            color = Color(0xFFA9BAB6),
                             // Was 11sp — about 15px tall at 220dpi, on the
                             // landing page, for the one line that says what the
                             // weather is.
@@ -428,12 +428,12 @@ class ClockWeatherCard : CardRenderer {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(f.day, color = Color(0xFFA4B7AF), fontSize = rowText, modifier = Modifier.width(40.dp))
+            Text(f.day, color = Color(0xFFA9BAB6), fontSize = rowText, modifier = Modifier.width(40.dp))
             Text(emojiFor(f.condition), fontSize = if (dense) 16.sp else 18.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.width(30.dp))
             Text(
                 f.low?.let { "${trim(it)}°" } ?: "",
-                color = Color(0xFFA4B7AF), fontSize = rowText, textAlign = TextAlign.End,
+                color = Color(0xFFA9BAB6), fontSize = rowText, textAlign = TextAlign.End,
                 modifier = Modifier.width(40.dp),
             )
             Spacer(Modifier.width(8.dp))

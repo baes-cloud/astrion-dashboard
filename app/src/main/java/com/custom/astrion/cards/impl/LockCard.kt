@@ -144,7 +144,7 @@ class LockCard : CardRenderer {
                         // it is being held open.
                         holdEntity != null -> if (keepUnlocked) AstrionTheme.danger else AstrionTheme.good
                         locked -> AstrionTheme.good
-                        else -> AstrionTheme.on
+                        else -> AstrionTheme.blush
                     },
                 )
             }
@@ -196,7 +196,7 @@ class LockCard : CardRenderer {
         val tint = when {
             moving -> AstrionTheme.textSecondary
             locked -> AstrionTheme.good
-            else -> AstrionTheme.on
+            else -> AstrionTheme.blush
         }
         Row(
             modifier = Modifier

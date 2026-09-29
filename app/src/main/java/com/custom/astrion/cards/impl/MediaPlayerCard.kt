@@ -341,7 +341,7 @@ class MediaPlayerCard : CardRenderer {
         val color = (a["color"] as? String)?.let { hex ->
             val h = hex.removePrefix("#")
             h.toLongOrNull(16)?.let { v -> if (h.length <= 6) Color(0xFF000000L or v) else Color(v) }
-        } ?: Color(0xFF93B3A6)
+        } ?: Color(0xFF98B5B0)
         val dim = a["dim"] as? Boolean ?: false
         val badge = a["badge"] as? String
         val hasIcon = a["icon"] is String
@@ -595,7 +595,7 @@ class MediaPlayerCard : CardRenderer {
                 Icon(
                     Icons.Filled.ArrowDropDown,
                     contentDescription = null,
-                    tint = if (sources.isEmpty()) Color(0xFF6F8583) else Color(0xFFD3DED9),
+                    tint = if (sources.isEmpty()) Color(0xFF718583) else Color(0xFFD9E3E0),
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -609,7 +609,7 @@ class MediaPlayerCard : CardRenderer {
                         text = {
                             Text(
                                 s,
-                                color = if (s == current) Color(0xFF8FC0AA) else Color(0xFFEEF2EF),
+                                color = if (s == current) Color(0xFF8CBDB5) else Color(0xFFEEF2EF),
                                 fontSize = 14.sp,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,

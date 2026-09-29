@@ -145,7 +145,7 @@ private data class Palette(val top: Color, val bottom: Color, val accent: Color,
 private fun paletteFor(severity: String): Palette = when (severity) {
     "alarm" -> Palette(Color(0xFF4A1119), Color(0xFF1C070B), Color(0xFFFF5A67), Color(0xFFE2404E), Color(0xFFA81F2D), Color.White)
     "warning" -> Palette(Color(0xFF3F2C0C), Color(0xFF1A1206), Color(0xFFFFB347), Color(0xFFF6C75A), Color(0xFFDC9A22), Color(0xFF3A2605))
-    else -> Palette(Color(0xFF27403E), Color(0xFF131B22), Color(0xFF9CCDB8), Color(0xFF9CCDB8), Color(0xFF56736F), Color(0xFF14211F))
+    else -> Palette(Color(0xFF27403E), Color(0xFF131B22), Color(0xFFA9D2CB), Color(0xFFA9D2CB), Color(0xFF4F726D), Color(0xFF14211F))
 }
 
 private fun iconFor(key: String?): ImageVector = when (key) {

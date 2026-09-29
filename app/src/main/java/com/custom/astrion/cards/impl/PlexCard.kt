@@ -254,7 +254,7 @@ class PlexCard : CardRenderer {
     private fun ShelfLabel(text: String) {
         Text(
             text,
-            color = Color(0xFFA9BDB5),
+            color = Color(0xFFAEBFBB),
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.sp,

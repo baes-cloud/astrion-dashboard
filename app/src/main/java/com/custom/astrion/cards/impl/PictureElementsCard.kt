@@ -462,8 +462,8 @@ class PictureElementsCard : CardRenderer {
         val divisor = (radar["units_per_metre"] as? Number)?.toFloat()
             ?: if ((radar["unit"] as? String)?.lowercase() == "mm") 1000f else 1f
         // Per-sensor dot colours so you can tell which radar a dot came from.
-        val fill = parseArgb(radar["color"] as? String) ?: Color(0xD94E6E69)
-        val accent = parseArgb(radar["accent_color"] as? String) ?: Color(0xFF86C0A6)
+        val fill = parseArgb(radar["color"] as? String) ?: Color(0xD94F726D)
+        val accent = parseArgb(radar["accent_color"] as? String) ?: Color(0xFF8CBDB5)
         val label = radar["label"] as? String ?: ""
 
         // Loop handles layout of children, but child states are read ONLY inside child scopes!

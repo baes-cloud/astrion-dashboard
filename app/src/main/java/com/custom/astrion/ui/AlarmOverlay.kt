@@ -90,7 +90,7 @@ private val NavyTop = Color(0xFF2F3E4C)
 private val NavyMid = Color(0xFF1D2A38)
 private val NavyBottom = Color(0xFF141D27)
 private val Dawn = Color(0xFFFFB347)
-private val Dusk = Color(0xFF8FC0AA)
+private val Dusk = Color(0xFF8CBDB5)
 private val Ink = Color(0xFFEEF2EF)
 private val InkSoft = Color(0xFFB5C6BF)
 private val InkFaint = Color(0xFF7F948E)
@@ -306,7 +306,7 @@ private fun ShiftCard(state: AlarmUiState) {
             modifier = Modifier
                 .size(38.dp)
                 .clip(RoundedCornerShape(11.dp))
-                .background(Color(0x338FC0AA)),
+                .background(Color(0x338CBDB5)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Filled.Event, contentDescription = null, tint = Dusk, modifier = Modifier.size(20.dp))

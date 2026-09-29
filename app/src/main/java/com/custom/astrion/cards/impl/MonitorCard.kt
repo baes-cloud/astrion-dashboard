@@ -74,7 +74,7 @@ class MonitorCard : CardRenderer {
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(name, color = Color(0xFFA4B7AF), fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Text(name, color = Color(0xFFA9BAB6), fontSize = 14.sp, modifier = Modifier.weight(1f))
                     Text(
                         if (rowUnavailable || unit.isBlank()) value else "$value $unit",
                         color = if (rowUnavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,

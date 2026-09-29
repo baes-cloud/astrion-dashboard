@@ -87,7 +87,7 @@ class LightGroupCard : CardRenderer {
 
     @Composable
     private fun SectionLabel(text: String) {
-        Text(text, color = Color(0xFFA9BDB5), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+        Text(text, color = Color(0xFFAEBFBB), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
     }
 
     /** Packs entries two-per-row, padding the final odd row so widths stay equal. */
@@ -135,7 +135,7 @@ class LightGroupCard : CardRenderer {
         // Uniform accent for every dimmable card — no per-light colour picking.
         val fillColor = Color(0xFFFFC24B)
         val iconBg = if (on) Color(0xFFFFC24B) else Color(0xFF3A4F57)
-        val iconTint = if (on) Color(0xFF241A00) else Color(0xFFA9BDB5)
+        val iconTint = if (on) Color(0xFF241A00) else Color(0xFFAEBFBB)
 
         Column(
             modifier = Modifier
@@ -166,7 +166,7 @@ class LightGroupCard : CardRenderer {
                         name, color = Color(0xFFF2F5F3), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
-                    Text(if (on) "${(dragLevel * 100).roundToInt()}%" else "Off", color = Color(0xFFA9BDB5), fontSize = 12.sp)
+                    Text(if (on) "${(dragLevel * 100).roundToInt()}%" else "Off", color = Color(0xFFAEBFBB), fontSize = 12.sp)
                 }
             }
             BoxWithConstraints(
@@ -246,14 +246,14 @@ class LightGroupCard : CardRenderer {
             ) {
                 Icon(
                     Icons.Filled.Lightbulb, contentDescription = null,
-                    tint = if (on) Color(0xFF241A00) else Color(0xFFA9BDB5),
+                    tint = if (on) Color(0xFF241A00) else Color(0xFFAEBFBB),
                     modifier = Modifier.size(15.dp),
                 )
             }
             Column(Modifier.weight(1f)) {
                 Text(name, color = Color(0xFFF2F5F3), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(if (on) "On" else "Off", color = Color(0xFFA9BDB5), fontSize = 11.sp)
+                Text(if (on) "On" else "Off", color = Color(0xFFAEBFBB), fontSize = 11.sp)
             }
             // Switch: matches the app's flat-toggle style used elsewhere.
             // Raised from 40×24dp — under 6mm tall at this density.

@@ -74,7 +74,7 @@ class ButtonGridCard : CardRenderer {
 
         Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
             if (title != null) {
-                Text(title, color = Color(0xFFA9BDB5), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                Text(title, color = Color(0xFFAEBFBB), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
             }
             buttons.chunked(columns).forEach { row ->
                 Row(
