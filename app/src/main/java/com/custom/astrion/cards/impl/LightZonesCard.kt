@@ -67,7 +67,7 @@ class LightZonesCard : CardRenderer {
                     ) {
                         Text(
                             title?.uppercase() ?: "",
-                            color = Color(0xFF9FBAC0),
+                            color = Color(0xFFA9BDB5),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             letterSpacing = 1.sp,
@@ -108,7 +108,7 @@ class LightZonesCard : CardRenderer {
                     .padding(start = if (on) 24.dp else 3.dp, top = 3.dp)
                     .size(26.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFF2F7F8)),
+                    .background(Color(0xFFF2F5F3)),
             )
         }
     }

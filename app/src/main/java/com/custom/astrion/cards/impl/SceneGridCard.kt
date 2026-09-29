@@ -87,14 +87,14 @@ class SceneGridCard : CardRenderer {
         fun nameOf(scene: Map<String, Any?>, entityId: String) =
             scene["name"] as? String ?: ctx.entities[entityId]?.friendlyName ?: entityId
         fun colorOf(scene: Map<String, Any?>): Color =
-            (scene["color"] as? String)?.let(::parseHexColor) ?: Color(0xFF2A4954)
+            (scene["color"] as? String)?.let(::parseHexColor) ?: Color(0xFF34454F)
         fun iconOf(scene: Map<String, Any?>): ImageVector? = sceneIcon(scene["icon"] as? String)
 
         if (title != null) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     title,
-                    color = Color(0xFF93AFB6),
+                    color = Color(0xFFA4B7AF),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.sp,
@@ -126,7 +126,7 @@ class SceneGridCard : CardRenderer {
         ) {
             scenes.forEach { scene ->
                 val entityId = scene["entity_id"] as? String ?: return@forEach
-                val color = (scene["color"] as? String)?.let(::parseHexColor) ?: Color(0xFF5BD6CF)
+                val color = (scene["color"] as? String)?.let(::parseHexColor) ?: Color(0xFF9CCDB8)
                 val name = scene["name"] as? String ?: ctx.entities[entityId]?.friendlyName ?: entityId
                 val isActive = entityId == active
                 val haptics = LocalHapticFeedback.current
@@ -134,7 +134,7 @@ class SceneGridCard : CardRenderer {
                     modifier = Modifier
                         .height(38.dp)
                         .clip(RoundedCornerShape(13.dp))
-                        .background(if (isActive) Color(0xFF1E3C3F) else Color(0xFF12282A))
+                        .background(if (isActive) Color(0xFF2A4240) else Color(0xFF1C2A2C))
                         .then(if (isActive) Modifier.background(color.copy(alpha = 0.10f)) else Modifier)
                         .then(
                             if (isActive) Modifier.border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(13.dp))
@@ -269,7 +269,7 @@ class SceneGridCard : CardRenderer {
     @Composable
     private fun SceneButton(name: String, color: Color, icon: ImageVector?, modifier: Modifier, onClick: () -> Unit) {
         // Dark text/icon on light tiles (e.g. the white scene), light otherwise.
-        val fg = if (luminance(color) > 0.75f) Color(0xFF141414) else Color(0xFFF0F2F6)
+        val fg = if (luminance(color) > 0.75f) Color(0xFF141414) else Color(0xFFEEF2EF)
         // Semi-transparent face (darker/faded over the band) plus a darker,
         // faded "lip" the raised face sits on — its thickness. Pressing sinks
         // the face onto the lip (a 3D press-in).

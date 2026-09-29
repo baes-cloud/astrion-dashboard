@@ -76,7 +76,7 @@ class VacuumCard : CardRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF1B343D))
+                .background(Color(0xFF243140))
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -131,9 +131,9 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
     }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(name, color = Color(0xFFE6F0F1), fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+        Text(name, color = Color(0xFFEEF2EF), fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f))
-        Text(prettyVacuumLabel(state), color = Color(0xFF93AFB6), fontSize = 13.sp)
+        Text(prettyVacuumLabel(state), color = Color(0xFFA4B7AF), fontSize = 13.sp)
     }
 
     // Map (includes the robot, rooms, path — rendered by the integration).
@@ -144,7 +144,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                 .fillMaxWidth()
                 .height(mapHeight.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF0E2229)),
+                .background(Color(0xFF151D25)),
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -174,28 +174,28 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF1E3841))
+                    .background(Color(0xFF283646))
                     .tap { fanExpanded = true }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Cleaning mode", color = Color(0xFF93AFB6), fontSize = 11.sp)
-                    Text(fanSpeed?.let(::prettyVacuumLabel) ?: "—", color = Color(0xFFE6F0F1), fontSize = 15.sp)
+                    Text("Cleaning mode", color = Color(0xFFA4B7AF), fontSize = 11.sp)
+                    Text(fanSpeed?.let(::prettyVacuumLabel) ?: "—", color = Color(0xFFEEF2EF), fontSize = 15.sp)
                 }
-                Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = Color(0xFFCBDCE0))
+                Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = Color(0xFFD3DED9))
             }
             DropdownMenu(
                 expanded = fanExpanded,
                 onDismissRequest = { fanExpanded = false },
-                modifier = Modifier.background(Color(0xFF1E3841)),
+                modifier = Modifier.background(Color(0xFF283646)),
             ) {
                 fanList.forEach { f ->
                     DropdownMenuItem(
                         text = {
                             Text(
                                 prettyVacuumLabel(f),
-                                color = if (f == fanSpeed) Color(0xFF6EA8FE) else Color(0xFFE6F0F1),
+                                color = if (f == fanSpeed) Color(0xFF8FC0AA) else Color(0xFFEEF2EF),
                                 fontSize = 14.sp,
                             )
                         },
@@ -226,11 +226,11 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                             .weight(1f)
                             .height(44.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF2A4954))
+                            .background(Color(0xFF34454F))
                             .tap(enabled = id != null) { id?.let { cleanSegment(it) } },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(label, color = Color(0xFFE6F0F1), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(label, color = Color(0xFFEEF2EF), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     }
                 }
                 repeat(3 - chunk.size) { Spacer(Modifier.weight(1f)) }
@@ -245,7 +245,7 @@ private fun VacuumCtrlBtn(icon: ImageVector, accent: Boolean = false, onClick: (
         modifier = Modifier
             .size(52.dp)
             .clip(CircleShape)
-            .background(if (accent) Color(0xFF4C6EF5) else Color(0xFF2C4C58))
+            .background(if (accent) Color(0xFF4E6E69) else Color(0xFF3A4F57))
             .tap(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

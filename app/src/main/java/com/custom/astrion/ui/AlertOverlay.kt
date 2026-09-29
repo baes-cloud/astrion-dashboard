@@ -145,7 +145,7 @@ private data class Palette(val top: Color, val bottom: Color, val accent: Color,
 private fun paletteFor(severity: String): Palette = when (severity) {
     "alarm" -> Palette(Color(0xFF4A1119), Color(0xFF1C070B), Color(0xFFFF5A67), Color(0xFFE2404E), Color(0xFFA81F2D), Color.White)
     "warning" -> Palette(Color(0xFF3F2C0C), Color(0xFF1A1206), Color(0xFFFFB347), Color(0xFFF6C75A), Color(0xFFDC9A22), Color(0xFF3A2605))
-    else -> Palette(Color(0xFF0F3A40), Color(0xFF071A1D), Color(0xFF5BD6CF), Color(0xFF5BD6CF), Color(0xFF2A9D96), Color(0xFF062624))
+    else -> Palette(Color(0xFF27403E), Color(0xFF131B22), Color(0xFF9CCDB8), Color(0xFF9CCDB8), Color(0xFF56736F), Color(0xFF14211F))
 }
 
 private fun iconFor(key: String?): ImageVector = when (key) {
@@ -184,7 +184,7 @@ fun AlertOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xF0040A10))
+            .background(Color(0xF00A0F14))
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
@@ -223,19 +223,19 @@ fun AlertOverlay(
             Spacer(Modifier.height(22.dp))
             Text(
                 spec.title,
-                color = Color(0xFFF3F6FA),
-                fontSize = 34.sp,
+                color = Color(0xFFEEF2EF),
+                fontFamily = AstrionTheme.headingFont, fontSize = 34.sp,
                 fontWeight = FontWeight.Light,
                 textAlign = TextAlign.Center,
                 lineHeight = 38.sp,
             )
             if (!message.isNullOrBlank()) {
                 Spacer(Modifier.height(10.dp))
-                Text(message, color = Color(0xFFC3CFDA), fontSize = 16.sp, textAlign = TextAlign.Center)
+                Text(message, color = Color(0xFFC8D4CF), fontSize = 16.sp, textAlign = TextAlign.Center)
             }
             if (moreCount > 0) {
                 Spacer(Modifier.height(10.dp))
-                Text("+$moreCount more", color = Color(0xFF8FA1B3), fontSize = 13.sp)
+                Text("+$moreCount more", color = Color(0xFF8FA39C), fontSize = 13.sp)
             }
             Spacer(Modifier.weight(1f))
 
@@ -256,7 +256,7 @@ fun AlertOverlay(
                 ) {
                     Text(
                         action.name,
-                        color = if (primary) p.ink else Color(0xFFE6EDF3),
+                        color = if (primary) p.ink else Color(0xFFE8EEEA),
                         fontSize = 19.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -266,7 +266,7 @@ fun AlertOverlay(
 
             Text(
                 "Hide",
-                color = Color(0xFFAFC0D2),
+                color = Color(0xFFB5C6BF),
                 fontSize = 15.sp,
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))

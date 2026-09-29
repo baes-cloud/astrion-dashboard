@@ -34,6 +34,9 @@ import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import com.custom.astrion.ui.AstrionTheme
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -313,85 +316,90 @@ class MainActivity : ComponentActivity() {
             ?.let { onBatteryChanged(it) }
 
         setContent {
-            val entities = client.entities.collectAsState()
-            val connection = client.connection.collectAsState()
-            // Overlays are stacked in the SAME window as the dashboard (not
-            // Dialogs) so this Activity keeps key focus and dispatchKeyEvent
-            // continues to fire while they're on screen.
-            Box(modifier = Modifier.fillMaxSize()) {
-                Dashboard(
-                    client = client,
-                    entitiesState = entities,
-                    connectionState = connection,
-                    config = dashboard.config,
-                    configNotice = dashboard.notice,
-                    navTarget = navTarget,
-                    onNavHandled = { navTarget = null },
-                )
-
-                // Docked screensaver: above the dashboard, below everything
-                // that must interrupt it (alarm, voice) — and those also
-                // dismiss it outright, see hideScreensaver's callers.
-                if (screensaverOn) {
-                    Screensaver(
-                        options = screensaverOptions(),
-                        entities = entities.value,
+            // Manrope everywhere by default; headings opt into Syne.
+            CompositionLocalProvider(
+                LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = AstrionTheme.bodyFont),
+            ) {
+                val entities = client.entities.collectAsState()
+                val connection = client.connection.collectAsState()
+                // Overlays are stacked in the SAME window as the dashboard (not
+                // Dialogs) so this Activity keeps key focus and dispatchKeyEvent
+                // continues to fire while they're on screen.
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Dashboard(
                         client = client,
-                        connected = connection.value == com.custom.astrion.ha.ConnectionState.CONNECTED,
-                        batteryPct = batteryPct,
-                        charging = charging,
+                        entitiesState = entities,
+                        connectionState = connection,
+                        config = dashboard.config,
+                        configNotice = dashboard.notice,
+                        navTarget = navTarget,
+                        onNavHandled = { navTarget = null },
+                    )
+
+                    // Docked screensaver: above the dashboard, below everything
+                    // that must interrupt it (alarm, voice) — and those also
+                    // dismiss it outright, see hideScreensaver's callers.
+                    if (screensaverOn) {
+                        Screensaver(
+                            options = screensaverOptions(),
+                            entities = entities.value,
+                            client = client,
+                            connected = connection.value == com.custom.astrion.ha.ConnectionState.CONNECTED,
+                            batteryPct = batteryPct,
+                            charging = charging,
+                        )
+                    }
+
+                    // IR Mode modal sits above the dashboard while active.
+                    if (irMode) {
+                        IrModeOverlay(
+                            options = irOptions(),
+                            client = client,
+                            blaster = irBlaster,
+                            lastKeyLabel = irLastKey,
+                            onClose = { irMode = false; irLastKey = null },
+                        )
+                    }
+
+                    // Configured alerts: above IR Mode, below the work alarm.
+                    val alarm = alarmUiState(entities.value)
+                    val alerts = activeAlerts(alertSpecs(), entities.value, alertNow)
+                        .filter { it.token !in hiddenAlerts }
+                    if (alerts.isNotEmpty() && (alarm == null || alarmHidden)) {
+                        val top = alerts.first()
+                        AlertOverlay(
+                            alert = top,
+                            moreCount = alerts.size - 1,
+                            nowMs = alertNow,
+                            onAction = { fireAlertAction(it) },
+                            onHide = { hiddenAlerts = hiddenAlerts + top.token },
+                        )
+                    }
+
+                    // Work alarm: above the dashboard and IR Mode, since it's the
+                    // one overlay that must not be missed.
+                    if (alarm != null && !alarmHidden) {
+                        AlarmOverlay(
+                            state = alarm,
+                            onSnooze = { fireAlarmAction("snooze") },
+                            onDismiss = { fireAlarmAction("stop") },
+                            onHide = { alarmHidden = true },
+                        )
+                    }
+
+                    // Voice modal, driven by the session's own state machine.
+                    val voiceState = voice.state.collectAsState().value
+                    VoiceOverlay(
+                        state = voiceState,
+                        imageDir = voiceImageDir(),
+                        onDismiss = {
+                            if (voiceState.phase == VoicePhase.LISTENING) voice.stopListening()
+                            else voice.cancel()
+                        },
                     )
                 }
-
-                // IR Mode modal sits above the dashboard while active.
-                if (irMode) {
-                    IrModeOverlay(
-                        options = irOptions(),
-                        client = client,
-                        blaster = irBlaster,
-                        lastKeyLabel = irLastKey,
-                        onClose = { irMode = false; irLastKey = null },
-                    )
-                }
-
-                // Configured alerts: above IR Mode, below the work alarm.
-                val alarm = alarmUiState(entities.value)
-                val alerts = activeAlerts(alertSpecs(), entities.value, alertNow)
-                    .filter { it.token !in hiddenAlerts }
-                if (alerts.isNotEmpty() && (alarm == null || alarmHidden)) {
-                    val top = alerts.first()
-                    AlertOverlay(
-                        alert = top,
-                        moreCount = alerts.size - 1,
-                        nowMs = alertNow,
-                        onAction = { fireAlertAction(it) },
-                        onHide = { hiddenAlerts = hiddenAlerts + top.token },
-                    )
-                }
-
-                // Work alarm: above the dashboard and IR Mode, since it's the
-                // one overlay that must not be missed.
-                if (alarm != null && !alarmHidden) {
-                    AlarmOverlay(
-                        state = alarm,
-                        onSnooze = { fireAlarmAction("snooze") },
-                        onDismiss = { fireAlarmAction("stop") },
-                        onHide = { alarmHidden = true },
-                    )
-                }
-
-                // Voice modal, driven by the session's own state machine.
-                val voiceState = voice.state.collectAsState().value
-                VoiceOverlay(
-                    state = voiceState,
-                    imageDir = voiceImageDir(),
-                    onDismiss = {
-                        if (voiceState.phase == VoicePhase.LISTENING) voice.stopListening()
-                        else voice.cancel()
-                    },
-                )
-            }
-        }
+                    }
+}
     }
 
     override fun onResume() {

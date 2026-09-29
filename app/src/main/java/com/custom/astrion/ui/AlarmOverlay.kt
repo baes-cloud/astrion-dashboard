@@ -86,14 +86,14 @@ data class AlarmUiState(
 
 // This screen's own palette. Deep night navy, one warm dawn light, and the two
 // buttons as the only saturated things on it.
-private val NavyTop = Color(0xFF16345A)
-private val NavyMid = Color(0xFF10284A)
-private val NavyBottom = Color(0xFF0A1A31)
+private val NavyTop = Color(0xFF2F3E4C)
+private val NavyMid = Color(0xFF1D2A38)
+private val NavyBottom = Color(0xFF141D27)
 private val Dawn = Color(0xFFFFB347)
-private val Dusk = Color(0xFF6EA8FE)
-private val Ink = Color(0xFFF3F6FA)
-private val InkSoft = Color(0xFFAFC0D2)
-private val InkFaint = Color(0xFF7F93A9)
+private val Dusk = Color(0xFF8FC0AA)
+private val Ink = Color(0xFFEEF2EF)
+private val InkSoft = Color(0xFFB5C6BF)
+private val InkFaint = Color(0xFF7F948E)
 private val GoldHi = Color(0xFFF6C75A)
 private val GoldLo = Color(0xFFDC9A22)
 private val GoldInk = Color(0xFF3A2605)
@@ -144,7 +144,7 @@ fun AlarmOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xF0040A10))
+            .background(Color(0xF00A0F14))
             // Swallow taps on the scrim so nothing underneath is hit by mistake.
             .clickable(
                 indication = null,
@@ -189,7 +189,7 @@ fun AlarmOverlay(
                 Text(
                     timeFmt.format(Date(now)),
                     color = Ink,
-                    fontSize = 88.sp,
+                    fontFamily = AstrionTheme.headingFont, fontSize = 88.sp,
                     fontWeight = FontWeight.ExtraLight,
                     modifier = Modifier.alignByBaseline(),
                 )
@@ -197,7 +197,7 @@ fun AlarmOverlay(
                 Text(
                     ampmFmt.format(Date(now)),
                     color = InkSoft,
-                    fontSize = 28.sp,
+                    fontFamily = AstrionTheme.headingFont, fontSize = 28.sp,
                     fontWeight = FontWeight.Light,
                     modifier = Modifier.alignByBaseline(),
                 )
@@ -306,7 +306,7 @@ private fun ShiftCard(state: AlarmUiState) {
             modifier = Modifier
                 .size(38.dp)
                 .clip(RoundedCornerShape(11.dp))
-                .background(Color(0x336EA8FE)),
+                .background(Color(0x338FC0AA)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Filled.Event, contentDescription = null, tint = Dusk, modifier = Modifier.size(20.dp))
@@ -353,7 +353,7 @@ private fun SnoozeRing(endsMs: Long, totalMs: Long, nowMs: Long) {
             )
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("%d:%02d".format(secs / 60, secs % 60), color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Light)
+            Text("%d:%02d".format(secs / 60, secs % 60), color = Ink, fontFamily = AstrionTheme.headingFont, fontSize = 28.sp, fontWeight = FontWeight.Light)
             Text("BACK IN", color = InkFaint, fontSize = 10.sp, letterSpacing = 2.sp)
         }
     }

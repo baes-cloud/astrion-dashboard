@@ -104,7 +104,7 @@ class TvRemoteCard : CardRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF1B343D))
+                .background(Color(0xFF243140))
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -114,7 +114,7 @@ class TvRemoteCard : CardRenderer {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(name, color = Color(0xFFE6F0F1), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(name, color = Color(0xFFEEF2EF), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 RoundIconButton(Icons.Filled.PowerSettingsNew, tint = Color(0xFFE06767)) {
                     send(c("power", "POWER"))
                 }
@@ -163,11 +163,11 @@ class TvRemoteCard : CardRenderer {
             modifier = modifier
                 .height(48.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF2C4C58))
+                .background(Color(0xFF3A4F57))
                 .tap(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Text(label, color = Color(0xFFE6F0F1), fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(label, color = Color(0xFFEEF2EF), fontSize = 15.sp, fontWeight = FontWeight.Medium)
         }
     }
 
@@ -193,7 +193,7 @@ class TvRemoteCard : CardRenderer {
                 .fillMaxWidth()
                 .height(180.dp)
                 .clip(RoundedCornerShape(90.dp))
-                .background(Color(0xFF23414B)),
+                .background(Color(0xFF2C3B45)),
             contentAlignment = Alignment.Center,
         ) {
             // Up
@@ -217,7 +217,7 @@ class TvRemoteCard : CardRenderer {
                 modifier = Modifier
                     .size(64.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF33525E))
+                    .background(Color(0xFF42565E))
                     .tap(onClick = onCenter),
                 contentAlignment = Alignment.Center,
             ) {
@@ -229,14 +229,14 @@ class TvRemoteCard : CardRenderer {
     @Composable
     private fun RoundIconButton(
         icon: ImageVector,
-        tint: Color = Color(0xFFCBDCE0),
+        tint: Color = Color(0xFFD3DED9),
         onClick: () -> Unit,
     ) {
         Box(
             modifier = Modifier
                 .size(52.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF2C4C58))
+                .background(Color(0xFF3A4F57))
                 .tap(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {

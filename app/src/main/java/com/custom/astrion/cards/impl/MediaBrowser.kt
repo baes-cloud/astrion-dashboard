@@ -80,7 +80,7 @@ fun MediaBrowser(entityId: String, client: HaClient, onClose: () -> Unit) {
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f)
                 .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1B343D))
+                .background(Color(0xFF243140))
                 .padding(12.dp),
         ) {
             // Header: back (when nested), title, close.
@@ -91,7 +91,7 @@ fun MediaBrowser(entityId: String, client: HaClient, onClose: () -> Unit) {
                 }
                 Text(
                     title,
-                    color = Color(0xFFE6F0F1),
+                    color = Color(0xFFEEF2EF),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -104,13 +104,13 @@ fun MediaBrowser(entityId: String, client: HaClient, onClose: () -> Unit) {
 
             when {
                 items == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFF6EA8FE))
+                    CircularProgressIndicator(color = Color(0xFF8FC0AA))
                 }
                 error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(error!!, color = Color(0xFFE0A0A0), fontSize = 14.sp)
                 }
                 items!!.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Nothing here", color = Color(0xFF93AFB6), fontSize = 14.sp)
+                    Text("Nothing here", color = Color(0xFFA4B7AF), fontSize = 14.sp)
                 }
                 else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     items(items!!) { item ->
@@ -142,16 +142,16 @@ private fun MediaRow(item: MediaItem, onClick: () -> Unit) {
     ) {
         Text(
             item.title,
-            color = Color(0xFFE6F0F1),
+            color = Color(0xFFEEF2EF),
             fontSize = 15.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
         if (item.canExpand) {
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color(0xFF93AFB6))
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color(0xFFA4B7AF))
         } else if (item.canPlay) {
-            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color(0xFF6EA8FE))
+            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color(0xFF8FC0AA))
         }
     }
 }
@@ -164,7 +164,7 @@ private fun IconBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, onCli
             .tap(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = Color(0xFFCBDCE0))
+        Icon(icon, contentDescription = null, tint = Color(0xFFD3DED9))
     }
 }
 

@@ -1,5 +1,6 @@
 package com.custom.astrion.cards.impl
 
+import com.custom.astrion.ui.AstrionTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -94,18 +95,18 @@ fun LightDetailDialog(
         Column(
             modifier = Modifier
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF1B343D))
+                .background(Color(0xFF243140))
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
                 "${(dragLevel * 100).roundToInt()}%",
-                color = Color(0xFFE6F0F1),
-                fontSize = 26.sp,
+                color = Color(0xFFEEF2EF),
+                fontFamily = AstrionTheme.headingFont, fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
             )
-            Text(name, color = Color(0xFF93AFB6), fontSize = 13.sp)
+            Text(name, color = Color(0xFFA4B7AF), fontSize = 13.sp)
 
             // Vertical brightness pill: drag or tap to set; fill rises from the bottom.
             Box(
@@ -113,7 +114,7 @@ fun LightDetailDialog(
                     .width(120.dp)
                     .height(230.dp)
                     .clip(RoundedCornerShape(30.dp))
-                    .background(Color(0xFF152B33))
+                    .background(Color(0xFF1C2630))
                     .pointerInput(entityId) {
                         detectVerticalDragGestures(
                             onDragEnd = { commit(dragLevel) },
@@ -143,14 +144,14 @@ fun LightDetailDialog(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(if (on) Color(0xFFFFC24B) else Color(0xFF2C4C58))
+                    .background(if (on) Color(0xFFFFC24B) else Color(0xFF3A4F57))
                     .tap { client.toggle(entityId) },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Filled.PowerSettingsNew,
                     contentDescription = "Toggle",
-                    tint = if (on) Color(0xFF241A00) else Color(0xFFCBDCE0),
+                    tint = if (on) Color(0xFF241A00) else Color(0xFFD3DED9),
                 )
             }
 
@@ -184,11 +185,11 @@ fun LightDetailDialog(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF23414B))
+                                .background(Color(0xFF2C3B45))
                                 .tap { setKelvin(k) }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                         ) {
-                            Text(label, color = Color(0xFFCBDCE0), fontSize = 12.sp)
+                            Text(label, color = Color(0xFFD3DED9), fontSize = 12.sp)
                         }
                     }
                 }

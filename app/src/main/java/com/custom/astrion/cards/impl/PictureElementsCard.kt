@@ -111,7 +111,7 @@ class PictureElementsCard : CardRenderer {
                 .then(if (config.bool("flush")) Modifier else Modifier.clip(RoundedCornerShape(18.dp)))
                 // Flush inside a stack, any letterbox margin shows the card's
                 // own fill, so it reads as spacing rather than black bars.
-                .then(if (config.bool("flush")) Modifier else Modifier.background(Color(0xFF0E1116))),
+                .then(if (config.bool("flush")) Modifier else Modifier.background(Color(0xFF12181E))),
             contentAlignment = Alignment.Center,
         ) {
             // Where the plan is actually drawn — every icon, radar dot and the
@@ -219,7 +219,7 @@ class PictureElementsCard : CardRenderer {
                 val tint = when {
                     elUnavailable -> Color(0xFFC98A8A)
                     on -> Color(0xFFFFD37A)
-                    else -> Color(0xFFE8ECF2)
+                    else -> Color(0xFFEEF2EF)
                 }
                 val icon = when {
                     isPower -> Icons.Filled.PowerSettingsNew
@@ -308,7 +308,7 @@ class PictureElementsCard : CardRenderer {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xFF1B343D))
+                            .background(Color(0xFF243140))
                             .padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
@@ -377,7 +377,7 @@ class PictureElementsCard : CardRenderer {
             modifier = modifier
                 .height(40.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color(0xD90C1A1D))
+                .background(Color(0xD9141C24))
                 .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(14.dp)),
             contentAlignment = Alignment.Center,
         ) {
@@ -388,7 +388,7 @@ class PictureElementsCard : CardRenderer {
 
     @Composable
     private fun RoboVacIcon(vac: Dp, docked: Boolean, moving: Boolean) {
-        val body = Color(0xFF3A4A52)
+        val body = Color(0xFF3A4B55)
         val bump = Color(0xFF7B8C96)
 
         if (docked) {
@@ -399,7 +399,7 @@ class PictureElementsCard : CardRenderer {
                         .fillMaxWidth()
                         .height(vac * 0.5f)
                         .clip(RoundedCornerShape(5.dp))
-                        .background(Color(0xFF1E262C)),
+                        .background(Color(0xFF1E2830)),
                 )
                 VacBody(vac * 0.92f, body, bump, Modifier.align(Alignment.BottomCenter))
             }
@@ -462,8 +462,8 @@ class PictureElementsCard : CardRenderer {
         val divisor = (radar["units_per_metre"] as? Number)?.toFloat()
             ?: if ((radar["unit"] as? String)?.lowercase() == "mm") 1000f else 1f
         // Per-sensor dot colours so you can tell which radar a dot came from.
-        val fill = parseArgb(radar["color"] as? String) ?: Color(0xD9155E6E)
-        val accent = parseArgb(radar["accent_color"] as? String) ?: Color(0xFF33CBDA)
+        val fill = parseArgb(radar["color"] as? String) ?: Color(0xD94E6E69)
+        val accent = parseArgb(radar["accent_color"] as? String) ?: Color(0xFF86C0A6)
         val label = radar["label"] as? String ?: ""
 
         // Loop handles layout of children, but child states are read ONLY inside child scopes!
@@ -558,7 +558,7 @@ class PictureElementsCard : CardRenderer {
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Text("$label$id", color = Color(0xFFDCF1F4), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("$label$id", color = Color(0xFFE0EEE8), fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 

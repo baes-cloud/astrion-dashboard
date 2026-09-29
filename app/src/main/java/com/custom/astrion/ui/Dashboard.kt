@@ -196,7 +196,7 @@ private fun ConnectionBanner(connectionState: State<ConnectionState>) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xCC1B343D))
+                    .background(Color(0xCC243140))
                     .padding(horizontal = 10.dp, vertical = 3.dp),
             ) {
                 Text("Connecting…", color = AstrionTheme.textSecondary, fontSize = 11.sp)

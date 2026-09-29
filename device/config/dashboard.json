@@ -312,8 +312,8 @@
            "flip_x": false,
            "flip_y": false,
            "blend": "overlay",
-           "color": "#D9155E6E",
-           "accent_color": "#FF33CBDA"
+           "color": "#D94E6E69",
+           "accent_color": "#FF9CCDB8"
           },
           {
            "prefix": "sensor.ld2450_tracker_target",

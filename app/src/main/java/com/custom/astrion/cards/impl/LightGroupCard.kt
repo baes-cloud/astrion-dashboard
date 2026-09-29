@@ -87,7 +87,7 @@ class LightGroupCard : CardRenderer {
 
     @Composable
     private fun SectionLabel(text: String) {
-        Text(text, color = Color(0xFF9FBAC0), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+        Text(text, color = Color(0xFFA9BDB5), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
     }
 
     /** Packs entries two-per-row, padding the final odd row so widths stay equal. */
@@ -134,14 +134,14 @@ class LightGroupCard : CardRenderer {
 
         // Uniform accent for every dimmable card — no per-light colour picking.
         val fillColor = Color(0xFFFFC24B)
-        val iconBg = if (on) Color(0xFFFFC24B) else Color(0xFF2C4D59)
-        val iconTint = if (on) Color(0xFF241A00) else Color(0xFF9FBAC0)
+        val iconBg = if (on) Color(0xFFFFC24B) else Color(0xFF3A4F57)
+        val iconTint = if (on) Color(0xFF241A00) else Color(0xFFA9BDB5)
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1C3740))
+                .background(Color(0xFF263443))
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -163,10 +163,10 @@ class LightGroupCard : CardRenderer {
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
-                        name, color = Color(0xFFF3F8F9), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        name, color = Color(0xFFF2F5F3), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
-                    Text(if (on) "${(dragLevel * 100).roundToInt()}%" else "Off", color = Color(0xFF9FBAC0), fontSize = 12.sp)
+                    Text(if (on) "${(dragLevel * 100).roundToInt()}%" else "Off", color = Color(0xFFA9BDB5), fontSize = 12.sp)
                 }
             }
             BoxWithConstraints(
@@ -191,7 +191,7 @@ class LightGroupCard : CardRenderer {
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(17.dp))
-                        .background(Color(0xFF2C4D59)),
+                        .background(Color(0xFF3A4F57)),
                 ) {
                     if (on) {
                         Box(
@@ -210,7 +210,7 @@ class LightGroupCard : CardRenderer {
                         .padding(start = thumbX)
                         .size(thumbSize)
                         .clip(CircleShape)
-                        .background(Color(0xFFF2F7F8)),
+                        .background(Color(0xFFF2F5F3)),
                 )
             }
         }
@@ -231,7 +231,7 @@ class LightGroupCard : CardRenderer {
                 .fillMaxWidth()
                 .height(58.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF1C3740))
+                .background(Color(0xFF263443))
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -240,20 +240,20 @@ class LightGroupCard : CardRenderer {
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(if (on) Color(0xFFFFC24B) else Color(0xFF2C4D59))
+                    .background(if (on) Color(0xFFFFC24B) else Color(0xFF3A4F57))
                     .tap { ctx.client.toggle(entityId) },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Filled.Lightbulb, contentDescription = null,
-                    tint = if (on) Color(0xFF241A00) else Color(0xFF9FBAC0),
+                    tint = if (on) Color(0xFF241A00) else Color(0xFFA9BDB5),
                     modifier = Modifier.size(15.dp),
                 )
             }
             Column(Modifier.weight(1f)) {
-                Text(name, color = Color(0xFFF3F8F9), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                Text(name, color = Color(0xFFF2F5F3), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(if (on) "On" else "Off", color = Color(0xFF9FBAC0), fontSize = 11.sp)
+                Text(if (on) "On" else "Off", color = Color(0xFFA9BDB5), fontSize = 11.sp)
             }
             // Switch: matches the app's flat-toggle style used elsewhere.
             // Raised from 40×24dp — under 6mm tall at this density.
@@ -269,7 +269,7 @@ class LightGroupCard : CardRenderer {
                         .padding(start = if (on) 23.dp else 3.dp, top = 3.dp)
                         .size(24.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFF2F7F8)),
+                        .background(Color(0xFFF2F5F3)),
                 )
             }
         }

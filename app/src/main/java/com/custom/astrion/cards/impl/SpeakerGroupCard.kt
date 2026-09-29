@@ -336,7 +336,7 @@ class SpeakerGroupCard : CardRenderer {
                     modifier = Modifier
                         .fillMaxWidth(level.coerceIn(0f, 1f).coerceAtLeast(0.02f))
                         .fillMaxHeight()
-                        .background(if (muted) Color(0xFF5A7783) else AstrionTheme.good),
+                        .background(if (muted) Color(0xFF6F8583) else AstrionTheme.good),
                 )
             }
         }

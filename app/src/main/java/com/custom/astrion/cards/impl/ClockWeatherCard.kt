@@ -124,7 +124,7 @@ class ClockWeatherCard : CardRenderer {
                 // of the page background, like the header above it.
                 .then(
                     if (bare) Modifier
-                    else Modifier.clip(RoundedCornerShape(18.dp)).background(Color(0xFF1B343D))
+                    else Modifier.clip(RoundedCornerShape(18.dp)).background(Color(0xFF243140))
                 ),
         ) {
             // Oversized, very faint condition glyph as a watermark behind the
@@ -165,8 +165,8 @@ class ClockWeatherCard : CardRenderer {
                     if (showTime) {
                         Text(
                             timeFmt.format(Date(now)),
-                            color = Color(0xFFF2F5FA),
-                            fontSize = 32.sp,
+                            color = Color(0xFFEEF2EF),
+                            fontFamily = AstrionTheme.headingFont, fontSize = 32.sp,
                             fontWeight = FontWeight.Light,
                         )
                     }
@@ -176,7 +176,7 @@ class ClockWeatherCard : CardRenderer {
                     if (showDate) {
                         Text(
                             dateFmt.format(Date(now)),
-                            color = if (dense) Color(0xFFF2F5FA) else Color(0xFF9AB0C4),
+                            color = if (dense) Color(0xFFEEF2EF) else Color(0xFFA4B7AF),
                             fontSize = if (dense) 15.sp else 13.sp,
                             fontWeight = if (dense) FontWeight.Medium else FontWeight.Normal,
                         )
@@ -184,7 +184,7 @@ class ClockWeatherCard : CardRenderer {
                         // Condition takes over as this column's headline.
                         Text(
                             weatherLabel(condition),
-                            color = Color(0xFFF2F5FA),
+                            color = Color(0xFFEEF2EF),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium,
                         )
@@ -193,14 +193,14 @@ class ClockWeatherCard : CardRenderer {
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         temp?.let { "${trim(it)}°" } ?: "—",
-                        color = Color(0xFFF2F5FA),
+                        color = Color(0xFFEEF2EF),
                         fontSize = if (dense) 17.sp else 22.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                     if (showDate) {
                         Text(
                             weatherLabel(condition),
-                            color = Color(0xFF9AB0C4),
+                            color = Color(0xFFA4B7AF),
                             // Was 11sp — about 15px tall at 220dpi, on the
                             // landing page, for the one line that says what the
                             // weather is.
@@ -304,7 +304,7 @@ class ClockWeatherCard : CardRenderer {
                     Text(
                         temp?.let { "${whole(it)}°" } ?: "—",
                         color = AstrionTheme.textPrimary,
-                        fontSize = 30.sp,
+                        fontFamily = AstrionTheme.headingFont, fontSize = 30.sp,
                         fontWeight = FontWeight.Light,
                         maxLines = 1,
                     )
@@ -395,7 +395,7 @@ class ClockWeatherCard : CardRenderer {
                     .weight(1f)
                     .height(5.dp)
                     .clip(RoundedCornerShape(3.dp))
-                    .background(Color(0xFF2C3E4E)),
+                    .background(Color(0xFF323F4C)),
             ) {
                 Row(Modifier.matchParentSize()) {
                     Spacer(Modifier.weight(lowFrac.coerceAtLeast(0.001f)))
@@ -428,12 +428,12 @@ class ClockWeatherCard : CardRenderer {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(f.day, color = Color(0xFF9AB0C4), fontSize = rowText, modifier = Modifier.width(40.dp))
+            Text(f.day, color = Color(0xFFA4B7AF), fontSize = rowText, modifier = Modifier.width(40.dp))
             Text(emojiFor(f.condition), fontSize = if (dense) 16.sp else 18.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.width(30.dp))
             Text(
                 f.low?.let { "${trim(it)}°" } ?: "",
-                color = Color(0xFF9AB0C4), fontSize = rowText, textAlign = TextAlign.End,
+                color = Color(0xFFA4B7AF), fontSize = rowText, textAlign = TextAlign.End,
                 modifier = Modifier.width(40.dp),
             )
             Spacer(Modifier.width(8.dp))
@@ -443,7 +443,7 @@ class ClockWeatherCard : CardRenderer {
                     .weight(1f)
                     .height(if (dense) 7.dp else 8.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFF2C3E4E)),
+                    .background(Color(0xFF323F4C)),
             ) {
                 Row(Modifier.matchParentSize()) {
                     Spacer(Modifier.weight(lowFrac.coerceAtLeast(0.001f)))
@@ -464,7 +464,7 @@ class ClockWeatherCard : CardRenderer {
             Spacer(Modifier.width(8.dp))
             Text(
                 f.high?.let { "${trim(it)}°" } ?: "",
-                color = Color(0xFFF2F5FA), fontSize = rowText, fontWeight = FontWeight.Medium,
+                color = Color(0xFFEEF2EF), fontSize = rowText, fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.End, modifier = Modifier.width(40.dp),
             )
         }

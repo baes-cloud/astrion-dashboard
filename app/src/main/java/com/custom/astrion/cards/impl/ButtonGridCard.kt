@@ -74,7 +74,7 @@ class ButtonGridCard : CardRenderer {
 
         Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
             if (title != null) {
-                Text(title, color = Color(0xFF9FBAC0), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                Text(title, color = Color(0xFFA9BDB5), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
             }
             buttons.chunked(columns).forEach { row ->
                 Row(
@@ -119,8 +119,8 @@ class ButtonGridCard : CardRenderer {
         val hasIcon = bitmap != null
         val tileColor = (b["color"] as? String)?.let(::parseHexColor)
         val inkColor = (b["text_color"] as? String)?.let(::parseHexColor)
-            ?: tileColor?.let { if (0.2126f * it.red + 0.7152f * it.green + 0.0722f * it.blue > 0.6f) Color(0xFF14181A) else Color.White }
-            ?: Color(0xFFE6F0F1)
+            ?: tileColor?.let { if (0.2126f * it.red + 0.7152f * it.green + 0.0722f * it.blue > 0.6f) Color(0xFF151B21) else Color.White }
+            ?: Color(0xFFEEF2EF)
 
         val height = tileHeight ?: if (hasIcon) 68.dp else 48.dp
         val glyph = iconSize ?: 32.dp

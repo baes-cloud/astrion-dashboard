@@ -160,7 +160,7 @@ class MediaPlayerCard : CardRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF1B343D)),
+                .background(Color(0xFF243140)),
         ) {
             // Blurred album art background + scrim for legibility.
             blurredBg?.let { bg ->
@@ -170,7 +170,7 @@ class MediaPlayerCard : CardRenderer {
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.Crop,
                 )
-                Box(modifier = Modifier.matchParentSize().background(Color(0xB30D1E24)))
+                Box(modifier = Modifier.matchParentSize().background(Color(0xB3151D25)))
             }
 
             if (config.string("variant") == "tv") {
@@ -265,7 +265,7 @@ class MediaPlayerCard : CardRenderer {
                     Image(hero, null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
                 } else {
                     Icon(
-                        Icons.Filled.Movie, contentDescription = null, tint = Color(0xFF44606C),
+                        Icons.Filled.Movie, contentDescription = null, tint = Color(0xFF506763),
                         modifier = Modifier.size(56.dp).align(Alignment.Center),
                     )
                 }
@@ -276,22 +276,22 @@ class MediaPlayerCard : CardRenderer {
                         .background(
                             androidx.compose.ui.graphics.Brush.verticalGradient(
                                 0.45f to Color.Transparent,
-                                1f to Color(0xE60A1719),
+                                1f to Color(0xE6121920),
                             )
                         )
                 )
                 Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 14.dp, vertical = 12.dp)) {
                     Text(
-                        title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                        title, color = Color.White, fontFamily = AstrionTheme.headingFont, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             Modifier.size(7.dp).clip(CircleShape)
-                                .background(if (on) AstrionTheme.good else Color(0xFF6B7F86))
+                                .background(if (on) AstrionTheme.good else Color(0xFF748884))
                         )
                         Spacer(Modifier.width(6.dp))
-                        Text(status, color = Color(0xFFC9D6DA), fontSize = 13.sp, maxLines = 1)
+                        Text(status, color = Color(0xFFCFDBD6), fontSize = 13.sp, maxLines = 1)
                     }
                 }
             }
@@ -330,7 +330,7 @@ class MediaPlayerCard : CardRenderer {
                 .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = description, tint = Color(0xFFA9BCC1), modifier = Modifier.size(26.dp))
+            Icon(icon, contentDescription = description, tint = Color(0xFFB0C2BB), modifier = Modifier.size(26.dp))
         }
     }
 
@@ -341,7 +341,7 @@ class MediaPlayerCard : CardRenderer {
         val color = (a["color"] as? String)?.let { hex ->
             val h = hex.removePrefix("#")
             h.toLongOrNull(16)?.let { v -> if (h.length <= 6) Color(0xFF000000L or v) else Color(v) }
-        } ?: Color(0xFF8FB3BA)
+        } ?: Color(0xFF93B3A6)
         val dim = a["dim"] as? Boolean ?: false
         val badge = a["badge"] as? String
         val hasIcon = a["icon"] is String
@@ -349,7 +349,7 @@ class MediaPlayerCard : CardRenderer {
             modifier = modifier
                 .height(if (hasIcon) 44.dp else 76.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0x55102326))
+                .background(Color(0x55161F28))
                 .tap(enabled = enabled, onClick = onClick)
                 .padding(if (hasIcon) 3.dp else 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -375,7 +375,7 @@ class MediaPlayerCard : CardRenderer {
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    name.uppercase(), color = Color(0xFF9FB3B8).copy(alpha = alpha), fontSize = 11.sp,
+                    name.uppercase(), color = Color(0xFFA6B8B1).copy(alpha = alpha), fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, maxLines = 1,
                 )
             } else {
@@ -426,9 +426,9 @@ class MediaPlayerCard : CardRenderer {
                 Box(artMod.background(Color(0xFF3A2E5A)))
             }
             Column(Modifier.weight(1f)) {
-                Text(title, color = Color(0xFFF1F4FA), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                Text(title, color = Color(0xFFEEF2EF), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(artist, color = Color(0xFFB6BECC), fontSize = AstrionTheme.label,
+                Text(artist, color = Color(0xFFBCC6C1), fontSize = AstrionTheme.label,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             CircleControl(
@@ -484,13 +484,13 @@ class MediaPlayerCard : CardRenderer {
                                 .weight(1f)
                                 .height(44.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0x662C4C58)) // semi-transparent
+                                .background(Color(0x663A4F57)) // semi-transparent
                                 .tap(enabled = enabled) { fireService(ctx, b) },
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
                                 b["name"] as? String ?: "",
-                                color = Color(0xFFE6F0F1),
+                                color = Color(0xFFEEF2EF),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium,
                             )
@@ -512,7 +512,7 @@ class MediaPlayerCard : CardRenderer {
                     Icon(
                         Icons.Filled.Movie,
                         contentDescription = "Nothing playing",
-                        tint = Color(0xFF44606C),
+                        tint = Color(0xFF506763),
                         modifier = Modifier.size(56.dp),
                     )
                 }
@@ -522,10 +522,10 @@ class MediaPlayerCard : CardRenderer {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(title, color = Color(0xFFF1F4FA), fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                Text(title, color = Color(0xFFEEF2EF), fontFamily = AstrionTheme.headingFont, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                     maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth())
-                Text(artist, color = Color(0xFFB6BECC), fontSize = 14.sp,
+                Text(artist, color = Color(0xFFBCC6C1), fontSize = 14.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth())
             }
@@ -579,14 +579,14 @@ class MediaPlayerCard : CardRenderer {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0x662C4C58))
+                    .background(Color(0x663A4F57))
                     .tap(enabled = sources.isNotEmpty()) { expanded = true }
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     current ?: if (sources.isEmpty()) "No sources" else "Select source…",
-                    color = Color(0xFFE6F0F1),
+                    color = Color(0xFFEEF2EF),
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -595,21 +595,21 @@ class MediaPlayerCard : CardRenderer {
                 Icon(
                     Icons.Filled.ArrowDropDown,
                     contentDescription = null,
-                    tint = if (sources.isEmpty()) Color(0xFF5A7783) else Color(0xFFCBDCE0),
+                    tint = if (sources.isEmpty()) Color(0xFF6F8583) else Color(0xFFD3DED9),
                     modifier = Modifier.size(18.dp),
                 )
             }
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                modifier = Modifier.background(Color(0xFF1E3841)).widthIn(max = 400.dp),
+                modifier = Modifier.background(Color(0xFF283646)).widthIn(max = 400.dp),
             ) {
                 sources.forEach { s ->
                     DropdownMenuItem(
                         text = {
                             Text(
                                 s,
-                                color = if (s == current) Color(0xFF6EA8FE) else Color(0xFFE6F0F1),
+                                color = if (s == current) Color(0xFF8FC0AA) else Color(0xFFEEF2EF),
                                 fontSize = 14.sp,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
@@ -640,7 +640,7 @@ class MediaPlayerCard : CardRenderer {
             modifier = Modifier
                 .size(size)
                 .clip(CircleShape)
-                .background(if (accent) AstrionTheme.accentStrong else Color(0x552C4C58))
+                .background(if (accent) AstrionTheme.accentStrong else Color(0x553A4F57))
                 .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {

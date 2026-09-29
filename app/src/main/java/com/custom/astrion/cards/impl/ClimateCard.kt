@@ -108,7 +108,7 @@ class ClimateCard : CardRenderer {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(name, color = Color(0xFFE6F0F1), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(name, color = Color(0xFFEEF2EF), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -120,7 +120,7 @@ class ClimateCard : CardRenderer {
                     Icon(
                         Icons.Filled.PowerSettingsNew,
                         contentDescription = "Off",
-                        tint = if (isOff) Color(0xFFE06767) else Color(0xFFCBDCE0),
+                        tint = if (isOff) Color(0xFFE06767) else Color(0xFFD3DED9),
                     )
                 }
             }
@@ -139,7 +139,7 @@ class ClimateCard : CardRenderer {
                     Text(
                         target?.let { "${trim(it)}°" } ?: "—",
                         color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
-                        fontSize = 44.sp,
+                        fontFamily = AstrionTheme.headingFont, fontSize = 44.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     // The steppers silently no-op when there is no target, so

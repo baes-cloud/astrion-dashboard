@@ -130,7 +130,7 @@ fun IrModeOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xCC050B0D))
+            .background(Color(0xCC0B1015))
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
@@ -143,7 +143,7 @@ fun IrModeOverlay(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF1C3740))
+                .background(Color(0xFF263443))
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -172,7 +172,7 @@ fun IrModeOverlay(
                     )
                     Text(
                         "Hardware buttons blast to the TV",
-                        color = Color(0xFF9FBAC0), fontSize = 12.sp,
+                        color = Color(0xFFA9BDB5), fontSize = 12.sp,
                     )
                 }
             }
@@ -188,13 +188,13 @@ fun IrModeOverlay(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF14262D))
+                    .background(Color(0xFF182129))
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     toast ?: lastKeyLabel ?: "Press a hardware button…",
-                    color = if (toast != null) Color(0xFFFFC24B) else Color(0xFFCBDCE0),
+                    color = if (toast != null) Color(0xFFFFC24B) else Color(0xFFD3DED9),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -204,7 +204,7 @@ fun IrModeOverlay(
 
             Text(
                 "NETWORK CONTROLS",
-                color = Color(0xFF9FBAC0), fontSize = 11.sp,
+                color = Color(0xFFA9BDB5), fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
             )
 
@@ -220,13 +220,13 @@ fun IrModeOverlay(
                                 .weight(1f)
                                 .height(48.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF2C4D59))
+                                .background(Color(0xFF3A4F57))
                                 .tap { press(b) },
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
                                 b["name"] as? String ?: "?",
-                                color = Color(0xFFE6F0F1), fontSize = 13.sp,
+                                color = Color(0xFFEEF2EF), fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 textAlign = TextAlign.Center,
@@ -263,7 +263,7 @@ private fun Divider() {
         modifier = Modifier
             .fillMaxWidth()
             .height(1.dp)
-            .background(Color(0x332C4D59)),
+            .background(Color(0x333A4F57)),
     )
 }
 

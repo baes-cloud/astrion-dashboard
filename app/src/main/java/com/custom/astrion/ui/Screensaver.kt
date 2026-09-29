@@ -155,7 +155,7 @@ fun Screensaver(
                     timeFmt.format(Date(now)),
                     color = clockInk,
                     // ~260dp wide for "12:45" on a ~349dp-wide panel.
-                    fontSize = 96.sp,
+                    fontFamily = AstrionTheme.headingFont, fontSize = 96.sp,
                     fontWeight = FontWeight.Thin,
                     lineHeight = 96.sp,
                     maxLines = 1,
@@ -165,7 +165,7 @@ fun Screensaver(
                     Text(
                         amPmFmt.format(Date(now)).lowercase(Locale.getDefault()),
                         color = faint,
-                        fontSize = 20.sp,
+                        fontFamily = AstrionTheme.headingFont, fontSize = 20.sp,
                         fontWeight = FontWeight.Light,
                         modifier = Modifier.padding(start = 4.dp, bottom = 18.dp),
                     )
@@ -237,9 +237,9 @@ fun Screensaver(
 // ---- palette -----------------------------------------------------------------
 // Day: cool greys off the app's own palette. Night: warm, dim amber — blue-ish
 // light is the one that keeps people awake, and it reads softer in the dark.
-private val DayClock = Color(0xFFDCE8EC)
-private val DayInk = Color(0xFF9DB2BA)
-private val DayFaint = Color(0xFF5E7680)
+private val DayClock = Color(0xFFDDE7E3)
+private val DayInk = Color(0xFFA4B7AF)
+private val DayFaint = Color(0xFF6F8583)
 private val DayAccent = Color(0xFFE8B25A)
 private val NightClock = Color(0xFFD9A06A)
 private val NightInk = Color(0xFF9C7556)
@@ -442,7 +442,7 @@ private fun NowPlaying(
                     modifier = Modifier
                         .size(76.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF0E1417)),
+                        .background(Color(0xFF12181E)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(Icons.Filled.MusicNote, contentDescription = null, tint = faint, modifier = Modifier.size(28.dp))

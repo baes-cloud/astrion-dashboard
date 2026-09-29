@@ -41,8 +41,8 @@ class LightCard : CardRenderer {
         val isOn = entity?.state == "on"
         val label = config.string("name") ?: entity?.friendlyName ?: entityId
 
-        val bg = if (isOn) Color(0xFFFFC24B) else Color(0xFF1E3841)
-        val fg = if (isOn) Color(0xFF241A00) else Color(0xFFB6C9CE)
+        val bg = if (isOn) Color(0xFFFFC24B) else Color(0xFF283646)
+        val fg = if (isOn) Color(0xFF241A00) else Color(0xFFBFCFC8)
 
         Box(
             modifier = Modifier

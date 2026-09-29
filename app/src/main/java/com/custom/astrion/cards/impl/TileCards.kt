@@ -98,7 +98,7 @@ class CoverCard : CardRenderer {
                     tint = when {
                         unavailable -> AstrionTheme.unavailable
                         open -> AstrionTheme.on
-                        else -> Color(0xFFB6C9CE)
+                        else -> Color(0xFFBFCFC8)
                     },
                 )
             }
@@ -160,7 +160,7 @@ class FanCard : CardRenderer {
                 .fillMaxWidth()
                 .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(18.dp))
-                .background(if (on) Color(0xFF2B3A67) else AstrionTheme.cardBgAlt)
+                .background(if (on) Color(0xFF3A4B5C) else AstrionTheme.cardBgAlt)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -234,7 +234,7 @@ class SwitchCard : CardRenderer {
                     tint = when {
                         unavailable -> AstrionTheme.unavailable
                         on -> Color(0xFFE79A9A)
-                        else -> Color(0xFFB6C9CE)
+                        else -> Color(0xFFBFCFC8)
                     },
                 )
             }

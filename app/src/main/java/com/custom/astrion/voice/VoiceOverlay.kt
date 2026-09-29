@@ -64,7 +64,7 @@ fun VoiceOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xCC050B0D))
+            .background(Color(0xCC0B1015))
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
@@ -77,7 +77,7 @@ fun VoiceOverlay(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF14262D))
+                .background(Color(0xFF182129))
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -114,7 +114,7 @@ fun VoiceOverlay(
                     ) {
                         Icon(
                             Icons.Filled.Mic, contentDescription = null,
-                            tint = Color(0xFF0F1E24), modifier = Modifier.size(40.dp),
+                            tint = Color(0xFF161F28), modifier = Modifier.size(40.dp),
                         )
                     }
                 }
@@ -131,14 +131,14 @@ fun VoiceOverlay(
             if (state.transcript.isNotBlank()) {
                 Text(
                     "“${state.transcript}”",
-                    color = Color(0xFFF3F8F9), fontSize = 16.sp,
+                    color = Color(0xFFF2F5F3), fontSize = 16.sp,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                 )
             }
             if (state.reply.isNotBlank()) {
                 Text(
                     state.reply,
-                    color = Color(0xFF9FBAC0), fontSize = 14.sp,
+                    color = Color(0xFFA9BDB5), fontSize = 14.sp,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -155,13 +155,13 @@ fun VoiceOverlay(
                     .fillMaxWidth()
                     .height(44.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF2C4D59))
+                    .background(Color(0xFF3A4F57))
                     .tap(onClick = onDismiss),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     if (state.phase == VoicePhase.LISTENING) "Stop" else "Close",
-                    color = Color(0xFFE6F0F1), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFFEEF2EF), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                 )
             }
         }
@@ -198,10 +198,10 @@ private fun phaseLabel(p: VoicePhase) = when (p) {
 
 private fun accentColor(p: VoicePhase) = when (p) {
     VoicePhase.LISTENING -> Color(0xFFFFC24B)
-    VoicePhase.PROCESSING -> Color(0xFF6EA8FE)
+    VoicePhase.PROCESSING -> Color(0xFF8FC0AA)
     VoicePhase.SPEAKING -> Color(0xFF5FD3A0)
     VoicePhase.ERROR -> Color(0xFFE06767)
-    else -> Color(0xFF9FBAC0)
+    else -> Color(0xFFA9BDB5)
 }
 
 private fun haloColor(p: VoicePhase) = accentColor(p).copy(alpha = 0.14f)
