@@ -7,6 +7,15 @@ MT6580.
 
 ### Changed
 
+- **Media shelves load together** and each shows as soon as it arrives (the
+  Spotify row takes ~1.3 s through HA and used to hold up the whole page);
+  the last result is kept, so revisits show the shelves at once.
+- **Zones fit on one screen:** `speaker_group` takes `"compact": true`, which
+  puts the master on one row with its volume buttons and tightens the rest.
+- **The Main page no longer shifts as it loads:** the weather card reserves
+  its forecast's space until the forecast arrives, and the forecast and the
+  decoded floorplan are kept between visits.
+- The now-playing mute badge is a rounded rectangle.
 - **Install the release build** (`./gradlew assembleRelease`, see README).
   It's minified and signed with your debug key: ~1.7 MB against ~17 MB for
   debug, and Compose runs much faster outside a debuggable build.

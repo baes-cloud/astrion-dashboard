@@ -535,11 +535,6 @@
          "icon": "sub",
          "speakers": [
           {
-           "entity_id": "media_player.living_room_sonos",
-           "name": "Living Room",
-           "icon": "play3"
-          },
-          {
            "entity_id": "media_player.bathroom_sonos",
            "name": "Bathroom",
            "icon": "move"
@@ -554,7 +549,8 @@
            "name": "Office",
            "icon": "play1"
           }
-         ]
+         ],
+         "compact": true
         }
        }
       ]

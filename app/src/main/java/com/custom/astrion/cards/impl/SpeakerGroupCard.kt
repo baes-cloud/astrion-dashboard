@@ -77,6 +77,10 @@ import kotlin.math.roundToInt
  *   } }
  *
  * Recognised `icon` keys: "sub", "play3", "play1", "move", "lamp".
+ *
+ * `"compact": true` fits the group on one screen: the master becomes a single
+ * row (name and level on the left, mute / vol- / vol+ on the right, level bar
+ * underneath) at about half the height, and every card is a little tighter.
  */
 class SpeakerGroupCard : CardRenderer {
     override val type = "speaker_group"
@@ -86,12 +90,13 @@ class SpeakerGroupCard : CardRenderer {
     override fun Render(config: CardConfig, ctx: CardContext) {
         val master = config.string("master") ?: return
         val speakers = (config.options["speakers"] as? List<Map<String, Any?>>) ?: emptyList()
+        val compact = config.bool("compact", false)
 
         // Each speaker is its own card rather than a row inside one big one:
         // at 349dp wide a stacked group ran long enough that speakers blurred
         // together, and the per-speaker controls read as belonging to whichever
         // name happened to be nearest.
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp)) {
             // "title": "" hides the heading (e.g. under a tab that already names it).
             val title = config.string("title") ?: "Speakers"
             if (title.isNotEmpty()) {
@@ -103,10 +108,10 @@ class SpeakerGroupCard : CardRenderer {
                     letterSpacing = 1.sp,
                 )
             }
-            SpeakerRow(ctx, master, config.string("name"), config.string("icon"), isMaster = true, master = master)
+            SpeakerRow(ctx, master, config.string("name"), config.string("icon"), isMaster = true, master = master, compact = compact)
             speakers.forEach { sp ->
                 val id = sp["entity_id"] as? String ?: return@forEach
-                SpeakerRow(ctx, id, sp["name"] as? String, sp["icon"] as? String, isMaster = false, master = master)
+                SpeakerRow(ctx, id, sp["name"] as? String, sp["icon"] as? String, isMaster = false, master = master, compact = compact)
             }
         }
     }
@@ -129,6 +134,7 @@ class SpeakerGroupCard : CardRenderer {
         icon: String?,
         isMaster: Boolean,
         master: String,
+        compact: Boolean = false,
     ) {
         val e = ctx.entities[entityId]
         val label = name ?: e?.friendlyName ?: entityId
@@ -158,9 +164,50 @@ class SpeakerGroupCard : CardRenderer {
                 .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(18.dp))
                 .background(AstrionTheme.cardBg)
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(if (compact) 10.dp else 12.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
         ) {
+            val btnHeight = if (compact) 40.dp else 44.dp
+            @Composable
+            fun Buttons(fill: Boolean) {
+                Row(
+                    modifier = if (fill) Modifier.fillMaxWidth() else Modifier,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    val each = if (fill) Modifier.weight(1f) else Modifier.width(52.dp)
+                    WideBtn(
+                        Icons.Filled.VolumeOff,
+                        description = if (muted) "Unmute $label" else "Mute $label",
+                        active = muted,
+                        enabled = live,
+                        height = btnHeight,
+                        modifier = each,
+                    ) {
+                        ctx.client.callService(
+                            ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted)
+                        )
+                    }
+                    WideBtn(
+                        Icons.Filled.VolumeDown,
+                        description = "$label volume down",
+                        enabled = live,
+                        height = btnHeight,
+                        modifier = each,
+                    ) {
+                        ctx.client.callService(ServiceCall("media_player", "volume_down", entityId))
+                    }
+                    WideBtn(
+                        Icons.Filled.VolumeUp,
+                        description = "$label volume up",
+                        enabled = live,
+                        height = btnHeight,
+                        modifier = each,
+                    ) {
+                        ctx.client.callService(ServiceCall("media_player", "volume_up", entityId))
+                    }
+                }
+            }
+            val singleRow = compact && isMaster
             // Name row: type icon, name, level right beside it, and the
             // join/leave control on the right where the level used to sit.
             Row(
@@ -211,7 +258,9 @@ class SpeakerGroupCard : CardRenderer {
                         maxLines = 1,
                     )
                 }
-                if (isMaster) {
+                if (singleRow) {
+                    Buttons(fill = false)
+                } else if (isMaster) {
                     MasterChip()
                 } else {
                     JoinToggle(grouped, enabled = live, label = label, onClick = ::toggleGroup)
@@ -223,38 +272,7 @@ class SpeakerGroupCard : CardRenderer {
             LevelBar(level = (vol ?: 0.0).toFloat(), muted = muted, unavailable = unavailable)
 
             // Controls: three equal buttons across the full width.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                WideBtn(
-                    Icons.Filled.VolumeOff,
-                    description = if (muted) "Unmute $label" else "Mute $label",
-                    active = muted,
-                    enabled = live,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    ctx.client.callService(
-                        ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted)
-                    )
-                }
-                WideBtn(
-                    Icons.Filled.VolumeDown,
-                    description = "$label volume down",
-                    enabled = live,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    ctx.client.callService(ServiceCall("media_player", "volume_down", entityId))
-                }
-                WideBtn(
-                    Icons.Filled.VolumeUp,
-                    description = "$label volume up",
-                    enabled = live,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    ctx.client.callService(ServiceCall("media_player", "volume_up", entityId))
-                }
-            }
+            if (!singleRow) Buttons(fill = true)
         }
     }
 
@@ -350,11 +368,12 @@ class SpeakerGroupCard : CardRenderer {
         modifier: Modifier = Modifier,
         active: Boolean = false,
         enabled: Boolean = true,
+        height: androidx.compose.ui.unit.Dp = 44.dp,
         onClick: () -> Unit,
     ) {
         Box(
             modifier = modifier
-                .height(44.dp)
+                .height(height)
                 .clip(RoundedCornerShape(12.dp))
                 .background(if (active) AstrionTheme.dangerBg else AstrionTheme.controlBg)
                 .tap(enabled = enabled, onClick = onClick),

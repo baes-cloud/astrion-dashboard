@@ -223,13 +223,14 @@ class NowPlayingLineCard : CardRenderer {
         }
     }
 
-    /** 28dp round state badge: speaker on, or struck through in red when muted. */
+    /** 44×28dp state badge: speaker on, or struck through in red when muted. A
+     *  rounded rectangle rather than a circle, so it sits square in the strip. */
     @Composable
     private fun MuteBadge(muted: Boolean) {
         Box(
             modifier = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
+                .size(width = 44.dp, height = 28.dp)
+                .clip(RoundedCornerShape(8.dp))
                 .background(if (muted) AstrionTheme.dangerBg else AstrionTheme.blush),
             contentAlignment = Alignment.Center,
         ) {

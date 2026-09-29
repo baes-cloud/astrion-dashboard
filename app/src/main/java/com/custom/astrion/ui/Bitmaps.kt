@@ -55,6 +55,18 @@ fun decodeSampled(path: String, targetPx: Int): ImageBitmap? = runCatching {
  */
 @Composable
 fun rememberSampledBitmap(path: String?, targetPx: Int): State<ImageBitmap?> =
-    produceState<ImageBitmap?>(initialValue = null, path, targetPx) {
-        value = path?.let { p -> withContext(Dispatchers.IO) { decodeSampled(p, targetPx) } }
+    // Seeded from the last decode of the same file, so a page coming back into
+    // view (the floorplan) draws at once instead of re-decoding a 1.4 MB PNG
+    // on every visit. A changed file (new mtime) is decoded again.
+    produceState(initialValue = path?.let { sampledCache[cacheKey(it, targetPx)] }, path, targetPx) {
+        val p = path ?: run { value = null; return@produceState }
+        val key = cacheKey(p, targetPx)
+        sampledCache[key]?.let { value = it; return@produceState }
+        val decoded = withContext(Dispatchers.IO) { decodeSampled(p, targetPx) }
+        if (decoded != null) sampledCache[key] = decoded
+        value = decoded
     }
+
+private val sampledCache = java.util.concurrent.ConcurrentHashMap<String, ImageBitmap>()
+
+private fun cacheKey(path: String, targetPx: Int) = "$path|$targetPx|${File(path).lastModified()}"

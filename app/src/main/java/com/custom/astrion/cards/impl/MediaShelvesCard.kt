@@ -42,6 +42,8 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Swipeable shelves of media pulled straight from Home Assistant's
@@ -96,6 +98,9 @@ class MediaShelvesCard : CardRenderer {
         // Decode floor for covers: 85dp is ~120px on this panel, so a 640px
         // CDN cover decodes at 160px instead of full size.
         const val ART_PX = 128
+
+        /** Last shelves per card config, kept across page visits. */
+        val shelfCache = java.util.concurrent.ConcurrentHashMap<String, List<Shelf>>()
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -105,27 +110,33 @@ class MediaShelvesCard : CardRenderer {
         val limit = config.int("limit", 10).coerceIn(1, 30)
         val rowSpecs = (config.options["rows"] as? List<Map<String, Any?>>) ?: emptyList()
 
+        // All rows are fetched at once and each shows as soon as it arrives:
+        // fetched one after another, the page stayed on "Loading…" until the
+        // slowest (Spotify, ~1.3 s through HA) had finished. The last result
+        // of each row is kept for the life of the process, so a revisit shows
+        // the shelves at once while they refresh behind them.
+        //
         // Keyed on the connection too: shelves still empty when HA came back
-        // load then, instead of on the next visit. Shelves already showing are
-        // kept, so a reconnect doesn't reshuffle "Random albums" under you.
+        // load then. "Random albums" is only swapped for a fresh set when the
+        // card is shown again, never under you on a reconnect.
         val connected = ctx.connected
-        val shelves by produceState<List<Shelf>?>(initialValue = null, entityId, limit, connected) {
-            if (!connected || !value.isNullOrEmpty()) return@produceState
-            value = rowSpecs.mapNotNull { spec ->
-                val title = spec["title"] as? String ?: return@mapNotNull null
-                if (spec["source"] == "music_assistant") {
-                    val items = musicAssistantItems(ctx, spec, limit)
-                    return@mapNotNull if (items.isEmpty()) null else Shelf(title, items)
+        val cacheKey = entityId + "|" + rowSpecs.hashCode()
+        val shelves by produceState(initialValue = shelfCache[cacheKey], entityId, limit, connected) {
+            if (!connected) return@produceState
+            val results = arrayOfNulls<Shelf>(rowSpecs.size)
+            value?.forEach { cached -> rowSpecs.indexOfFirst { it["title"] == cached.title }.takeIf { it >= 0 }?.let { results[it] = cached } }
+            coroutineScope {
+                rowSpecs.forEachIndexed { i, spec ->
+                    launch {
+                        val shelf = loadShelf(ctx, entityId, spec, limit)
+                        if (shelf != null) results[i] = shelf
+                        val ordered = results.filterNotNull()
+                        shelfCache[cacheKey] = ordered
+                        value = ordered
+                    }
                 }
-                val cid = spec["content_id"] as? String ?: return@mapNotNull null
-                val ctype = spec["content_type"] as? String ?: return@mapNotNull null
-                val result = ctx.client.browseMedia(entityId, cid, ctype) ?: return@mapNotNull null
-                val items = (result["children"] as? JsonArray)
-                    ?.mapNotNull { parseItem(it as? JsonObject) }
-                    ?.take(limit)
-                    .orEmpty()
-                if (items.isEmpty()) null else Shelf(title, items)
             }
+            if (value == null) value = emptyList()
         }
 
         // Scroll inside a fixed-height parent (swipe_stack "height"); with no
@@ -235,6 +246,23 @@ class MediaShelvesCard : CardRenderer {
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+
+    /** One row: Music Assistant library or a browse_media folder; null if empty or failed. */
+    private suspend fun loadShelf(ctx: CardContext, entityId: String, spec: Map<String, Any?>, limit: Int): Shelf? {
+        val title = spec["title"] as? String ?: return null
+        if (spec["source"] == "music_assistant") {
+            val items = musicAssistantItems(ctx, spec, limit)
+            return if (items.isEmpty()) null else Shelf(title, items)
+        }
+        val cid = spec["content_id"] as? String ?: return null
+        val ctype = spec["content_type"] as? String ?: return null
+        val result = ctx.client.browseMedia(entityId, cid, ctype) ?: return null
+        val items = (result["children"] as? JsonArray)
+            ?.mapNotNull { parseItem(it as? JsonObject) }
+            ?.take(limit)
+            .orEmpty()
+        return if (items.isEmpty()) null else Shelf(title, items)
     }
 
     /** One Music Assistant row via `music_assistant.get_library`. */

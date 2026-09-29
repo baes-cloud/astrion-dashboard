@@ -101,12 +101,15 @@ class ClockWeatherCard : CardRenderer {
 
         // Fetch the forecast via the service; refresh every 30 min, or after a
         // minute if it failed (e.g. HA was still connecting at startup).
-        var forecast by remember { mutableStateOf<List<Forecast>>(emptyList()) }
+        // Seeded from the last fetch so the card doesn't grow when the page
+        // comes back into view (it used to arrive a moment later and push the
+        // floorplan down).
+        var forecast by remember { mutableStateOf(lastForecast[entityId] ?: emptyList()) }
         LaunchedEffect(entityId) {
             while (true) {
                 val arr = ctx.client.getForecast(entityId)
                 val parsed = arr?.let { parseForecast(it) }.orEmpty()
-                if (parsed.isNotEmpty()) forecast = parsed
+                if (parsed.isNotEmpty()) { forecast = parsed; lastForecast[entityId] = parsed }
                 delay(if (parsed.isNotEmpty()) 30 * 60 * 1000L else 60_000L)
             }
         }
@@ -283,8 +286,12 @@ class ClockWeatherCard : CardRenderer {
     ) {
         val isoDay = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US) }
         val todayKey = isoDay.format(Date(nowMs))
-        val today = forecast.firstOrNull { it.date == todayKey }
-        val days = forecast.filter { it.date > todayKey }.take(chipDays)
+        // Before the first forecast arrives, lay out invisible stand-ins of
+        // the same shape, so the card is its final height from the start.
+        val waiting = forecast.isEmpty()
+        val stub = Forecast(day = "Mon", condition = "cloudy", low = 10.0, high = 20.0)
+        val today = if (waiting) stub else forecast.firstOrNull { it.date == todayKey }
+        val days = if (waiting) List(chipDays) { stub } else forecast.filter { it.date > todayKey }.take(chipDays)
 
         val temps = forecast.flatMap { listOfNotNull(it.low, it.high) }
         val weekMin = temps.minOrNull() ?: 0.0
@@ -323,7 +330,7 @@ class ClockWeatherCard : CardRenderer {
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
                 }
-                if (today != null) TodayBar(today, weekMin, span)
+                if (today != null) Box(Modifier.alpha(if (waiting) 0f else 1f)) { TodayBar(today, weekMin, span) }
             }
 
             Box(
@@ -357,7 +364,7 @@ class ClockWeatherCard : CardRenderer {
                         )
                     }
                 }
-                Row(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth().alpha(if (waiting) 0f else 1f)) {
                     days.forEach { f ->
                         Column(
                             modifier = Modifier.weight(1f),
@@ -471,6 +478,11 @@ class ClockWeatherCard : CardRenderer {
                 textAlign = TextAlign.End, modifier = Modifier.width(40.dp),
             )
         }
+    }
+
+    private companion object {
+        /** Last forecast per weather entity, kept across page visits. */
+        val lastForecast = java.util.concurrent.ConcurrentHashMap<String, List<Forecast>>()
     }
 
     private data class Forecast(
