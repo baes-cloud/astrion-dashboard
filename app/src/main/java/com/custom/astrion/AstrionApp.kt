@@ -31,6 +31,7 @@ import com.custom.astrion.cards.impl.SwipeStackCard
 import com.custom.astrion.cards.impl.SwitchCard
 import com.custom.astrion.cards.impl.TvRemoteCard
 import com.custom.astrion.cards.impl.VacuumCard
+import com.custom.astrion.ui.ArtCache
 
 /**
  * App entry point. Register all card types here once at startup.
@@ -46,6 +47,7 @@ import com.custom.astrion.cards.impl.VacuumCard
 class AstrionApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        ArtCache.init(cacheDir)
         CardRegistry.register(
             LightCard(),
             LightGroupCard(),

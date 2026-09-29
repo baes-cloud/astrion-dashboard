@@ -1,6 +1,5 @@
 package com.custom.astrion.cards.impl
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -19,8 +18,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,6 +27,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.tap
 import kotlinx.coroutines.Dispatchers
@@ -118,18 +116,10 @@ class PlexCard : CardRenderer {
             .build()
         val json = Json { ignoreUnknownKeys = true }
 
-        // Small LRU so swiping back and forth doesn't refetch posters.
-        val posterCache = object : LinkedHashMap<String, ImageBitmap>(0, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > 48
-        }
-
         // Last shelves per host: the page is recomposed from scratch every
         // time you navigate to it, and a cold load of five rows took ~10 s on
         // this SoC — so show the previous result at once and refresh behind it.
         val shelfCache = java.util.concurrent.ConcurrentHashMap<String, List<Shelf>>()
-
-        @Synchronized fun cacheGet(k: String): ImageBitmap? = posterCache[k]
-        @Synchronized fun cachePut(k: String, v: ImageBitmap) { posterCache[k] = v }
 
         // ~3.5 tiles across a 480px/220dpi panel.
         val TILE_W = 92.dp
@@ -264,17 +254,19 @@ class PlexCard : CardRenderer {
     @Composable
     private fun PosterTile(host: String, token: String, item: PlexItem, onClick: () -> Unit) {
         val posterUrl = item.thumb?.let { thumbUrl(host, token, it) }
-        var bmp by remember(posterUrl) { mutableStateOf(posterUrl?.let { cacheGet(it) }) }
+        // Posters come from ArtCache (memory, then disk), so swiping back
+        // and forth, or restarting, doesn't refetch them from the server.
+        var bmp by remember(posterUrl) { mutableStateOf(posterUrl?.let { ArtCache.peek(it) }) }
         LaunchedEffect(posterUrl) {
             if (bmp == null && posterUrl != null) {
-                val loaded = withContext(Dispatchers.IO) {
+                // Already server-scaled to 200x300 by thumbUrl, so no downsampling.
+                ArtCache.load(posterUrl) {
                     runCatching {
                         http.newCall(Request.Builder().url(posterUrl).build()).execute().use { r ->
-                            r.body?.bytes()?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                            if (r.isSuccessful) r.body?.bytes() else null
                         }
-                    }.getOrNull()?.asImageBitmap()
-                }
-                if (loaded != null) { cachePut(posterUrl, loaded); bmp = loaded }
+                    }.getOrNull()
+                }?.let { bmp = it }
             }
         }
 

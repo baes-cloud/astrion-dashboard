@@ -23,7 +23,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,6 +32,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.tap
 import kotlinx.serialization.json.JsonArray
@@ -96,19 +96,6 @@ class MediaShelvesCard : CardRenderer {
         // Decode floor for covers: 85dp is ~120px on this panel, so a 640px
         // CDN cover decodes at 160px instead of full size.
         const val ART_PX = 128
-
-        // Covers already fetched, by URL. The page is recomposed from scratch
-        // on every visit and LazyRow drops tiles scrolled off-screen, so
-        // without this every cover was refetched each time. The favourite
-        // rows barely change and "Random albums" draws from a finite library,
-        // so 120 covers holds the fixed rows plus several rotations of random
-        // picks. Covers are decoded at tile size (see ART_PX), ~100 KB each.
-        val artCache = object : LinkedHashMap<String, ImageBitmap>(0, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > 120
-        }
-
-        @Synchronized fun cacheGet(k: String): ImageBitmap? = artCache[k]
-        @Synchronized fun cachePut(k: String, v: ImageBitmap) { artCache[k] = v }
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -200,14 +187,13 @@ class MediaShelvesCard : CardRenderer {
 
     @Composable
     private fun Tile(ctx: CardContext, item: Item, onClick: () -> Unit) {
-        var art by remember(item.thumb) { mutableStateOf(item.thumb?.let { cacheGet(it) }) }
+        // The page is recomposed from scratch on every visit and LazyRow drops
+        // tiles scrolled off-screen; ArtCache keeps that from refetching covers.
+        var art by remember(item.thumb) { mutableStateOf(item.thumb?.let { ArtCache.peek(it) }) }
         LaunchedEffect(item.thumb) {
             val thumb = item.thumb ?: return@LaunchedEffect
             if (art == null) {
-                // Failures aren't cached, so an unreachable CDN is retried next visit.
-                val loaded = ctx.client.fetchBitmap(thumb, ART_PX) ?: return@LaunchedEffect
-                cachePut(thumb, loaded)
-                art = loaded
+                ArtCache.load(thumb, ART_PX) { ctx.client.fetchBytes(thumb) }?.let { art = it }
             }
         }
         // Art with a caption underneath: covers alone don't say which playlist
