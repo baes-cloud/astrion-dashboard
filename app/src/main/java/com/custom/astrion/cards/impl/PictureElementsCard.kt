@@ -2,6 +2,9 @@ package com.custom.astrion.cards.impl
 
 import android.graphics.BitmapFactory
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -64,6 +67,14 @@ import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.rememberSampledBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.floatOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import java.io.File
 import kotlin.math.PI
 import kotlin.math.cos
@@ -273,6 +284,11 @@ class PictureElementsCard : CardRenderer {
             val radarList = (config.options["radars"] as? List<Map<String, Any?>>)
                 ?: listOfNotNull(config.options["radar"] as? Map<String, Any?>)
             radarList.forEach { RadarDots(it, ctx, w, h) }
+
+            // Radar Map Manager overlay: RMM's fused targets, i.e. exactly what
+            // HA's radar-map-card shows — exclude zones applied, sensors merged,
+            // hibernating tracks hidden. Use this instead of `radars`.
+            (config.options["rmm"] as? Map<String, Any?>)?.let { RmmTargets(it, ctx, w, h) }
 
             // Vacuum overlay: a robot-vacuum icon at its current room (or dock).
             if (vacuumOpts != null) {
@@ -489,6 +505,82 @@ class PictureElementsCard : CardRenderer {
                 accent = accent,
                 label = label,
             )
+        }
+    }
+
+    private data class RmmTarget(val id: String, val x: Float, val y: Float)
+
+    /**
+     * Fused targets from Radar Map Manager's `rmm/stream` websocket command.
+     * RMM's map coordinates are 0–100 percentages of the floorplan image HA's
+     * card uses; the remote's floorplan may be a crop of that image, so:
+     *   "rmm": { "map_group": "default",
+     *            "source_size": [1179, 1179],          // HA card image, px
+     *            "crop": [16, 12, 1089, 1047],          // left, top, width, height of
+     *                                                   // the remote image within it, px
+     *            "show_hibernating": false,
+     *            "color": "#D92CAA9C", "accent_color": "#FF8CE0D4" }
+     * Without `source_size`/`crop` the two images are taken to be the same.
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Composable
+    private fun RmmTargets(opts: Map<String, Any?>, ctx: CardContext, w: Dp, h: Dp) {
+        val group = opts["map_group"] as? String ?: "default"
+        val showHibernating = opts["show_hibernating"] as? Boolean ?: false
+        val src = (opts["source_size"] as? List<*>)?.filterIsInstance<Number>()?.map { it.toFloat() }
+        val crop = (opts["crop"] as? List<*>)?.filterIsInstance<Number>()?.map { it.toFloat() }
+        val fill = parseArgb(opts["color"] as? String) ?: Color(0xD92CAA9C)
+        val accent = parseArgb(opts["accent_color"] as? String) ?: Color(0xFF8CE0D4)
+
+        var targets by remember { mutableStateOf<List<RmmTarget>>(emptyList()) }
+        val connected = ctx.connected
+        val client = ctx.client
+
+        // Re-subscribe on every (re)connect: a subscription dies with its socket.
+        DisposableEffect(connected, group, showHibernating) {
+            val id = if (connected) client.startSubscription(build = { put("type", "rmm/stream") }) { event ->
+                val map = event["data"]?.jsonObject?.get("maps")?.jsonObject?.get(group)?.jsonObject
+                    ?: return@startSubscription
+                targets = map["targets"]?.jsonArray.orEmpty().mapNotNull { el ->
+                    val t = el as? JsonObject ?: return@mapNotNull null
+                    val count = t["count"]?.jsonPrimitive?.intOrNull ?: 0
+                    if (count <= 0 && !showHibernating) return@mapNotNull null
+                    RmmTarget(
+                        id = t["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                        x = t["x"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null,
+                        y = t["y"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null,
+                    )
+                }
+            } else null
+            if (id == null) targets = emptyList()
+            onDispose { id?.let { client.unsubscribe(it) } }
+        }
+
+        targets.forEachIndexed { i, t ->
+            // RMM percent → source px → remote-image percent.
+            val leftPct = if (src != null && crop != null && src.size == 2 && crop.size == 4)
+                (t.x / 100f * src[0] - crop[0]) / crop[2] * 100f else t.x
+            val topPct = if (src != null && crop != null && src.size == 2 && crop.size == 4)
+                (t.y / 100f * src[1] - crop[1]) / crop[3] * 100f else t.y
+            // Off the drawn plan (RMM allows points past the edges) — skip.
+            if (leftPct !in 0f..100f || topPct !in 0f..100f) return@forEachIndexed
+            key(t.id) {
+                val dot = 26.dp
+                val dx by animateDpAsState(w * (leftPct / 100f) - dot / 2, tween(450), label = "rmmx")
+                val dy by animateDpAsState(h * (topPct / 100f) - dot / 2, tween(450), label = "rmmy")
+                Box(
+                    modifier = Modifier
+                        .offset(x = dx.coerceAtLeast(0.dp), y = dy.coerceAtLeast(0.dp))
+                        .size(dot)
+                        .drawBehind {
+                            drawCircle(color = fill)
+                            drawCircle(color = accent, blendMode = BlendMode.Overlay)
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("${i + 1}", color = Color(0xFFE0EEE8), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 

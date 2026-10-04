@@ -297,57 +297,6 @@
            "top": 90
           }
          ],
-         "radars": [
-          {
-           "prefix": "sensor.club_apollo_r_pro_1_ld2450_target",
-           "targets": 3,
-           "unit": "m",
-           "origin_left": 53,
-           "origin_top": 10,
-           "scale_x": 8.66,
-           "scale_x_right": 17.32,
-           "scale_y": 9.01,
-           "top_offset_left": 7.88,
-           "rotation": 0,
-           "flip_x": false,
-           "flip_y": false,
-           "blend": "overlay",
-           "color": "#D94F726D",
-           "accent_color": "#FFA9D2CB"
-          },
-          {
-           "prefix": "sensor.ld2450_tracker_target",
-           "targets": 3,
-           "unit": "mm",
-           "origin_left": 29,
-           "origin_top": 56,
-           "scale_x": 9.0,
-           "scale_y": 9.0,
-           "rotation": 0,
-           "flip_x": false,
-           "flip_y": false,
-           "blend": "overlay",
-           "color": "#D96E2C7A",
-           "accent_color": "#FFB06CD9",
-           "label": "B"
-          },
-          {
-           "prefix": "sensor.ld2450_tracker_2_target",
-           "targets": 3,
-           "unit": "mm",
-           "origin_left": 97,
-           "origin_top": 78,
-           "scale_x": 9.0,
-           "scale_y": 9.0,
-           "rotation": 90,
-           "flip_x": false,
-           "flip_y": false,
-           "blend": "overlay",
-           "color": "#D9146B4A",
-           "accent_color": "#FF4FD98C",
-           "label": "O"
-          }
-         ],
          "vacuum": {
           "entity_id": "vacuum.roborock_qrevo_master",
           "name": "Vacuum",
@@ -403,7 +352,23 @@
            63
           ]
          },
-         "stretch": true
+         "stretch": true,
+         "rmm": {
+          "map_group": "default",
+          "source_size": [
+           1179,
+           1179
+          ],
+          "crop": [
+           16,
+           12,
+           1089,
+           1047
+          ],
+          "show_hibernating": false,
+          "color": "#D92CAA9C",
+          "accent_color": "#FF8CE0D4"
+         }
         }
        },
        {
