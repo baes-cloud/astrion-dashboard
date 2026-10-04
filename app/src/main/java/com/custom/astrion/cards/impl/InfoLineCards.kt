@@ -246,11 +246,11 @@ class NowPlayingLineCard : CardRenderer {
 }
 
 /**
- * Two facts stacked tight under the weather: the next diary entry, then the
- * next alarm. (They used to share one row, which cut the event title off.)
+ * One tight row under the weather: the next diary entry on the left, the next
+ * alarm on the right. The icons say which is which, so the "Next event:" /
+ * "Next alarm:" words are gone and the event title has room.
  *
- *   📅 Next event: Tue 8:15 HQ
- *   ⏰ Next alarm: 7:05 Tue
+ *   📅 Tue 8:15 HQ                     ⏰ 7:05 Tue
  *
  * The alarm is the earliest one still to come across `alarm_entities`
  * (timestamp sensors). It honours the same switches Home Assistant does:
@@ -286,23 +286,30 @@ class NextUpCard : CardRenderer {
         val alarm = nextAlarm(config, ctx, now)
         if (event == null && alarm == null) return
 
-        Column(
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(1.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (event != null) Fact(Icons.Filled.Event, "Next event:", event, AstrionTheme.accent, Modifier)
-            if (alarm != null) Fact(Icons.Filled.Alarm, "Next alarm:", alarm, AstrionTheme.blush, Modifier)
+            // The event owns everything left of the alarm and ellipsises if it
+            // must; the alarm hugs the right edge.
+            Box(Modifier.weight(1f)) {
+                if (event != null) Fact(Icons.Filled.Event, null, event, AstrionTheme.accent, Modifier)
+            }
+            if (alarm != null) {
+                Spacer(Modifier.width(10.dp))
+                Fact(Icons.Filled.Alarm, null, alarm, AstrionTheme.blush, Modifier)
+            }
         }
     }
 
     @Composable
-    private fun Fact(icon: ImageVector, label: String, value: String, tint: Color, modifier: Modifier) {
+    private fun Fact(icon: ImageVector, label: String?, value: String, tint: Color, modifier: Modifier) {
         Row(modifier, verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(4.dp))
             Text(
                 buildAnnotatedString {
-                    withStyle(SpanStyle(color = AstrionTheme.textSecondary)) { append("$label ") }
+                    if (label != null) withStyle(SpanStyle(color = AstrionTheme.textSecondary)) { append("$label ") }
                     withStyle(SpanStyle(color = tint, fontWeight = FontWeight.Medium)) { append(value) }
                 },
                 fontSize = 12.sp,
