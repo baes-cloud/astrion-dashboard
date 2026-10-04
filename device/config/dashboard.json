@@ -293,7 +293,12 @@
           },
           {
            "entity_id": "light.bedroom_lights",
-           "left": 29,
+           "left": 18,
+           "top": 90
+          },
+          {
+           "entity_id": "light.bedlamps",
+           "left": 40,
            "top": 90
           }
          ],
@@ -421,26 +426,35 @@
              "media_player.plex_plex_for_android_tv_tv",
              "media_player.the_club_tv"
             ],
-            "variant": "full"
+            "variant": "full",
+            "art_aspect": 1.45
            }
           },
           {
            "type": "button_grid",
            "options": {
             "columns": 4,
-            "tile_height": 56,
-            "icon_size": 26,
+            "tile_height": 62,
+            "icon_size": 22,
             "spacing": 8,
             "buttons": [
              {
-              "name": "Disco",
-              "icon": "/sdcard/astrion/icons/disco.png",
-              "service": "script.play_disco"
+              "name": "Trance",
+              "icon": "/sdcard/astrion/icons/trap.png",
+              "service": "media_player.select_source",
+              "entity_id": "media_player.club",
+              "data": {
+               "source": "2025 Epic Vocal Trance and Techno DJ Mix  - Feel the Energy"
+              }
              },
              {
-              "name": "House",
-              "icon": "/sdcard/astrion/icons/house.png",
-              "service": "script.play_house"
+              "name": "Glitterbox",
+              "icon": "/sdcard/astrion/icons/disco.png",
+              "service": "media_player.select_source",
+              "entity_id": "media_player.club",
+              "data": {
+               "source": "Defected ITH 2017 Glitterbox - A Disco Hi #2"
+              }
              },
              {
               "name": "Purple Disco",
@@ -452,7 +466,8 @@
               "icon": "/sdcard/astrion/icons/paris.png",
               "service": "script.play_dfp"
              }
-            ]
+            ],
+            "label_lines": 2
            }
           }
          ]
@@ -492,31 +507,66 @@
         }
        },
        {
-        "type": "speaker_group",
+        "type": "column",
         "options": {
-         "title": "",
-         "master": "media_player.club",
-         "name": "Club",
-         "icon": "sub",
-         "speakers": [
+         "spacing": 10,
+         "cards": [
           {
-           "entity_id": "media_player.bathroom_sonos",
-           "name": "Bathroom",
-           "icon": "move"
+           "type": "row",
+           "options": {
+            "cards": [
+             {
+              "type": "switch",
+              "options": {
+               "entity_id": "input_boolean.music_follows_me",
+               "name": "Follow me",
+               "icon": "music",
+               "on_color": "#FF4F726D",
+               "compact": true
+              }
+             },
+             {
+              "type": "switch",
+              "options": {
+               "entity_id": "switch.club_night_sound",
+               "name": "Night sound",
+               "icon": "night",
+               "on_color": "#FF4F726D",
+               "compact": true
+              }
+             }
+            ]
+           }
           },
           {
-           "entity_id": "media_player.bedroom_sonos",
-           "name": "Bedroom",
-           "icon": "lamp"
-          },
-          {
-           "entity_id": "media_player.office_sonos",
-           "name": "Office",
-           "icon": "play1"
+           "type": "speaker_group",
+           "options": {
+            "title": "",
+            "master": "media_player.club",
+            "name": "Club",
+            "icon": "sub",
+            "speakers": [
+             {
+              "entity_id": "media_player.bathroom_sonos",
+              "name": "Bathroom",
+              "icon": "move"
+             },
+             {
+              "entity_id": "media_player.bedroom_sonos",
+              "name": "Bedroom",
+              "icon": "lamp"
+             },
+             {
+              "entity_id": "media_player.office_sonos",
+              "name": "Office",
+              "icon": "play1"
+             }
+            ],
+            "compact": true,
+            "height": 432
+           }
           }
-         ],
-         "compact": true,
-         "height": 478
+         ]
         }
        }
       ]
@@ -568,7 +618,7 @@
     {
      "type": "cover",
      "options": {
-      "entity_id": "cover.smart_blinds_curtain",
+      "entity_id": "cover.smart_blinds",
       "name": "Bed",
       "invert_position": true,
       "invert_buttons": true
@@ -653,17 +703,8 @@
   },
   {
    "key": "MUTE",
-   "service": "remote.send_command",
-   "entityId": "remote.the_club_tvv",
-   "data": {
-    "command": "HOME"
-   },
-   "then": [
-    {
-     "service": "astrion.toggle_mute",
-     "entityId": "media_player.club"
-    }
-   ]
+   "service": "astrion.toggle_mute",
+   "entityId": "media_player.club"
   },
   {
    "key": "VOLUME_UP",
@@ -754,7 +795,8 @@
   },
   {
    "key": "CURTAIN",
-   "service": "script.long_curtain"
+   "service": "script.turn_on",
+   "entityId": "script.club_blinds_all"
   },
   {
    "key": "SCENE",
@@ -831,18 +873,6 @@
   "codes": {},
   "buttons": [
    {
-    "name": "Netflix",
-    "app": "Netflix"
-   },
-   {
-    "name": "YouTube",
-    "app": "YouTube"
-   },
-   {
-    "name": "Plex",
-    "app": "Plex"
-   },
-   {
     "name": "TV",
     "source": "TV"
    },
@@ -865,12 +895,24 @@
    {
     "name": "Exit",
     "ir": "EXIT"
+   },
+   {
+    "name": "Eye comfort",
+    "service": "script.turn_on",
+    "entity_id": "script.tv_eye_comfort_toggle",
+    "unless": {
+     "entity_id": "media_player.55_the_serif_3",
+     "attribute": "source",
+     "is": "hdmi2"
+    },
+    "unless_text": "Not on the PC input"
    }
   ]
  },
  "voice": {
   "pipeline": null,
-  "image_dir": "/sdcard/astrion/voice"
+  "image_dir": "/sdcard/astrion/voice",
+  "wake_word_undocked_minutes": 2
  },
  "alarm": {
   "ringing_entity": "input_boolean.work_alarm_ringing",
@@ -882,7 +924,7 @@
   },
   "stop": {
    "service": "script.turn_on",
-   "entity_id": "script.work_alarm_stop"
+   "entity_id": "script.work_alarm_stop_and_start_day"
   }
  },
  "alerts": [
@@ -953,5 +995,25 @@
     }
    ]
   }
- ]
+ ],
+ "power": {
+  "report_entity": "sensor.club_remote_battery",
+  "report_name": "Club remote"
+ },
+ "screensaver": {
+  "keys_pass_through": [
+   "VOLUME_UP",
+   "VOLUME_DOWN",
+   "MUTE",
+   "PAGE_UP",
+   "PAGE_DOWN",
+   "LIGHT",
+   "CURTAIN",
+   "SCENE",
+   "AC",
+   "VOICE"
+  ],
+  "night_brightness": 0.12,
+  "undocked_brightness": 0.15
+ }
 }

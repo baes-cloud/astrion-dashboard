@@ -56,3 +56,16 @@ clears them** — but the boot hook puts them straight back, so to get in from a
 different machine you must first remove `start adbfw` from
 `/vendor/etc/init/adbwifi.rc`. If you are locked out entirely, USB adb is
 unaffected: it never goes through the INPUT chain.
+
+## Per-remote setup after installing the app
+
+```sh
+adb -s <ip>:5555 install -r app-release.apk
+adb -s <ip>:5555 shell cmd package compile -m speed -f com.custom.astrion   # AOT; default is interpreted
+adb -s <ip>:5555 shell appops set com.custom.astrion WRITE_SETTINGS allow   # lets the app hold the screen timeout
+```
+
+`config/dashboard.json` is a sanitised copy of the live config: the Plex host
+and calendar entity are placeholders. On the remotes, each one's
+`power.report_entity` names its own battery sensor (for example
+`sensor.club_remote_113_battery`), so HA can tell the remotes apart.

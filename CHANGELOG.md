@@ -3,7 +3,89 @@
 ## Unreleased
 
 Speed, memory and reliability work, mostly invisible but felt on the HA100's
-MT6580, and a battery pass (`docs/POWER.md`).
+MT6580, a battery pass (`docs/POWER.md`), and a usability pass that followed
+a design review and a review of two weeks of real use. Home Assistant
+companion automations and scripts are in `docs/HOME_ASSISTANT.md`.
+
+### Battery (measured)
+
+- **The screen now actually turns off off the dock.** The stock HaRemote app
+  writes the system screen timeout as "never", so an undocked remote stayed
+  lit until it ran flat. Measured: −6 % an hour, with the screen on 100 % of
+  the time and everything else under 1 mAh. The app now holds the timeout at
+  `power.screen_timeout_seconds` (120) and puts it back whenever something
+  changes it. Needs a one-off `adb shell appops set com.custom.astrion
+  WRITE_SETTINGS allow`.
+- **Screensaver off the dock too.** It comes on dimmed after 90 s idle
+  (`screensaver.undocked_idle_seconds`), then the screen goes off. Docked
+  behaviour is unchanged.
+- **The screensaver redraws once a minute** instead of every second (about
+  36 ms of UI thread per frame, all night on the dock). A running timer and
+  the track position tick in their own small scopes.
+- **The wake word streams audio continuously** (about 32 KB/s; 685 MB uploaded in
+  10 h on one remote). `voice.wake_word_undocked_minutes` is now set to 2 in
+  the shipped config.
+- **Playhead noise is ignored.** A paused Cast/Plex session moved
+  `media_position` about four times a second all day. Those diffs are
+  stored, but they no longer redraw anything.
+- `dock_fault` also covers a remote that reports charging while its level
+  falls (`dock_draining`), the signature of worn or dirty dock contacts.
+- The motion-wake note was wrong for the HA100: its accelerometer is not a
+  wake-up sensor (flags `0x0`), so it never kept the CPU awake.
+
+### Speed
+
+- **Pre-compile after installing.** Android installed the APK as `quicken`
+  (interpreted), and 89 % of frames were janky. Now `cmd package compile -m
+  speed -f com.custom.astrion` runs after every install (see README).
+- **Page keys are faster.** Every page stays composed and only the current
+  one is drawn; page keys jump on key-down instead of key-up plus the
+  double-tap window. Worst frame went from 522 ms to 200 ms.
+
+### Usability and look
+
+- **App-wide Material theme in Astrion colours:** a visible light press
+  ripple, menus in Manrope with 12 dp corners, and real 18 ms haptics (the
+  platform's LongPress was two 1 ms pulses). Holding a hardware key for its
+  1.5 s long-press now buzzes too.
+- **Popups are drawn in the main window:** light, vacuum and media browser.
+  As separate Dialog windows they blocked the hardware keys and the idle
+  timer. BACK and the page keys close them.
+- **Feedback:**
+  - Hardware-key actions show a short confirmation pill.
+  - Failed service calls say so.
+  - Calls made while offline are queued for 30 s instead of dropped.
+- **The aircon setpoint is debounced:** one `set_temperature` about 0.9 s
+  after the last tap, instead of one per tap, which tripped the Fujitsu cloud's
+  rate limit.
+- **Light group popups list their member lights:** tap a member to toggle it,
+  hold to open its own popup.
+- **Floorplan bulbs** buzz on tap and show a "sent" ring.
+- **Header bar:** the clock is centred and a phone-style battery shows the
+  remote's charge, with a bolt while charging.
+- **Every page fits one screen:**
+  - Thinner header band; next event and next alarm share one line, with icons.
+  - One-line lock card.
+  - Tighter Plex captions (`tightTextStyle`).
+  - Favourites can wrap (`button_grid.label_lines`).
+  - `media_player.art_aspect` option.
+  - Compact `switch` tiles; speaker panels with full-height volume buttons.
+  - Compact blind tiles and aircon card (Climate needs no scrolling).
+- **Screensaver key handling:** `keys_pass_through` can list the keys that
+  still act when they wake the screensaver. The shipped config passes volume,
+  mute, page keys and voice, while OK, the D-pad and the app keys only wake.
+  Pressing OK to wake a docked remote was switching the TV on (21 of 68
+  Google TV sessions played nothing). MUTE no longer sends HOME to the TV.
+- A `dashboard.json` `screensaver` block now overrides individual defaults
+  instead of replacing all of them.
+- The shipped config sets the night screensaver to 12 %: the old 5 %
+  (12/255) read as a black panel on the HA100.
+- **IR popup:**
+  - Netflix, YouTube and Plex removed.
+  - New Eye Comfort button.
+  - Buttons can be guarded with `unless` (entity/attribute/is) plus `unless_text`.
+- **Voice:** each conversation is logged to `/sdcard/astrion/voice/log.txt`.
+- New switch tile icons: `music`, `night`.
 
 ### Battery
 
@@ -13,8 +95,7 @@ MT6580, and a battery pass (`docs/POWER.md`).
   the wake word streaming, with every flicker of contact restarting the
   undocked wake word window.
 - **Motion-wake listens for 5 minutes** after the screen goes off
-  (`power.motion_wake_minutes`), never on the dock. The wake-up accelerometer
-  wakes the CPU for every reading, so it kept the remote from ever sleeping.
+  (`power.motion_wake_minutes`), never on the dock.
 - **With the screen off, HA only sends what the alarm and alerts need.**
   After 30 s dark (`power.screen_off_filter_seconds`) the subscription narrows
   to their entities, and the full one comes back on wake. The radar sensors
