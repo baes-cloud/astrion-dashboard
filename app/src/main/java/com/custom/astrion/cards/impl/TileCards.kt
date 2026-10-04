@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
@@ -84,13 +85,15 @@ class CoverCard : CardRenderer {
                 .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(18.dp))
                 .background(AstrionTheme.cardBgAlt)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                // 68dp -> 52dp tall, so three blinds and the aircon fit the
+                // Climate page without scrolling.
+                .padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(AstrionTheme.raised),
                 contentAlignment = Alignment.Center,
             ) {
@@ -104,27 +107,27 @@ class CoverCard : CardRenderer {
                     },
                 )
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     name,
                     color = AstrionTheme.textPrimary,
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     // Was maxLines=1 with no overflow, so a long name simply clipped.
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (unavailable) {
-                    UnavailableLabel(13.sp)
+                    UnavailableLabel(12.sp)
                 } else {
-                    Text(stateLabel, color = AstrionTheme.textSecondary, fontSize = 13.sp)
+                    Text(stateLabel, color = AstrionTheme.textSecondary, fontSize = 12.sp)
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CircleBtn(Icons.Filled.KeyboardArrowUp, "Open $name", live) { call(openService) }
-                CircleBtn(Icons.Filled.Stop, "Stop $name", live) { call("stop_cover") }
-                CircleBtn(Icons.Filled.KeyboardArrowDown, "Close $name", live) { call(closeService) }
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                CircleBtn(Icons.Filled.KeyboardArrowUp, "Open $name", live, size = 38.dp) { call(openService) }
+                CircleBtn(Icons.Filled.Stop, "Stop $name", live, size = 38.dp) { call("stop_cover") }
+                CircleBtn(Icons.Filled.KeyboardArrowDown, "Close $name", live, size = 38.dp) { call(closeService) }
             }
         }
     }
@@ -211,6 +214,9 @@ class SwitchCard : CardRenderer {
         val icon = switchIcon(config.string("icon"))
         // On-state background (e.g. a semi-transparent dark red for a heater).
         val onColor = parseColor(config.options["on_color"]) ?: Color(0xFF2E5A46)
+        // `compact`: one line (name, state as a dot of colour), for a row of
+        // toggles that shouldn't take a card's worth of height each.
+        val compact = config.bool("compact", false)
 
         Row(
             modifier = Modifier
@@ -219,14 +225,14 @@ class SwitchCard : CardRenderer {
                 .clip(RoundedCornerShape(18.dp))
                 .background(if (on) onColor else AstrionTheme.cardBgAlt)
                 .tap(enabled = live) { ctx.client.toggle(entityId) }
-                .padding(14.dp),
+                .padding(if (compact) PaddingValues(horizontal = 10.dp, vertical = 6.dp) else PaddingValues(14.dp)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Leading icon box, matching the cover tiles below it.
             Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(if (compact) 28.dp else 42.dp)
+                    .clip(RoundedCornerShape(if (compact) 8.dp else 12.dp))
                     .background(AstrionTheme.raised),
                 contentAlignment = Alignment.Center,
             ) {
@@ -238,16 +244,19 @@ class SwitchCard : CardRenderer {
                         on -> Color(0xFFE79A9A)
                         else -> Color(0xFFC3D0CD)
                     },
+                    modifier = Modifier.size(if (compact) 17.dp else 24.dp),
                 )
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(if (compact) 8.dp else 12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    name, color = AstrionTheme.textPrimary, fontSize = 16.sp,
+                    name, color = AstrionTheme.textPrimary, fontSize = if (compact) 13.sp else 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                if (unavailable) {
+                if (compact) {
+                    // State is carried by the tile colour and the icon tint.
+                } else if (unavailable) {
                     UnavailableLabel(13.sp)
                 } else {
                     Text(if (on) "On" else "Off", color = AstrionTheme.textSecondary, fontSize = 13.sp)
@@ -280,11 +289,12 @@ private fun CircleBtn(
     icon: ImageVector,
     description: String? = null,
     enabled: Boolean = true,
+    size: Dp = 44.dp,
     onClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
-            .size(44.dp)
+            .size(size)
             .clip(CircleShape)
             .background(AstrionTheme.controlBg)
             .tap(enabled = enabled, onClick = onClick),

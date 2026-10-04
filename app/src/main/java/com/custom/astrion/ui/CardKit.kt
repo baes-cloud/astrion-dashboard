@@ -14,6 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -185,3 +190,21 @@ fun TouchTarget(
         contentAlignment = Alignment.Center,
     ) { content() }
 }
+
+/**
+ * The current text style without Android's built-in font padding, and with
+ * the line box trimmed to the glyphs: for captions stacked under artwork,
+ * where the default padding left a visible gap between two short lines.
+ */
+@Composable
+fun tightTextStyle(lineHeight: TextUnit): TextStyle =
+    LocalTextStyle.current.merge(
+        TextStyle(
+            lineHeight = lineHeight,
+            platformStyle = PlatformTextStyle(includeFontPadding = false),
+            lineHeightStyle = LineHeightStyle(
+                alignment = LineHeightStyle.Alignment.Center,
+                trim = LineHeightStyle.Trim.Both,
+            ),
+        )
+    )

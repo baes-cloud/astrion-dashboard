@@ -145,8 +145,8 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(AstrionTheme.pinnedTopBg)
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 pinnedTop.forEach { RenderCard(it, ctx) }
             }

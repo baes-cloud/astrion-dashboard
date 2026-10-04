@@ -191,6 +191,9 @@ class MediaPlayerCard : CardRenderer {
                 FullContent(
                     ctx, title, artist, playing, art, ::mp, topButtons, sourceEntity, live,
                     showControls = config.bool("show_controls", true),
+                    // Width / height of the artwork; wider leaves room below
+                    // the card for the favourites row on one screen.
+                    artAspect = (config.options["art_aspect"] as? Number)?.toFloat() ?: 1.2f,
                 )
             } else {
                 CompactContent(title, artist, playing, art, ::mp, live)
@@ -465,6 +468,7 @@ class MediaPlayerCard : CardRenderer {
         sourceEntity: String?,
         enabled: Boolean,
         showControls: Boolean,
+        artAspect: Float,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -506,7 +510,7 @@ class MediaPlayerCard : CardRenderer {
             // Big album art, or a placeholder glyph when nothing is playing /
             // the poster can't be fetched — otherwise the card is a large
             // empty rectangle that reads as broken rather than idle.
-            val artMod = Modifier.fillMaxWidth().aspectRatio(1.2f).clip(RoundedCornerShape(16.dp))
+            val artMod = Modifier.fillMaxWidth().aspectRatio(artAspect).clip(RoundedCornerShape(16.dp))
             if (art != null) {
                 Image(art, null, modifier = artMod, contentScale = ContentScale.Crop)
             } else {

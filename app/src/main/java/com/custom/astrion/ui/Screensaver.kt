@@ -87,7 +87,7 @@ import java.util.Locale
  *
  * Config (`screensaver` in dashboard.json; every key optional):
  *   { "enabled": true, "trigger": "docked" | "always", "idle_seconds": 45,
- *     "undocked_idle_seconds": 10, "undocked_brightness": 0.08,
+ *     "undocked_idle_seconds": 90, "undocked_brightness": 0.08,
  *     "brightness": 0.2, "night_brightness": 0.03, "keep_screen_on": true,
  *     "time_format": 12, "weather_entity": "weather.home",
  *     "media_entities": ["media_player.club"], "media_any": true,

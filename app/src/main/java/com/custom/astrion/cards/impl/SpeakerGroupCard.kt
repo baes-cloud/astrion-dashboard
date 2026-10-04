@@ -198,12 +198,18 @@ class SpeakerGroupCard : CardRenderer {
                     else Modifier
                         .clip(RoundedCornerShape(if (compact) 14.dp else 18.dp))
                         .background(panel)
-                        .padding(if (compact) 10.dp else 12.dp)
+                        .padding(if (compact) 9.dp else 12.dp)
                 ),
             // Centred, so a panel given extra height keeps its controls together.
-            verticalArrangement = Arrangement.spacedBy(if (compact) 7.dp else 8.dp, Alignment.CenterVertically),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp, Alignment.CenterVertically),
         ) {
-            val btnHeight = if (compact && isMaster) 40.dp else 44.dp
+            // Compact panels share a fixed-height card; 38dp is what still
+            // fits three speakers without the buttons being squeezed flat.
+            val btnHeight = when {
+                compact && isMaster -> 40.dp
+                compact -> 38.dp
+                else -> 44.dp
+            }
             @Composable
             fun Buttons(fill: Boolean) {
                 Row(
@@ -299,7 +305,7 @@ class SpeakerGroupCard : CardRenderer {
                 } else if (isMaster) {
                     MasterChip()
                 } else {
-                    JoinToggle(grouped, enabled = live, label = label, onClick = ::toggleGroup)
+                    JoinToggle(grouped, enabled = live, label = label, compact = compact, onClick = ::toggleGroup)
                 }
             }
 
@@ -321,11 +327,12 @@ class SpeakerGroupCard : CardRenderer {
         grouped: Boolean,
         enabled: Boolean,
         label: String,
+        compact: Boolean = false,
         onClick: () -> Unit,
     ) {
         Row(
             modifier = Modifier
-                .height(40.dp)
+                .height(if (compact) 32.dp else 40.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(if (grouped) AstrionTheme.controlBg else AstrionTheme.cardBgAlt)
                 .tap(enabled = enabled, onClick = onClick)

@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -187,7 +188,10 @@ fun AstrionMaterialTheme(content: @Composable () -> Unit) {
     ) {
         CompositionLocalProvider(
             LocalContentColor provides AstrionTheme.textPrimary,
-            LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = f),
+            // Compose's plain default, not MaterialTheme's bodyLarge: that
+            // carries a 24sp line height and 0.5sp tracking, which made every
+            // label taller (header, lock card, Plex captions) and clipped text.
+            LocalTextStyle provides TextStyle.Default.copy(fontFamily = f),
             LocalHapticFeedback provides haptics,
             content = content,
         )

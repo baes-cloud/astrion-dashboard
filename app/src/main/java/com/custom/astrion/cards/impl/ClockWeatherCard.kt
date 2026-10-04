@@ -154,7 +154,7 @@ class ClockWeatherCard : CardRenderer {
                     // Bare, the text lines up with the header above it rather
                     // than sitting inset inside an edge that isn't there.
                     padH = if (bare) 0.dp else 10.dp,
-                    padV = if (bare) 8.dp else 9.dp,
+                    padV = if (bare) 3.dp else 9.dp,
                     calendarLine = todayEvent,
                 )
             } else Column(

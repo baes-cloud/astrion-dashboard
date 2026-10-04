@@ -134,8 +134,10 @@ class ClimateCard : CardRenderer {
                 .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(20.dp))
                 .background(AstrionTheme.cardBg)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                // Tightened so the Climate page (this card plus three blinds)
+                // fits one screen without scrolling.
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // Header: name + a dedicated off button.
             Row(
@@ -143,10 +145,10 @@ class ClimateCard : CardRenderer {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(name, color = Color(0xFFEEF2EF), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(name, color = Color(0xFFEEF2EF), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
                         .background(if (isOff) AstrionTheme.dangerBg else AstrionTheme.controlBg)
                         .tap(enabled = live) { turnOff() },
@@ -174,7 +176,7 @@ class ClimateCard : CardRenderer {
                     Text(
                         shownTarget?.let { "${trim(it)}°" } ?: "—",
                         color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
-                        fontFamily = AstrionTheme.headingFont, fontSize = 44.sp,
+                        fontFamily = AstrionTheme.headingFont, fontSize = 40.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     // The steppers silently no-op when there is no target, so
@@ -244,7 +246,7 @@ class ClimateCard : CardRenderer {
     ) {
         Box(
             modifier = Modifier
-                .size(56.dp)
+                .size(50.dp)
                 .clip(CircleShape)
                 .background(AstrionTheme.controlBg)
                 .tap(enabled = enabled, onClick = onClick),
@@ -265,7 +267,7 @@ class ClimateCard : CardRenderer {
         Box(
             modifier = modifier
                 // Raised from 40dp; this is the row that carries mode state.
-                .height(44.dp)
+                .height(40.dp)
                 .clip(RoundedCornerShape(12.dp))
                 // accentStrong is a darkened 0xFF4C6EF5 — white 13sp on the
                 // original measured 4.32:1, the only real contrast failure in

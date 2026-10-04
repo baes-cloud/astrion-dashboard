@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -245,10 +246,11 @@ class NowPlayingLineCard : CardRenderer {
 }
 
 /**
- * One row, two facts: the next diary entry on the left, the next alarm on the
- * right.
+ * Two facts stacked tight under the weather: the next diary entry, then the
+ * next alarm. (They used to share one row, which cut the event title off.)
  *
- *   📅 Next event: Tue 8:15 HQ          ⏰ Next alarm: 7:05 Tue
+ *   📅 Next event: Tue 8:15 HQ
+ *   ⏰ Next alarm: 7:05 Tue
  *
  * The alarm is the earliest one still to come across `alarm_entities`
  * (timestamp sensors). It honours the same switches Home Assistant does:
@@ -284,21 +286,12 @@ class NextUpCard : CardRenderer {
         val alarm = nextAlarm(config, ctx, now)
         if (event == null && alarm == null) return
 
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(1.dp),
         ) {
-            // The event owns everything left of the alarm and ellipsises if it
-            // must; the alarm hugs the right edge, a fixed gap between them.
-            Box(Modifier.weight(1f)) {
-                if (event != null) {
-                    Fact(Icons.Filled.Event, "Next event:", event, AstrionTheme.accent, Modifier)
-                }
-            }
-            if (alarm != null) {
-                Spacer(Modifier.width(12.dp))
-                Fact(Icons.Filled.Alarm, "Next alarm:", alarm, AstrionTheme.blush, Modifier)
-            }
+            if (event != null) Fact(Icons.Filled.Event, "Next event:", event, AstrionTheme.accent, Modifier)
+            if (alarm != null) Fact(Icons.Filled.Alarm, "Next alarm:", alarm, AstrionTheme.blush, Modifier)
         }
     }
 

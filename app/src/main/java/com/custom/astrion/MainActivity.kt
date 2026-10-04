@@ -188,7 +188,7 @@ class MainActivity : ComponentActivity() {
          * idle brings up a dim screensaver, until the system timeout turns the
          * screen off. -1 = no screensaver off the dock.
          */
-        const val SCREENSAVER_UNDOCKED_IDLE_S = 10
+        const val SCREENSAVER_UNDOCKED_IDLE_S = 90
 
         /** `screensaver.undocked_brightness` default: dimmer than docked, it's on battery. */
         const val SCREENSAVER_UNDOCKED_BRIGHTNESS = 0.08f
@@ -199,7 +199,7 @@ class MainActivity : ComponentActivity() {
          * HaRemote app writes "never" (2147483647), which kept an undocked
          * remote's screen on until it ran flat. 0 = leave the setting alone.
          */
-        const val SCREEN_TIMEOUT_S = 30
+        const val SCREEN_TIMEOUT_S = 120
 
         /** `power.motion_wake_minutes` default: listen for a pick-up this long after the screen goes off. */
         const val MOTION_WAKE_MIN = 5

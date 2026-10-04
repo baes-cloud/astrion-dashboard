@@ -27,7 +27,7 @@ the app can't do for itself.
   Needs a one-off grant per remote:
   `adb shell appops set com.custom.astrion WRITE_SETTINGS allow`.
 - **Screensaver off the dock too.** Put down off the dock, a dimmed
-  screensaver comes up after `screensaver.undocked_idle_seconds` (10), and
+  screensaver comes up after `screensaver.undocked_idle_seconds` (90), and
   the screen then goes off at the timeout. Docked, it is as before.
 - **Quiet HA connection with the screen off.** After `screen_off_filter_seconds`
   dark, the HA subscription narrows to the alarm's and the alerts' entities.
@@ -52,7 +52,7 @@ All keys are optional.
   "screen_off_filter_seconds": 30,
   "screen_off_entities": [],
   "dock_debounce_seconds": 5,
-  "screen_timeout_seconds": 30,
+  "screen_timeout_seconds": 120,
   "report_entity": "sensor.lounge_remote_battery",
   "report_name": "Lounge remote battery"
 }
@@ -64,7 +64,7 @@ All keys are optional.
 | `screen_off_filter_seconds` | 30 | How long the screen must be off before the HA subscription narrows. `-1` never narrows. |
 | `screen_off_entities` | – | Extra entities to keep live with the screen off, on top of the alarm's and alerts'. |
 | `dock_debounce_seconds` | 5 | How long it must be charging before it counts as docked. Lifting it off counts at once. |
-| `screen_timeout_seconds` | 30 | The system screen timeout, enforced (see above). Docked, the screen stays on regardless. `0` leaves the setting alone. |
+| `screen_timeout_seconds` | 120 | The system screen timeout, enforced (see above). Docked, the screen stays on regardless. `0` leaves the setting alone. |
 | `report_entity` | – | Publish this remote's battery to HA under this id (see below). Give each remote its own. |
 | `report_name` | – | Friendly name for that entity. |
 
