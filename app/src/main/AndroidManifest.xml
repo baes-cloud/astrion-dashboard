@@ -50,9 +50,12 @@
           ever connect over https:// / wss://.
         -->
 
+        <!-- singleTask: one instance, ever. As the home app a second copy
+             would mean a second HA connection, wake word and sensor. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:screenOrientation="portrait"
             android:configChanges="keyboardHidden|orientation|screenSize">
             <intent-filter>
@@ -60,6 +63,23 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The home-app entry, OFF by default so installing never takes over
+             from the stock launcher by surprise. Switched on with adb, see
+             docs/POWER.md ("Making it the home app"):
+               pm enable com.custom.astrion/.HomeAlias
+               cmd package set-home-activity com.custom.astrion/.HomeAlias -->
+        <activity-alias
+            android:name=".HomeAlias"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
 
         <service
             android:name=".KeepAliveService"

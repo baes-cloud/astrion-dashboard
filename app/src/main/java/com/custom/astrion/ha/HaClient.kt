@@ -21,7 +21,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*
+import com.custom.astrion.config.JsonPlain
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -43,7 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger
  *   3. Server sends   { type: "auth_ok" }  (or "auth_invalid")
  *   4. We             subscribe_entities: the first event carries every
  *                     entity's state, later ones compact per-entity diffs
- *   6. Heartbeat via  { type: "ping" } / { type: "pong" }
+ *   5. Heartbeat via  WebSocket ping frames (OkHttp's pingInterval)
  *
  * Because it's the stock protocol, this app needs nothing from Sanytron's
  * cloud or their custom integration to function — only a reachable HA instance
@@ -59,8 +62,9 @@ class HaClient(
 ) {
     companion object {
         private const val TAG = "HaClient"
-        private const val PING_INTERVAL_MS = 30_000L
         private const val PUBLISH_INTERVAL_MS = 120L
+        /** Stands in for an empty [setEntityFilter]; see subscribeEntities. */
+        private const val NO_ENTITY = "sensor.astrion_no_entity"
         /** How long a request waits for the socket to (re)authenticate. */
         private const val CONNECT_WAIT_MS = 15_000L
         private const val RECONNECT_MIN_MS = 3_000L
@@ -71,8 +75,11 @@ class HaClient(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val idCounter = AtomicInteger(1)
 
+    // The only heartbeat. There used to be a second, app-level HA `ping`
+    // every 30 s on top of this; each one wakes the Wi-Fi radio, and only
+    // this one actually notices a dead socket (no pong fails the connection).
     private val http = OkHttpClient.Builder()
-        .pingInterval(20, TimeUnit.SECONDS)
+        .pingInterval(30, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
 
@@ -111,9 +118,10 @@ class HaClient(
     // Working store updated on every event; published to _entities at most once
     // per PUBLISH_INTERVAL_MS so a chatty sensor (e.g. mmWave radar at several
     // Hz) can't force the whole UI to repaint faster than the SoC can handle.
+    // Scheduled by the event itself rather than a loop polling a dirty flag,
+    // so nothing runs at all while HA is quiet.
     private val entityStore = ConcurrentHashMap<String, EntityState>()
-    @Volatile private var entitiesDirty = false
-    @Volatile private var publisherStarted = false
+    private val publishScheduled = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /**
      * One snapshot state per entity, for [entityState]. A composable that
@@ -128,6 +136,14 @@ class HaClient(
     @Volatile private var entitiesSubId = -1
     /** True until the current subscription's first (full-snapshot) event. */
     @Volatile private var awaitingSeed = false
+
+    /**
+     * Entities the live subscription is limited to; null = every entity.
+     * See [setEntityFilter].
+     */
+    @Volatile private var entityFilter: Set<String>? = null
+    /** The filter the live subscription was actually made with. */
+    @Volatile private var subscribedFilter: Set<String>? = null
 
     private var reconnectJob: Job? = null
     /** Consecutive failed connects, for backoff; reset on auth_ok. */
@@ -166,6 +182,29 @@ class HaClient(
                 connect()
             }
             else -> {}
+        }
+    }
+
+    /**
+     * Limit the entity subscription to [ids] (null: everything).
+     *
+     * With the screen off nothing is drawn, but an unfiltered subscription
+     * still carries every change in HA — the floorplan's radar sensors alone
+     * several times a second — and each packet wakes the Wi-Fi radio and the
+     * CPU. MainActivity narrows it to what the alarm and alerts watch while
+     * the screen is off, and widens it again on wake; the full snapshot that
+     * re-subscribing brings refreshes everything that was missed meanwhile.
+     */
+    fun setEntityFilter(ids: Set<String>?) {
+        entityFilter = ids
+        if (_connection.value == ConnectionState.CONNECTED && ids != subscribedFilter) {
+            val old = entitiesSubId
+            if (old > 0) send(buildJsonObject {
+                put("id", idCounter.getAndIncrement())
+                put("type", "unsubscribe_events")
+                put("subscription", old)
+            })
+            subscribeEntities()
         }
     }
 
@@ -220,6 +259,27 @@ class HaClient(
         } catch (e: Exception) {
             Log.w(TAG, "fetchBytes failed for $path", e)
             null
+        }
+    }
+
+    /**
+     * Set an entity's state through HA's REST API (`POST /api/states/<id>`),
+     * e.g. the remote's own battery. The websocket API has no equivalent.
+     * Fire and forget; a failure is only logged.
+     */
+    fun postState(entityId: String, state: String, attributes: Map<String, Any?>) {
+        val body = buildJsonObject {
+            put("state", state)
+            put("attributes", JsonPlain.toJson(attributes))
+        }.toString().toRequestBody("application/json".toMediaType())
+        val req = Request.Builder()
+            .url(baseUrl.trimEnd('/') + "/api/states/" + entityId)
+            .header("Authorization", "Bearer $token")
+            .post(body)
+            .build()
+        scope.launch {
+            runCatching { imageHttp.newCall(req).execute().close() }
+                .onFailure { Log.w(TAG, "postState failed for $entityId", it) }
         }
     }
 
@@ -439,23 +499,16 @@ class HaClient(
         Log.i(TAG, "Authenticated")
         reconnectAttempts = 0
         _connection.value = ConnectionState.CONNECTED
-        startPublisher()
         subscribeEntities()
-        startHeartbeat()
     }
 
-    /** Coalesce entity updates: publish the store to the StateFlow at a bounded rate. */
-    private fun startPublisher() {
-        if (publisherStarted) return
-        publisherStarted = true
+    /** Coalesce entity updates: publish the store at most every PUBLISH_INTERVAL_MS. */
+    private fun schedulePublish() {
+        if (publishScheduled.getAndSet(true)) return
         scope.launch {
-            while (true) {
-                kotlinx.coroutines.delay(PUBLISH_INTERVAL_MS)
-                if (entitiesDirty) {
-                    entitiesDirty = false
-                    publish()
-                }
-            }
+            kotlinx.coroutines.delay(PUBLISH_INTERVAL_MS)
+            publishScheduled.set(false)
+            publish()
         }
     }
 
@@ -466,32 +519,25 @@ class HaClient(
      * full snapshot, so no separate get_states is needed. Unfiltered, because
      * some cards look entities up by computed id (floorplan radar sensors) or
      * scan all of them (screensaver), so a config-derived list would miss some.
+     * The exception is [setEntityFilter], used only while nothing is drawn.
      */
-    private fun subscribeEntities() {
+    @androidx.annotation.VisibleForTesting
+    internal fun subscribeEntities() {
         val id = idCounter.getAndIncrement()
+        val filter = entityFilter
         entitiesSubId = id
+        subscribedFilter = filter
         awaitingSeed = true
         send(buildJsonObject {
             put("id", id)
             put("type", "subscribe_entities")
-        })
-    }
-
-    private fun startHeartbeat() {
-        val mine = epoch
-        scope.launch {
-            while (_connection.value == ConnectionState.CONNECTED && epoch == mine) {
-                kotlinx.coroutines.delay(PING_INTERVAL_MS)
-                // Re-check after the sleep: a ping landing on a fresh,
-                // not-yet-authenticated socket makes HA drop the connection.
-                if (_connection.value != ConnectionState.CONNECTED || epoch != mine) break
-                val ping = buildJsonObject {
-                    put("id", idCounter.getAndIncrement())
-                    put("type", "ping")
-                }
-                send(ping)
+            // HA reads an empty entity_ids as "no filter" (everything), so an
+            // empty filter subscribes to a placeholder that never exists.
+            if (filter != null) {
+                val ids = filter.ifEmpty { setOf(NO_ENTITY) }
+                put("entity_ids", JsonArray(ids.map { JsonPrimitive(it) }))
             }
-        }
+        })
     }
 
     /**
@@ -537,9 +583,11 @@ class HaClient(
         val seeded = awaitingSeed && added != null
         if (seeded) {
             awaitingSeed = false
-            // The seed is the complete set: drop anything deleted from HA
-            // while we were disconnected.
-            for (gone in entityStore.keys - added!!.keys) {
+            // An unfiltered seed is the complete set: drop anything deleted
+            // from HA while we were disconnected. A filtered one only covers
+            // its own entities, so everything else is kept (stale) for the
+            // full snapshot that comes back with the screen.
+            if (subscribedFilter == null) for (gone in entityStore.keys - added!!.keys) {
                 entityStore.remove(gone)
                 changedIds += gone
             }
@@ -581,7 +629,7 @@ class HaClient(
             changedIds += entityId
         }
         // The seed is important — publish at once so the first frame has data.
-        if (seeded) publish() else entitiesDirty = true
+        if (seeded) publish() else schedulePublish()
     }
 
     /** HA's epoch-seconds timestamp as ISO-8601, the format cards parse. */

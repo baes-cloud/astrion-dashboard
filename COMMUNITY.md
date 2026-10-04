@@ -203,7 +203,7 @@ Full spec for rebuilding it on other screens (e.g. ESPHome): `docs/ALARM_POPUP_S
 
 ## Docked screensaver
 
-When the remote is on external power (its dock) and nobody has touched it for
+When the remote is charging on its dock and nobody has touched it for
 `idle_seconds`, the dashboard gives way to a black, night-friendly face: a big
 thin clock at about half opacity, the date and current weather, and — only when
 relevant — what's playing (art, title, artist, progress), running or paused
@@ -248,11 +248,25 @@ has a small iptables script, re-applied at every boot, that lets only your admin
 machine (matched by MAC as well as IP, so a new DHCP lease can't lock you out)
 reach port 5555. It fails open, and USB adb is unaffected. See `device/README.md`.
 
+## Battery life (`power`)
+
+Docked means charging: a remote that's plugged in but not taking charge (sat
+wrong on its dock) is treated as on battery. Pick-up-to-wake listens only for a
+few minutes after the screen goes off, and with the screen off the HA
+connection narrows to just what the alarm and alerts need. A `power` block
+tunes this and can publish each remote's battery to HA, with a `dock_fault`
+attribute for "on the dock but not charging". See `docs/POWER.md`.
+
 ## Coexisting with the stock app
 
-The stock HaRemote app stays installed as the home/launcher app (the device firmware
-expects it). A button mapped in **Key Mapper** (or any launcher shortcut) opens this
-app on demand — both live side by side.
+By default the stock HaRemote app stays the home/launcher app, and a button
+mapped in **Key Mapper** (or any launcher shortcut) opens this app on demand.
+
+This app can be the launcher instead, which retires both HaRemote and Key
+Mapper (two apps running all day): a crash relaunches it, `astrion.open_settings`
+and `astrion.launch` (`"data": { "package": "..." }`) cover what Key Mapper did,
+and BACK returns from Settings. Its HOME entry ships switched off; the
+reversible adb steps are in `docs/POWER.md`.
 
 ## Stack
 

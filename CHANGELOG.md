@@ -3,7 +3,32 @@
 ## Unreleased
 
 Speed, memory and reliability work, mostly invisible but felt on the HA100's
-MT6580.
+MT6580, and a battery pass (`docs/POWER.md`).
+
+### Battery
+
+- **Docked means charging.** Plugged in no longer counts as docked unless the
+  battery is actually charging (or full) and has been for a few seconds. A
+  remote sitting badly on its dock was treated as on mains: screen held on and
+  the wake word streaming, with every flicker of contact restarting the
+  undocked wake word window.
+- **Motion-wake listens for 5 minutes** after the screen goes off
+  (`power.motion_wake_minutes`), never on the dock. The wake-up accelerometer
+  wakes the CPU for every reading, so it kept the remote from ever sleeping.
+- **With the screen off, HA only sends what the alarm and alerts need.**
+  After 30 s dark (`power.screen_off_filter_seconds`) the subscription narrows
+  to their entities, and the full one comes back on wake. The radar sensors
+  were waking the Wi-Fi radio several times a second all night.
+- Entity updates publish when they arrive instead of from a loop every
+  120 ms; one heartbeat instead of two.
+- The dashboard isn't drawn under the screensaver, and the screensaver
+  redraws once a second rather than on every HA update.
+- **Battery in HA:** `power.report_entity` publishes the remote's battery, with
+  a `dock_fault` attribute for "plugged in but not charging".
+- **Ready to be the home app:** a HOME entry (off until enabled over adb) and
+  `singleTask`, plus `astrion.open_settings` and `astrion.launch` actions to
+  replace Key Mapper. `device/adbwifi.rc` brings wireless adb up before boot
+  completes, so a home app that fails to start no longer locks you out.
 
 ### Changed
 

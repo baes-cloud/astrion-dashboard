@@ -100,20 +100,28 @@ import java.util.Locale
 @Composable
 fun Screensaver(
     options: Map<String, Any?>,
-    entities: EntityMap,
+    entities: () -> EntityMap,
     client: HaClient,
     connected: Boolean,
     batteryPct: Int?,
     charging: Boolean,
 ) {
+    // Entities are sampled on the clock tick rather than observed: observed,
+    // every HA update (the floorplan's radar sensors, several a second)
+    // recomposed and redrew the whole face, all night, for a display that
+    // only changes once a second anyway.
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var sampled by remember { mutableStateOf(entities()) }
     LaunchedEffect(Unit) {
         while (true) {
             now = System.currentTimeMillis()
+            val latest = entities()
+            if (latest !== sampled) sampled = latest
             // Land on the next whole second so the timer and clock tick together.
             delay(1000 - now % 1000)
         }
     }
+    val entities = sampled
 
     val night = screensaverIsNight(entities, now)
     val clockInk = if (night) NightClock else DayClock

@@ -162,7 +162,7 @@ standard Android `KeyEvent`s, intercepted in `dispatchKeyEvent`.
 | `MainActivity.kt` | Compose host, hardware key dispatch, motion-wake, alarm wake |
 | `AstrionApp.kt` | Registers card types at startup |
 | `device/` | On-device scripts: restrict wireless ADB to your admin machine |
-| `docs/` | Alarm popup spec, IR capture notes, UI critique |
+| `docs/` | Battery life and home-app setup (`POWER.md`), alarm popup spec, IR capture notes, UI critique |
 
 See `COMMUNITY.md` for the full card reference, the JSON config schema, and
 the physical-button map. See `ARCHITECTURE.md` for how the stock app works

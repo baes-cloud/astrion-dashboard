@@ -64,4 +64,24 @@ class HaClientEntitiesTest {
         c.onEntitiesEvent(event("""{"r": ["sensor.temp"]}"""))
         assertNull(c.entityState("sensor.temp").value)
     }
+
+    private val reseed = """{"a": {"sensor.temp": {"s": "22.0", "a": {}, "c": "01GHI", "lc": 1727600300.0}}}"""
+
+    @Test fun fullSeedDropsEntitiesGoneFromHa() {
+        val c = client()
+        c.subscribeEntities()
+        c.onEntitiesEvent(event(reseed))
+        assertNull(c.entityState("light.kitchen").value)
+        assertEquals("22.0", c.entityState("sensor.temp").value!!.state)
+    }
+
+    @Test fun filteredSeedKeepsEntitiesOutsideTheFilter() {
+        val c = client()
+        // Not connected, so this only records the filter for the next subscribe.
+        c.setEntityFilter(setOf("sensor.temp"))
+        c.subscribeEntities()
+        c.onEntitiesEvent(event(reseed))
+        assertEquals("off", c.entityState("light.kitchen").value!!.state)
+        assertEquals("22.0", c.entityState("sensor.temp").value!!.state)
+    }
 }
