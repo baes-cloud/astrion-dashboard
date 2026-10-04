@@ -446,6 +446,21 @@ class HaClient(
     }
 
     /**
+     * End a long-lived subscription (e.g. `rmm/stream`) on the server too, so
+     * HA stops pushing frames nobody reads. Safe on a dead socket: the
+     * subscription died with it.
+     */
+    fun unsubscribe(id: Int) {
+        eventHandlers.remove(id)
+        if (socket == null || _connection.value != ConnectionState.CONNECTED) return
+        send(buildJsonObject {
+            put("id", idCounter.getAndIncrement())
+            put("type", "unsubscribe_events")
+            put("subscription", id)
+        })
+    }
+
+    /**
      * Send a raw binary frame. HA's Assist pipeline expects audio as
      * `[handler_id byte] + [raw PCM]`; a frame containing only the handler
      * byte signals end-of-audio.
