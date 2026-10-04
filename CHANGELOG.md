@@ -89,12 +89,29 @@ companion automations and scripts are in `docs/HOME_ASSISTANT.md`.
 
 ### Final pass (2026-10-05)
 
-- **TV card transport buttons go to a player that can do it.** Next and
-  previous were sent to the Cast entity, which rejects them for a native app
-  like Plex, and HA's Plex client entity for the Google TV supports no
-  transport at all. Each button now picks, among `art_entities`, a
-  playing/paused player that supports the action, then any that's on: for
-  Plex that's the ADB entity's media keys.
+- **The TV card shows what's on, and no longer controls it.** Its mute,
+  previous, play, next and volume buttons are gone, with the code that routed
+  them (`volume_entity`, the feature-based transport targeting). The hardware
+  keys do the controlling. What's left is session information: the artwork at
+  its own shape (a Plex poster is 2:3, where the old 1.6:1 hero cropped it to a
+  band), the show, episode, season and episode number and rating, a Playing /
+  Paused line with the app, and the position under a hairline that ticks only
+  while playing and on screen. A paused Plex session left open in the
+  background no longer passes for what's on the TV: a paused session only
+  shows while its app is the one in front. With nothing playing, the card
+  shows the app in front (its logo and name), and while the TV is off, the
+  placeholder. The app tiles moved under the session, and the one in front is
+  outlined. `entity_id` is now the TV's ADB entity, read for power and the app
+  in front; its screen-grab `entity_picture` is no longer used as artwork. The
+  card is about 100dp shorter, so the first Plex row shows in full.
+- **Fan row on the Climate page.** The `fan` card is now one line the height
+  of a blind row: speed down and up (taps settle before sending, as the aircon
+  setpoint does) and power. Tapping the name opens a popup with everything:
+  speed as eight bars, the fan's preset modes, side-to-side and up-and-down
+  swing, the sleep timer with its time left, the room temperature and any
+  fault. Optional `swing_entity`, `timer_entity`, `timer_left_entity`,
+  `temperature_entity` and `problem_entity` add the extras. Speeds are sent as
+  HA rounds them (37 % is speed 3 of 8, 38 % is speed 4).
 - **The RMM dots only stream while the floorplan is on screen.** The stream
   sends two frames a second (about 6 KB/s, radar diagnostics included). With
   every page kept composed, it ran on other pages, under the screensaver and,

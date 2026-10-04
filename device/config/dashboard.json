@@ -15,10 +15,9 @@
     {
      "type": "media_player",
      "options": {
-      "entity_id": "media_player.the_club_tv",
+      "entity_id": "media_player.club_android_tv_10_0_0_248_club_tv",
       "variant": "tv",
       "placeholder": "/sdcard/astrion/serif_tv.png",
-      "volume_entity": "media_player.club",
       "apps": [
        {
         "name": "iview",
@@ -68,8 +67,7 @@
       ],
       "art_entities": [
        "media_player.plex_plex_for_android_tv_tv",
-       "media_player.the_club_tv",
-       "media_player.club_android_tv_10_0_0_248_club_tv"
+       "media_player.the_club_tv"
       ]
      }
     },
@@ -583,6 +581,18 @@
      "options": {
       "entity_id": "climate.aircon",
       "name": "Aircon"
+     }
+    },
+    {
+     "type": "fan",
+     "options": {
+      "entity_id": "fan.fann",
+      "name": "Fan",
+      "swing_entity": "switch.fann_vertical_oscillation",
+      "timer_entity": "select.fann_timer",
+      "timer_left_entity": "sensor.fann_time_remaining",
+      "temperature_entity": "sensor.fann_temperature",
+      "problem_entity": "binary_sensor.fann_problem"
      }
     },
     {

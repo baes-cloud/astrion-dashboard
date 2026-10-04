@@ -555,7 +555,7 @@ private fun MediaProgress(position: Double, reportedAt: Long?, duration: Double,
 
 // ---- time helpers ----------------------------------------------------------------
 
-private fun parseIsoMs(iso: String): Long? =
+internal fun parseIsoMs(iso: String): Long? =
     runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
 
 /** "0:05:00" → ms. */
@@ -573,7 +573,7 @@ private fun formatCountdown(ms: Long): String {
     else String.format(Locale.US, "%d:%02d", m, s)
 }
 
-private fun formatMediaTime(seconds: Double): String {
+internal fun formatMediaTime(seconds: Double): String {
     val t = seconds.toLong().coerceAtLeast(0)
     return if (t >= 3600) String.format(Locale.US, "%d:%02d:%02d", t / 3600, (t % 3600) / 60, t % 60)
     else String.format(Locale.US, "%d:%02d", t / 60, t % 60)

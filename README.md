@@ -89,15 +89,17 @@ More (from earlier versions, in the old colours): `screenshots/LD2450-tracking.g
   used glows), and a live floorplan with tappable lights, mmWave presence dots
   and the robot vacuum, with the now-playing / mute strip floating along its
   bottom edge.
-- **TV / Plex** — one-tap app logos, the poster and title of what's being
-  watched (a Samsung Serif illustration when nothing is on) with transport and
-  volume, plus Plex poster rows where one tap plays the exact episode or film,
-  even from a switched-off TV.
+- **TV / Plex** — what's on the TV: the poster at its own shape, show,
+  episode, rating, playing or paused and how far in (the app in front when
+  nothing is playing, a Samsung Serif illustration when the TV is off), one-tap
+  app logos, plus Plex poster rows where one tap plays the exact episode or
+  film, even from a switched-off TV.
 - **Media** — the full Sonos player, with Player / Media / Zones tabs for
   album-art shelves, playlist shortcuts and speaker grouping.
 - **Alerts** — leak, intruder, washer-done and door-left-unlocked popups in the
   alarm's style, driven entirely by Home Assistant state.
-- **Climate** — aircon with HVAC and fan modes, and the blinds.
+- **Climate** — aircon with HVAC and fan modes, a one-line fan row (tap it for
+  speed, modes, swing and the sleep timer), and the blinds.
 - **Alarm popup** — wakes the screen for a Home Assistant alarm; snooze with a
   tap, stop with a hold.
 - **Docked screensaver** — sit the remote in its dock and leave it: after 45 s
