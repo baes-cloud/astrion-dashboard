@@ -75,6 +75,7 @@ class HaClient(
         /** A call made while offline is sent on reconnect if it is younger than this. */
         private const val QUEUE_MAX_AGE_MS = 30_000L
         private const val QUEUE_MAX = 20
+        private val PLAYHEAD_ATTRS = setOf("media_position", "media_position_updated_at")
     }
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -646,6 +647,8 @@ class HaClient(
      */
     @androidx.annotation.VisibleForTesting
     internal fun onEntitiesEvent(event: JsonObject) {
+        // Set by anything other than playhead noise; see isPlayheadNoise.
+        var meaningful = false
         val added = event["a"] as? JsonObject
         val seeded = awaitingSeed && added != null
         if (seeded) {
@@ -670,6 +673,7 @@ class HaClient(
                 lastUpdated = isoTime(c["lu"]) ?: lc,
             )
             changedIds += entityId
+            meaningful = true
         }
         (event["c"] as? JsonObject)?.forEach { (entityId, el) ->
             val diff = el as? JsonObject ?: return@forEach
@@ -681,22 +685,42 @@ class HaClient(
             if (minusAttrs.isNotEmpty()) attrs = attrs - minusAttrs
             (plus?.get("a") as? JsonObject)?.let { attrs = attrs + it }
             val lc = isoTime(plus?.get("lc"))
-            entityStore[entityId] = old.copy(
+            val updated = old.copy(
                 state = plus?.get("s")?.jsonPrimitive?.content ?: old.state,
                 attributes = if (attrs === old.attributes) old.attributes else JsonObject(attrs),
                 lastChanged = lc ?: old.lastChanged,
                 // A new last_changed implies the same last_updated.
                 lastUpdated = isoTime(plus?.get("lu")) ?: lc ?: old.lastUpdated,
             )
+            entityStore[entityId] = updated
+            // Kept in the store, but nothing redraws for it; it goes out with
+            // the next real change.
+            if (isPlayheadNoise(plus, minusAttrs, updated.state)) return@forEach
             changedIds += entityId
+            meaningful = true
         }
         (event["r"] as? JsonArray)?.forEach { el ->
             val entityId = el.jsonPrimitive.contentOrNull ?: return@forEach
             entityStore.remove(entityId)
             changedIds += entityId
         }
+        (event["r"] as? JsonArray)?.let { if (it.isNotEmpty()) meaningful = true }
         // The seed is important — publish at once so the first frame has data.
-        if (seeded) publish() else schedulePublish()
+        if (seeded) publish() else if (meaningful) schedulePublish()
+    }
+
+    /**
+     * A diff that only moves the playhead of a player that isn't playing.
+     * The Club TV's Cast session (Plex, paused) sent one of these about four
+     * times a second, all day: nothing on screen changes for them, but each
+     * one redrew whatever showed that player.
+     */
+    internal fun isPlayheadNoise(plus: JsonObject?, minusAttrs: Set<String>, state: String): Boolean {
+        if (state == "playing" || minusAttrs.isNotEmpty() || plus == null) return false
+        // "lu" (last_updated) and "c" (context) come with every diff.
+        if (plus.keys.any { it != "a" && it != "lu" && it != "c" }) return false
+        val attrs = plus["a"] as? JsonObject ?: return false
+        return attrs.keys.all { it in PLAYHEAD_ATTRS }
     }
 
     /** HA's epoch-seconds timestamp as ISO-8601, the format cards parse. */

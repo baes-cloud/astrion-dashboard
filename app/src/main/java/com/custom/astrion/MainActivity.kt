@@ -913,6 +913,8 @@ class MainActivity : ComponentActivity() {
         hk.page?.let { pageName ->
             val idx = dashboard.config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
             if (idx < 0) return false
+            // A popup belongs to the page it was opened on.
+            sheetHost.dismissAll()
             navTarget = idx
             return true
         }

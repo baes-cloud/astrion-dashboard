@@ -35,6 +35,11 @@ class SheetHost {
 
     val isShowing: Boolean get() = entries.isNotEmpty()
 
+    /** Dismiss every popup (a page key took you elsewhere). */
+    fun dismissAll() {
+        entries.toList().asReversed().forEach { it.dismiss() }
+    }
+
     /** Dismiss the top popup (BACK). True if there was one. */
     fun dismissTop(): Boolean {
         val top = entries.lastOrNull() ?: return false
