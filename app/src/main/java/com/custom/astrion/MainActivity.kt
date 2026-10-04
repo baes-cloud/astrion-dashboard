@@ -216,6 +216,9 @@ class MainActivity : ComponentActivity() {
          * counts as docked.
          */
         const val TOPPED_UP_PCT = 95
+
+        /** On the dock but this many points below its peak: the dock isn't keeping up. */
+        const val DOCK_DRAIN_PCT = 3
     }
 
     // Long-press timing state.
@@ -1225,11 +1228,20 @@ class MainActivity : ComponentActivity() {
     private fun powerInt(key: String, default: Int): Int =
         (powerOptions()[key] as? Number)?.toInt() ?: default
 
+    /**
+     * Highest level seen since it was last put on the dock; null off the
+     * dock. A remote whose dock pins barely touch can report "charging" while
+     * drawing less than it uses: 141 sat "plugged" from 68% down to 42% on
+     * 4 Oct. Falling [DOCK_DRAIN_PCT] below this counts as a dock fault too.
+     */
+    private var pluggedPeakPct: Int? = null
+
     private fun onBatteryChanged(intent: Intent) {
         plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
         val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
         val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
         batteryPct = if (level >= 0 && scale > 0) level * 100 / scale else null
+        pluggedPeakPct = if (!plugged) null else maxOf(pluggedPeakPct ?: 0, batteryPct ?: 0)
         batteryStatus = intent.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN)
         charging = batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING
         // Leaving the dock (or losing charge on it) counts at once; arriving
@@ -1282,7 +1294,8 @@ class MainActivity : ComponentActivity() {
         val entityId = powerOptions()["report_entity"] as? String ?: return
         val pct = batteryPct ?: return
         if (client.connection.value != ConnectionState.CONNECTED) return
-        val dockFault = plugged && !takingCharge()
+        val draining = (pluggedPeakPct ?: pct) - pct >= DOCK_DRAIN_PCT
+        val dockFault = plugged && (!takingCharge() || draining)
         val report = listOf(entityId, pct, plugged, batteryStatus, docked, dockFault)
         if (!force && report == lastBatteryReport) return
         lastBatteryReport = report
@@ -1302,6 +1315,7 @@ class MainActivity : ComponentActivity() {
             "status" to status,
             "docked" to docked,
             "dock_fault" to dockFault,
+            "dock_draining" to draining,
         )
         (powerOptions()["report_name"] as? String)?.let { attrs["friendly_name"] = it }
         client.postState(entityId, pct.toString(), attrs)

@@ -75,7 +75,10 @@ With `report_entity` set, the remote posts its battery to HA (`POST
 percentage, and the attributes are `plugged`, `charging`, `status`
 (`charging` / `full` / `discharging` / `not_charging`), `docked` and
 **`dock_fault`**. `dock_fault` is true when the remote is plugged in but not
-charging, i.e. sitting on the dock wrong. An automation can then tell you:
+charging, or "charging" while its level has fallen 3 points since it was
+docked (`dock_draining`), i.e. sitting on the dock wrong or with dirty or
+worn pins: the second case is what 141 did on 4 Oct, 68% down to 42% while
+reporting charging, with dozens of plug/unplug flickers a day. An automation can then tell you:
 
 ```yaml
 - alias: Remote on its dock but not charging
