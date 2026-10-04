@@ -1020,13 +1020,20 @@ class MainActivity : ComponentActivity() {
         // ---- Screensaver ----------------------------------------------------
         // Any button wakes it, and by default that press also does its normal
         // job, so the first press is never lost. `keys_pass_through: false`
-        // makes it only the wake — the same as a touch.
+        // makes it only the wake — the same as a touch. A list of key names
+        // passes just those through, e.g. volume and the page keys, while the
+        // D-pad / OK / app keys only wake: pressing OK to wake a docked remote
+        // was also switching the TV on (21 of 68 Google TV sessions played
+        // nothing).
         markActivity()
         if (screensaverOn) {
             hideScreensaver()
-            if (event.action == KeyEvent.ACTION_DOWN &&
-                screensaverOptions()["keys_pass_through"] as? Boolean == false
-            ) {
+            val passThrough = when (val v = screensaverOptions()["keys_pass_through"]) {
+                is Boolean -> v
+                is List<*> -> v.any { (it as? String)?.equals(key.name, ignoreCase = true) == true }
+                else -> true
+            }
+            if (event.action == KeyEvent.ACTION_DOWN && !passThrough) {
                 swallowKey = code
                 return true
             }
@@ -1196,9 +1203,10 @@ class MainActivity : ComponentActivity() {
      */
     @Suppress("UNCHECKED_CAST")
     private fun screensaverOptions(): Map<String, Any?> =
-        (dashboard.config.options["screensaver"] as? Map<String, Any?>)
-            ?: (DashboardConfig.default.options["screensaver"] as? Map<String, Any?>)
-            ?: emptyMap()
+        // dashboard.json's keys over the built-in defaults, so a config only
+        // has to name what it changes (e.g. just `keys_pass_through`).
+        ((DashboardConfig.default.options["screensaver"] as? Map<String, Any?>) ?: emptyMap()) +
+            ((dashboard.config.options["screensaver"] as? Map<String, Any?>) ?: emptyMap())
 
     private fun screensaverEnabled(): Boolean = screensaverOptions()["enabled"] as? Boolean ?: true
 
