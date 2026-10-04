@@ -28,7 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import com.custom.astrion.ui.InWindowDialog
 import com.custom.astrion.ha.HaClient
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -74,7 +74,7 @@ fun MediaBrowser(entityId: String, client: HaClient, onClose: () -> Unit) {
         }
     }
 
-    Dialog(onDismissRequest = onClose) {
+    InWindowDialog(onDismissRequest = onClose) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

@@ -13,7 +13,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -69,6 +72,9 @@ class HaClient(
         private const val CONNECT_WAIT_MS = 15_000L
         private const val RECONNECT_MIN_MS = 3_000L
         private const val RECONNECT_MAX_MS = 60_000L
+        /** A call made while offline is sent on reconnect if it is younger than this. */
+        private const val QUEUE_MAX_AGE_MS = 30_000L
+        private const val QUEUE_MAX = 20
     }
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -107,6 +113,31 @@ class HaClient(
      * path in onEvent so pipeline events never reach the entity store.
      */
     private val eventHandlers = ConcurrentHashMap<Int, (JsonObject) -> Unit>()
+
+    /** What happened to a service call; see [outcomes]. */
+    data class CallOutcome(
+        val call: ServiceCall,
+        val kind: Kind,
+        val error: String? = null,
+    ) {
+        enum class Kind { DONE, FAILED, QUEUED, DROPPED }
+    }
+
+    private val _outcomes = MutableSharedFlow<CallOutcome>(extraBufferCapacity = 16)
+    /**
+     * Failures always; successes only for calls made with `confirm = true`
+     * (the hardware keys, which otherwise give no sign anything happened).
+     * Calls made while offline are queued and reported as QUEUED, then sent
+     * on reconnect, or DROPPED if HA was away longer than [QUEUE_MAX_AGE_MS].
+     */
+    val outcomes: SharedFlow<CallOutcome> = _outcomes.asSharedFlow()
+
+    /** `call_service` replies awaited for [outcomes], keyed by request id. */
+    private val resultHandlers = ConcurrentHashMap<Int, (JsonObject) -> Unit>()
+
+    private class Queued(val at: Long, val call: ServiceCall, val confirm: Boolean)
+    /** Calls made while not connected; flushed in [onAuthOk]. */
+    private val offlineQueue = ArrayDeque<Queued>()
 
     private val _connection = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connection: StateFlow<ConnectionState> = _connection.asStateFlow()
@@ -215,13 +246,35 @@ class HaClient(
     fun entityState(entityId: String): State<EntityState?> =
         entityStates.getOrPut(entityId) { mutableStateOf(entityStore[entityId]) }
 
-    /** Fire a HA service call, e.g. light.toggle on light.kitchen. */
-    fun callService(call: ServiceCall) {
+    /**
+     * Fire a HA service call, e.g. light.toggle on light.kitchen. Offline, it
+     * is queued rather than dropped (see [outcomes]); [confirm] also reports
+     * success, not just failure.
+     */
+    fun callService(call: ServiceCall, confirm: Boolean = false) {
+        if (_connection.value != ConnectionState.CONNECTED) {
+            synchronized(offlineQueue) {
+                offlineQueue.addLast(Queued(System.currentTimeMillis(), call, confirm))
+                while (offlineQueue.size > QUEUE_MAX) offlineQueue.removeFirst()
+            }
+            _outcomes.tryEmit(CallOutcome(call, CallOutcome.Kind.QUEUED))
+            return
+        }
         val target = buildJsonObject {
             call.entityId?.let { put("entity_id", it) }
         }
+        val id = idCounter.getAndIncrement()
+        resultHandlers[id] = { reply ->
+            val ok = reply["success"]?.jsonPrimitive?.booleanOrNull ?: false
+            if (!ok) {
+                val err = (reply["error"] as? JsonObject)?.get("message")?.jsonPrimitive?.contentOrNull
+                _outcomes.tryEmit(CallOutcome(call, CallOutcome.Kind.FAILED, err))
+            } else if (confirm) {
+                _outcomes.tryEmit(CallOutcome(call, CallOutcome.Kind.DONE))
+            }
+        }
         val msg = buildJsonObject {
-            put("id", idCounter.getAndIncrement())
+            put("id", id)
             put("type", "call_service")
             put("domain", call.domain)
             put("service", call.service)
@@ -459,6 +512,7 @@ class HaClient(
                         // Route replies to the command awaiting this id, if any.
                         val id = obj["id"]?.jsonPrimitive?.intOrNull
                         id?.let { pending.remove(it) }?.complete(obj)
+                        id?.let { resultHandlers.remove(it) }?.invoke(obj)
                     }
                     "event" -> onEvent(obj)
                     "pong" -> { /* heartbeat ok */ }
@@ -499,7 +553,20 @@ class HaClient(
         Log.i(TAG, "Authenticated")
         reconnectAttempts = 0
         _connection.value = ConnectionState.CONNECTED
+        // Replies to calls on the old socket will never come.
+        resultHandlers.clear()
         subscribeEntities()
+        flushOfflineQueue()
+    }
+
+    /** Send what was tapped while offline, if it's still recent enough to mean it. */
+    private fun flushOfflineQueue() {
+        val queued = synchronized(offlineQueue) { offlineQueue.toList().also { offlineQueue.clear() } }
+        val now = System.currentTimeMillis()
+        queued.forEach { q ->
+            if (now - q.at <= QUEUE_MAX_AGE_MS) callService(q.call, q.confirm)
+            else _outcomes.tryEmit(CallOutcome(q.call, CallOutcome.Kind.DROPPED))
+        }
     }
 
     /** Coalesce entity updates: publish the store at most every PUBLISH_INTERVAL_MS. */

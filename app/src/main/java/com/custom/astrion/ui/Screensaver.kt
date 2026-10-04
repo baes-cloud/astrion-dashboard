@@ -63,8 +63,9 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * The docked screensaver: a black, dim, night-friendly face that takes over
- * once the remote has sat in its dock untouched for a while.
+ * The screensaver: a black, dim, night-friendly face that takes over once the
+ * remote has sat untouched for a while: `idle_seconds` in its dock, or
+ * `undocked_idle_seconds` (dimmer, until the screen times out) off it.
  *
  * A big, thin, half-faded clock is the whole point of it; everything else only
  * appears when it is worth a glance from across the room:
@@ -86,6 +87,7 @@ import java.util.Locale
  *
  * Config (`screensaver` in dashboard.json; every key optional):
  *   { "enabled": true, "trigger": "docked" | "always", "idle_seconds": 45,
+ *     "undocked_idle_seconds": 10, "undocked_brightness": 0.08,
  *     "brightness": 0.2, "night_brightness": 0.03, "keep_screen_on": true,
  *     "time_format": 12, "weather_entity": "weather.home",
  *     "media_entities": ["media_player.club"], "media_any": true,
@@ -106,19 +108,23 @@ fun Screensaver(
     batteryPct: Int?,
     charging: Boolean,
 ) {
-    // Entities are sampled on the clock tick rather than observed: observed,
-    // every HA update (the floorplan's radar sensors, several a second)
-    // recomposed and redrew the whole face, all night, for a display that
-    // only changes once a second anyway.
+    // The face redraws on the minute, not every second. It shows h:mm, and a
+    // whole-face pass costs ~36ms of UI thread on this SoC: once a second
+    // that was 86,400 redraws a night on the dock. Entities are sampled every
+    // SAMPLE_MS rather than observed (several HA updates a second would
+    // otherwise redraw it constantly), so a new track still shows promptly.
+    // The only things that need seconds — a timer counting down, the track
+    // position — tick in their own small scopes (Countdown, MediaProgress).
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var sampled by remember { mutableStateOf(entities()) }
     LaunchedEffect(Unit) {
         while (true) {
-            now = System.currentTimeMillis()
+            val t = System.currentTimeMillis()
+            if (t / 60_000 != now / 60_000) now = t
             val latest = entities()
             if (latest !== sampled) sampled = latest
-            // Land on the next whole second so the timer and clock tick together.
-            delay(1000 - now % 1000)
+            // Next sample, but never past the minute boundary.
+            delay(minOf(SAMPLE_MS - t % SAMPLE_MS, 60_000 - t % 60_000) + 50)
         }
     }
     val entities = sampled
@@ -161,13 +167,13 @@ fun Screensaver(
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     timeFmt.format(Date(now)),
-                    color = clockInk,
+                    // Faded through the colour, not Modifier.alpha: no extra layer.
+                    color = clockInk.copy(alpha = if (night) 0.55f else 0.62f),
                     // ~260dp wide for "12:45" on a ~349dp-wide panel.
                     fontFamily = AstrionTheme.headingFont, fontSize = 96.sp,
                     fontWeight = FontWeight.Thin,
                     lineHeight = 96.sp,
                     maxLines = 1,
-                    modifier = Modifier.alpha(if (night) 0.55f else 0.62f),
                 )
                 if (!is24) {
                     Text(
@@ -213,7 +219,7 @@ fun Screensaver(
 
             // ---- now playing --------------------------------------------------
             if (media != null) {
-                NowPlaying(media, client, now, night, ink, faint, accent)
+                NowPlaying(media, client, night, ink, faint, accent)
                 Spacer(Modifier.height(18.dp))
             }
 
@@ -254,6 +260,22 @@ private val NightInk = Color(0xFF9C7556)
 private val NightFaint = Color(0xFF5E4634)
 private val NightAccent = Color(0xFFD9824A)
 
+/** How often the face looks at HA (it redraws only if something changed). */
+private const val SAMPLE_MS = 10_000L
+
+/** Recomposes only itself, once a second, for as long as it's shown. */
+@Composable
+private fun rememberSecondTick(): Long {
+    var t by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000 - System.currentTimeMillis() % 1000)
+            t = System.currentTimeMillis()
+        }
+    }
+    return t
+}
+
 /** Per-minute (x, y) offsets in dp, cycled. */
 private val DRIFT = listOf(
     0 to 0, 6 to -10, -5 to 8, 8 to 12, -8 to -6, 3 to 16, -4 to -14, 7 to 4,
@@ -274,7 +296,17 @@ fun screensaverIsNight(entities: EntityMap, nowMs: Long): Boolean {
 
 // ---- facts ---------------------------------------------------------------------
 
-private data class Fact(val icon: ImageVector, val text: String, val detail: String? = null, val warn: Boolean = false)
+/**
+ * One line on the face. [countdownTo] (epoch ms) makes [detail] a live
+ * countdown, ticking in its own scope so the rest of the face stays still.
+ */
+private data class Fact(
+    val icon: ImageVector,
+    val text: String,
+    val detail: String? = null,
+    val warn: Boolean = false,
+    val countdownTo: Long? = null,
+)
 
 @Composable
 private fun FactRow(f: Fact, tint: Color, faint: Color) {
@@ -285,7 +317,11 @@ private fun FactRow(f: Fact, tint: Color, faint: Color) {
             f.text, color = tint, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false),
         )
-        if (f.detail != null) {
+        if (f.countdownTo != null) {
+            Spacer(Modifier.width(7.dp))
+            val now = rememberSecondTick()
+            Text(formatCountdown((f.countdownTo - now).coerceAtLeast(0)), color = faint, fontSize = 15.sp, maxLines = 1)
+        } else if (f.detail != null) {
             Spacer(Modifier.width(7.dp))
             Text(f.detail, color = faint, fontSize = 15.sp, maxLines = 1)
         }
@@ -319,17 +355,14 @@ private fun buildFacts(options: Map<String, Any?>, entities: EntityMap, now: Lon
             .filter { it.domain == "timer" && (it.state == "active" || it.state == "paused") }
             .sortedBy { it.entityId }
             .forEach { t ->
-                val remainingMs = if (t.state == "active") {
-                    t.attrString("finishes_at")?.let { parseIsoMs(it) }?.let { it - now }
+                if (t.state == "active") {
+                    val finishesAt = t.attrString("finishes_at")?.let { parseIsoMs(it) } ?: return@forEach
+                    if (finishesAt < now) return@forEach
+                    out += Fact(Icons.Filled.Timer, t.friendlyName, countdownTo = finishesAt)
                 } else {
-                    t.attrString("remaining")?.let { parseHms(it) }
-                } ?: return@forEach
-                if (remainingMs < 0) return@forEach
-                out += Fact(
-                    if (t.state == "paused") Icons.Filled.Pause else Icons.Filled.Timer,
-                    t.friendlyName,
-                    formatCountdown(remainingMs) + if (t.state == "paused") " paused" else "",
-                )
+                    val remainingMs = t.attrString("remaining")?.let { parseHms(it) } ?: return@forEach
+                    out += Fact(Icons.Filled.Pause, t.friendlyName, formatCountdown(remainingMs) + " paused")
+                }
             }
     }
 
@@ -412,7 +445,6 @@ private fun pickPlayingMedia(entities: EntityMap, options: Map<String, Any?>): E
 private fun NowPlaying(
     e: EntityState,
     client: HaClient,
-    now: Long,
     night: Boolean,
     ink: Color,
     faint: Color,
@@ -442,12 +474,12 @@ private fun NowPlaying(
                     bitmap = img,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
+                    // Art is the brightest thing on the screen by far, so it
+                    // is faded hardest — more so at night.
+                    alpha = if (night) 0.35f else 0.6f,
                     modifier = Modifier
                         .size(76.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        // Art is the brightest thing on the screen by far, so it
-                        // is faded hardest — more so at night.
-                        .alpha(if (night) 0.35f else 0.6f),
+                        .clip(RoundedCornerShape(10.dp)),
                 )
             } else {
                 Box(
@@ -475,11 +507,10 @@ private fun NowPlaying(
                 }
                 Text(
                     listOfNotNull(album, e.friendlyName).joinToString(" · "),
-                    color = faint,
+                    color = faint.copy(alpha = 0.8f),
                     fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.alpha(0.8f),
                 )
             }
         }
@@ -489,28 +520,35 @@ private fun NowPlaying(
         val position = e.attrDouble("media_position")
         if (duration != null && duration > 0 && position != null) {
             val reportedAt = e.attrString("media_position_updated_at")?.let { parseIsoMs(it) }
-            val pos = position + (reportedAt?.let { (now - it) / 1000.0 } ?: 0.0)
-            val frac = (pos / duration).toFloat().coerceIn(0f, 1f)
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(formatMediaTime(pos), color = faint, fontSize = 11.sp, textAlign = TextAlign.End, modifier = Modifier.width(40.dp))
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp)
-                        .height(2.dp)
-                        .background(faint.copy(alpha = 0.35f)),
-                ) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth(frac)
-                            .height(2.dp)
-                            .background(accent.copy(alpha = 0.7f)),
-                    )
-                }
-                Text(formatMediaTime(duration), color = faint, fontSize = 11.sp, modifier = Modifier.width(40.dp))
-            }
+            MediaProgress(position, reportedAt, duration, faint, accent)
         }
+    }
+}
+
+/** Position, hairline and length: the one part of the face that ticks each second. */
+@Composable
+private fun MediaProgress(position: Double, reportedAt: Long?, duration: Double, faint: Color, accent: Color) {
+    val now = rememberSecondTick()
+    val pos = position + (reportedAt?.let { (now - it) / 1000.0 } ?: 0.0)
+    val frac = (pos / duration).toFloat().coerceIn(0f, 1f)
+    Spacer(Modifier.height(10.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(formatMediaTime(pos), color = faint, fontSize = 11.sp, textAlign = TextAlign.End, modifier = Modifier.width(40.dp))
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 8.dp)
+                .height(2.dp)
+                .background(faint.copy(alpha = 0.35f)),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth(frac)
+                    .height(2.dp)
+                    .background(accent.copy(alpha = 0.7f)),
+            )
+        }
+        Text(formatMediaTime(duration), color = faint, fontSize = 11.sp, modifier = Modifier.width(40.dp))
     }
 }
 

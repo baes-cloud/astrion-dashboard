@@ -2,6 +2,8 @@ package com.custom.astrion.cards.impl
 
 import com.custom.astrion.ui.AstrionTheme
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -9,7 +11,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,9 +27,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import com.custom.astrion.ui.InWindowDialog
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
@@ -33,6 +38,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.math.roundToInt
 import com.custom.astrion.ui.tap
+import com.custom.astrion.ui.tapAndHold
 
 /**
  * Long-press detail popup for a light (bubble-card style): a big vertical
@@ -57,6 +63,8 @@ fun LightDetailDialog(
         else -> 1f
     }
     var dragLevel by remember(level) { mutableStateOf(level) }
+    /** A group member opened from this popup, stacked on top of it. */
+    var memberDetail by remember(entityId) { mutableStateOf<String?>(null) }
 
     val colorModes = e?.attrStringList("supported_color_modes") ?: emptyList()
     val hasColor = colorModes.any { it in listOf("hs", "rgb", "rgbw", "rgbww", "xy") }
@@ -91,7 +99,7 @@ fun LightDetailDialog(
         client.callService(ServiceCall.of("light", "turn_on", entityId, "color_temp_kelvin" to k))
     }
 
-    Dialog(onDismissRequest = onClose) {
+    InWindowDialog(onDismissRequest = onClose) {
         Column(
             modifier = Modifier
                 .clip(RoundedCornerShape(24.dp))
@@ -155,6 +163,13 @@ fun LightDetailDialog(
                 )
             }
 
+            // A group's own lights, one tap each. Picking out one light in a
+            // group was a reason to reach for the phone.
+            val members = e?.attrStringList("entity_id").orEmpty().filter { it.startsWith("light.") }
+            if (members.isNotEmpty()) {
+                GroupMembers(members, client) { memberDetail = it }
+            }
+
             // Colour swatches (only for colour-capable lights).
             if (hasColor) {
                 val swatches = listOf(
@@ -193,6 +208,72 @@ fun LightDetailDialog(
                         }
                     }
                 }
+            }
+        }
+    }
+
+    memberDetail?.let { id ->
+        LightDetailDialog(
+            entityId = id,
+            e = client.entityState(id).value,
+            client = client,
+            onClose = { memberDetail = null },
+        )
+    }
+}
+
+/**
+ * The lights inside a group, as chips: tap toggles that one light, hold opens
+ * its own popup (brightness, colour) on top of this one; BACK returns.
+ */
+@Composable
+private fun GroupMembers(members: List<String>, client: HaClient, onOpen: (String) -> Unit) {
+    Row(
+        modifier = Modifier
+            .width(268.dp)
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        members.forEach { id ->
+            val m = client.entityState(id).value
+            val on = m?.isOn == true
+            val unavailable = m == null || m.isUnavailable
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (on) AstrionTheme.on.copy(alpha = 0.85f) else AstrionTheme.controlSunken)
+                    .tapAndHold(
+                        enabled = !unavailable,
+                        onClick = { client.toggle(id) },
+                        onLongClick = { onOpen(id) },
+                    )
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Icon(
+                    if (on) Icons.Filled.Lightbulb else Icons.Outlined.Lightbulb,
+                    contentDescription = null,
+                    tint = when {
+                        unavailable -> AstrionTheme.unavailable
+                        on -> AstrionTheme.onBg
+                        else -> AstrionTheme.textOnControl
+                    },
+                    modifier = Modifier.size(15.dp),
+                )
+                Text(
+                    m?.friendlyName ?: id.substringAfter('.'),
+                    color = when {
+                        unavailable -> AstrionTheme.unavailable
+                        on -> AstrionTheme.onBg
+                        else -> AstrionTheme.textOnControl
+                    },
+                    fontSize = AstrionTheme.label,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 120.dp),
+                )
             }
         }
     }

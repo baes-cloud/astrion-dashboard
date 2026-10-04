@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -13,6 +14,12 @@
 
     <!-- Wake the screen on motion (remote lifted/moved). -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Haptics: a real one-shot pulse, see ui/Theme.kt StrongHaptics. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Screen timeout: an appop, granted once over adb (docs/POWER.md). The
+         stock HaRemote app keeps setting it to "never". -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
 
     <!-- IR Mode: blast Samsung TV codes from the HA100's built-in emitter.
          TRANSMIT_IR is a normal (install-time) permission — no runtime prompt.

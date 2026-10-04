@@ -13,10 +13,22 @@ the app can't do for itself.
   contact restarting the 10-minute undocked wake word window. It drained
   faster than the dock could fill it.
 - **Motion-wake is time-limited.** The accelerometer that wakes the screen
-  when you pick the remote up is a *wake-up* sensor: it wakes the SoC for
-  every reading (about 5 a second), moving or not, so while it's registered
-  the CPU never sleeps. It now listens for `motion_wake_minutes` after the
-  screen goes off, and never on the dock.
+  when you pick the remote up listens for `motion_wake_minutes` after the
+  screen goes off, and never on the dock. On the HA100 it is *not* a wake-up
+  sensor (`dumpsys sensorservice` shows flags `0x0`), so it only sees a
+  pick-up while the CPU is already awake (the wake word, off the dock); on a
+  device with a wake-up accelerometer it would otherwise keep the SoC from
+  ever sleeping.
+- **The screen actually turns off.** The stock HaRemote app writes the
+  system screen timeout as "never" (2147483647), so an undocked remote stayed
+  lit until it ran flat: measured at 6% an hour with the screen on and
+  everything else under 1 mAh. The app now holds the timeout at
+  `screen_timeout_seconds` and puts it back whenever something changes it.
+  Needs a one-off grant per remote:
+  `adb shell appops set com.custom.astrion WRITE_SETTINGS allow`.
+- **Screensaver off the dock too.** Put down off the dock, a dimmed
+  screensaver comes up after `screensaver.undocked_idle_seconds` (10), and
+  the screen then goes off at the timeout. Docked, it is as before.
 - **Quiet HA connection with the screen off.** After `screen_off_filter_seconds`
   dark, the HA subscription narrows to the alarm's and the alerts' entities.
   Otherwise every change in HA (the floorplan's radar sensors alone send
@@ -40,6 +52,7 @@ All keys are optional.
   "screen_off_filter_seconds": 30,
   "screen_off_entities": [],
   "dock_debounce_seconds": 5,
+  "screen_timeout_seconds": 30,
   "report_entity": "sensor.lounge_remote_battery",
   "report_name": "Lounge remote battery"
 }
@@ -51,6 +64,7 @@ All keys are optional.
 | `screen_off_filter_seconds` | 30 | How long the screen must be off before the HA subscription narrows. `-1` never narrows. |
 | `screen_off_entities` | – | Extra entities to keep live with the screen off, on top of the alarm's and alerts'. |
 | `dock_debounce_seconds` | 5 | How long it must be charging before it counts as docked. Lifting it off counts at once. |
+| `screen_timeout_seconds` | 30 | The system screen timeout, enforced (see above). Docked, the screen stays on regardless. `0` leaves the setting alone. |
 | `report_entity` | – | Publish this remote's battery to HA under this id (see below). Give each remote its own. |
 | `report_name` | – | Friendly name for that entity. |
 
@@ -166,7 +180,7 @@ The screen is by far the biggest cost. After that, anything that keeps the
 radio or CPU awake.
 
 ```sh
-adb shell settings put system screen_off_timeout 20000      # 20 s
+adb shell appops set com.custom.astrion WRITE_SETTINGS allow  # the app then holds the timeout itself
 adb shell settings put system screen_brightness 90          # 0-255
 adb shell settings put global wifi_scan_always_enabled 0
 adb shell settings put global ble_scan_always_enabled 0

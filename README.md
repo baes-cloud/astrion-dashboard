@@ -44,9 +44,17 @@ Requirements: Android Studio (Ladybug or newer) with the Android SDK.
    terminal with the SDK on PATH: `./gradlew assembleRelease`. Use release on
    the remote — it's much faster than a debug build on the HA100's MT6580.
    It's signed with your debug key, so no keystore setup is needed.
-4. Install onto the remote over ADB (same way you pulled the stock APK):
+4. Install onto the remote over ADB (same way you pulled the stock APK), then
+   compile it ahead of time. Android installs it in its slowest mode
+   (`quicken`, interpreted), which on the MT6580 made 89% of frames janky:
    ```
    adb install -r app/build/outputs/apk/release/app-release.apk
+   adb shell cmd package compile -m speed -f com.custom.astrion
+   ```
+   Once per remote, let the app manage the screen timeout (the stock HaRemote
+   app keeps setting it to "never"; see `docs/POWER.md`):
+   ```
+   adb shell appops set com.custom.astrion WRITE_SETTINGS allow
    ```
    (`./gradlew assembleDebug` and `app-debug.apk` still work for debugging.)
 5. Launch it. To make it the default home experience you can set it as launcher
