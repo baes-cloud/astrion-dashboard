@@ -9,8 +9,7 @@
      "options": {
       "pin": "top",
       "time_format": 12,
-      "title": "TV",
-      "weather_entity": "weather.forecast_home"
+      "title": "TV"
      }
     },
     {
@@ -89,10 +88,6 @@
         "path": "/library/onDeck"
        },
        {
-        "title": "Continue Watching",
-        "path": "/hubs/home/continueWatching"
-       },
-       {
         "title": "Recently Released",
         "path": "/library/sections/2/newest"
        },
@@ -118,7 +113,6 @@
       "pin": "top",
       "time_format": 12,
       "title": "Main",
-      "weather_entity": "weather.forecast_home",
       "date_format": "EEE, d MMM"
      }
     },
@@ -400,8 +394,7 @@
      "options": {
       "pin": "top",
       "time_format": 12,
-      "title": "Sonos",
-      "weather_entity": "weather.forecast_home"
+      "title": "Sonos"
      }
     },
     {
@@ -582,16 +575,14 @@
      "options": {
       "pin": "top",
       "time_format": 12,
-      "title": "Climate",
-      "weather_entity": "weather.forecast_home"
+      "title": "Climate"
      }
     },
     {
      "type": "climate",
      "options": {
       "entity_id": "climate.aircon",
-      "name": "Aircon",
-      "step": 0.5
+      "name": "Aircon"
      }
     },
     {

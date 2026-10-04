@@ -123,18 +123,18 @@ actions:
     target: { entity_id: "{{ trigger.entity_id }}" }
 ```
 
-## Hold CURTAIN: all Club blinds one way
+## Hold CURTAIN: the Club blind
 
-If any Club blind is open, this closes them all; otherwise it opens them all.
+Toggles the Club blind (`cover.blinds`) only. That Tuya blind reports its
+state inverted: HA shows `open` after `close_blinds` ran and `closed` after
+`open_blinds`. So `open` here means it's physically shut, and the script opens
+it, and vice versa.
 
 ```yaml
-alias: Club blinds · all one way          # script.club_blinds_all
+alias: Club blind · toggle (hold CURTAIN)   # script.club_blinds_all
 sequence:
-  - variables: { blinds: [cover.blinds, cover.club_sheer_blinds] }
-  - variables:
-      any_open: "{{ expand(blinds) | selectattr('state','in',['open','opening']) | list | count > 0 }}"
-  - action: "{{ 'cover.close_cover' if any_open else 'cover.open_cover' }}"
-    target: { entity_id: "{{ blinds }}" }
+  - action: "{{ 'cover.open_cover' if is_state('cover.blinds','open') else 'cover.close_cover' }}"
+    target: { entity_id: cover.blinds }
 ```
 
 `longHotkeys`: `{ "key": "CURTAIN", "service": "script.turn_on", "entityId": "script.club_blinds_all" }`
@@ -226,7 +226,7 @@ heard, the reply, and HA's response type.
 | "tv mode", "watch tv", "sonos on the tv" | Sonos to TV audio, other speakers unjoined |
 | "goodnight", "all lights off" | `script.long_lights` |
 | "night mode" / "day mode" | `scene.night` / `script.day` |
-| "blinds" | `script.club_blinds_all` |
+| "blinds" | `script.club_blinds_all` (the Club blind) |
 | "blinds half" | sheers to 50% |
 | "dim the lights" | Club lights that are on, to 30% |
 
@@ -244,4 +244,25 @@ couch-light automations use the helper instead of RMM's sensor.
 {% set lost = (states('sensor.rmm_default_master') | int(0)) == 0 %}
 {% set still_there = is_state('binary_sensor.club_apollo_r_pro_1_ld2412_presence','on') %}
 {{ rmm or (this.state == 'on' and lost and still_there) }}
+```
+
+## Reload automations once RMM is up
+
+Radar Map Manager creates `sensor.rmm_default_master` after automations have
+loaded. So after an HA restart, any `numeric_state` trigger on it fails to
+initialise ("unknown entity") and the automation stays dead until automations
+are reloaded. That happened after the 2026-10-04 restart to Intruder alert,
+Away mode arm / welcome home, Guest mode auto and an LD2412 study automation.
+
+```yaml
+alias: RMM · reload automations once RMM is up after a restart
+triggers:
+  - trigger: homeassistant
+    event: start
+actions:
+  - wait_template: "{{ states('sensor.rmm_default_master') not in ['unknown','unavailable'] }}"
+    timeout: "00:10:00"
+    continue_on_timeout: true
+  - delay: { seconds: 20 }
+  - action: automation.reload
 ```

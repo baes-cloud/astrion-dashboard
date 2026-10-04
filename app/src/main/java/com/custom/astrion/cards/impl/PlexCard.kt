@@ -29,6 +29,7 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.rememberPageVisits
 import com.custom.astrion.ui.tap
 import com.custom.astrion.ui.tightTextStyle
 import kotlinx.coroutines.Dispatchers
@@ -147,7 +148,9 @@ class PlexCard : CardRenderer {
             }
         }
 
-        val shelves by produceState<List<Shelf>?>(initialValue = shelfCache[host], host, token, limit) {
+        // Refreshed on every visit to the page (it stays composed otherwise).
+        val visits = rememberPageVisits()
+        val shelves by produceState<List<Shelf>?>(initialValue = shelfCache[host], host, token, limit, visits) {
             // All rows at once rather than one after another.
             val fresh = kotlinx.coroutines.coroutineScope {
                 rowSpecs.map { spec ->

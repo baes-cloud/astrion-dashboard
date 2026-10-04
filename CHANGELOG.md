@@ -87,6 +87,27 @@ companion automations and scripts are in `docs/HOME_ASSISTANT.md`.
 - **Voice:** each conversation is logged to `/sdcard/astrion/voice/log.txt`.
 - New switch tile icons: `music`, `night`.
 
+### Final pass (2026-10-05)
+
+- **TV card transport buttons go to a player that can do it.** Next and
+  previous were sent to the Cast entity, which rejects them for a native app
+  like Plex, and HA's Plex client entity for the Google TV supports no
+  transport at all. Each button now picks, among `art_entities`, a
+  playing/paused player that supports the action, then any that's on: for
+  Plex that's the ADB entity's media keys.
+- **The RMM dots only stream while the floorplan is on screen.** The stream
+  sends two frames a second (about 6 KB/s, radar diagnostics included). With
+  every page kept composed, it ran on other pages, under the screensaver and,
+  because Compose doesn't run with the display off, with the screen off.
+  Screen state is now handled in `HaClient` (`startForegroundSubscription`,
+  `setForeground`). Frames that only jitter below 0.1 % don't redraw.
+- **Plex rows and media shelves refresh on every visit to their page** again
+  (`rememberPageVisits`). Since pages stay composed, they had only loaded at
+  app start.
+- Config: removed the Plex "Continue Watching" row (it mostly duplicated On
+  Deck), and two settings the app never read (`clock_header.weather_entity`,
+  and a climate `step` the aircon's own 1° step overrides).
+
 ### Battery
 
 - **Docked means charging.** Plugged in no longer counts as docked unless the

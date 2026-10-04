@@ -34,6 +34,7 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.rememberPageVisits
 import com.custom.astrion.ui.tap
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -121,7 +122,9 @@ class MediaShelvesCard : CardRenderer {
         // card is shown again, never under you on a reconnect.
         val connected = ctx.connected
         val cacheKey = entityId + "|" + rowSpecs.hashCode()
-        val shelves by produceState(initialValue = shelfCache[cacheKey], entityId, limit, connected) {
+        // Refreshed on every visit to the page (it stays composed otherwise).
+        val visits = rememberPageVisits()
+        val shelves by produceState(initialValue = shelfCache[cacheKey], entityId, limit, connected, visits) {
             if (!connected) return@produceState
             val results = arrayOfNulls<Shelf>(rowSpecs.size)
             value?.forEach { cached -> rowSpecs.indexOfFirst { it["title"] == cached.title }.takeIf { it >= 0 }?.let { results[it] = cached } }

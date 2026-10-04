@@ -43,6 +43,28 @@ import com.custom.astrion.ha.HaClient
 val LocalPageVisible = compositionLocalOf { true }
 
 /**
+ * Whether the dashboard is actually on screen: screen on, app in front, no
+ * screensaver over it. Live feeds (the RMM dots) stop while it isn't; the
+ * dashboard stays composed underneath, so without this they kept streaming
+ * with the screen off.
+ */
+val LocalDashboardShowing = compositionLocalOf { true }
+
+/**
+ * Counts how many times this page has been brought on screen. Pages stay
+ * composed, so a card that loads data once (Plex rows, media shelves) would
+ * otherwise only ever load at app start; keying the load on this refreshes it
+ * on every visit, behind the cached rows.
+ */
+@Composable
+fun rememberPageVisits(): Int {
+    val visible = LocalPageVisible.current
+    var visits by remember { mutableIntStateOf(0) }
+    LaunchedEffect(visible) { if (visible) visits++ }
+    return visits
+}
+
+/**
  * Measured but not placed when [hidden], so nothing inside is drawn while its
  * composition (and with it page and scroll state) stays alive.
  */

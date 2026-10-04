@@ -69,6 +69,9 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.rememberSampledBitmap
 import com.custom.astrion.ui.AstrionTheme
+import kotlin.math.roundToInt
+import com.custom.astrion.ui.LocalDashboardShowing
+import com.custom.astrion.ui.LocalPageVisible
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -562,27 +565,35 @@ class PictureElementsCard : CardRenderer {
         val accent = parseArgb(opts["accent_color"] as? String) ?: Color(0xFF8CE0D4)
 
         var targets by remember { mutableStateOf<List<RmmTarget>>(emptyList()) }
-        val connected = ctx.connected
+        // Only while the floorplan is actually on screen. The stream sends two
+        // frames a second (~6 KB/s, radar diagnostics included), and with every
+        // page kept composed it ran on other pages, under the screensaver and
+        // with the screen off — waking the Wi-Fi all night.
+        // HaClient re-makes it on every reconnect and stops it with the screen
+        // off; this only has to follow the page and the screensaver.
+        val live = LocalPageVisible.current && LocalDashboardShowing.current
         val client = ctx.client
 
-        // Re-subscribe on every (re)connect: a subscription dies with its socket.
-        DisposableEffect(connected, group, showHibernating) {
-            val id = if (connected) client.startSubscription(build = { put("type", "rmm/stream") }) { event ->
+        DisposableEffect(live, group, showHibernating) {
+            val cancel = if (live) client.startForegroundSubscription(build = { put("type", "rmm/stream") }) { event ->
                 val map = event["data"]?.jsonObject?.get("maps")?.jsonObject?.get(group)?.jsonObject
-                    ?: return@startSubscription
-                targets = map["targets"]?.jsonArray.orEmpty().mapNotNull { el ->
+                    ?: return@startForegroundSubscription
+                val next = map["targets"]?.jsonArray.orEmpty().mapNotNull { el ->
                     val t = el as? JsonObject ?: return@mapNotNull null
                     val count = t["count"]?.jsonPrimitive?.intOrNull ?: 0
                     if (count <= 0 && !showHibernating) return@mapNotNull null
+                    // Rounded to 0.1 %: about two thirds of frames only jitter the
+                    // fourth decimal, and an equal list doesn't redraw.
                     RmmTarget(
                         id = t["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
-                        x = t["x"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null,
-                        y = t["y"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null,
+                        x = t["x"]?.jsonPrimitive?.floatOrNull?.let { (it * 10).roundToInt() / 10f } ?: return@mapNotNull null,
+                        y = t["y"]?.jsonPrimitive?.floatOrNull?.let { (it * 10).roundToInt() / 10f } ?: return@mapNotNull null,
                     )
                 }
+                if (next != targets) targets = next
             } else null
-            if (id == null) targets = emptyList()
-            onDispose { id?.let { client.unsubscribe(it) } }
+            if (cancel == null) targets = emptyList()
+            onDispose { cancel?.invoke() }
         }
 
         targets.forEachIndexed { i, t ->

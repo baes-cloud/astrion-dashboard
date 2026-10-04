@@ -79,6 +79,7 @@ import com.custom.astrion.ui.ActionToast
 import com.custom.astrion.ui.AstrionMaterialTheme
 import com.custom.astrion.ui.ToastMessage
 import com.custom.astrion.ui.humanise
+import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalSheetHost
 import com.custom.astrion.ui.SheetHost
 import com.custom.astrion.ui.StrongHaptics
@@ -323,6 +324,11 @@ class MainActivity : ComponentActivity() {
 
     /** Whether this Activity is in front, so a ring only reorders when needed. */
     private var inFront = false
+        set(value) { field = value; inFrontState = value }
+
+    /** Compose-visible copies of [inFront] and the screen state, for [LocalDashboardShowing]. */
+    private var inFrontState by mutableStateOf(false)
+    private var screenOnState by mutableStateOf(true)
 
     // ---- Voice --------------------------------------------------------------
     private lateinit var voice: VoiceSession
@@ -451,6 +457,9 @@ class MainActivity : ComponentActivity() {
                     // drawn: its radar dots and vacuum animation otherwise kept
                     // repainting behind the black face all night.
                     Box(modifier = Modifier.fillMaxSize().unplacedWhen(screensaverOn)) {
+                    CompositionLocalProvider(
+                        LocalDashboardShowing provides (screenOnState && inFrontState && !screensaverOn),
+                    ) {
                     Dashboard(
                         client = client,
                         entitiesState = entities,
@@ -463,6 +472,7 @@ class MainActivity : ComponentActivity() {
                     // Light / vacuum / media-browser popups, in this window so
                     // the hardware keys and the idle timer keep working.
                     sheetHost.Host()
+                    }
                     }
 
                     // Docked screensaver: above the dashboard, below everything
@@ -1613,6 +1623,8 @@ class MainActivity : ComponentActivity() {
      * costing a full re-snapshot. Screen on: everything again.
      */
     private fun onScreen(on: Boolean) {
+        screenOnState = on
+        client.setForeground(on)
         listenForMotion(!on)
         filterJob?.cancel()
         filterJob = null

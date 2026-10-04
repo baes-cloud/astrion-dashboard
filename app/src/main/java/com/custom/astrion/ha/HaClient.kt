@@ -440,6 +440,69 @@ class HaClient(
         return id
     }
 
+    /** A streaming subscription that should only run while the screen is on. */
+    private class ForegroundSub(
+        val build: JsonObjectBuilder.() -> Unit,
+        val onEvent: (JsonObject) -> Unit,
+    ) {
+        @Volatile var id: Int? = null
+    }
+
+    private val foregroundSubs = mutableSetOf<ForegroundSub>()
+    @Volatile private var foreground = true
+
+    /**
+     * Like [startSubscription], but only live while the screen is on (see
+     * [setForeground]) and re-made on every reconnect. Screen-off has to be
+     * handled here rather than in Compose: with the display off no frames
+     * run, so an effect keyed on screen state never gets to cancel, and the
+     * RMM stream (~1.4 KB/s on the wire) kept arriving all night.
+     * Returns a function that cancels it for good.
+     */
+    fun startForegroundSubscription(
+        build: JsonObjectBuilder.() -> Unit,
+        onEvent: (JsonObject) -> Unit,
+    ): () -> Unit {
+        val sub = ForegroundSub(build, onEvent)
+        synchronized(foregroundSubs) {
+            foregroundSubs += sub
+            if (foreground) sub.id = startSubscription(build, onEvent)
+        }
+        return {
+            synchronized(foregroundSubs) {
+                foregroundSubs -= sub
+                sub.id?.let { unsubscribe(it) }
+                sub.id = null
+            }
+        }
+    }
+
+    /** Screen on / off: start or stop every [startForegroundSubscription]. */
+    fun setForeground(on: Boolean) {
+        synchronized(foregroundSubs) {
+            if (on == foreground) return
+            foreground = on
+            foregroundSubs.forEach { s ->
+                if (on) {
+                    if (s.id == null) s.id = startSubscription(s.build, s.onEvent)
+                } else {
+                    s.id?.let { unsubscribe(it) }
+                    s.id = null
+                }
+            }
+        }
+    }
+
+    /** A new socket: the old subscriptions died with the old one. */
+    private fun resubscribeForeground() {
+        synchronized(foregroundSubs) {
+            foregroundSubs.forEach { s ->
+                s.id?.let { eventHandlers.remove(it) }
+                s.id = if (foreground) startSubscription(s.build, s.onEvent) else null
+            }
+        }
+    }
+
     /** Stop routing events for a streaming command started by [startSubscription]. */
     fun endSubscription(id: Int) {
         eventHandlers.remove(id)
@@ -572,6 +635,7 @@ class HaClient(
         // Replies to calls on the old socket will never come.
         resultHandlers.clear()
         subscribeEntities()
+        resubscribeForeground()
         flushOfflineQueue()
     }
 

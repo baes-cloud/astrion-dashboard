@@ -78,6 +78,13 @@ import com.custom.astrion.ui.tap
  *             { "name": "Netflix", "badge": "N", "color": "#E50914", "dim": true, … } ]
  * An app with an `icon` (PNG path) shows just that logo, no label.
  */
+/** HA media_player feature bits a transport button needs (PREVIOUS 16, NEXT 32, PAUSE 1 | PLAY 16384). */
+private val TRANSPORT_FEATURES = mapOf(
+    "media_previous_track" to 16,
+    "media_next_track" to 32,
+    "media_play_pause" to (1 or 16384),
+)
+
 class MediaPlayerCard : CardRenderer {
     override val type = "media_player"
 
@@ -157,8 +164,26 @@ class MediaPlayerCard : CardRenderer {
             }
         }
 
+        // tv variant: each transport button goes to a player that can
+        // actually do it. The Cast entity rejects next/previous for a native
+        // app like Plex ("does not support action media_player.media_next_
+        // track"), and HA's Plex client entity for the Google TV supports no
+        // transport at all; the ADB entity sends media keys to whatever app is
+        // in front. Among `art_entities` (then the card's own entity), a
+        // playing/paused player that supports the action wins, then any that
+        // is on and supports it.
+        fun transportTarget(service: String): String {
+            if (config.string("variant") != "tv") return entityId
+            val feature = TRANSPORT_FEATURES[service] ?: return entityId
+            val able = (config.stringList("art_entities") + entityId).distinct()
+                .mapNotNull { ctx.entities[it] }
+                .filter { !it.isUnavailable && ((it.attrInt("supported_features") ?: 0) and feature) != 0 }
+            return (able.firstOrNull { it.state == "playing" || it.state == "paused" }
+                ?: able.firstOrNull { it.state != "off" })?.entityId ?: entityId
+        }
+
         fun mp(service: String, vararg data: Pair<String, Any?>) {
-            ctx.client.callService(ServiceCall.of("media_player", service, entityId, *data))
+            ctx.client.callService(ServiceCall.of("media_player", service, transportTarget(service), *data))
         }
 
         Box(
