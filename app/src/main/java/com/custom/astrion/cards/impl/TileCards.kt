@@ -11,6 +11,8 @@ import androidx.compose.material.icons.filled.Blinds
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Whatshot
@@ -260,6 +262,8 @@ private fun switchIcon(name: String?): ImageVector = when (name) {
     "heater", "heat" -> Icons.Filled.Whatshot
     "fan" -> Icons.Filled.Air
     "bulb", "light" -> Icons.Filled.Lightbulb
+    "music" -> Icons.Filled.MusicNote
+    "night" -> Icons.Filled.Bedtime
     else -> Icons.Filled.PowerSettingsNew
 }
 
