@@ -72,6 +72,7 @@ import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.input.KeyDispatcher
 import com.custom.astrion.input.KeyTimers
+import com.custom.astrion.power.Battery
 import com.custom.astrion.power.MotionWake
 import com.custom.astrion.ir.IrBlaster
 import com.custom.astrion.ir.IrModeOverlay
@@ -184,16 +185,6 @@ class MainActivity : ComponentActivity() {
 
         /** While the screensaver is up: re-check the backlight for sunset/sunrise. */
         const val SCREENSAVER_SHOWN_TICK_MS = 60_000L
-
-        /**
-         * Some MediaTek chargers report NOT_CHARGING rather than FULL once the
-         * battery tops out on the dock; at or above this level that still
-         * counts as docked.
-         */
-        const val TOPPED_UP_PCT = 95
-
-        /** On the dock but this many points below its peak: the dock isn't keeping up. */
-        const val DOCK_DRAIN_PCT = 3
     }
 
     private val keyHandler = Handler(Looper.getMainLooper())
@@ -1033,7 +1024,7 @@ class MainActivity : ComponentActivity() {
      * Highest level seen since it was last put on the dock; null off the
      * dock. A remote whose dock pins barely touch can report "charging" while
      * drawing less than it uses: 141 sat "plugged" from 68% down to 42% on
-     * 4 Oct. Falling [DOCK_DRAIN_PCT] below this counts as a dock fault too.
+     * 4 Oct. Falling [Battery.DOCK_DRAIN_PCT] below this counts as a dock fault too.
      */
     private var pluggedPeakPct: Int? = null
 
@@ -1059,11 +1050,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Plugged in and the battery actually charging (or already full). */
-    private fun takingCharge(): Boolean = plugged && when (batteryStatus) {
-        BatteryManager.BATTERY_STATUS_CHARGING, BatteryManager.BATTERY_STATUS_FULL -> true
-        BatteryManager.BATTERY_STATUS_NOT_CHARGING -> (batteryPct ?: 0) >= TOPPED_UP_PCT
-        else -> false
-    }
+    private fun takingCharge(): Boolean = Battery.takingCharge(plugged, batteryStatus, batteryPct)
 
     private fun updateDocked(value: Boolean) {
         dockConfirmPending = false
@@ -1098,18 +1085,12 @@ class MainActivity : ComponentActivity() {
         val entityId = features.power.reportEntity ?: return
         val pct = batteryPct ?: return
         if (client.connection.value != ConnectionState.CONNECTED) return
-        val draining = (pluggedPeakPct ?: pct) - pct >= DOCK_DRAIN_PCT
-        val dockFault = plugged && (!takingCharge() || draining)
+        val draining = Battery.draining(pluggedPeakPct, pct)
+        val dockFault = Battery.dockFault(plugged, batteryStatus, pct, pluggedPeakPct)
         val report = listOf(entityId, pct, plugged, batteryStatus, docked, dockFault)
         if (!force && report == lastBatteryReport) return
         lastBatteryReport = report
-        val status = when (batteryStatus) {
-            BatteryManager.BATTERY_STATUS_CHARGING -> "charging"
-            BatteryManager.BATTERY_STATUS_FULL -> "full"
-            BatteryManager.BATTERY_STATUS_DISCHARGING -> "discharging"
-            BatteryManager.BATTERY_STATUS_NOT_CHARGING -> "not_charging"
-            else -> "unknown"
-        }
+        val status = Battery.statusName(batteryStatus)
         val attrs = mutableMapOf<String, Any?>(
             "unit_of_measurement" to "%",
             "device_class" to "battery",
