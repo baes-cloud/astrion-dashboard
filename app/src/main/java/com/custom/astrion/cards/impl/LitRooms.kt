@@ -29,11 +29,13 @@ import kotlin.math.pow
 
 /**
  * Lit rooms: each floorplan light throws a soft pool of its own colour and
- * brightness into the room it belongs to, and (after sunset by default) rooms
- * with nothing on fall into shade. Config, on the picture_elements card:
+ * brightness into the room it belongs to, and as the sun goes down rooms with
+ * nothing on fall gradually into shade. Config, on the picture_elements card:
  *
  *   "lit_rooms": {
- *     "shade": "sun",            // "sun" (night only), "always" or "off"
+ *     "shade": "sun",            // "sun": deepens with the sun's elevation through
+ *                                // dusk (6° to -6°); "night": on/off at sunset;
+ *                                // "always" or "off"
  *     "shade_alpha": 0.68,       // how dark an unlit room gets, 0–1
  *     "glow": 0.85,              // colour strength, 0–1
  *     "reach": 26,               // pool radius, % of the plan's width
@@ -66,6 +68,9 @@ private class Glow(
 )
 
 private const val FADE_MS = 400
+private const val SHADE_FADE_MS = 1500
+private const val DAY_ELEVATION = 6.0
+private const val NIGHT_ELEVATION = -6.0
 private val SHADE = Color(0xFF060910)
 private val WARM_WHITE = Color(255, 196, 120)
 
@@ -88,13 +93,17 @@ internal fun LitRoomsLayer(
     }
     val reach = ((opts["reach"] as? Number)?.toFloat() ?: 26f) / 100f
     val glowStrength = ((opts["glow"] as? Number)?.toFloat() ?: 0.85f).coerceIn(0f, 1f)
-    val shadeAlpha = ((opts["shade_alpha"] as? Number)?.toFloat() ?: 0.68f).coerceIn(0f, 1f)
-    val shadeOn = when (opts["shade"] as? String ?: "sun") {
-        "off" -> false
-        "always" -> true
-        // Reads only sun.sun, so this recomposes twice a day.
-        else -> screensaverIsNight(ctx.entities, System.currentTimeMillis())
+    val maxShade = ((opts["shade_alpha"] as? Number)?.toFloat() ?: 0.68f).coerceIn(0f, 1f)
+    val night = { if (screensaverIsNight(ctx.entities, System.currentTimeMillis())) 1f else 0f }
+    val shadeTarget = maxShade * when (opts["shade"] as? String ?: "sun") {
+        "off" -> 0f
+        "always" -> 1f
+        "night" -> night()
+        // Reads only sun.sun, whose elevation HA refreshes every few minutes.
+        else -> duskFraction(ctx.entities["sun.sun"]) ?: night()
     }
+    // Each new elevation eases in, so dusk deepens smoothly rather than in steps.
+    val shade = animateFloatAsState(shadeTarget, tween(SHADE_FADE_MS), label = "shade")
 
     // Only the room lights are read, one entity each, so this recomposes when
     // one of them changes and not for the radar sensors. key() keeps each
@@ -130,7 +139,8 @@ internal fun LitRoomsLayer(
     }
 
     // The shade needs its own layer so each pool can cut a hole in it.
-    if (shadeOn && shadeAlpha > 0f) {
+    // In daylight there is no shade layer at all.
+    if (shadeTarget > 0f || shade.value > 0.002f) {
         Box(
             Modifier
                 .fillMaxSize()
@@ -138,7 +148,7 @@ internal fun LitRoomsLayer(
                 .drawWithCache {
                     val paths = shapes.map { it.toPath(size.width, size.height) }
                     onDrawBehind {
-                        drawRect(SHADE.copy(alpha = shadeAlpha))
+                        drawRect(SHADE.copy(alpha = shade.value))
                         glows.forEach { g ->
                             pool(g, paths, Color.Black, (g.level.value * 1.45f).coerceAtMost(1f), BlendMode.DstOut)
                         }
@@ -160,6 +170,16 @@ internal fun LitRoomsLayer(
                 }
             },
     )
+}
+
+/**
+ * 0 in daylight, 1 at night, and in between through dusk and dawn: linear in
+ * the sun's elevation from [DAY_ELEVATION] down to [NIGHT_ELEVATION] (civil
+ * twilight). Null when HA reports no elevation.
+ */
+private fun duskFraction(sun: EntityState?): Float? {
+    val elevation = sun?.attrDouble("elevation") ?: return null
+    return ((DAY_ELEVATION - elevation) / (DAY_ELEVATION - NIGHT_ELEVATION)).toFloat().coerceIn(0f, 1f)
 }
 
 private fun List<Pair<Float, Float>>.toPath(w: Float, h: Float): Path? {

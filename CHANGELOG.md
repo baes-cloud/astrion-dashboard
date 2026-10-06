@@ -10,7 +10,8 @@ companion automations and scripts are in `docs/HOME_ASSISTANT.md`.
 ### Lit rooms
 
 - The floor plan can light each room in its lamps' real colour and
-  brightness, and shade rooms with nothing on after sunset. Set up with a
+  brightness, and shade rooms with nothing on as the sun goes down (gradually,
+  following the sun's elevation from 6° to -6°). Set up with a
   `lit_rooms` block on the `picture_elements` card (room outlines plus the
   lights in each); the bundled dashboard has it for the flat. Redraws only
   when a light changes, with a short fade, so it costs nothing at rest.
