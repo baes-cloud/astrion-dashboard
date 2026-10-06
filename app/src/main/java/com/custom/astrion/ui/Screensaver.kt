@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,6 +56,7 @@ import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.HaClient
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import java.text.SimpleDateFormat
@@ -118,12 +120,28 @@ fun Screensaver(
     // position — tick in their own small scopes (Countdown, MediaProgress).
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var sampled by remember { mutableStateOf(entities()) }
+    val currentOptions by rememberUpdatedState(options)
+    val currentConnected by rememberUpdatedState(connected)
     LaunchedEffect(Unit) {
+        // What the face last showed. HaClient hands out a new map on every
+        // change anywhere in HA, so comparing maps by identity redrew the
+        // face every sample; this compares only what the face draws.
+        var shown = faceKey(sampled, currentOptions, now, currentConnected)
         while (true) {
             val t = System.currentTimeMillis()
-            if (t / 60_000 != now / 60_000) now = t
             val latest = entities()
-            if (latest !== sampled) sampled = latest
+            if (t / 60_000 != now / 60_000) {
+                // Redrawn for the clock anyway, so take the latest too.
+                now = t
+                sampled = latest
+                shown = faceKey(latest, currentOptions, t, currentConnected)
+            } else if (latest !== sampled) {
+                val next = faceKey(latest, currentOptions, now, currentConnected)
+                if (next != shown) {
+                    shown = next
+                    sampled = latest
+                }
+            }
             // Next sample, but never past the minute boundary.
             delay(minOf(SAMPLE_MS - t % SAMPLE_MS, 60_000 - t % 60_000) + 50)
         }
@@ -145,8 +163,7 @@ fun Screensaver(
     val minute = now / 60_000
     val (dx, dy) = DRIFT[(minute % DRIFT.size).toInt()]
 
-    val weather = (options["weather_entity"] as? String)?.let { entities[it] }
-        ?: entities.values.firstOrNull { it.domain == "weather" && !it.isUnavailable }
+    val weather = pickWeather(entities, options)
     val media = pickPlayingMedia(entities, options)
     val facts = buildFacts(options, entities, now, connected)
 
@@ -276,6 +293,35 @@ private fun rememberSecondTick(): Long {
     }
     return t
 }
+
+/** Everything the face draws from HA, for deciding whether a sample changes it. */
+private data class FaceKey(
+    val night: Boolean,
+    val weatherState: String?,
+    val weatherTemp: Double?,
+    val mediaId: String?,
+    val mediaState: String?,
+    val mediaAttributes: JsonObject?,
+    val facts: List<Fact>,
+)
+
+private fun faceKey(entities: EntityMap, options: Map<String, Any?>, now: Long, connected: Boolean): FaceKey {
+    val weather = pickWeather(entities, options)
+    val media = pickPlayingMedia(entities, options)
+    return FaceKey(
+        night = screensaverIsNight(entities, now),
+        weatherState = weather?.state,
+        weatherTemp = weather?.attrDouble("temperature"),
+        mediaId = media?.entityId,
+        mediaState = media?.state,
+        mediaAttributes = media?.attributes,
+        facts = buildFacts(options, entities, now, connected),
+    )
+}
+
+private fun pickWeather(entities: EntityMap, options: Map<String, Any?>): EntityState? =
+    (options["weather_entity"] as? String)?.let { entities[it] }
+        ?: entities.values.firstOrNull { it.domain == "weather" && !it.isUnavailable }
 
 /** Per-minute (x, y) offsets in dp, cycled. */
 private val DRIFT = listOf(

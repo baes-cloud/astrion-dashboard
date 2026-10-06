@@ -49,7 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -452,9 +452,14 @@ class PictureElementsCard : CardRenderer {
                 VacBody(vac * 0.92f, body, bump, Modifier.align(Alignment.BottomCenter))
             }
         } else {
-            val angle = if (moving) {
+            // Rocks only while it is actually seen. The page stays composed
+            // when hidden and under the screensaver, and an infinite
+            // transition keeps asking for frames whether or not anything is
+            // drawn.
+            val live = LocalPageVisible.current && LocalDashboardShowing.current
+            if (moving && live) {
                 val t = rememberInfiniteTransition(label = "vacrock")
-                t.animateFloat(
+                val angle = t.animateFloat(
                     initialValue = -10f,
                     targetValue = 10f,
                     animationSpec = infiniteRepeatable(
@@ -462,11 +467,13 @@ class PictureElementsCard : CardRenderer {
                         repeatMode = RepeatMode.Reverse,
                     ),
                     label = "angle",
-                ).value
+                )
+                // Read in the draw phase, not in composition: each frame
+                // re-draws the layer instead of recomposing the icon.
+                VacBody(vac, body, bump, Modifier.graphicsLayer { rotationZ = angle.value })
             } else {
-                0f
+                VacBody(vac, body, bump)
             }
-            VacBody(vac, body, bump, Modifier.rotate(angle))
         }
     }
 
