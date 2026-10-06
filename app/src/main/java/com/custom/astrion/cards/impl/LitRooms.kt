@@ -36,8 +36,10 @@ import kotlin.math.pow
  *     "shade": "sun",            // "sun": deepens with the sun's elevation through
  *                                // dusk (6° to -6°); "night": on/off at sunset;
  *                                // "always" or "off"
- *     "shade_alpha": 0.68,       // how dark an unlit room gets, 0–1
- *     "glow": 0.85,              // colour strength at night, 0–1
+ *     "shade_alpha": 0.8,        // how dark an unlit room gets, 0–1
+ *     "glow": 0.6,               // colour strength at night, 0–1
+ *     "room_glow": 0.3,          // a room with any light on lifts this much of
+ *                                // its shade everywhere and takes a faint tint
  *     "day_glow": 0.3,           // share of that strength in full daylight, 0–1;
  *                                // rises to 1 through dusk with the shade
  *     "reach": 26,               // pool radius, % of the plan's width
@@ -56,6 +58,9 @@ import kotlin.math.pow
  *   { "entity_id": "light.downlights", "left": 65, "top": 28,
  *     "glow_spots": [[24,17],[59,12],[84,18]], "glow_reach": 0.6 }
  *
+ * Pools only part-cut the shade, so a lit spot reads as lamplight in a dark
+ * room rather than a hole back to the daytime plan.
+ *
  * Cost: nothing animates at rest. A light changing fades its pool over 400 ms
  * and then the layer is still again. No blur (not cheap on Android 8.1) and no
  * extra bitmaps: one offscreen layer for the shade, gradients for the rest.
@@ -68,6 +73,14 @@ private class Glow(
     val color: Color,
     val level: State<Float>,
 )
+
+/** How much of the shade a full-brightness pool removes at its centre. */
+private const val POOL_CUT = 0.85f
+/** Pool colour: Multiply tint and Screen highlight, relative to glow. */
+private const val TINT = 0.9f
+private const val SHINE = 0.35f
+/** Tint strength of a lit room's ambient wash, relative to room_glow. */
+private const val ROOM_TINT = 0.5f
 
 private const val FADE_MS = 400
 private const val SHADE_FADE_MS = 1500
@@ -94,9 +107,10 @@ internal fun LitRoomsLayer(
         }
     }
     val reach = ((opts["reach"] as? Number)?.toFloat() ?: 26f) / 100f
-    val glowStrength = ((opts["glow"] as? Number)?.toFloat() ?: 0.85f).coerceIn(0f, 1f)
+    val glowStrength = ((opts["glow"] as? Number)?.toFloat() ?: 0.6f).coerceIn(0f, 1f)
     val dayGlow = ((opts["day_glow"] as? Number)?.toFloat() ?: 0.3f).coerceIn(0f, 1f)
-    val maxShade = ((opts["shade_alpha"] as? Number)?.toFloat() ?: 0.68f).coerceIn(0f, 1f)
+    val maxShade = ((opts["shade_alpha"] as? Number)?.toFloat() ?: 0.8f).coerceIn(0f, 1f)
+    val roomGlow = ((opts["room_glow"] as? Number)?.toFloat() ?: 0.3f).coerceIn(0f, 1f)
     val night = { if (screensaverIsNight(ctx.entities, System.currentTimeMillis())) 1f else 0f }
     val shadeMode = opts["shade"] as? String ?: "sun"
     // Reads only sun.sun, whose elevation HA refreshes every few minutes.
@@ -165,27 +179,53 @@ internal fun LitRoomsLayer(
                     val paths = shapes.map { it.toPath(size.width, size.height) }
                     onDrawBehind {
                         drawRect(SHADE.copy(alpha = shade.value))
+                        // A lit room is never as dark as an empty one.
+                        roomLevels(glows).forEach { (room, lit) ->
+                            val path = paths.getOrNull(room) ?: return@forEach
+                            drawPath(path, Color.Black.copy(alpha = lit.level * roomGlow), blendMode = BlendMode.DstOut)
+                        }
                         glows.forEach { g ->
-                            pool(g, paths, Color.Black, (g.level.value * 1.45f).coerceAtMost(1f), BlendMode.DstOut)
+                            pool(g, paths, Color.Black, g.level.value * POOL_CUT, BlendMode.DstOut)
                         }
                     }
                 },
         )
     }
 
-    // The colour, added on top of the plan (and the shade) with Screen.
+    // The colour. Multiply tints what the pool reveals the way lamplight
+    // colours a surface; a little Screen on top gives the bright core. Screen
+    // alone pushed pale lights toward white and the plan looked hazy.
     Box(
         Modifier
             .fillMaxSize()
             .drawWithCache {
                 val paths = shapes.map { it.toPath(size.width, size.height) }
                 onDrawBehind {
+                    roomLevels(glows).forEach { (room, lit) ->
+                        val path = paths.getOrNull(room) ?: return@forEach
+                        val a = lit.level * roomGlow * ROOM_TINT * glowScale.value
+                        drawPath(path, lit.color.copy(alpha = a), blendMode = BlendMode.Multiply)
+                    }
                     glows.forEach { g ->
-                        pool(g, paths, g.color, (g.level.value * glowStrength * glowScale.value * 1.15f).coerceAtMost(1f), BlendMode.Screen)
+                        val a = (g.level.value * glowStrength * glowScale.value).coerceAtMost(1f)
+                        pool(g, paths, g.color, a * TINT, BlendMode.Multiply)
+                        pool(g, paths, g.color, a * SHINE, BlendMode.Screen)
                     }
                 }
             },
     )
+}
+
+private class RoomLit(val level: Float, val color: Color)
+
+/** Each room with a light on: its brightest light's level and colour. */
+private fun roomLevels(glows: List<Glow>): Map<Int, RoomLit> {
+    val out = HashMap<Int, RoomLit>()
+    glows.forEach { g ->
+        val k = g.level.value
+        if (k >= 0.01f && k > (out[g.room]?.level ?: 0f)) out[g.room] = RoomLit(k, g.color)
+    }
+    return out
 }
 
 /**
