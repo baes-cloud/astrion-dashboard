@@ -1,5 +1,6 @@
 package com.custom.astrion
 
+import android.annotation.SuppressLint
 import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -912,6 +913,9 @@ class MainActivity : ComponentActivity() {
      * IR mode and the voice key get first look; bound keys then go through
      * [KeyDispatcher]'s tap / hold / double-tap timing.
      */
+    // Lint's RestrictedApi check misreads overriding (and calling super on)
+    // ComponentActivity's public dispatchKeyEvent as a call into androidx.core.
+    @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val code = event.keyCode
         val key = HardwareKey.fromKeyCode(code)
