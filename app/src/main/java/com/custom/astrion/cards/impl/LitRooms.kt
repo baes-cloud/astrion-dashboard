@@ -37,7 +37,9 @@ import kotlin.math.pow
  *                                // dusk (6° to -6°); "night": on/off at sunset;
  *                                // "always" or "off"
  *     "shade_alpha": 0.68,       // how dark an unlit room gets, 0–1
- *     "glow": 0.85,              // colour strength, 0–1
+ *     "glow": 0.85,              // colour strength at night, 0–1
+ *     "day_glow": 0.3,           // share of that strength in full daylight, 0–1;
+ *                                // rises to 1 through dusk with the shade
  *     "reach": 26,               // pool radius, % of the plan's width
  *     "rooms": [
  *       { "name": "Bedroom",
@@ -93,17 +95,31 @@ internal fun LitRoomsLayer(
     }
     val reach = ((opts["reach"] as? Number)?.toFloat() ?: 26f) / 100f
     val glowStrength = ((opts["glow"] as? Number)?.toFloat() ?: 0.85f).coerceIn(0f, 1f)
+    val dayGlow = ((opts["day_glow"] as? Number)?.toFloat() ?: 0.3f).coerceIn(0f, 1f)
     val maxShade = ((opts["shade_alpha"] as? Number)?.toFloat() ?: 0.68f).coerceIn(0f, 1f)
     val night = { if (screensaverIsNight(ctx.entities, System.currentTimeMillis())) 1f else 0f }
-    val shadeTarget = maxShade * when (opts["shade"] as? String ?: "sun") {
+    val shadeMode = opts["shade"] as? String ?: "sun"
+    // Reads only sun.sun, whose elevation HA refreshes every few minutes.
+    val dusk = duskFraction(ctx.entities["sun.sun"]) ?: night()
+    val shadeTarget = maxShade * when (shadeMode) {
         "off" -> 0f
         "always" -> 1f
         "night" -> night()
-        // Reads only sun.sun, whose elevation HA refreshes every few minutes.
-        else -> duskFraction(ctx.entities["sun.sun"]) ?: night()
+        else -> dusk
     }
     // Each new elevation eases in, so dusk deepens smoothly rather than in steps.
     val shade = animateFloatAsState(shadeTarget, tween(SHADE_FADE_MS), label = "shade")
+    // Full-strength pools bleach the bright daytime plan, so the colour is
+    // faint by day and comes up with the dark. Follows the shade mode, or the
+    // sun when there is no shade.
+    val darkness = when (shadeMode) {
+        "always" -> 1f
+        "night" -> night()
+        else -> dusk
+    }
+    val glowScale = animateFloatAsState(
+        dayGlow + (1f - dayGlow) * darkness, tween(SHADE_FADE_MS), label = "glowScale",
+    )
 
     // Only the room lights are read, one entity each, so this recomposes when
     // one of them changes and not for the radar sensors. key() keeps each
@@ -165,7 +181,7 @@ internal fun LitRoomsLayer(
                 val paths = shapes.map { it.toPath(size.width, size.height) }
                 onDrawBehind {
                     glows.forEach { g ->
-                        pool(g, paths, g.color, (g.level.value * glowStrength * 1.15f).coerceAtMost(1f), BlendMode.Screen)
+                        pool(g, paths, g.color, (g.level.value * glowStrength * glowScale.value * 1.15f).coerceAtMost(1f), BlendMode.Screen)
                     }
                 }
             },
