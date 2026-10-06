@@ -32,7 +32,10 @@ data class AppConfig(
      * configured without a schema change.
      */
     val options: Map<String, Any?> = emptyMap(),
-)
+) {
+    /** [options]' feature blocks, typed; parsed on first use, once per config. */
+    val features: FeatureOptions by lazy { FeatureOptions(options, DashboardConfig.default.options) }
+}
 
 /** One swipeable page: a name (used by hotkey `page` navigation) and its cards. */
 data class PageConfig(
