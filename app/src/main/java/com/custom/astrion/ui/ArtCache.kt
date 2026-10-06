@@ -1,15 +1,15 @@
 package com.custom.astrion.ui
 
-import android.graphics.BitmapFactory
 import android.util.Log
 import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.graphics.asImageBitmap
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -49,24 +49,47 @@ object ArtCache {
         dir = File(cacheDir, "art").apply { mkdirs() }
     }
 
+    /** Loads under way, by memory key, so two cards asking at once share one. */
+    private val inFlight = ConcurrentHashMap<String, CompletableDeferred<ImageBitmap?>>()
+
     /** Already-decoded art, for a first frame that doesn't flash a placeholder. */
-    fun peek(url: String): ImageBitmap? = memory.get(key(url))
+    fun peek(url: String, minPx: Int = 0): ImageBitmap? = memory.get(memoryKey(key(url), minPx))
 
     /**
      * Art for [url]: from memory, else disk, else [fetch] (whose bytes are then
      * stored). Decoded downsampled so its longest edge stays at least [minPx]
      * (0 = full size). Null if it can't be fetched or decoded.
+     *
+     * Memory holds each decode size separately: the screensaver's 128 px
+     * cover and the player card's 480 px one share a URL, and with one entry
+     * per URL whichever finished last replaced the other. The disk copy is
+     * the original bytes, so it is shared.
      */
     suspend fun load(url: String, minPx: Int = 0, fetch: suspend () -> ByteArray?): ImageBitmap? {
         val k = key(url)
-        memory.get(k)?.let { return it }
-        val bitmap = withContext(Dispatchers.IO) {
-            readDisk(k)?.let { decode(it, minPx) }
-                ?: fetch()?.let { bytes -> decode(bytes, minPx)?.also { writeDisk(k, bytes) } }
-        } ?: return null
-        memory.put(k, bitmap)
+        val mk = memoryKey(k, minPx)
+        memory.get(mk)?.let { return it }
+        val mine = CompletableDeferred<ImageBitmap?>()
+        inFlight.putIfAbsent(mk, mine)?.let { other ->
+            // Someone else is already loading it; null only if theirs failed
+            // or was cancelled, in which case memory has nothing either.
+            return other.await() ?: memory.get(mk)
+        }
+        var bitmap: ImageBitmap? = null
+        try {
+            bitmap = withContext(Dispatchers.IO) {
+                readDisk(k)?.let { decode(it, minPx) }
+                    ?: fetch()?.let { bytes -> decode(bytes, minPx)?.also { writeDisk(k, bytes) } }
+            }
+            if (bitmap != null) memory.put(mk, bitmap)
+        } finally {
+            inFlight.remove(mk, mine)
+            mine.complete(bitmap)
+        }
         return bitmap
     }
+
+    private fun memoryKey(k: String, minPx: Int) = "$k@$minPx"
 
     /**
      * Cache key: the URL minus auth parameters (the HA token, HA's signed-path
@@ -85,19 +108,7 @@ object ArtCache {
             .joinToString("") { "%02x".format(it) }
     }
 
-    private fun decode(bytes: ByteArray, minPx: Int): ImageBitmap? = runCatching {
-        val opts = BitmapFactory.Options()
-        if (minPx > 0) {
-            opts.inJustDecodeBounds = true
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-            val longest = maxOf(opts.outWidth, opts.outHeight)
-            var sample = 1
-            while (longest / (sample * 2) >= minPx) sample *= 2
-            opts.inJustDecodeBounds = false
-            opts.inSampleSize = sample
-        }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)?.asImageBitmap()
-    }.getOrNull()
+    private fun decode(bytes: ByteArray, minPx: Int): ImageBitmap? = decodeSampled(bytes, minPx)
 
     private fun readDisk(k: String): ByteArray? {
         val f = File(dir ?: return null, k)

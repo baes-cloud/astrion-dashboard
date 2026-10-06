@@ -1,6 +1,8 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
+import com.custom.astrion.ui.Time
+import com.custom.astrion.ui.LocalMinuteClock
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -10,7 +12,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -85,15 +86,8 @@ class ClockWeatherCard : CardRenderer {
         // Size of the faint condition glyph behind the card; 0 turns it off.
         val watermark = config.int("watermark_size", 150)
 
-        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-        LaunchedEffect(Unit) {
-            while (true) {
-                now = System.currentTimeMillis()
-                // Tick on the minute (like ClockHeaderCard) so the time is
-                // never up to 10 s stale, and wake 6x less often.
-                delay(60_000 - (System.currentTimeMillis() % 60_000) + 250)
-            }
-        }
+        // Ticks on the minute, shared with every other clock on the dashboard.
+        val now = LocalMinuteClock.current
         val timeFmt = remember(is24) {
             SimpleDateFormat(if (is24) "HH:mm" else "h:mm a", Locale.getDefault())
         }
@@ -586,10 +580,9 @@ internal fun nextCalendarLine(
         ?: return null
     val startStr = e.attrString("start_time") ?: return null
     val allDay = (e.attr("all_day") as? kotlinx.serialization.json.JsonPrimitive)?.booleanOrNull ?: false
-    val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-    val start = runCatching { fmt.parse(startStr) }.getOrNull() ?: return null
+    val start = Time.parseHaLocal(startStr) ?: return null
 
-    val day = SimpleDateFormat("EEE", Locale.getDefault()).format(start)
-    val time = if (allDay) null else SimpleDateFormat("h:mm", Locale.getDefault()).format(start)
+    val day = Time.format(start, "EEE")
+    val time = if (allDay) null else Time.format(start, "h:mm")
     return CalendarLine(day, time, label)
 }

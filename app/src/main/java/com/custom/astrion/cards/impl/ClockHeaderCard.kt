@@ -1,6 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import android.content.BroadcastReceiver
+import com.custom.astrion.ui.LocalMinuteClock
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -17,10 +18,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,7 +41,6 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
-import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -84,15 +82,8 @@ class ClockHeaderCard : CardRenderer {
         val is24 = config.int("time_format", 12) == 24
         val dateFormat = config.string("date_format")
 
-        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-        LaunchedEffect(Unit) {
-            while (true) {
-                now = System.currentTimeMillis()
-                // Re-tick just after the minute rolls over rather than on a
-                // fixed interval, so the displayed minute is never stale.
-                delay(60_000 - (System.currentTimeMillis() % 60_000) + 250)
-            }
-        }
+        // Ticks just after the minute rolls over, so the shown minute is never stale.
+        val now = LocalMinuteClock.current
         val fmt = remember(is24) {
             SimpleDateFormat(if (is24) "HH:mm" else "h:mm a", Locale.getDefault())
         }

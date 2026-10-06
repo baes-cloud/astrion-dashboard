@@ -17,8 +17,9 @@ data class EntityState(
     val entityId: String,
     val state: String,
     val attributes: JsonObject,
-    val lastChanged: String? = null,
-    val lastUpdated: String? = null,
+    /** Epoch millis, as HA sends them (it sends seconds); null if unknown. */
+    val lastChangedMs: Long? = null,
+    val lastUpdatedMs: Long? = null,
 ) {
     val domain: String get() = entityId.substringBefore('.')
 
@@ -102,5 +103,17 @@ data class ServiceCall(
             }.toMap()
             return ServiceCall(domain, service, entityId, mapped)
         }
+
+        /**
+         * From config's `"service": "light.turn_on"` plus `entity_id` and a
+         * `data` map, the shape every button, hotkey and alert action uses.
+         */
+        fun fromConfig(service: String, entityId: String?, data: Map<String, Any?> = emptyMap()): ServiceCall =
+            of(
+                service.substringBefore('.'),
+                service.substringAfter('.'),
+                entityId,
+                *data.entries.map { it.key to it.value }.toTypedArray(),
+            )
     }
 }

@@ -1,7 +1,6 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -81,13 +80,8 @@ class TvRemoteCard : CardRenderer {
         fun launch(app: Map<String, Any?>) {
             val service = app["service"] as? String
             if (service != null) {
-                val domain = service.substringBefore('.')
-                val svc = service.substringAfter('.')
-                val entity = app["entity_id"] as? String
                 val data = (app["data"] as? Map<String, Any?>).orEmpty()
-                ctx.client.callService(
-                    ServiceCall.of(domain, svc, entity, *data.entries.map { it.key to it.value }.toTypedArray())
-                )
+                ctx.client.callService(ServiceCall.fromConfig(service, app["entity_id"] as? String, data))
             } else {
                 val appId = app["app"] as? String ?: return
                 ctx.client.callService(

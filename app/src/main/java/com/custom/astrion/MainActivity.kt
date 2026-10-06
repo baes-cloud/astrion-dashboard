@@ -1,15 +1,12 @@
 package com.custom.astrion
 
+import android.annotation.SuppressLint
 import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.net.ConnectivityManager
@@ -28,20 +25,18 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.Toast
-import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlin.math.sqrt
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import com.custom.astrion.ui.AstrionTheme
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.activity.result.contract.ActivityResultContracts
@@ -54,9 +49,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import com.custom.astrion.config.DashboardConfig
 import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HotkeyConfig
 import com.custom.astrion.config.JsonPlain
@@ -66,20 +61,27 @@ import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
+import com.custom.astrion.input.KeyDispatcher
+import com.custom.astrion.input.KeyTimers
+import com.custom.astrion.power.Battery
+import com.custom.astrion.power.MotionWake
 import com.custom.astrion.ir.IrBlaster
 import com.custom.astrion.ir.IrModeOverlay
 import com.custom.astrion.ui.AlarmOverlay
 import com.custom.astrion.ui.AlarmUiState
+import com.custom.astrion.ui.alarmUiState
 import com.custom.astrion.ui.AlertAction
 import com.custom.astrion.ui.AlertOverlay
 import com.custom.astrion.ui.AlertSpec
 import com.custom.astrion.ui.activeAlerts
+import com.custom.astrion.ui.nextAlertDueMs
 import com.custom.astrion.ui.Dashboard
 import com.custom.astrion.ui.ActionToast
 import com.custom.astrion.ui.AstrionMaterialTheme
 import com.custom.astrion.ui.ToastMessage
 import com.custom.astrion.ui.humanise
 import com.custom.astrion.ui.LocalDashboardShowing
+import com.custom.astrion.ui.MinuteClock
 import com.custom.astrion.ui.LocalSheetHost
 import com.custom.astrion.ui.SheetHost
 import com.custom.astrion.ui.StrongHaptics
@@ -138,25 +140,11 @@ class MainActivity : ComponentActivity() {
         val DEBUG_KEYS = BuildConfig.DEBUG
         const val KEY_TAG = "AstrionKeys"
 
-        // Hold this long for a button's long-press action to fire.
-        const val LONG_PRESS_MS = 1500L
-
         /**
-         * How long a key with a double-tap binding waits after a release to
-         * see whether a second tap is coming.
-         *
-         * This is a real cost, not a tuning knob: for those keys the single
-         * tap cannot fire until the window closes, because until then we do
-         * not know which action was meant. Kept short enough that the page
-         * jump still feels like a button press.
+         * Wanted but blocked on something with no event of its own (the mic
+         * permission granted from Settings): look again this often.
          */
-        const val DOUBLE_TAP_MS = 280L
-
-        /** How often the wake word watcher re-checks dock/config/connection. */
-        const val WAKE_WORD_POLL_MS = 2_000L
-
-        /** `voice.wake_word_undocked_minutes` default: keep listening this long off the dock. */
-        const val WAKE_WORD_UNDOCKED_MIN = 10
+        const val WAKE_WORD_RECHECK_MS = 60_000L
 
         /** Pause before re-arming after a wake word run failed. */
         const val WAKE_WORD_BACKOFF_MS = 15_000L
@@ -176,105 +164,38 @@ class MainActivity : ComponentActivity() {
          */
         const val COLD_ARRIVAL_MS = 30_000L
 
-        // Motion-wake tuning: accel magnitude delta (m/s²) that counts as
-        // "moved", and a cooldown so a single lift fires one wake.
-        const val MOTION_THRESHOLD = 0.9f
+        /** Motion-wake cooldown, so a single lift fires one wake. */
         const val WAKE_COOLDOWN_MS = 2000L
 
-        /** How often the idle timer checks whether the screensaver is due. */
+        /**
+         * How often the idle timer looks again while something holds the
+         * screensaver off (IR mode, the alarm, voice). When nothing does, it
+         * waits exactly as long as the idle time has left.
+         */
         const val SCREENSAVER_TICK_MS = 5_000L
 
-        /**
-         * `screensaver.undocked_idle_seconds` default: off the dock a short
-         * idle brings up a dim screensaver, until the system timeout turns the
-         * screen off. -1 = no screensaver off the dock.
-         */
-        const val SCREENSAVER_UNDOCKED_IDLE_S = 90
-
-        /** `screensaver.undocked_brightness` default: dimmer than docked, it's on battery. */
-        const val SCREENSAVER_UNDOCKED_BRIGHTNESS = 0.08f
-
-        /**
-         * `power.screen_timeout_seconds` default. Applied to the system setting
-         * and re-applied whenever something else changes it: the stock
-         * HaRemote app writes "never" (2147483647), which kept an undocked
-         * remote's screen on until it ran flat. 0 = leave the setting alone.
-         */
-        const val SCREEN_TIMEOUT_S = 120
-
-        /** `power.motion_wake_minutes` default: listen for a pick-up this long after the screen goes off. */
-        const val MOTION_WAKE_MIN = 5
-
-        /** `power.screen_off_filter_seconds` default: narrow the HA subscription after this long dark. */
-        const val SCREEN_OFF_FILTER_S = 30
-
-        /** `power.dock_debounce_seconds` default: charging this long before it counts as docked. */
-        const val DOCK_DEBOUNCE_S = 5
-
-        /**
-         * Some MediaTek chargers report NOT_CHARGING rather than FULL once the
-         * battery tops out on the dock; at or above this level that still
-         * counts as docked.
-         */
-        const val TOPPED_UP_PCT = 95
-
-        /** On the dock but this many points below its peak: the dock isn't keeping up. */
-        const val DOCK_DRAIN_PCT = 3
+        /** While the screensaver is up: re-check the backlight for sunset/sunrise. */
+        const val SCREENSAVER_SHOWN_TICK_MS = 60_000L
     }
 
-    // Long-press timing state.
     private val keyHandler = Handler(Looper.getMainLooper())
-    private var pendingLong: Runnable? = null
-    private var activeLongKey = -1
-    private var longFired = false
 
-    // Double-tap timing state: the deferred single-tap action, and which key
-    // it belongs to, so a second tap of a DIFFERENT key doesn't consume it.
-    private var pendingSingle: Runnable? = null
-    private var pendingSingleKey = -1
-
-    // Motion-wake: an accelerometer wakes the screen when the remote is
-    // lifted/moved. NOT cheap at rest: a wake-up accelerometer wakes the SoC
-    // for every reading (~5 a second), moving or not, so the CPU can never
-    // suspend while it's registered. Hence only for `power.motion_wake_minutes`
-    // after the screen goes off — when a pick-up is most likely — and never
-    // on the dock, where the screen is kept on anyway.
-    private var sensorManager: SensorManager? = null
-    private var motionSensor: Sensor? = null
-    private var lastMagnitude = 0f
+    /** Wakes the screen when the remote is picked up; see [MotionWake]. */
+    private lateinit var motionWake: MotionWake
     private var lastWakeMs = 0L
-    /** elapsedRealtime after which motion-wake gives up; Long.MAX_VALUE = never. */
-    private var motionUntil = 0L
-    private val motionListener = object : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent) {
-            // Checked here too, not just by the timer: uptime-based timers
-            // stall while the SoC sleeps, the sensor's own wake-ups don't.
-            if (SystemClock.elapsedRealtime() > motionUntil) {
-                keyHandler.post { listenForMotion(false) }
-                return
-            }
-            val (x, y, z) = event.values
-            val mag = sqrt(x * x + y * y + z * z)
-            if (lastMagnitude != 0f && abs(mag - lastMagnitude) > MOTION_THRESHOLD) {
-                wakeScreen()
-            }
-            lastMagnitude = mag
-        }
-        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-    }
 
     private lateinit var client: HaClient
     private val keyRouter = HardwareKeyRouter()
 
-    /**
-     * Keys whose tap is a plain page jump. Those jump on key-DOWN, even when
-     * the key also has a hold or double-tap binding: a page jump is harmless
-     * if the press turns out to be a hold or a double, and waiting for the
-     * release (plus the double-tap window) made SCENE take 0.5–0.8s.
-     */
-    private val pageJumpKeys = mutableSetOf<HardwareKey>()
-    /** The key whose tap already ran on its DOWN, so its UP doesn't run it again. */
-    private var tapFiredOnDown = -1
+    /** Tap / hold / double-tap timing for the bound keys. */
+    private val keys = KeyDispatcher(
+        keyRouter,
+        object : KeyTimers {
+            override fun postDelayed(r: Runnable, delayMs: Long) { keyHandler.postDelayed(r, delayMs) }
+            override fun remove(r: Runnable) = keyHandler.removeCallbacks(r)
+        },
+        onHoldFired = { holdHaptics.performHapticFeedback(HapticFeedbackType.LongPress) },
+    )
 
     /** Confirmation / failure pill; see ui/ActionToast.kt and [watchOutcomes]. */
     private var toast by mutableStateOf<ToastMessage?>(null)
@@ -286,7 +207,7 @@ class MainActivity : ComponentActivity() {
     private val holdHaptics by lazy { StrongHaptics(this) }
 
     /** Current layout: starts as the compiled-in defaults, replaced from disk. */
-    private var dashboard by mutableStateOf(DashboardLoader.Result(DashboardConfig.default, null))
+    private var dashboard by mutableStateOf(DashboardLoader.Result(DashboardLoader.default, null))
 
     /** Page index requested by a hardware button; consumed by the Dashboard. */
     private var navTarget by mutableStateOf<Int?>(null)
@@ -370,8 +291,7 @@ class MainActivity : ComponentActivity() {
 
     private val screensaverTick = object : Runnable {
         override fun run() {
-            checkScreensaver()
-            keyHandler.postDelayed(this, SCREENSAVER_TICK_MS)
+            keyHandler.postDelayed(this, checkScreensaver())
         }
     }
 
@@ -381,7 +301,7 @@ class MainActivity : ComponentActivity() {
 
     private val micPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { granted -> if (granted) voice.start(voicePipelineId()) }
+    ) { granted -> if (granted) voice.start(features.voice.pipeline) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -406,9 +326,9 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        setupMotionWake()
+        motionWake = MotionWake(this, keyHandler, ::wakeScreen)
 
-        client = HaClient(baseUrl = BuildConfig.HA_URL, token = BuildConfig.HA_TOKEN)
+        client = (application as AstrionApp).client
         irBlaster = IrBlaster(this)
         voice = VoiceSession(this, client)
         voice.onWakeWord = { runOnUiThread { onWakeWordHeard() } }
@@ -417,7 +337,8 @@ class MainActivity : ComponentActivity() {
             dashboard.config.longHotkeys,
             dashboard.config.doubleHotkeys,
         )
-        client.connect()
+        // Already up when this is a recreated Activity on the same process.
+        if (client.connection.value == ConnectionState.DISCONNECTED) client.connect()
         startForegroundService(Intent(this, KeepAliveService::class.java))
         requestBatteryExemptionOnce()
         watchNetwork()
@@ -437,14 +358,15 @@ class MainActivity : ComponentActivity() {
             // ripple, themed Material pieces and real haptics: see AstrionMaterialTheme.
             AstrionMaterialTheme {
               CompositionLocalProvider(LocalSheetHost provides sheetHost) {
-                val entities = client.entities.collectAsState()
                 val connection = client.connection.collectAsState()
                 // Derived, so this root scope recomposes only when the alarm or
-                // the set of alerts actually changes — not on every HA update.
-                val alarm by remember { derivedStateOf { alarmUiState(entities.value) } }
+                // the set of alerts actually changes. Both read client.live by
+                // id, so they re-run only when one of their own entities
+                // changes, not on every HA update.
+                val alarm by remember { derivedStateOf { alarmUiState(client.live) } }
                 val alerts by remember {
                     derivedStateOf {
-                        activeAlerts(alertSpecs(), entities.value, alertNow)
+                        activeAlerts(alertSpecs(), client.live, alertNow)
                             .filter { it.token !in hiddenAlerts }
                     }
                 }
@@ -460,9 +382,9 @@ class MainActivity : ComponentActivity() {
                     CompositionLocalProvider(
                         LocalDashboardShowing provides (screenOnState && inFrontState && !screensaverOn),
                     ) {
+                    MinuteClock {
                     Dashboard(
                         client = client,
-                        entitiesState = entities,
                         connectionState = connection,
                         config = dashboard.config,
                         configNotice = dashboard.notice,
@@ -474,16 +396,17 @@ class MainActivity : ComponentActivity() {
                     sheetHost.Host()
                     }
                     }
+                    }
 
                     // Docked screensaver: above the dashboard, below everything
                     // that must interrupt it (alarm, voice) — and those also
                     // dismiss it outright, see hideScreensaver's callers.
-                    if (screensaverOn) ScreensaverHost(entities, connection)
+                    if (screensaverOn) ScreensaverHost(connection)
 
                     // IR Mode modal sits above the dashboard while active.
                     if (irMode) {
                         IrModeOverlay(
-                            options = irOptions(),
+                            options = features.ir.raw,
                             client = client,
                             blaster = irBlaster,
                             lastKeyLabel = irLastKey,
@@ -509,8 +432,8 @@ class MainActivity : ComponentActivity() {
                     if (ringing != null && !alarmHidden) {
                         AlarmOverlay(
                             state = ringing,
-                            onSnooze = { fireAlarmAction("snooze") },
-                            onDismiss = { fireAlarmAction("stop") },
+                            onSnooze = { fireAlarmAction(features.alarm.snooze) },
+                            onDismiss = { fireAlarmAction(features.alarm.stop) },
                             onHide = { alarmHidden = true },
                         )
                     }
@@ -520,15 +443,7 @@ class MainActivity : ComponentActivity() {
                     ActionToast(toast, onGone = { toast = null })
 
                     // Voice modal, driven by the session's own state machine.
-                    val voiceState = voice.state.collectAsState().value
-                    VoiceOverlay(
-                        state = voiceState,
-                        imageDir = voiceImageDir(),
-                        onDismiss = {
-                            if (voiceState.phase == VoicePhase.LISTENING) voice.stopListening()
-                            else voice.cancel()
-                        },
-                    )
+                    VoiceHost()
                 }
               }
             }
@@ -536,17 +451,32 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * Collects the voice state in its own scope: while listening the mic
+     * level updates it several times a second, which collected at the root
+     * re-ran the whole root content each time.
+     */
+    @Composable
+    private fun VoiceHost() {
+        val voiceState = voice.state.collectAsState().value
+        VoiceOverlay(
+            state = voiceState,
+            imageDir = features.voice.imageDir,
+            onDismiss = {
+                if (voiceState.phase == VoicePhase.LISTENING) voice.stopListening()
+                else voice.cancel()
+            },
+        )
+    }
+
+    /**
      * The screensaver reads the whole entity map; hosting it in its own scope
      * keeps those reads from recomposing everything else at the root.
      */
     @Composable
-    private fun ScreensaverHost(
-        entities: State<com.custom.astrion.ha.EntityMap>,
-        connection: State<ConnectionState>,
-    ) {
+    private fun ScreensaverHost(connection: State<ConnectionState>) {
         Screensaver(
-            options = screensaverOptions(),
-            entities = { entities.value },
+            options = features.screensaver.raw,
+            entities = { client.snapshot() },
             client = client,
             connected = connection.value == ConnectionState.CONNECTED,
             batteryPct = batteryPct,
@@ -612,13 +542,13 @@ class MainActivity : ComponentActivity() {
         double: List<HotkeyConfig> = emptyList(),
     ) {
         keyRouter.clear()
-        pageJumpKeys.clear()
-        cancelPendingSingle()
+        keys.pageJumpKeys.clear()
+        keys.cancelPendingSingle()
         short.forEach { hk ->
             val key = runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
                 ?: return@forEach
             keyRouter.on(key) { runHotkey(hk) }
-            if (hk.page != null && hk.then.isEmpty()) pageJumpKeys += key
+            if (hk.page != null && hk.then.isEmpty()) keys.pageJumpKeys += key
         }
         long.forEach { hk ->
             val key = runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
@@ -632,8 +562,8 @@ class MainActivity : ComponentActivity() {
         }
 
         // Refresh the IR code table from config, then claim the toggle key.
-        irCodes = IrBlaster.fromConfig(irOptions()["codes"] as? Map<String, Any?>)
-        irRepeat = (irOptions()["repeat"] as? Number)?.toInt()?.coerceIn(1, 5) ?: 1
+        irCodes = IrBlaster.fromConfig(features.ir.codes)
+        irRepeat = features.ir.repeat
         bindIrToggle()
     }
 
@@ -649,10 +579,9 @@ class MainActivity : ComponentActivity() {
      * no rebuild needed.
      */
     private fun bindIrToggle() {
-        val opts = irOptions()
-        val keyName = (opts["toggle_key"] as? String) ?: "MENU"
-        val useLong = (opts["toggle_long"] as? Boolean) ?: false
-        val key = runCatching { HardwareKey.valueOf(keyName.uppercase()) }.getOrNull() ?: return
+        val opts = features.ir
+        val useLong = opts.toggleLong
+        val key = runCatching { HardwareKey.valueOf(opts.toggleKey.uppercase()) }.getOrNull() ?: return
         val toggle = { toggleIrMode(); true }
         if (useLong) keyRouter.onLong(key, toggle) else keyRouter.on(key, toggle)
     }
@@ -668,53 +597,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** `ir_mode` block from dashboard.json (empty map when absent). */
-    @Suppress("UNCHECKED_CAST")
-    private fun irOptions(): Map<String, Any?> =
-        (dashboard.config.options["ir_mode"] as? Map<String, Any?>) ?: emptyMap()
+    /** dashboard.json's feature blocks, typed once per loaded config. */
+    private val features get() = dashboard.config.features
 
-    /** `alarm` block from dashboard.json (empty map when absent). */
-    @Suppress("UNCHECKED_CAST")
-    private fun alarmOptions(): Map<String, Any?> =
-        (dashboard.config.options["alarm"] as? Map<String, Any?>) ?: emptyMap()
-
-    /**
-     * Null when no alarm is on; otherwise what the popup should show. Pure
-     * mirror of HA: ringing = the `ringing_entity` flag, snoozed = the snooze
-     * timer running while that flag is still on.
-     */
-    private fun alarmUiState(entities: com.custom.astrion.ha.EntityMap): AlarmUiState? {
-        val opts = alarmOptions()
-        val ringingId = opts["ringing_entity"] as? String ?: return null
-        if (entities[ringingId]?.state != "on") return null
-
-        val timer = (opts["snooze_timer"] as? String)?.let { entities[it] }
-        val snoozeEnds = timer?.takeIf { it.state == "active" }?.attrString("finishes_at")?.let { iso ->
-            runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
-        }
-
-        // The timer's own duration ("0:05:00"), so the snooze ring drains
-        // over the real length rather than an assumed five minutes.
-        val snoozeTotalMs = timer?.attrString("duration")?.split(":")?.mapNotNull { it.toLongOrNull() }
-            ?.takeIf { it.size == 3 }?.let { (h, m, sec) -> (h * 3600 + m * 60 + sec) * 1000 }
-            ?: 300_000L
-
-        val info = (opts["info_entity"] as? String)?.let { entities[it] }
-        val startsAt = info?.state?.let { iso ->
-            runCatching {
-                val t = java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli()
-                java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(t))
-            }.getOrNull()
-        }
-        return AlarmUiState(
-            ringing = snoozeEnds == null,
-            snoozeEndsMs = snoozeEnds,
-            snoozeTotalMs = snoozeTotalMs,
-            title = info?.attrString("summary")?.takeIf { it.isNotBlank() },
-            place = info?.attrString("location")?.takeIf { it.isNotBlank() },
-            startsAt = startsAt,
-        )
-    }
+    private fun alarmUiState(entities: com.custom.astrion.ha.EntityMap): AlarmUiState? =
+        alarmUiState(features.alarm, entities)
 
     /** 0 = no alarm, 1 = ringing, 2 = snoozed. */
     private fun alarmPhase(entities: com.custom.astrion.ha.EntityMap): Int =
@@ -731,8 +618,9 @@ class MainActivity : ComponentActivity() {
         // or is snoozed.
         var keepAwake: kotlinx.coroutines.Job? = null
         alarmScope.launch {
-            client.entities
-                .map { alarmPhase(it) }
+            // Reads only the alarm's entities (client.live by id), so this
+            // re-runs when they change rather than on every HA update.
+            snapshotFlow { alarmPhase(client.live) }
                 .distinctUntilChanged()
                 .collect { phase ->
                     keepAwake?.cancel()
@@ -782,19 +670,26 @@ class MainActivity : ComponentActivity() {
     private var alertSpecsCached: List<AlertSpec> = emptyList()
 
     /**
-     * Like [watchAlarm] for the configured alerts. Polls (every 3 s) rather
-     * than collecting, because `for_seconds` alerts become due with no state
-     * change. A new "alarm" wakes the screen and keeps it on until cleared or
-     * hidden; a "warning" wakes it once; an "info" just waits to be seen.
+     * Like [watchAlarm] for the configured alerts. A new "alarm" wakes the
+     * screen and keeps it on until cleared or hidden; a "warning" wakes it
+     * once; an "info" just waits to be seen.
      */
     private fun watchAlerts() {
         var lastToken: String? = null
         var keepAwake: kotlinx.coroutines.Job? = null
         alarmScope.launch {
-            while (true) {
-                alertNow = System.currentTimeMillis()
-                val top = activeAlerts(alertSpecs(), client.entities.value, alertNow)
-                    .firstOrNull { it.token !in hiddenAlerts }
+            // Re-evaluated when an alert's entity, the config or a hide
+            // changes (client.live reads subscribe per entity), and when
+            // [alertNow] ticks. The clock only ticks when something needs
+            // it: a `for_seconds` alert coming due, or one on screen whose
+            // "for N min" must move. This used to scan every 3 s for the
+            // life of the app, alerts or not.
+            snapshotFlow {
+                val specs = alertSpecs()
+                val now = alertNow
+                val top = activeAlerts(specs, client.live, now).firstOrNull { it.token !in hiddenAlerts }
+                Triple(top, nextAlertDueMs(specs, client.live, now), top != null)
+            }.collectLatest { (top, dueMs, shown) ->
                 if (top?.token != lastToken) {
                     keepAwake?.cancel()
                     keepAwake = null
@@ -817,7 +712,7 @@ class MainActivity : ComponentActivity() {
                     // Nothing urgent left: let the screen time out again,
                     // unless the work alarm is the one holding it on.
                     if (top?.spec?.severity != "alarm" && top?.spec?.severity != "warning" &&
-                        alarmPhase(client.entities.value) != 1
+                        alarmPhase(client.live) != 1
                     ) {
                         @Suppress("DEPRECATION")
                         window.clearFlags(
@@ -829,20 +724,19 @@ class MainActivity : ComponentActivity() {
                     }
                     lastToken = top?.token
                 }
-                delay(3_000)
+                val now = System.currentTimeMillis()
+                val wait = listOfNotNull(
+                    dueMs?.let { it - now },
+                    if (shown) 60_000 - now % 60_000 else null,
+                ).minOrNull() ?: return@collectLatest
+                delay(wait.coerceAtLeast(250))
+                alertNow = System.currentTimeMillis()
             }
         }
     }
 
     private fun fireAlertAction(action: AlertAction) {
-        client.callService(
-            ServiceCall.of(
-                action.service.substringBefore('.'),
-                action.service.substringAfter('.'),
-                action.entityId,
-                *action.data.entries.map { it.key to it.value }.toTypedArray(),
-            )
-        )
+        client.callService(ServiceCall.fromConfig(action.service, action.entityId, action.data))
     }
 
     private fun wakeForAlarm() {
@@ -876,29 +770,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Fire the configured `snooze` / `stop` action: `{ service, entity_id }`. */
-    @Suppress("UNCHECKED_CAST")
-    private fun fireAlarmAction(which: String) {
-        val action = alarmOptions()[which] as? Map<String, Any?> ?: return
-        val service = action["service"] as? String ?: return
-        client.callService(
-            ServiceCall(
-                domain = service.substringBefore('.'),
-                service = service.substringAfter('.'),
-                entityId = action["entity_id"] as? String,
-            )
-        )
+    /** Fire the configured `snooze` / `stop` action. */
+    private fun fireAlarmAction(action: com.custom.astrion.config.AlarmAction?) {
+        action ?: return
+        client.callService(ServiceCall.fromConfig(action.service, action.entityId))
     }
-
-    /** `voice` block from dashboard.json. */
-    @Suppress("UNCHECKED_CAST")
-    private fun voiceOptions(): Map<String, Any?> =
-        (dashboard.config.options["voice"] as? Map<String, Any?>) ?: emptyMap()
-
-    private fun voicePipelineId(): String? = voiceOptions()["pipeline"] as? String
-
-    private fun voiceImageDir(): String =
-        (voiceOptions()["image_dir"] as? String) ?: "/sdcard/astrion/voice"
 
     /**
      * Mic button: press once to start listening, again to stop early (HA's VAD
@@ -910,7 +786,7 @@ class MainActivity : ComponentActivity() {
             VoicePhase.PROCESSING, VoicePhase.SPEAKING -> voice.cancel()
             else -> {
                 if (voice.hasPermission) {
-                    voice.start(voicePipelineId())
+                    voice.start(features.voice.pipeline)
                 } else {
                     micPermission.launch(Manifest.permission.RECORD_AUDIO)
                 }
@@ -948,7 +824,7 @@ class MainActivity : ComponentActivity() {
         when (service) {
             "astrion.toggle_mute" -> {
                 if (entityId == null) return false
-                val muted = client.entities.value[entityId]?.attrString("is_volume_muted") == "true"
+                val muted = client.live[entityId]?.attrString("is_volume_muted") == "true"
                 client.callService(
                     ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted)
                 )
@@ -958,7 +834,7 @@ class MainActivity : ComponentActivity() {
                 if (entityId == null) return false
                 // group_members[0] is the group leader; everyone else is joined
                 // to it and gets dropped.
-                client.entities.value[entityId]?.attrStringList("group_members")
+                client.live[entityId]?.attrStringList("group_members")
                     ?.filter { it != entityId }
                     ?.forEach { client.callService(ServiceCall("media_player", "unjoin", entityId = it)) }
                 return true
@@ -1009,20 +885,20 @@ class MainActivity : ComponentActivity() {
 
     /** "Club lights off", "Hue play · toggle", or "light.toggle" when nothing better is known. */
     private fun callLabel(call: ServiceCall): String {
-        val name = call.entityId?.let { client.entities.value[it]?.friendlyName }
+        val name = call.entityId?.let { client.live[it]?.friendlyName }
             ?: return "${call.domain}.${call.service}"
         return if (call.domain in setOf("script", "scene", "automation")) name
         else "$name · ${call.service.humanise().lowercase()}"
     }
 
     /**
-     * Physical buttons arrive as standard KeyEvents. We intercept here to run
-     * tap-vs-hold logic:
-     *  - keys with a long-press binding fire their SHORT action on release (if
-     *    released before LONG_PRESS_MS) or their LONG action once held past it;
-     *  - keys without a long binding fire immediately on each down (so volume
-     *    etc. still repeat while held).
+     * Physical buttons arrive as standard KeyEvents. The screensaver, popups,
+     * IR mode and the voice key get first look; bound keys then go through
+     * [KeyDispatcher]'s tap / hold / double-tap timing.
      */
+    // Lint's RestrictedApi check misreads overriding (and calling super on)
+    // ComponentActivity's public dispatchKeyEvent as a call into androidx.core.
+    @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val code = event.keyCode
         val key = HardwareKey.fromKeyCode(code)
@@ -1038,11 +914,7 @@ class MainActivity : ComponentActivity() {
         markActivity()
         if (screensaverOn) {
             hideScreensaver()
-            val passThrough = when (val v = screensaverOptions()["keys_pass_through"]) {
-                is Boolean -> v
-                is List<*> -> v.any { (it as? String)?.equals(key.name, ignoreCase = true) == true }
-                else -> true
-            }
+            val passThrough = features.screensaver.passesThrough(key.name)
             if (event.action == KeyEvent.ACTION_DOWN && !passThrough) {
                 swallowKey = code
                 return true
@@ -1088,12 +960,8 @@ class MainActivity : ComponentActivity() {
             return true
         }
 
-        val shortH = keyRouter.shortHandler(code)
-        val longH = keyRouter.longHandler(code)
-        val doubleH = keyRouter.doubleHandler(code)
-
         // Unmapped: log/toast for diagnosis, then let the OS handle it.
-        if (shortH == null && longH == null && doubleH == null) {
+        if (!keys.isBound(code)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 Log.i(KEY_TAG, "keyCode=$code (${KeyEvent.keyCodeToString(code)})")
                 if (DEBUG_KEYS) Toast.makeText(this, "Unmapped key: $code", Toast.LENGTH_SHORT).show()
@@ -1101,84 +969,7 @@ class MainActivity : ComponentActivity() {
             return super.dispatchKeyEvent(event)
         }
 
-        when (event.action) {
-            KeyEvent.ACTION_DOWN -> {
-                // A press arriving while this key's single-tap is still held
-                // back IS the second tap: cancel the deferred single and fire
-                // the double instead. Checked before the long-press timer so a
-                // double tap never also arms a hold.
-                if (doubleH != null && event.repeatCount == 0 &&
-                    pendingSingle != null && pendingSingleKey == code
-                ) {
-                    cancelPendingSingle()
-                    cancelPendingLong()
-                    longFired = true // suppress the short action on this release
-                    activeLongKey = -1
-                    doubleH.invoke()
-                    return true
-                }
-                // Page jumps don't wait for the release; see pageJumpKeys.
-                tapFiredOnDown = -1
-                if (event.repeatCount == 0 && (longH != null || doubleH != null) && key in pageJumpKeys) {
-                    shortH?.invoke()
-                    tapFiredOnDown = code
-                }
-                if (longH != null) {
-                    // Long-capable: start the hold timer on first press, ignore repeats.
-                    if (event.repeatCount == 0) {
-                        cancelPendingLong()
-                        longFired = false
-                        activeLongKey = code
-                        val r = Runnable {
-                            longFired = true
-                            holdHaptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            longH.invoke()
-                        }
-                        pendingLong = r
-                        keyHandler.postDelayed(r, LONG_PRESS_MS)
-                    }
-                } else if (doubleH != null) {
-                    // Short-only but double-capable: nothing can fire until the
-                    // window closes on release. Arming here rather than on UP
-                    // would make a held key auto-repeat into a double tap.
-                    longFired = false
-                    activeLongKey = code
-                } else {
-                    // Short-only: fire on every down (preserves hold-to-repeat).
-                    shortH?.invoke()
-                }
-                return true
-            }
-            KeyEvent.ACTION_UP -> {
-                if ((longH != null || doubleH != null) && code == activeLongKey) {
-                    cancelPendingLong()
-                    activeLongKey = -1
-                    // Already ran on the DOWN (a page jump): don't run it twice.
-                    val tap = if (tapFiredOnDown == code) null else shortH
-                    tapFiredOnDown = -1
-                    // Released before the hold threshold → it was a tap.
-                    if (!longFired) {
-                        if (doubleH != null) {
-                            // Hold the single back until the window closes
-                            // (still armed when the tap already ran, so a
-                            // second tap is recognised as the double).
-                            cancelPendingSingle()
-                            val r = Runnable {
-                                pendingSingle = null
-                                pendingSingleKey = -1
-                                tap?.invoke()
-                            }
-                            pendingSingle = r
-                            pendingSingleKey = code
-                            keyHandler.postDelayed(r, DOUBLE_TAP_MS)
-                        } else {
-                            tap?.invoke()
-                        }
-                    }
-                }
-                return true
-            }
-        }
+        if (keys.handle(code, event.action, event.repeatCount)) return true
         return super.dispatchKeyEvent(event)
     }
 
@@ -1192,7 +983,7 @@ class MainActivity : ComponentActivity() {
             hideScreensaver()
             // An alert popup is drawn above the screensaver and is what the
             // finger is aimed at — let that tap land ("Emptied", "Lock it").
-            swallowTouch = activeAlerts(alertSpecs(), client.entities.value, alertNow)
+            swallowTouch = activeAlerts(alertSpecs(), client.live, alertNow)
                 .none { it.token !in hiddenAlerts }
         }
         if (swallowTouch) {
@@ -1206,19 +997,7 @@ class MainActivity : ComponentActivity() {
 
     // ---- docked screensaver -------------------------------------------------
 
-    /**
-     * `screensaver` block from dashboard.json. A file written before the
-     * screensaver existed has no such block, so fall back to the compiled-in
-     * one rather than leaving the feature switched off until someone edits it.
-     */
-    @Suppress("UNCHECKED_CAST")
-    private fun screensaverOptions(): Map<String, Any?> =
-        // dashboard.json's keys over the built-in defaults, so a config only
-        // has to name what it changes (e.g. just `keys_pass_through`).
-        ((DashboardConfig.default.options["screensaver"] as? Map<String, Any?>) ?: emptyMap()) +
-            ((dashboard.config.options["screensaver"] as? Map<String, Any?>) ?: emptyMap())
-
-    private fun screensaverEnabled(): Boolean = screensaverOptions()["enabled"] as? Boolean ?: true
+    private fun screensaverEnabled(): Boolean = features.screensaver.enabled
 
     /**
      * Docked: after `idle_seconds`. Off the dock: after `undocked_idle_seconds`
@@ -1227,32 +1006,17 @@ class MainActivity : ComponentActivity() {
      * off the dock as well.
      */
     private fun screensaverArmed(): Boolean =
-        screensaverEnabled() && (docked || screensaverOptions()["trigger"] == "always" || undockedIdleMs() >= 0)
-
-    /** -1 when the screensaver is off the dock is disabled. */
-    private fun undockedIdleMs(): Long {
-        val s = (screensaverOptions()["undocked_idle_seconds"] as? Number)?.toLong()
-            ?: SCREENSAVER_UNDOCKED_IDLE_S.toLong()
-        return if (s < 0) -1 else s * 1000
-    }
+        screensaverEnabled() && (docked || features.screensaver.alwaysTrigger || features.screensaver.undockedIdleMs >= 0)
 
     private fun markActivity() {
         lastActivityMs = System.currentTimeMillis()
     }
 
-    /** `power` block from dashboard.json (empty map when absent). */
-    @Suppress("UNCHECKED_CAST")
-    private fun powerOptions(): Map<String, Any?> =
-        (dashboard.config.options["power"] as? Map<String, Any?>) ?: emptyMap()
-
-    private fun powerInt(key: String, default: Int): Int =
-        (powerOptions()[key] as? Number)?.toInt() ?: default
-
     /**
      * Highest level seen since it was last put on the dock; null off the
      * dock. A remote whose dock pins barely touch can report "charging" while
      * drawing less than it uses: 141 sat "plugged" from 68% down to 42% on
-     * 4 Oct. Falling [DOCK_DRAIN_PCT] below this counts as a dock fault too.
+     * 4 Oct. Falling [Battery.DOCK_DRAIN_PCT] below this counts as a dock fault too.
      */
     private var pluggedPeakPct: Int? = null
 
@@ -1272,22 +1036,21 @@ class MainActivity : ComponentActivity() {
             updateDocked(false)
         } else if (!docked && !dockConfirmPending) {
             dockConfirmPending = true
-            keyHandler.postDelayed(dockConfirm, powerInt("dock_debounce_seconds", DOCK_DEBOUNCE_S) * 1000L)
+            keyHandler.postDelayed(dockConfirm, features.power.dockDebounceSeconds * 1000L)
         }
         reportBattery()
     }
 
     /** Plugged in and the battery actually charging (or already full). */
-    private fun takingCharge(): Boolean = plugged && when (batteryStatus) {
-        BatteryManager.BATTERY_STATUS_CHARGING, BatteryManager.BATTERY_STATUS_FULL -> true
-        BatteryManager.BATTERY_STATUS_NOT_CHARGING -> (batteryPct ?: 0) >= TOPPED_UP_PCT
-        else -> false
-    }
+    private fun takingCharge(): Boolean = Battery.takingCharge(plugged, batteryStatus, batteryPct)
 
     private fun updateDocked(value: Boolean) {
         dockConfirmPending = false
         if (value == docked) return
         docked = value
+        if (!value) undockedAtMs = System.currentTimeMillis()
+        // Docked and undocked idle times differ.
+        rescheduleScreensaverTick()
         // Dropping it in the dock starts the idle countdown from now;
         // lifting it out takes the screensaver down at once (it comes back,
         // dimmer, once it's been put down off the dock).
@@ -1311,21 +1074,15 @@ class MainActivity : ComponentActivity() {
      * so it's re-sent on every (re)connect.
      */
     private fun reportBattery(force: Boolean = false) {
-        val entityId = powerOptions()["report_entity"] as? String ?: return
+        val entityId = features.power.reportEntity ?: return
         val pct = batteryPct ?: return
         if (client.connection.value != ConnectionState.CONNECTED) return
-        val draining = (pluggedPeakPct ?: pct) - pct >= DOCK_DRAIN_PCT
-        val dockFault = plugged && (!takingCharge() || draining)
+        val draining = Battery.draining(pluggedPeakPct, pct)
+        val dockFault = Battery.dockFault(plugged, batteryStatus, pct, pluggedPeakPct)
         val report = listOf(entityId, pct, plugged, batteryStatus, docked, dockFault)
         if (!force && report == lastBatteryReport) return
         lastBatteryReport = report
-        val status = when (batteryStatus) {
-            BatteryManager.BATTERY_STATUS_CHARGING -> "charging"
-            BatteryManager.BATTERY_STATUS_FULL -> "full"
-            BatteryManager.BATTERY_STATUS_DISCHARGING -> "discharging"
-            BatteryManager.BATTERY_STATUS_NOT_CHARGING -> "not_charging"
-            else -> "unknown"
-        }
+        val status = Battery.statusName(batteryStatus)
         val attrs = mutableMapOf<String, Any?>(
             "unit_of_measurement" to "%",
             "device_class" to "battery",
@@ -1337,7 +1094,7 @@ class MainActivity : ComponentActivity() {
             "dock_fault" to dockFault,
             "dock_draining" to draining,
         )
-        (powerOptions()["report_name"] as? String)?.let { attrs["friendly_name"] = it }
+        features.power.reportName?.let { attrs["friendly_name"] = it }
         client.postState(entityId, pct.toString(), attrs)
     }
 
@@ -1354,52 +1111,63 @@ class MainActivity : ComponentActivity() {
      * The alarm manages the same flag, so it calls back in here after clearing.
      */
     private fun applyDockKeepAwake() {
-        val keep = docked && screensaverEnabled() && screensaverOptions()["keep_screen_on"] as? Boolean != false
+        val keep = docked && screensaverEnabled() && features.screensaver.keepScreenOn
         if (keep) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        } else if (alarmPhase(client.entities.value) != 1) {
+        } else if (alarmPhase(client.live) != 1) {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 
-    /** Idle tick: show the screensaver when due, and keep its backlight right. */
-    private fun checkScreensaver() {
+    /**
+     * Idle tick: show the screensaver when due, and keep its backlight right.
+     * Returns when to look again: at the moment the idle time would run out
+     * rather than every few seconds, and once a minute while it is up.
+     */
+    private fun checkScreensaver(): Long {
         if (screensaverOn) {
             // Re-evaluated each tick so the backlight follows sunset/sunrise.
             applyScreensaverBrightness()
-            return
+            return SCREENSAVER_SHOWN_TICK_MS
         }
-        if (!inFront || !screensaverArmed() || irMode) return
-        if (alarmUiState(client.entities.value) != null && !alarmHidden) return
+        if (!inFront || !screensaverArmed() || irMode) return SCREENSAVER_TICK_MS
+        if (alarmUiState(client.live) != null && !alarmHidden) return SCREENSAVER_TICK_MS
         val phase = voice.state.value.phase
-        if (phase != VoicePhase.IDLE && phase != VoicePhase.DONE) return
-        val dockedIdleMs = ((screensaverOptions()["idle_seconds"] as? Number)?.toLong() ?: 45L) * 1000
-        val idleMs = if (docked) dockedIdleMs else undockedIdleMs().takeIf { it >= 0 } ?: dockedIdleMs
-        if (System.currentTimeMillis() - lastActivityMs < idleMs) return
+        if (phase != VoicePhase.IDLE && phase != VoicePhase.DONE) return SCREENSAVER_TICK_MS
+        val dockedIdleMs = features.screensaver.idleMs
+        val idleMs = if (docked) dockedIdleMs else features.screensaver.undockedIdleMs.takeIf { it >= 0 } ?: dockedIdleMs
+        val left = idleMs - (System.currentTimeMillis() - lastActivityMs)
+        // Activity since only pushes the deadline later, so waking at the old
+        // one and measuring again is always early enough.
+        if (left > 0) return left + 50
         screensaverOn = true
         // Waking it lands on the start page, not wherever it was left.
         navTarget = dashboard.config.startPage
         applyScreensaverBrightness()
+        return SCREENSAVER_SHOWN_TICK_MS
     }
 
     private fun applyScreensaverBrightness() {
-        val opts = screensaverOptions()
-        val night = screensaverIsNight(client.entities.value, System.currentTimeMillis())
-        val nightLevel = (opts["night_brightness"] as? Number)?.toFloat() ?: 0.05f
+        val opts = features.screensaver
+        val night = screensaverIsNight(client.live, System.currentTimeMillis())
         val level = when {
-            !docked -> minOf(
-                (opts["undocked_brightness"] as? Number)?.toFloat() ?: SCREENSAVER_UNDOCKED_BRIGHTNESS,
-                if (night) nightLevel else 1f,
-            )
-            night -> nightLevel
-            else -> (opts["brightness"] as? Number)?.toFloat() ?: 0.22f
+            !docked -> minOf(opts.undockedBrightness, if (night) opts.nightBrightness else 1f)
+            night -> opts.nightBrightness
+            else -> opts.brightness
         }
         setWindowBrightness(level.coerceIn(0.01f, 1f))
+    }
+
+    /** Look again soon: something changed what the idle deadline is. */
+    private fun rescheduleScreensaverTick() {
+        keyHandler.removeCallbacks(screensaverTick)
+        if (inFront) keyHandler.postDelayed(screensaverTick, SCREENSAVER_TICK_MS)
     }
 
     private fun hideScreensaver() {
         if (!screensaverOn) return
         screensaverOn = false
+        rescheduleScreensaverTick()
         markActivity()
         setWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
     }
@@ -1409,17 +1177,6 @@ class MainActivity : ComponentActivity() {
         if (lp.screenBrightness == value) return
         lp.screenBrightness = value
         window.attributes = lp
-    }
-
-    private fun cancelPendingLong() {
-        pendingLong?.let { keyHandler.removeCallbacks(it) }
-        pendingLong = null
-    }
-
-    private fun cancelPendingSingle() {
-        pendingSingle?.let { keyHandler.removeCallbacks(it) }
-        pendingSingle = null
-        pendingSingleKey = -1
     }
 
     // ---- wake word while docked ---------------------------------------------
@@ -1439,31 +1196,58 @@ class MainActivity : ComponentActivity() {
      */
     private fun watchWakeWord() {
         alarmScope.launch {
-            var lastDockedMs = 0L
-            while (true) {
-                delay(WAKE_WORD_POLL_MS)
-                val now = System.currentTimeMillis()
-                if (docked) lastDockedMs = now
-                val graceMs = ((voiceOptions()["wake_word_undocked_minutes"] as? Number)?.toLong()
-                    ?: WAKE_WORD_UNDOCKED_MIN.toLong()) * 60_000
-                val mode = (voiceOptions()["wake_word"] as? String) ?: "docked"
-                val want = when (mode) {
-                    "always" -> true
-                    "docked" -> lastDockedMs > 0 && now - lastDockedMs < graceMs
-                    else -> false
-                } && voice.hasPermission && client.connection.value == ConnectionState.CONNECTED
-
-                val s = voice.state.value
-                if (want && !s.armed && s.phase == VoicePhase.IDLE &&
-                    System.currentTimeMillis() - voice.lastWakeFailureAt > WAKE_WORD_BACKOFF_MS
-                ) {
-                    voice.armWakeWord(voicePipelineId())
-                } else if (!want && s.armed) {
-                    voice.disarm()
+            // Re-checked when something it depends on changes (dock, config,
+            // connection, the session's own state) and at the one moment a
+            // clock matters (the undocked grace or a failure backoff running
+            // out), instead of every 2 s for the life of the app.
+            combine(
+                snapshotFlow { docked to features.voice },
+                client.connection,
+                voice.state.map { it.armed to it.phase }.distinctUntilChanged(),
+            ) { _, _, _ -> }.collectLatest {
+                while (true) {
+                    val wait = updateWakeWord() ?: break
+                    delay(wait)
                 }
-                holdWakeWordLock(voice.state.value.armed)
             }
         }
+    }
+
+    /** When the remote last left the dock; 0 = not since launch. */
+    private var undockedAtMs = 0L
+
+    /**
+     * Arm or disarm the wake word to match the dock, config and connection.
+     * Returns how long until it needs looking at again with nothing else
+     * changing, or null if only an event can change the answer.
+     */
+    private fun updateWakeWord(): Long? {
+        val now = System.currentTimeMillis()
+        val graceMs = features.voice.wakeWordUndockedMs
+        val mode = features.voice.wakeWord
+        val graceLeft = if (!docked && undockedAtMs > 0) undockedAtMs + graceMs - now else 0L
+        val wantByMode = when (mode) {
+            "always" -> true
+            "docked" -> docked || graceLeft > 0
+            else -> false
+        }
+        // Permission can be granted from Settings without any event here.
+        val want = wantByMode && voice.hasPermission && client.connection.value == ConnectionState.CONNECTED
+
+        val s = voice.state.value
+        val backoffLeft = voice.lastWakeFailureAt + WAKE_WORD_BACKOFF_MS - now
+        if (want && !s.armed && s.phase == VoicePhase.IDLE && backoffLeft <= 0) {
+            voice.armWakeWord(features.voice.pipeline)
+        } else if (!want && s.armed) {
+            voice.disarm()
+        }
+        holdWakeWordLock(voice.state.value.armed)
+
+        return listOfNotNull(
+            graceLeft.takeIf { mode == "docked" && it > 0 },
+            backoffLeft.takeIf { want && it > 0 },
+            WAKE_WORD_RECHECK_MS.takeIf { wantByMode && !want },
+        ).minOrNull()?.coerceAtLeast(250)
     }
 
     /**
@@ -1531,37 +1315,14 @@ class MainActivity : ComponentActivity() {
 
     // ---- motion wake --------------------------------------------------------
 
-    private fun setupMotionWake() {
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
-        // Prefer a wake-up accelerometer so events still arrive with the screen
-        // off; fall back to the normal one (which only helps while awake).
-        motionSensor = sensorManager?.getSensorList(Sensor.TYPE_ACCELEROMETER)
-            ?.firstOrNull { it.isWakeUpSensor }
-            ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-    }
-
-    /** Ends the motion-wake window; see [motionUntil]. */
-    private val motionTimeout = Runnable { listenForMotion(false) }
-
     /**
      * Only listen while the screen is off — with it on, wakeScreen() has
      * nothing to do — and then only for `power.motion_wake_minutes`
      * (default 5; 0 = never, -1 = for as long as it's off), and not on the
-     * dock. See [motionListener] for why it isn't free.
+     * dock.
      */
     private fun listenForMotion(on: Boolean) {
-        val sm = sensorManager ?: return
-        val sensor = motionSensor ?: return
-        sm.unregisterListener(motionListener)
-        keyHandler.removeCallbacks(motionTimeout)
-        val minutes = powerInt("motion_wake_minutes", MOTION_WAKE_MIN)
-        if (!on || minutes == 0 || docked) return
-        motionUntil = if (minutes < 0) Long.MAX_VALUE else SystemClock.elapsedRealtime() + minutes * 60_000L
-        if (minutes > 0) keyHandler.postDelayed(motionTimeout, minutes * 60_000L)
-        // A fresh baseline, so a reading from before the screen went off
-        // can't register as movement.
-        lastMagnitude = 0f
-        sm.registerListener(motionListener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+        if (on && !docked) motionWake.start(features.power.motionWakeMinutes) else motionWake.stop()
     }
 
     // ---- screen timeout -------------------------------------------------------
@@ -1580,7 +1341,7 @@ class MainActivity : ComponentActivity() {
      * allow`, see docs/POWER.md); without it this does nothing.
      */
     private fun enforceScreenTimeout() {
-        val secs = powerInt("screen_timeout_seconds", SCREEN_TIMEOUT_S)
+        val secs = features.power.screenTimeoutSeconds
         if (secs <= 0 || !Settings.System.canWrite(this)) return
         val want = secs * 1000
         val current = Settings.System.getInt(contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, -1)
@@ -1632,7 +1393,7 @@ class MainActivity : ComponentActivity() {
             client.setEntityFilter(null)
             return
         }
-        val delaySec = powerInt("screen_off_filter_seconds", SCREEN_OFF_FILTER_S)
+        val delaySec = features.power.screenOffFilterSeconds
         if (delaySec < 0) return
         filterJob = alarmScope.launch {
             delay(delaySec * 1000L)
@@ -1642,16 +1403,12 @@ class MainActivity : ComponentActivity() {
 
     /** What must keep arriving with the screen off: the alarm's and alerts' entities. */
     private fun screenOffEntities(): Set<String> {
-        val alarm = alarmOptions()
-        val ids = mutableSetOf<String>()
-        listOf("ringing_entity", "snooze_timer", "info_entity").forEach { k ->
-            (alarm[k] as? String)?.let { ids += it }
-        }
+        val ids = features.alarm.entities.toMutableSet()
         alertSpecs().forEach { spec ->
             ids += spec.entity
             spec.unlessEntity?.let { ids += it }
         }
-        (powerOptions()["screen_off_entities"] as? List<*>)?.filterIsInstance<String>()?.let { ids += it }
+        ids += features.power.screenOffEntities
         return ids
     }
 
@@ -1680,14 +1437,15 @@ class MainActivity : ComponentActivity() {
         keyHandler.removeCallbacks(screensaverTick)
         runCatching { unregisterReceiver(batteryReceiver) }
         keyHandler.removeCallbacks(dockConfirm)
-        keyHandler.removeCallbacks(motionTimeout)
-        sensorManager?.unregisterListener(motionListener)
+        motionWake.stop()
         runCatching { unregisterReceiver(screenReceiver) }
         runCatching { contentResolver.unregisterContentObserver(timeoutObserver) }
         networkCallback?.let { cb ->
             runCatching { (getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(cb) }
         }
-        client.disconnect()
+        keys.cancelPending()
+        // Leaving for good: drop the connection. A recreated Activity keeps it.
+        if (isFinishing) client.disconnect()
         stopService(Intent(this, KeepAliveService::class.java))
         super.onDestroy()
     }

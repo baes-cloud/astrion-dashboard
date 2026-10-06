@@ -3,7 +3,6 @@ package com.custom.astrion.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -12,6 +11,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -32,8 +32,8 @@ import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.config.AppConfig
 import com.custom.astrion.config.PageConfig
 import com.custom.astrion.ha.ConnectionState
-import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.HaClient
+import kotlinx.coroutines.delay
 
 /**
  * Whether the page this composable sits on is the one on screen. Hidden pages
@@ -49,6 +49,30 @@ val LocalPageVisible = compositionLocalOf { true }
  * with the screen off.
  */
 val LocalDashboardShowing = compositionLocalOf { true }
+
+/**
+ * Wall-clock time, ticking once a minute just after the minute turns, for
+ * every card that shows the time or a relative label ("12 min ago",
+ * "Tomorrow 6:15"). One shared ticker instead of one per card, and it stands
+ * still while the dashboard isn't showing (screen off, screensaver up):
+ * the moment it shows again it jumps to the current time.
+ */
+val LocalMinuteClock = compositionLocalOf { System.currentTimeMillis() }
+
+/** Provides [LocalMinuteClock] to [content]; see there. */
+@Composable
+fun MinuteClock(content: @Composable () -> Unit) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val showing = LocalDashboardShowing.current
+    LaunchedEffect(showing) {
+        if (!showing) return@LaunchedEffect
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(60_000 - (System.currentTimeMillis() % 60_000) + 250)
+        }
+    }
+    CompositionLocalProvider(LocalMinuteClock provides now, content = content)
+}
 
 /**
  * Counts how many times this page has been brought on screen. Pages stay
@@ -85,7 +109,6 @@ fun Modifier.unplacedWhen(hidden: Boolean): Modifier =
 @Composable
 fun Dashboard(
     client: HaClient,
-    entitiesState: State<EntityMap>,
     connectionState: State<ConnectionState>,
     config: AppConfig,
     configNotice: String? = null,
@@ -97,7 +120,7 @@ fun Dashboard(
     // rebuilding this was recomposing every card on every page on every HA
     // event, which on the Main page means the whole floorplan every time
     // anyone walks past a radar.
-    val ctx = remember(client) { CardContext(entitiesState, client, connectionState) }
+    val ctx = remember(client) { CardContext(client, connectionState) }
 
     val pageCount = config.pages.size.coerceAtLeast(1)
     var current by remember { mutableIntStateOf(config.startPage.coerceIn(0, pageCount - 1)) }

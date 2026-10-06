@@ -74,8 +74,12 @@ class VoiceSession(
         private const val SAMPLE_RATE = 16_000
         /** Voice log rolls over to log.1.txt past this size. */
         private const val LOG_MAX_BYTES = 256 * 1024L
-        /** ~32 ms of audio per frame; small enough for responsive VAD. */
-        private const val CHUNK_SAMPLES = 512
+        /**
+         * 80 ms of audio per frame: the window openWakeWord itself works in,
+         * and still fine-grained for end-of-speech detection. Was 32 ms,
+         * i.e. 31 Wi-Fi frames a second for as long as the wake word is armed.
+         */
+        private const val CHUNK_SAMPLES = 1280
         /** Hard stop so a stuck pipeline can never record forever. */
         private const val MAX_LISTEN_MS = 30_000L
         /**
@@ -366,16 +370,19 @@ class VoiceSession(
         recorder = rec
         streaming = true
         recordJob = scope.launch {
-            val buf = ByteArray(CHUNK_SAMPLES * 2)
+            // One buffer for the whole run, laid out as HA wants the frame:
+            // the handler id byte, then the PCM read straight in after it.
+            val frame = ByteArray(1 + CHUNK_SAMPLES * 2)
+            frame[0] = hid.toByte()
             try {
                 rec.startRecording()
                 while (streaming) {
-                    val read = rec.read(buf, 0, buf.size)
+                    val read = rec.read(frame, 1, frame.size - 1)
                     if (read <= 0) {
                         if (read < 0) Log.w(TAG, "AudioRecord.read error $read")
                         continue
                     }
-                    // read() blocks ~32 ms; the run may have ended meanwhile
+                    // read() blocks ~80 ms; the run may have ended meanwhile
                     // (HA already dropped the handler) — don't send into the void.
                     if (!streaming || handlerId != hid) break
                     if (_state.value.armed && armedSince > 0 &&
@@ -386,15 +393,15 @@ class VoiceSession(
                         rolloverArmedRun()
                         break
                     }
-                    if (!client.sendAudioChunk(hid, buf, read, runEpoch)) {
+                    if (!client.sendAudioFrame(frame, 1 + read, runEpoch)) {
                         fail("Lost connection while streaming audio")
                         return@launch
                     }
-                    val rms = rawRms(buf, read)
+                    val rms = rawRms(frame, 1, read)
                     // While armed nobody is watching the level; just learn
                     // how loud the room is for end-of-speech detection.
                     if (_state.value.armed) {
-                        noiseFloor = if (noiseFloor == 0.0) rms else noiseFloor * 0.98 + rms * 0.02
+                        noiseFloor = if (noiseFloor == 0.0) rms else noiseFloor * 0.95 + rms * 0.05
                         continue
                     }
                     // Speech sits low in the linear range; scale so it reads well visually.
@@ -431,11 +438,11 @@ class VoiceSession(
     }
 
     /** RMS of a 16-bit LE buffer, normalised to 0..1 of full scale. */
-    private fun rawRms(buf: ByteArray, len: Int): Double {
+    private fun rawRms(buf: ByteArray, offset: Int, len: Int): Double {
         var sum = 0.0
         var n = 0
-        var i = 0
-        while (i + 1 < len) {
+        var i = offset
+        while (i + 1 < offset + len) {
             val s = ((buf[i + 1].toInt() shl 8) or (buf[i].toInt() and 0xFF)).toShort().toInt()
             sum += (s * s).toDouble()
             n++

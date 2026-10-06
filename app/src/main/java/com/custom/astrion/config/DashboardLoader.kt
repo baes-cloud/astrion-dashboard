@@ -1,5 +1,6 @@
 package com.custom.astrion.config
 
+import android.content.res.AssetManager
 import android.os.Environment
 import android.util.Log
 import com.custom.astrion.cards.CardConfig
@@ -7,17 +8,15 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.put
 import java.io.File
 
 /**
  * Loads the whole app layout (swipeable pages + hardware-button bindings) from
- * a JSON file on shared storage, falling back to the compiled-in
- * DashboardConfig.default when the file is missing or malformed — the app never
- * crashes over a bad config, it just shows a notice banner.
+ * a JSON file on shared storage, falling back to the layout bundled in the APK
+ * (device/config/dashboard.json, see [init]) when the file is missing or
+ * malformed — the app never crashes over a bad config, it just shows a notice
+ * banner.
  *
  * Path: /sdcard/astrion/dashboard.json. Shared storage keeps the file editable
  * over `adb push` or any file manager; MainActivity requests the storage
@@ -47,30 +46,47 @@ object DashboardLoader {
     val configFile: File
         get() = File(Environment.getExternalStorageDirectory(), "astrion/dashboard.json")
 
-    private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
+    private val json = Json { ignoreUnknownKeys = true }
 
     data class Result(val config: AppConfig, val notice: String?)
+
+    /** The bundled layout's text, written out verbatim as the first config file. */
+    private var bundledText: String? = null
+
+    /** The bundled layout, or [DashboardConfig.fallback] if it won't parse. */
+    var default: AppConfig = DashboardConfig.fallback
+        private set
+
+    /** Read the layout bundled from device/config/dashboard.json. Call once at startup. */
+    fun init(assets: AssetManager) {
+        bundledText = runCatching { assets.open(BUNDLED_ASSET).bufferedReader().use { it.readText() } }
+            .onFailure { Log.e(TAG, "No bundled $BUNDLED_ASSET", it) }
+            .getOrNull()
+        default = bundledText?.let { text ->
+            runCatching { parse(text) }.onFailure { Log.e(TAG, "Bundled $BUNDLED_ASSET invalid", it) }.getOrNull()
+        } ?: DashboardConfig.fallback
+    }
 
     fun load(): Result {
         val file = configFile
         if (!file.exists()) {
             return if (writeDefaults()) {
-                Result(DashboardConfig.default, "Wrote defaults to ${file.path} — edit it, then reopen the app")
+                Result(default, "Wrote defaults to ${file.path} — edit it, then reopen the app")
             } else {
-                Result(DashboardConfig.default, "Can't access ${file.path} (storage permission?) — using built-in defaults")
+                Result(default, "Can't access ${file.path} (storage permission?) — using built-in defaults")
             }
         }
         return try {
             Result(parse(file.readText()), null)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load ${file.path}", e)
-            Result(DashboardConfig.default, "dashboard.json invalid (${e.message?.take(80)}) — using built-in defaults")
+            Result(default, "dashboard.json invalid (${e.message?.take(80)}) — using built-in defaults")
         }
     }
 
     // ---- parse --------------------------------------------------------------
 
-    private fun parse(text: String): AppConfig {
+    internal fun parse(text: String): AppConfig {
         return when (val root = json.parseToJsonElement(text)) {
             is JsonArray -> AppConfig(
                 pages = listOf(PageConfig("Main", root.map { parseCard(it as JsonObject) })),
@@ -138,55 +154,18 @@ object DashboardLoader {
             ?: emptyMap(),
     )
 
-    // ---- serialize defaults -------------------------------------------------
+    // ---- write defaults -----------------------------------------------------
 
     private fun writeDefaults(): Boolean = try {
+        val text = bundledText ?: error("no bundled layout")
         val file = configFile
         file.parentFile?.mkdirs()
-        file.writeText(json.encodeToString(JsonObject.serializer(), encode(DashboardConfig.default)))
+        file.writeText(text)
         true
     } catch (e: Exception) {
         Log.w(TAG, "Couldn't write default config", e)
         false
     }
 
-    private fun encode(cfg: AppConfig): JsonObject = buildJsonObject {
-        put("startPage", cfg.startPage)
-        put("pages", buildJsonArray {
-            cfg.pages.forEach { page ->
-                add(buildJsonObject {
-                    put("name", page.name)
-                    put("cards", buildJsonArray {
-                        page.cards.forEach { card ->
-                            add(buildJsonObject {
-                                put("type", card.type)
-                                put("options", JsonPlain.toJson(card.options))
-                            })
-                        }
-                    })
-                })
-            }
-        })
-        put("hotkeys", encodeHotkeys(cfg.hotkeys))
-        put("longHotkeys", encodeHotkeys(cfg.longHotkeys))
-        put("doubleHotkeys", encodeHotkeys(cfg.doubleHotkeys))
-        // Round-trip the feature blocks so a freshly written default config
-        // still contains ir_mode / voice for the user to edit.
-        cfg.options.forEach { (k, v) -> put(k, JsonPlain.toJson(v)) }
-    }
-
-    private fun encodeHotkeys(hotkeys: List<HotkeyConfig>) = buildJsonArray {
-        hotkeys.forEach { hk -> add(encodeHotkey(hk)) }
-    }
-
-    private fun encodeHotkey(hk: HotkeyConfig): JsonObject = buildJsonObject {
-        if (hk.key.isNotEmpty()) put("key", hk.key)
-        hk.page?.let { put("page", it) }
-        hk.service?.let { put("service", it) }
-        hk.entityId?.let { put("entityId", it) }
-        if (hk.data.isNotEmpty()) put("data", JsonPlain.toJson(hk.data))
-        if (hk.then.isNotEmpty()) {
-            put("then", buildJsonArray { hk.then.forEach { add(encodeHotkey(it)) } })
-        }
-    }
+    private const val BUNDLED_ASSET = "dashboard.json"
 }

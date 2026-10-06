@@ -1,10 +1,10 @@
 package com.custom.astrion.cards.impl
 
 import android.graphics.Bitmap
+import com.custom.astrion.ui.parseHexColor
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -168,13 +168,8 @@ class MediaPlayerCard : CardRenderer {
     @Suppress("UNCHECKED_CAST")
     private fun fireService(ctx: CardContext, b: Map<String, Any?>) {
         val service = b["service"] as? String ?: return
-        val domain = service.substringBefore('.')
-        val svc = service.substringAfter('.')
-        val entityId = b["entity_id"] as? String
         val data = (b["data"] as? Map<String, Any?>).orEmpty()
-        ctx.client.callService(
-            ServiceCall.of(domain, svc, entityId, *data.entries.map { it.key to it.value }.toTypedArray())
-        )
+        ctx.client.callService(ServiceCall.fromConfig(service, b["entity_id"] as? String, data))
     }
 
     // ---- tv (TV page): what's on, as information, and the app tiles -------------
@@ -763,12 +758,6 @@ private fun resolveTvSession(tv: EntityState?, players: List<EntityState>, apps:
     )
 }
 
-/** "#RRGGBB" or "#AARRGGBB". */
-private fun parseHexColor(hex: String?): Color? {
-    val h = hex?.removePrefix("#") ?: return null
-    val v = h.toLongOrNull(16) ?: return null
-    return if (h.length <= 6) Color(0xFF000000L or v) else Color(v)
-}
 
 /**
  * Artwork for [path] through ArtCache: the screensaver shows the same art, and
@@ -776,7 +765,7 @@ private fun parseHexColor(hex: String?): Color? {
  */
 @Composable
 private fun rememberArt(ctx: CardContext, path: String?): ImageBitmap? {
-    var art by remember(path) { mutableStateOf(path?.let { ArtCache.peek(it) }) }
+    var art by remember(path) { mutableStateOf(path?.let { ArtCache.peek(it, 480) }) }
     LaunchedEffect(path) {
         art = path?.let { p -> ArtCache.load(p, 480) { ctx.client.fetchBytes(p) } }
     }

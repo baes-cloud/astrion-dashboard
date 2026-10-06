@@ -50,6 +50,25 @@ fun decodeSampled(path: String, targetPx: Int): ImageBitmap? = runCatching {
 }.getOrNull()
 
 /**
+ * [decodeSampled] for image bytes already in memory (a download). Same
+ * rule: the largest power-of-two reduction that keeps the longest edge at or
+ * above [targetPx] (0 = full size).
+ */
+fun decodeSampled(bytes: ByteArray, targetPx: Int): ImageBitmap? = runCatching {
+    val opts = BitmapFactory.Options()
+    if (targetPx > 0) {
+        opts.inJustDecodeBounds = true
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+        val longest = maxOf(opts.outWidth, opts.outHeight)
+        var sample = 1
+        while (longest / (sample * 2) >= targetPx) sample *= 2
+        opts.inJustDecodeBounds = false
+        opts.inSampleSize = sample
+    }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)?.asImageBitmap()
+}.getOrNull()
+
+/**
  * [decodeSampled] on the IO dispatcher, surfaced as composable state. Null
  * until the decode finishes, so first composition never blocks.
  */
@@ -63,7 +82,12 @@ fun rememberSampledBitmap(path: String?, targetPx: Int): State<ImageBitmap?> =
         val key = cacheKey(p, targetPx)
         sampledCache[key]?.let { value = it; return@produceState }
         val decoded = withContext(Dispatchers.IO) { decodeSampled(p, targetPx) }
-        if (decoded != null) sampledCache[key] = decoded
+        if (decoded != null) {
+            // A changed file (new mtime) makes the old decodes of it garbage;
+            // without this every edit of the floorplan kept ~1 MB resident.
+            sampledCache.keys.removeAll { it.startsWith("$p|$targetPx|") && it != key }
+            sampledCache[key] = decoded
+        }
         value = decoded
     }
 

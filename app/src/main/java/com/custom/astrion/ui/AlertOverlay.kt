@@ -131,14 +131,26 @@ fun activeAlerts(specs: List<AlertSpec>, entities: Map<String, EntityState>, now
         if (spec.unlessEntity != null && entities[spec.unlessEntity]?.state == (spec.unlessState ?: "on")) {
             return@mapNotNull null
         }
-        val since = e.lastChanged?.let { iso ->
-            runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
-        }
+        val since = e.lastChangedMs
         if (spec.forSeconds > 0 && (since == null || nowMs - since < spec.forSeconds * 1000L)) {
             return@mapNotNull null
         }
-        ActiveAlert(spec, since, "${spec.id}@${e.lastChanged}")
+        ActiveAlert(spec, since, "${spec.id}@${e.lastChangedMs}")
     }.sortedBy { it.spec.rank }
+
+/**
+ * When the next `for_seconds` alert whose entity is already in an alerting
+ * state comes due, or null if none is pending. Lets the caller sleep until
+ * then instead of polling.
+ */
+fun nextAlertDueMs(specs: List<AlertSpec>, entities: Map<String, EntityState>, nowMs: Long): Long? =
+    specs.mapNotNull { spec ->
+        if (spec.forSeconds <= 0) return@mapNotNull null
+        val e = entities[spec.entity] ?: return@mapNotNull null
+        if (e.state !in spec.states) return@mapNotNull null
+        val since = e.lastChangedMs ?: return@mapNotNull null
+        (since + spec.forSeconds * 1000L).takeIf { it > nowMs }
+    }.minOrNull()
 
 private data class Palette(val top: Color, val bottom: Color, val accent: Color, val buttonHi: Color, val buttonLo: Color, val ink: Color)
 
@@ -173,9 +185,7 @@ fun AlertOverlay(
 ) {
     val spec = alert.spec
     val p = paletteFor(spec.severity)
-    val sinceText = alert.sinceMs?.let {
-        java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(it))
-    }
+    val sinceText = alert.sinceMs?.let { Time.format(it, "h:mm a") }
     val minutes = alert.sinceMs?.let { ((nowMs - it) / 60_000).coerceAtLeast(0) }
     val message = spec.message
         ?.replace("{since}", sinceText ?: "")

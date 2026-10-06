@@ -1,6 +1,8 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
+import com.custom.astrion.ui.Time
+import com.custom.astrion.ui.LocalMinuteClock
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -12,11 +14,7 @@ import com.custom.astrion.ha.ServiceCall
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.VolumeOff
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,10 +26,7 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,7 +41,6 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
-import kotlinx.coroutines.delay
 
 /**
  * The two one-line cards on Main: the next diary entry, and what's playing.
@@ -110,13 +104,7 @@ class CalendarLineCard : CardRenderer {
 
         // The label is relative ("Tomorrow 6:15 PM"), so it has to re-evaluate
         // as the day turns, not just when the entity changes.
-        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-        LaunchedEffect(Unit) {
-            while (true) {
-                delay(60_000)
-                now = System.currentTimeMillis()
-            }
-        }
+        val now = LocalMinuteClock.current
 
         val line = nextCalendarEvent(ctx.entity(entityId), now, config.string("title_separator"))
             ?: return
@@ -272,13 +260,7 @@ class NextUpCard : CardRenderer {
 
     @Composable
     override fun Render(config: CardConfig, ctx: CardContext) {
-        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-        LaunchedEffect(Unit) {
-            while (true) {
-                delay(30_000)
-                now = System.currentTimeMillis()
-            }
-        }
+        val now = LocalMinuteClock.current
 
         val event = config.string("calendar_entity")?.let {
             nextCalendarEvent(ctx.entity(it), now, config.string("title_separator"))
@@ -330,9 +312,7 @@ class NextUpCard : CardRenderer {
             alwaysEntities = config.stringList("always_entities").toSet(),
         ) ?: return null
 
-        val d = java.util.Date(next)
-        return java.text.SimpleDateFormat("h:mm", java.util.Locale.getDefault()).format(d) + " " +
-            java.text.SimpleDateFormat("EEE", java.util.Locale.getDefault()).format(d)
+        return Time.format(next, "h:mm") + " " + Time.format(next, "EEE")
     }
 }
 
@@ -351,14 +331,13 @@ internal fun nextAlarmMs(
     alwaysEntities: Set<String>,
 ): Long? {
     val offToday = offTodayEntity?.let { entities[it]?.state == "on" } == true
-    val dayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-    val today = dayKey.format(java.util.Date(nowMs))
+    val today = Time.day(nowMs)
     return ids.mapNotNull { id ->
         val iso = entities[id]?.state ?: return@mapNotNull null
         val t = runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
             ?: return@mapNotNull null
         if (t <= nowMs) return@mapNotNull null
-        if (offToday && id !in alwaysEntities && dayKey.format(java.util.Date(t)) == today) return@mapNotNull null
+        if (offToday && id !in alwaysEntities && Time.day(t) == today) return@mapNotNull null
         t
     }.minOrNull()
 }

@@ -1,6 +1,8 @@
 package com.custom.astrion.ui
 
 import androidx.compose.animation.core.Animatable
+import com.custom.astrion.config.AlarmOptions
+import com.custom.astrion.ha.EntityMap
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -56,7 +58,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -475,3 +476,36 @@ private fun HoldToStop(onDismiss: () -> Unit) {
 }
 
 private const val HOLD_MS = 900
+
+/**
+ * Null when no alarm is on; otherwise what the popup should show. Pure
+ * mirror of HA: ringing = the `ringing_entity` flag, snoozed = the snooze
+ * timer running while that flag is still on.
+ */
+fun alarmUiState(opts: AlarmOptions, entities: EntityMap): AlarmUiState? {
+    val ringingId = opts.ringingEntity ?: return null
+    if (entities[ringingId]?.state != "on") return null
+
+    val timer = opts.snoozeTimer?.let { entities[it] }
+    val snoozeEnds = timer?.takeIf { it.state == "active" }?.attrString("finishes_at")?.let(::isoToEpochMs)
+
+    // The timer's own duration ("0:05:00"), so the snooze ring drains
+    // over the real length rather than an assumed five minutes.
+    val snoozeTotalMs = timer?.attrString("duration")?.split(":")?.mapNotNull { it.toLongOrNull() }
+        ?.takeIf { it.size == 3 }?.let { (h, m, sec) -> (h * 3600 + m * 60 + sec) * 1000 }
+        ?: 300_000L
+
+    val info = opts.infoEntity?.let { entities[it] }
+    val startsAt = info?.state?.let(::isoToEpochMs)?.let { Time.format(it, "h:mm a") }
+    return AlarmUiState(
+        ringing = snoozeEnds == null,
+        snoozeEndsMs = snoozeEnds,
+        snoozeTotalMs = snoozeTotalMs,
+        title = info?.attrString("summary")?.takeIf { it.isNotBlank() },
+        place = info?.attrString("location")?.takeIf { it.isNotBlank() },
+        startsAt = startsAt,
+    )
+}
+
+private fun isoToEpochMs(iso: String): Long? =
+    runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()

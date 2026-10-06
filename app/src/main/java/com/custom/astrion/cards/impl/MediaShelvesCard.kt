@@ -208,7 +208,7 @@ class MediaShelvesCard : CardRenderer {
     private fun Tile(ctx: CardContext, item: Item, onClick: () -> Unit) {
         // The page is recomposed from scratch on every visit and LazyRow drops
         // tiles scrolled off-screen; ArtCache keeps that from refetching covers.
-        var art by remember(item.thumb) { mutableStateOf(item.thumb?.let { ArtCache.peek(it) }) }
+        var art by remember(item.thumb) { mutableStateOf(item.thumb?.let { ArtCache.peek(it, ART_PX) }) }
         LaunchedEffect(item.thumb) {
             val thumb = item.thumb ?: return@LaunchedEffect
             if (art == null) {

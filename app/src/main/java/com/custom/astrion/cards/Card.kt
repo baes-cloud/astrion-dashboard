@@ -61,7 +61,6 @@ data class CardConfig(
  */
 @Stable
 class CardContext(
-    private val entitiesState: State<EntityMap>,
     val client: HaClient,
     private val connectionState: State<ConnectionState>,
 ) {
@@ -69,12 +68,7 @@ class CardContext(
      * Live entity map. `entities[id]` subscribes to that one entity; anything
      * that walks the whole map subscribes to all of them.
      */
-    val entities: EntityMap = object : AbstractMap<String, EntityState>() {
-        override fun get(key: String): EntityState? = client.entityState(key).value
-        override fun containsKey(key: String): Boolean = get(key) != null
-        override val entries: Set<Map.Entry<String, EntityState>>
-            get() = entitiesState.value.entries
-    }
+    val entities: EntityMap get() = client.live
 
     /** Single-entity read; same as `entities[id]`. */
     fun entity(id: String): EntityState? = client.entityState(id).value

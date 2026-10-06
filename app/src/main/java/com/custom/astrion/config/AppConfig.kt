@@ -5,7 +5,7 @@ import com.custom.astrion.cards.CardConfig
 /**
  * Full app configuration: swipeable pages of cards plus hardware-button
  * bindings. Loaded from /sdcard/astrion/dashboard.json by DashboardLoader,
- * with DashboardConfig.default as the compiled-in fallback.
+ * with the bundled device/config/dashboard.json as the fallback.
  */
 data class AppConfig(
     /** Left-to-right page order; swipe between them. */
@@ -32,7 +32,10 @@ data class AppConfig(
      * configured without a schema change.
      */
     val options: Map<String, Any?> = emptyMap(),
-)
+) {
+    /** [options]' feature blocks, typed; parsed on first use, once per config. */
+    val features: FeatureOptions by lazy { FeatureOptions(options, mapOf("screensaver" to DashboardConfig.screensaverDefaults)) }
+}
 
 /** One swipeable page: a name (used by hotkey `page` navigation) and its cards. */
 data class PageConfig(

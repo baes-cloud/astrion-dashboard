@@ -1,6 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
+import com.custom.astrion.ui.LocalMinuteClock
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -9,15 +10,11 @@ import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -32,10 +29,6 @@ import com.custom.astrion.ui.dimIfUnavailable
 import com.custom.astrion.ui.holdOnly
 import com.custom.astrion.ui.humanise
 import com.custom.astrion.ui.tap
-import kotlinx.coroutines.delay
-import java.time.Instant
-import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
 
 /**
  * Door-lock card: name, how long the bolt has been where it is, and one
@@ -84,14 +77,8 @@ class LockCard : CardRenderer {
 
         // Re-tick so "12 min ago" doesn't sit frozen at whatever it said when
         // the page was first composed.
-        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-        LaunchedEffect(Unit) {
-            while (true) {
-                delay(30_000)
-                now = System.currentTimeMillis()
-            }
-        }
-        val age = if (showAge) ago(e?.lastChanged, now) else null
+        val now = LocalMinuteClock.current
+        val age = if (showAge) ago(e?.lastChangedMs, now) else null
 
         fun call(service: String) {
             ctx.client.callService(ServiceCall(domain = "lock", service = service, entityId = entityId))
@@ -231,19 +218,10 @@ class LockCard : CardRenderer {
         }
     }
 
-    /**
-     * "3 min ago" from HA's `last_changed`, which arrives as ISO-8601 with a
-     * six-digit fraction and an offset (2026-09-04T20:53:45.944550+00:00).
-     * API 26 has java.time, so no desugaring is needed for this.
-     */
-    private fun ago(lastChanged: String?, nowMs: Long): String? {
-        val iso = lastChanged ?: return null
-        val then = runCatching {
-            OffsetDateTime.parse(iso, DateTimeFormatter.ISO_OFFSET_DATE_TIME).toInstant()
-        }.getOrElse {
-            runCatching { Instant.parse(iso) }.getOrNull()
-        } ?: return null
-        val secs = (nowMs - then.toEpochMilli()) / 1000
+    /** "3 min ago" from the entity's last change (epoch millis). */
+    private fun ago(lastChangedMs: Long?, nowMs: Long): String? {
+        val then = lastChangedMs ?: return null
+        val secs = (nowMs - then) / 1000
         if (secs < 0) return null
         return when {
             secs < 60 -> "just now"

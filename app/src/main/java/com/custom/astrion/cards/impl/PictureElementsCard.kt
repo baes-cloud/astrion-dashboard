@@ -1,6 +1,6 @@
 package com.custom.astrion.cards.impl
 
-import android.graphics.BitmapFactory
+import com.custom.astrion.ui.parseHexColor
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.runtime.DisposableEffect
@@ -12,7 +12,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -43,17 +42,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -72,9 +68,7 @@ import com.custom.astrion.ui.AstrionTheme
 import kotlin.math.roundToInt
 import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalPageVisible
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.floatOrNull
@@ -83,7 +77,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import java.io.File
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -452,9 +445,14 @@ class PictureElementsCard : CardRenderer {
                 VacBody(vac * 0.92f, body, bump, Modifier.align(Alignment.BottomCenter))
             }
         } else {
-            val angle = if (moving) {
+            // Rocks only while it is actually seen. The page stays composed
+            // when hidden and under the screensaver, and an infinite
+            // transition keeps asking for frames whether or not anything is
+            // drawn.
+            val live = LocalPageVisible.current && LocalDashboardShowing.current
+            if (moving && live) {
                 val t = rememberInfiniteTransition(label = "vacrock")
-                t.animateFloat(
+                val angle = t.animateFloat(
                     initialValue = -10f,
                     targetValue = 10f,
                     animationSpec = infiniteRepeatable(
@@ -462,11 +460,13 @@ class PictureElementsCard : CardRenderer {
                         repeatMode = RepeatMode.Reverse,
                     ),
                     label = "angle",
-                ).value
+                )
+                // Read in the draw phase, not in composition: each frame
+                // re-draws the layer instead of recomposing the icon.
+                VacBody(vac, body, bump, Modifier.graphicsLayer { rotationZ = angle.value })
             } else {
-                0f
+                VacBody(vac, body, bump)
             }
-            VacBody(vac, body, bump, Modifier.rotate(angle))
         }
     }
 
@@ -510,8 +510,8 @@ class PictureElementsCard : CardRenderer {
         val divisor = (radar["units_per_metre"] as? Number)?.toFloat()
             ?: if ((radar["unit"] as? String)?.lowercase() == "mm") 1000f else 1f
         // Per-sensor dot colours so you can tell which radar a dot came from.
-        val fill = parseArgb(radar["color"] as? String) ?: Color(0xD94F726D)
-        val accent = parseArgb(radar["accent_color"] as? String) ?: Color(0xFF8CBDB5)
+        val fill = parseHexColor(radar["color"] as? String) ?: Color(0xD94F726D)
+        val accent = parseHexColor(radar["accent_color"] as? String) ?: Color(0xFF8CBDB5)
         val label = radar["label"] as? String ?: ""
 
         // Loop handles layout of children, but child states are read ONLY inside child scopes!
@@ -561,8 +561,8 @@ class PictureElementsCard : CardRenderer {
         val showHibernating = opts["show_hibernating"] as? Boolean ?: false
         val src = (opts["source_size"] as? List<*>)?.filterIsInstance<Number>()?.map { it.toFloat() }
         val crop = (opts["crop"] as? List<*>)?.filterIsInstance<Number>()?.map { it.toFloat() }
-        val fill = parseArgb(opts["color"] as? String) ?: Color(0xD92CAA9C)
-        val accent = parseArgb(opts["accent_color"] as? String) ?: Color(0xFF8CE0D4)
+        val fill = parseHexColor(opts["color"] as? String) ?: Color(0xD92CAA9C)
+        val accent = parseHexColor(opts["accent_color"] as? String) ?: Color(0xFF8CE0D4)
 
         var targets by remember { mutableStateOf<List<RmmTarget>>(emptyList()) }
         // Only while the floorplan is actually on screen. The stream sends two
@@ -624,12 +624,6 @@ class PictureElementsCard : CardRenderer {
         }
     }
 
-    /** Parse "#AARRGGBB" / "#RRGGBB" to a Color; null if absent or malformed. */
-    private fun parseArgb(s: String?): Color? {
-        val hex = s?.removePrefix("#") ?: return null
-        val v = hex.toLongOrNull(16) ?: return null
-        return if (hex.length <= 6) Color(v or 0xFF000000L) else Color(v)
-    }
 
     /**
      * Isolated Radar Dot. Splitting this out prevents coordinate updates of target #1

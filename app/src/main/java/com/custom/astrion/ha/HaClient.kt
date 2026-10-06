@@ -1,13 +1,11 @@
 package com.custom.astrion.ha
 
-import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.Snapshot
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,14 +24,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*
 import com.custom.astrion.config.JsonPlain
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString.Companion.toByteString
-import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -85,13 +81,14 @@ class HaClient(
     // The only heartbeat. There used to be a second, app-level HA `ping`
     // every 30 s on top of this; each one wakes the Wi-Fi radio, and only
     // this one actually notices a dead socket (no pong fails the connection).
-    private val http = OkHttpClient.Builder()
+    private val http = Http.base.newBuilder()
         .pingInterval(30, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
 
-    // Separate, sanely-timed client for one-shot HTTP GETs (album art).
-    private val imageHttp = OkHttpClient.Builder()
+    // Separate, sanely-timed client for one-shot HTTP GETs (album art). Both
+    // derive from Http.base, so they share its connection pool and threads.
+    private val imageHttp = Http.base.newBuilder()
         .callTimeout(10, TimeUnit.SECONDS)
         .build()
 
@@ -143,11 +140,50 @@ class HaClient(
     private val _connection = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connection: StateFlow<ConnectionState> = _connection.asStateFlow()
 
-    private val _entities = MutableStateFlow<EntityMap>(emptyMap())
-    /** Live map of every entity's current state. Cards observe this. */
-    val entities: StateFlow<EntityMap> = _entities.asStateFlow()
+    /**
+     * Bumped once per publish. Reading it (via [live]'s iteration) is what
+     * makes a whole-map reader recompose on any change; per-entity readers
+     * never touch it.
+     */
+    private val version = mutableLongStateOf(0L)
 
-    // Working store updated on every event; published to _entities at most once
+    /** The copy [snapshot] last made, and the [version] it was made at. */
+    @Volatile private var snap: EntityMap = emptyMap()
+    @Volatile private var snapVersion = -1L
+
+    /**
+     * Every entity's state as a plain map, copied only when something has
+     * changed since the last call. This used to be copied on every publish
+     * (up to ~8 a second with the radar sensors live) whether or not
+     * anything wanted the whole map; now only the screensaver and cards that
+     * iterate every entity pay for it, and only when they ask.
+     */
+    fun snapshot(): EntityMap {
+        val v = Snapshot.withoutReadObservation { version.longValue }
+        if (v != snapVersion) {
+            snap = HashMap(entityStore)
+            snapVersion = v
+        }
+        return snap
+    }
+
+    /**
+     * Live entities as a map. `live[id]` reads [entityState], so inside
+     * Compose (or a `snapshotFlow`) it subscribes to that one entity only;
+     * outside it is a plain lookup. Iterating it takes a [snapshot] and
+     * subscribes to every change.
+     */
+    val live: EntityMap = object : AbstractMap<String, EntityState>() {
+        override fun get(key: String): EntityState? = entityState(key).value
+        override fun containsKey(key: String): Boolean = get(key) != null
+        override val entries: Set<Map.Entry<String, EntityState>>
+            get() {
+                version.longValue // subscribe to every publish
+                return snapshot().entries
+            }
+    }
+
+    // Working store updated on every event; published to the UI at most once
     // per PUBLISH_INTERVAL_MS so a chatty sensor (e.g. mmWave radar at several
     // Hz) can't force the whole UI to repaint faster than the SoC can handle.
     // Scheduled by the event itself rather than a loop polling a dirty flag,
@@ -158,7 +194,7 @@ class HaClient(
     /**
      * One snapshot state per entity, for [entityState]. A composable that
      * reads one of these recomposes only when THAT entity changes, whereas
-     * reading [entities] recomposes on any change anywhere in HA.
+     * iterating [live] recomposes on any change anywhere in HA.
      */
     private val entityStates = ConcurrentHashMap<String, MutableState<EntityState?>>()
     /** Entities changed since the last publish, for the per-entity states. */
@@ -294,14 +330,11 @@ class HaClient(
     }
 
     /**
-     * Fetch an image (e.g. a media_player `entity_picture`) as an ImageBitmap.
-     * `path` may be absolute or an HA-relative path like /api/media_player_proxy/…;
-     * the bearer token is attached so proxied/authenticated art loads too.
+     * Fetch an image (e.g. a media_player `entity_picture`) as raw bytes, to
+     * decode downsampled (ui/Bitmaps.kt) or cache (ArtCache). `path` may be
+     * absolute or an HA-relative path like /api/media_player_proxy/…; the
+     * bearer token is attached so proxied/authenticated art loads too.
      */
-    suspend fun fetchBitmap(path: String): ImageBitmap? =
-        fetchBytes(path)?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
-
-    /** The raw bytes behind [fetchBitmap] (e.g. to cache before decoding). */
     suspend fun fetchBytes(path: String): ByteArray? = withContext(Dispatchers.IO) {
         try {
             val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
@@ -537,6 +570,17 @@ class HaClient(
         return sock.send(frame.toByteString(0, frame.size))
     }
 
+    /**
+     * Send an audio frame the caller has already laid out as HA wants it:
+     * `frame[0]` is the handler id, then [length]` - 1` bytes of PCM. Lets
+     * the recorder reuse one buffer instead of allocating a frame per chunk.
+     */
+    fun sendAudioFrame(frame: ByteArray, length: Int, forEpoch: Int = epoch): Boolean {
+        if (forEpoch != epoch) return false
+        val sock = socket ?: return false
+        return sock.send(frame.toByteString(0, length))
+    }
+
     /** Absolute URL for an HA-relative path, with the bearer token attached. */
     fun authedUrl(path: String): String =
         if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
@@ -688,13 +732,13 @@ class HaClient(
     }
 
     /**
-     * Push the store to [entities] and to the per-entity states of changed ids.
+     * Push the store to the per-entity states of changed ids, and bump
+     * [version] for whole-map readers.
      * Synchronized: the publisher loop and the seed both call it, and two
      * overlapping snapshots writing the same state would conflict.
      */
     @Synchronized
     private fun publish() {
-        _entities.value = HashMap(entityStore)
         val ids = changedIds.toList()
         changedIds.removeAll(ids.toSet())
         // One snapshot, so a batch of changes lands in a single frame.
@@ -703,6 +747,7 @@ class HaClient(
                 val now = entityStore[id]
                 if (st.value != now) st.value = now
             }
+            version.longValue += 1
         }
     }
 
@@ -743,13 +788,13 @@ class HaClient(
         }
         added?.forEach { (entityId, el) ->
             val c = el as? JsonObject ?: return@forEach
-            val lc = isoTime(c["lc"])
+            val lc = epochMs(c["lc"])
             entityStore[entityId] = EntityState(
                 entityId = entityId,
                 state = c["s"]?.jsonPrimitive?.content ?: "unknown",
                 attributes = c["a"] as? JsonObject ?: JsonObject(emptyMap()),
-                lastChanged = lc,
-                lastUpdated = isoTime(c["lu"]) ?: lc,
+                lastChangedMs = lc,
+                lastUpdatedMs = epochMs(c["lu"]) ?: lc,
             )
             changedIds += entityId
             meaningful = true
@@ -763,13 +808,13 @@ class HaClient(
             var attrs: Map<String, JsonElement> = old.attributes
             if (minusAttrs.isNotEmpty()) attrs = attrs - minusAttrs
             (plus?.get("a") as? JsonObject)?.let { attrs = attrs + it }
-            val lc = isoTime(plus?.get("lc"))
+            val lc = epochMs(plus?.get("lc"))
             val updated = old.copy(
                 state = plus?.get("s")?.jsonPrimitive?.content ?: old.state,
                 attributes = if (attrs === old.attributes) old.attributes else JsonObject(attrs),
-                lastChanged = lc ?: old.lastChanged,
+                lastChangedMs = lc ?: old.lastChangedMs,
                 // A new last_changed implies the same last_updated.
-                lastUpdated = isoTime(plus?.get("lu")) ?: lc ?: old.lastUpdated,
+                lastUpdatedMs = epochMs(plus?.get("lu")) ?: lc ?: old.lastUpdatedMs,
             )
             entityStore[entityId] = updated
             // Kept in the store, but nothing redraws for it; it goes out with
@@ -802,9 +847,13 @@ class HaClient(
         return attrs.keys.all { it in PLAYHEAD_ATTRS }
     }
 
-    /** HA's epoch-seconds timestamp as ISO-8601, the format cards parse. */
-    private fun isoTime(el: JsonElement?): String? =
-        (el as? JsonPrimitive)?.doubleOrNull?.let { Instant.ofEpochMilli((it * 1000).toLong()).toString() }
+    /**
+     * HA's epoch-seconds timestamp as epoch millis. Kept numeric: these
+     * used to become ISO strings on every diff, only for readers to parse
+     * them straight back.
+     */
+    private fun epochMs(el: JsonElement?): Long? =
+        (el as? JsonPrimitive)?.doubleOrNull?.let { (it * 1000).toLong() }
 
     private fun send(msg: JsonObject) {
         // Never before auth_ok: HA drops a connection whose first message

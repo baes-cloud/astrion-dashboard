@@ -1,9 +1,8 @@
 package com.custom.astrion.cards.impl
 
-import android.graphics.BitmapFactory
+import com.custom.astrion.ui.parseHexColor
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -11,12 +10,10 @@ import androidx.compose.material3.LocalTextStyle
 import com.custom.astrion.ui.tightTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,7 +27,6 @@ import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.rememberSampledBitmap
 import com.custom.astrion.ui.tap
-import java.io.File
 
 /**
  * Generic grid of action buttons, each firing a HA service call. Buttons can
@@ -98,13 +94,8 @@ class ButtonGridCard : CardRenderer {
     @Suppress("UNCHECKED_CAST")
     private fun fire(ctx: CardContext, b: Map<String, Any?>) {
         val service = b["service"] as? String ?: return
-        val domain = service.substringBefore('.')
-        val svc = service.substringAfter('.')
-        val entityId = b["entity_id"] as? String
         val data = (b["data"] as? Map<String, Any?>).orEmpty()
-        ctx.client.callService(
-            ServiceCall.of(domain, svc, entityId, *data.entries.map { it.key to it.value }.toTypedArray())
-        )
+        ctx.client.callService(ServiceCall.fromConfig(service, b["entity_id"] as? String, data))
     }
 
     @Composable
@@ -123,8 +114,8 @@ class ButtonGridCard : CardRenderer {
         // composition thread, six at a time, when the Media page first drew.
         val bitmap by rememberSampledBitmap(iconPath, targetPx = 96)
         val hasIcon = bitmap != null
-        val tileColor = (b["color"] as? String)?.let(::parseHexColor)
-        val inkColor = (b["text_color"] as? String)?.let(::parseHexColor)
+        val tileColor = parseHexColor(b["color"] as? String)
+        val inkColor = parseHexColor(b["text_color"] as? String)
             ?: tileColor?.let { if (0.2126f * it.red + 0.7152f * it.green + 0.0722f * it.blue > 0.6f) Color(0xFF151B21) else Color.White }
             ?: Color(0xFFEEF2EF)
 
@@ -163,9 +154,4 @@ class ButtonGridCard : CardRenderer {
     }
 
     /** "#RRGGBB" (opaque) or "#AARRGGBB". */
-    private fun parseHexColor(s: String): Color? {
-        val h = s.removePrefix("#")
-        val v = h.toLongOrNull(16) ?: return null
-        return if (h.length <= 6) Color(0xFF000000L or v) else Color(v)
-    }
 }

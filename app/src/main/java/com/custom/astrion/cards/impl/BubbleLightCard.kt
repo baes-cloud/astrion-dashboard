@@ -1,12 +1,9 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -154,7 +151,7 @@ class BubbleLightCard : CardRenderer {
         // drag anywhere along it, rather than aiming at a separate track.
         // Trade-off: a horizontal drag on a pill sets brightness, so page
         // swipes come from the dots, the page edges, or the shortcut keys.
-        BoxWithConstraints(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .dimIfUnavailable(unavailable)
