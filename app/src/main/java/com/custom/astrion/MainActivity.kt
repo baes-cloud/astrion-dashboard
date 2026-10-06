@@ -76,6 +76,7 @@ import com.custom.astrion.ir.IrBlaster
 import com.custom.astrion.ir.IrModeOverlay
 import com.custom.astrion.ui.AlarmOverlay
 import com.custom.astrion.ui.AlarmUiState
+import com.custom.astrion.ui.alarmUiState
 import com.custom.astrion.ui.AlertAction
 import com.custom.astrion.ui.AlertOverlay
 import com.custom.astrion.ui.AlertSpec
@@ -615,46 +616,8 @@ class MainActivity : ComponentActivity() {
     /** dashboard.json's feature blocks, typed once per loaded config. */
     private val features get() = dashboard.config.features
 
-    /**
-     * Null when no alarm is on; otherwise what the popup should show. Pure
-     * mirror of HA: ringing = the `ringing_entity` flag, snoozed = the snooze
-     * timer running while that flag is still on.
-     */
-    private fun alarmUiState(entities: com.custom.astrion.ha.EntityMap): AlarmUiState? {
-        val opts = features.alarm
-        val ringingId = opts.ringingEntity ?: return null
-        if (entities[ringingId]?.state != "on") return null
-
-        val timer = opts.snoozeTimer?.let { entities[it] }
-        val snoozeEnds = timer?.takeIf { it.state == "active" }?.attrString("finishes_at")?.let { iso ->
-            runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
-        }
-
-        // The timer's own duration ("0:05:00"), so the snooze ring drains
-        // over the real length rather than an assumed five minutes.
-        val snoozeTotalMs = timer?.attrString("duration")?.split(":")?.mapNotNull { it.toLongOrNull() }
-            ?.takeIf { it.size == 3 }?.let { (h, m, sec) -> (h * 3600 + m * 60 + sec) * 1000 }
-            ?: 300_000L
-
-        val info = opts.infoEntity?.let { entities[it] }
-        val startsAt = info?.state?.let { iso ->
-            runCatching {
-                val t = java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli()
-                alarmTimeFormat.format(java.util.Date(t))
-            }.getOrNull()
-        }
-        return AlarmUiState(
-            ringing = snoozeEnds == null,
-            snoozeEndsMs = snoozeEnds,
-            snoozeTotalMs = snoozeTotalMs,
-            title = info?.attrString("summary")?.takeIf { it.isNotBlank() },
-            place = info?.attrString("location")?.takeIf { it.isNotBlank() },
-            startsAt = startsAt,
-        )
-    }
-
-    /** For the alarm popup's start time; only ever used on the main thread. */
-    private val alarmTimeFormat = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
+    private fun alarmUiState(entities: com.custom.astrion.ha.EntityMap): AlarmUiState? =
+        alarmUiState(features.alarm, entities)
 
     /** 0 = no alarm, 1 = ringing, 2 = snoozed. */
     private fun alarmPhase(entities: com.custom.astrion.ha.EntityMap): Int =
