@@ -174,8 +174,10 @@ class ClimateCard : CardRenderer {
                     Text(
                         shownTarget?.let { "${trim(it)}°" } ?: "—",
                         color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
+                        // Syne's bold cut is very wide and odd in numerals;
+                        // the lighter cut matches the weather temperature.
                         fontFamily = AstrionTheme.headingFont, fontSize = 40.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.Light,
                     )
                     // The steppers silently no-op when there is no target, so
                     // an unreachable aircon used to look like a working one
