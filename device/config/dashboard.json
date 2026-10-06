@@ -241,7 +241,9 @@
           {
            "entity_id": "light.downlights",
            "left": 65,
-           "top": 28
+           "top": 28,
+           "glow_spots": [[24, 17], [25, 39], [59, 12], [60, 37], [84, 18], [89, 36]],
+           "glow_reach": 0.6
           },
           {
            "entity_id": "light.kitchen_console_candles",

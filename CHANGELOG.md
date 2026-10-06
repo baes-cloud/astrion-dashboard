@@ -15,6 +15,8 @@ companion automations and scripts are in `docs/HOME_ASSISTANT.md`.
   lights in each); the bundled dashboard has it for the flat. Redraws only
   when a light changes, with a short fade, so it costs nothing at rest.
 - With lit rooms on, a lit bulb icon takes its light's colour.
+- One light that drives several fittings (the six downlights) can glow from
+  each of them with `glow_spots` on its floorplan element.
 
 ### Code audit (October 2026)
 

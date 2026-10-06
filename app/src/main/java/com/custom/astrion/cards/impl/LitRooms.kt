@@ -46,7 +46,11 @@ import kotlin.math.pow
  *
  * A light glows from its floorplan icon's position, clipped to its room's
  * outline so it stops at the walls. An element may carry "glow_reach" to scale
- * its own pool (1 = the card's reach).
+ * its own pool (1 = the card's reach), and "glow_spots" to glow from several
+ * fittings instead of the icon: one light entity that drives six downlights
+ * gets six smaller pools.
+ *   { "entity_id": "light.downlights", "left": 65, "top": 28,
+ *     "glow_spots": [[24,17],[59,12],[84,18]], "glow_reach": 0.6 }
  *
  * Cost: nothing animates at rest. A light changing fades its pool over 400 ms
  * and then the layer is still again. No blur (not cheap on Android 8.1) and no
@@ -107,14 +111,20 @@ internal fun LitRoomsLayer(
                     animationSpec = tween(FADE_MS),
                     label = "glow",
                 )
-                glows += Glow(
-                    left = (el["left"] as? Number)?.toFloat()?.div(100f) ?: 0.5f,
-                    top = (el["top"] as? Number)?.toFloat()?.div(100f) ?: 0.5f,
-                    reach = reach * ((el["glow_reach"] as? Number)?.toFloat() ?: 1f),
-                    room = roomIndex,
-                    color = e?.let { lightColor(it) } ?: WARM_WHITE,
-                    level = level,
-                )
+                val color = e?.let { lightColor(it) } ?: WARM_WHITE
+                val spots = (el["glow_spots"] as? List<*>).orEmpty().mapNotNull { s ->
+                    (s as? List<*>)?.filterIsInstance<Number>()?.takeIf { it.size == 2 }
+                }.ifEmpty { listOf(listOf(el["left"] as? Number ?: 50, el["top"] as? Number ?: 50)) }
+                spots.forEach { (l, t) ->
+                    glows += Glow(
+                        left = l.toFloat() / 100f,
+                        top = t.toFloat() / 100f,
+                        reach = reach * ((el["glow_reach"] as? Number)?.toFloat() ?: 1f),
+                        room = roomIndex,
+                        color = color,
+                        level = level,
+                    )
+                }
             }
         }
     }
