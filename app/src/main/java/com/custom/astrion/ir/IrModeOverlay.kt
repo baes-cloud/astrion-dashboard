@@ -76,7 +76,7 @@ fun IrModeOverlay(
         // "source", "is": "hdmi2"}, "unless_text": "Not on the PC input"}.
         // Without "attribute" the entity's state is compared.
         (b["unless"] as? Map<*, *>)?.let { u ->
-            val e = (u["entity_id"] as? String)?.let { client.entities.value[it] }
+            val e = (u["entity_id"] as? String)?.let { client.live[it] }
             val actual = (u["attribute"] as? String)?.let { e?.attrString(it) } ?: e?.state
             val blocked = when (val v = u["is"]) {
                 is List<*> -> actual in v.map { it.toString() }

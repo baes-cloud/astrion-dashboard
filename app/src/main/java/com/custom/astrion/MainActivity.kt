@@ -35,7 +35,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 import androidx.activity.ComponentActivity
@@ -54,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import com.custom.astrion.config.DashboardConfig
@@ -437,14 +437,15 @@ class MainActivity : ComponentActivity() {
             // ripple, themed Material pieces and real haptics: see AstrionMaterialTheme.
             AstrionMaterialTheme {
               CompositionLocalProvider(LocalSheetHost provides sheetHost) {
-                val entities = client.entities.collectAsState()
                 val connection = client.connection.collectAsState()
                 // Derived, so this root scope recomposes only when the alarm or
-                // the set of alerts actually changes — not on every HA update.
-                val alarm by remember { derivedStateOf { alarmUiState(entities.value) } }
+                // the set of alerts actually changes. Both read client.live by
+                // id, so they re-run only when one of their own entities
+                // changes, not on every HA update.
+                val alarm by remember { derivedStateOf { alarmUiState(client.live) } }
                 val alerts by remember {
                     derivedStateOf {
-                        activeAlerts(alertSpecs(), entities.value, alertNow)
+                        activeAlerts(alertSpecs(), client.live, alertNow)
                             .filter { it.token !in hiddenAlerts }
                     }
                 }
@@ -462,7 +463,6 @@ class MainActivity : ComponentActivity() {
                     ) {
                     Dashboard(
                         client = client,
-                        entitiesState = entities,
                         connectionState = connection,
                         config = dashboard.config,
                         configNotice = dashboard.notice,
@@ -478,7 +478,7 @@ class MainActivity : ComponentActivity() {
                     // Docked screensaver: above the dashboard, below everything
                     // that must interrupt it (alarm, voice) — and those also
                     // dismiss it outright, see hideScreensaver's callers.
-                    if (screensaverOn) ScreensaverHost(entities, connection)
+                    if (screensaverOn) ScreensaverHost(connection)
 
                     // IR Mode modal sits above the dashboard while active.
                     if (irMode) {
@@ -540,13 +540,10 @@ class MainActivity : ComponentActivity() {
      * keeps those reads from recomposing everything else at the root.
      */
     @Composable
-    private fun ScreensaverHost(
-        entities: State<com.custom.astrion.ha.EntityMap>,
-        connection: State<ConnectionState>,
-    ) {
+    private fun ScreensaverHost(connection: State<ConnectionState>) {
         Screensaver(
             options = screensaverOptions(),
-            entities = { entities.value },
+            entities = { client.snapshot() },
             client = client,
             connected = connection.value == ConnectionState.CONNECTED,
             batteryPct = batteryPct,
@@ -703,7 +700,7 @@ class MainActivity : ComponentActivity() {
         val startsAt = info?.state?.let { iso ->
             runCatching {
                 val t = java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli()
-                java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(t))
+                alarmTimeFormat.format(java.util.Date(t))
             }.getOrNull()
         }
         return AlarmUiState(
@@ -715,6 +712,9 @@ class MainActivity : ComponentActivity() {
             startsAt = startsAt,
         )
     }
+
+    /** For the alarm popup's start time; only ever used on the main thread. */
+    private val alarmTimeFormat = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
 
     /** 0 = no alarm, 1 = ringing, 2 = snoozed. */
     private fun alarmPhase(entities: com.custom.astrion.ha.EntityMap): Int =
@@ -731,8 +731,9 @@ class MainActivity : ComponentActivity() {
         // or is snoozed.
         var keepAwake: kotlinx.coroutines.Job? = null
         alarmScope.launch {
-            client.entities
-                .map { alarmPhase(it) }
+            // Reads only the alarm's entities (client.live by id), so this
+            // re-runs when they change rather than on every HA update.
+            snapshotFlow { alarmPhase(client.live) }
                 .distinctUntilChanged()
                 .collect { phase ->
                     keepAwake?.cancel()
@@ -793,7 +794,7 @@ class MainActivity : ComponentActivity() {
         alarmScope.launch {
             while (true) {
                 alertNow = System.currentTimeMillis()
-                val top = activeAlerts(alertSpecs(), client.entities.value, alertNow)
+                val top = activeAlerts(alertSpecs(), client.live, alertNow)
                     .firstOrNull { it.token !in hiddenAlerts }
                 if (top?.token != lastToken) {
                     keepAwake?.cancel()
@@ -817,7 +818,7 @@ class MainActivity : ComponentActivity() {
                     // Nothing urgent left: let the screen time out again,
                     // unless the work alarm is the one holding it on.
                     if (top?.spec?.severity != "alarm" && top?.spec?.severity != "warning" &&
-                        alarmPhase(client.entities.value) != 1
+                        alarmPhase(client.live) != 1
                     ) {
                         @Suppress("DEPRECATION")
                         window.clearFlags(
@@ -948,7 +949,7 @@ class MainActivity : ComponentActivity() {
         when (service) {
             "astrion.toggle_mute" -> {
                 if (entityId == null) return false
-                val muted = client.entities.value[entityId]?.attrString("is_volume_muted") == "true"
+                val muted = client.live[entityId]?.attrString("is_volume_muted") == "true"
                 client.callService(
                     ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted)
                 )
@@ -958,7 +959,7 @@ class MainActivity : ComponentActivity() {
                 if (entityId == null) return false
                 // group_members[0] is the group leader; everyone else is joined
                 // to it and gets dropped.
-                client.entities.value[entityId]?.attrStringList("group_members")
+                client.live[entityId]?.attrStringList("group_members")
                     ?.filter { it != entityId }
                     ?.forEach { client.callService(ServiceCall("media_player", "unjoin", entityId = it)) }
                 return true
@@ -1009,7 +1010,7 @@ class MainActivity : ComponentActivity() {
 
     /** "Club lights off", "Hue play · toggle", or "light.toggle" when nothing better is known. */
     private fun callLabel(call: ServiceCall): String {
-        val name = call.entityId?.let { client.entities.value[it]?.friendlyName }
+        val name = call.entityId?.let { client.live[it]?.friendlyName }
             ?: return "${call.domain}.${call.service}"
         return if (call.domain in setOf("script", "scene", "automation")) name
         else "$name · ${call.service.humanise().lowercase()}"
@@ -1192,7 +1193,7 @@ class MainActivity : ComponentActivity() {
             hideScreensaver()
             // An alert popup is drawn above the screensaver and is what the
             // finger is aimed at — let that tap land ("Emptied", "Lock it").
-            swallowTouch = activeAlerts(alertSpecs(), client.entities.value, alertNow)
+            swallowTouch = activeAlerts(alertSpecs(), client.live, alertNow)
                 .none { it.token !in hiddenAlerts }
         }
         if (swallowTouch) {
@@ -1357,7 +1358,7 @@ class MainActivity : ComponentActivity() {
         val keep = docked && screensaverEnabled() && screensaverOptions()["keep_screen_on"] as? Boolean != false
         if (keep) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        } else if (alarmPhase(client.entities.value) != 1) {
+        } else if (alarmPhase(client.live) != 1) {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
@@ -1370,7 +1371,7 @@ class MainActivity : ComponentActivity() {
             return
         }
         if (!inFront || !screensaverArmed() || irMode) return
-        if (alarmUiState(client.entities.value) != null && !alarmHidden) return
+        if (alarmUiState(client.live) != null && !alarmHidden) return
         val phase = voice.state.value.phase
         if (phase != VoicePhase.IDLE && phase != VoicePhase.DONE) return
         val dockedIdleMs = ((screensaverOptions()["idle_seconds"] as? Number)?.toLong() ?: 45L) * 1000
@@ -1384,7 +1385,7 @@ class MainActivity : ComponentActivity() {
 
     private fun applyScreensaverBrightness() {
         val opts = screensaverOptions()
-        val night = screensaverIsNight(client.entities.value, System.currentTimeMillis())
+        val night = screensaverIsNight(client.live, System.currentTimeMillis())
         val nightLevel = (opts["night_brightness"] as? Number)?.toFloat() ?: 0.05f
         val level = when {
             !docked -> minOf(

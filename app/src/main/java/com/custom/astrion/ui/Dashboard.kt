@@ -32,7 +32,6 @@ import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.config.AppConfig
 import com.custom.astrion.config.PageConfig
 import com.custom.astrion.ha.ConnectionState
-import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.HaClient
 
 /**
@@ -85,7 +84,6 @@ fun Modifier.unplacedWhen(hidden: Boolean): Modifier =
 @Composable
 fun Dashboard(
     client: HaClient,
-    entitiesState: State<EntityMap>,
     connectionState: State<ConnectionState>,
     config: AppConfig,
     configNotice: String? = null,
@@ -97,7 +95,7 @@ fun Dashboard(
     // rebuilding this was recomposing every card on every page on every HA
     // event, which on the Main page means the whole floorplan every time
     // anyone walks past a radar.
-    val ctx = remember(client) { CardContext(entitiesState, client, connectionState) }
+    val ctx = remember(client) { CardContext(client, connectionState) }
 
     val pageCount = config.pages.size.coerceAtLeast(1)
     var current by remember { mutableIntStateOf(config.startPage.coerceIn(0, pageCount - 1)) }
