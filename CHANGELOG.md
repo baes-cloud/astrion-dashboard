@@ -7,6 +7,15 @@ MT6580, a battery pass (`docs/POWER.md`), and a usability pass that followed
 a design review and a review of two weeks of real use. Home Assistant
 companion automations and scripts are in `docs/HOME_ASSISTANT.md`.
 
+### Lit rooms
+
+- The floor plan can light each room in its lamps' real colour and
+  brightness, and shade rooms with nothing on after sunset. Set up with a
+  `lit_rooms` block on the `picture_elements` card (room outlines plus the
+  lights in each); the bundled dashboard has it for the flat. Redraws only
+  when a light changes, with a short fade, so it costs nothing at rest.
+- With lit rooms on, a lit bulb icon takes its light's colour.
+
 ### Code audit (October 2026)
 
 Everything from the October 2026 code audit (`audit/astrion-code-audit.md`

@@ -30,4 +30,32 @@ class BundledDashboardTest {
             assertTrue("unknown key ${it.key}", it.key.uppercase() in keys)
         }
     }
+
+    /** Every lit_rooms light must have an icon on the same plan, or it never glows. */
+    @Test
+    fun litRoomLightsAreOnTheFloorplan() {
+        val plans = mutableListOf<Map<*, *>>()
+        fun walk(v: Any?) {
+            when (v) {
+                is Map<*, *> -> {
+                    if (v["type"] == "picture_elements") (v["options"] as? Map<*, *>)?.let { if (it["lit_rooms"] != null) plans += it }
+                    v.values.forEach(::walk)
+                }
+                is List<*> -> v.forEach(::walk)
+            }
+        }
+        config.pages.flatMap { it.cards }.forEach { c ->
+            if (c.type == "picture_elements" && c.options["lit_rooms"] != null) plans += c.options
+            walk(c.options)
+        }
+        assertTrue(plans.isNotEmpty())
+        plans.forEach { plan ->
+            val placed = (plan["elements"] as List<*>).mapNotNull { (it as Map<*, *>)["entity_id"] }.toSet()
+            ((plan["lit_rooms"] as Map<*, *>)["rooms"] as List<*>).forEach { r ->
+                r as Map<*, *>
+                assertTrue("${r["name"]}: shape needs 3+ points", (r["shape"] as List<*>).size >= 3)
+                (r["lights"] as List<*>).forEach { assertTrue("$it has no floorplan icon", it in placed) }
+            }
+        }
+    }
 }

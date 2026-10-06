@@ -350,6 +350,36 @@
           ]
          },
          "stretch": true,
+         "lit_rooms": {
+          "shade": "sun",
+          "rooms": [
+           {
+            "name": "Club and kitchen",
+            "shape": [[1, 1], [99, 1], [99, 53], [89, 53], [89, 64], [58, 64], [58, 50], [1, 50]],
+            "lights": ["light.hue_play", "light.tv_art_lights", "light.couch", "light.club_led_group", "light.art_group", "light.bar_spotlights", "light.downlights", "light.kitchen_console_candles", "light.kitchen_group"]
+           },
+           {
+            "name": "Hall",
+            "shape": [[44, 50], [58, 50], [58, 64], [44, 64]],
+            "lights": ["light.bedroom_cupboard_light"]
+           },
+           {
+            "name": "Bedroom",
+            "shape": [[0, 51], [43, 51], [43, 100], [0, 100]],
+            "lights": ["light.send_nudes", "light.bedroom_lights", "light.bedlamps"]
+           },
+           {
+            "name": "Bathroom",
+            "shape": [[44, 65], [69, 65], [69, 100], [44, 100]],
+            "lights": ["light.bathroom_downlights"]
+           },
+           {
+            "name": "Office",
+            "shape": [[70, 65], [89, 65], [89, 54], [100, 54], [100, 100], [70, 100]],
+            "lights": ["light.office_lights", "light.wardrobes"]
+           }
+          ]
+         },
          "rmm": {
           "map_group": "default",
           "source_size": [
