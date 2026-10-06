@@ -40,7 +40,7 @@ val bundleDashboardConfig = tasks.register<BundleDashboardConfig>("bundleDashboa
 
 android {
     namespace = "com.custom.astrion"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.custom.astrion"
@@ -77,9 +77,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
 
     // android.util.Log in HaClient returns defaults instead of throwing in JVM tests.
     testOptions {
@@ -92,6 +89,12 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
 androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(bundleDashboardConfig, BundleDashboardConfig::outputDir)
@@ -99,19 +102,19 @@ androidComponents {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.09.02")
+    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)
 
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.activity:activity-compose:1.9.2")
+    implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.activity:activity-compose:1.11.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     // Extended icon set (FastRewind, PowerSettingsNew, etc.) used by cards.
     implementation("androidx.compose.material:material-icons-extended")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 
     // OkHttp provides the WebSocket transport.
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
