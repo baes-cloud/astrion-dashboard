@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -188,6 +189,12 @@ class PictureElementsCard : CardRenderer {
                 )
             }
 
+            // Lit rooms: each light's colour and brightness pooled in its own
+            // room, with unlit rooms shaded after sunset. Under everything
+            // else, so icons and dots stay crisp on top. See LitRooms.kt.
+            val litRooms = config.options["lit_rooms"] as? Map<String, Any?>
+            if (litRooms != null && bitmap != null) LitRoomsLayer(litRooms, elements, ctx)
+
             // Optional embedded card floated over the plan (e.g. the
             // now-playing strip in the empty band across the bedroom /
             // bathroom / office), so the plan can run to the bottom of the
@@ -227,13 +234,18 @@ class PictureElementsCard : CardRenderer {
                 val x = w * (leftPct / 100f) - iconBox / 2
                 val y = h * (topPct / 100f) - iconBox / 2
 
+                // With lit rooms the bulb takes the light's own colour, so the
+                // icon matches the glow around it.
+                val glowColor = if (on && litRooms != null) entity?.let { lightColor(it) } else null
                 val bg = when {
                     elUnavailable -> Color(0x44803030)
+                    glowColor != null -> glowColor.copy(alpha = 0.42f)
                     on -> Color(0x66FFC24B)
                     else -> Color(0x33000000)
                 }
                 val tint = when {
                     elUnavailable -> Color(0xFFC98A8A)
+                    glowColor != null -> lerp(glowColor, Color.White, 0.65f)
                     on -> Color(0xFFFFD37A)
                     else -> Color(0xFFEEF2EF)
                 }
