@@ -69,6 +69,8 @@ import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
+import com.custom.astrion.input.KeyDispatcher
+import com.custom.astrion.input.KeyTimers
 import com.custom.astrion.ir.IrBlaster
 import com.custom.astrion.ir.IrModeOverlay
 import com.custom.astrion.ui.AlarmOverlay
@@ -143,20 +145,6 @@ class MainActivity : ComponentActivity() {
         val DEBUG_KEYS = BuildConfig.DEBUG
         const val KEY_TAG = "AstrionKeys"
 
-        // Hold this long for a button's long-press action to fire.
-        const val LONG_PRESS_MS = 1500L
-
-        /**
-         * How long a key with a double-tap binding waits after a release to
-         * see whether a second tap is coming.
-         *
-         * This is a real cost, not a tuning knob: for those keys the single
-         * tap cannot fire until the window closes, because until then we do
-         * not know which action was meant. Kept short enough that the page
-         * jump still feels like a button press.
-         */
-        const val DOUBLE_TAP_MS = 280L
-
         /**
          * Wanted but blocked on something with no event of its own (the mic
          * permission granted from Settings): look again this often.
@@ -207,16 +195,7 @@ class MainActivity : ComponentActivity() {
         const val DOCK_DRAIN_PCT = 3
     }
 
-    // Long-press timing state.
     private val keyHandler = Handler(Looper.getMainLooper())
-    private var pendingLong: Runnable? = null
-    private var activeLongKey = -1
-    private var longFired = false
-
-    // Double-tap timing state: the deferred single-tap action, and which key
-    // it belongs to, so a second tap of a DIFFERENT key doesn't consume it.
-    private var pendingSingle: Runnable? = null
-    private var pendingSingleKey = -1
 
     // Motion-wake: an accelerometer wakes the screen when the remote is
     // lifted/moved. NOT cheap at rest: a wake-up accelerometer wakes the SoC
@@ -251,15 +230,15 @@ class MainActivity : ComponentActivity() {
     private lateinit var client: HaClient
     private val keyRouter = HardwareKeyRouter()
 
-    /**
-     * Keys whose tap is a plain page jump. Those jump on key-DOWN, even when
-     * the key also has a hold or double-tap binding: a page jump is harmless
-     * if the press turns out to be a hold or a double, and waiting for the
-     * release (plus the double-tap window) made SCENE take 0.5–0.8s.
-     */
-    private val pageJumpKeys = mutableSetOf<HardwareKey>()
-    /** The key whose tap already ran on its DOWN, so its UP doesn't run it again. */
-    private var tapFiredOnDown = -1
+    /** Tap / hold / double-tap timing for the bound keys. */
+    private val keys = KeyDispatcher(
+        keyRouter,
+        object : KeyTimers {
+            override fun postDelayed(r: Runnable, delayMs: Long) { keyHandler.postDelayed(r, delayMs) }
+            override fun remove(r: Runnable) = keyHandler.removeCallbacks(r)
+        },
+        onHoldFired = { holdHaptics.performHapticFeedback(HapticFeedbackType.LongPress) },
+    )
 
     /** Confirmation / failure pill; see ui/ActionToast.kt and [watchOutcomes]. */
     private var toast by mutableStateOf<ToastMessage?>(null)
@@ -605,13 +584,13 @@ class MainActivity : ComponentActivity() {
         double: List<HotkeyConfig> = emptyList(),
     ) {
         keyRouter.clear()
-        pageJumpKeys.clear()
-        cancelPendingSingle()
+        keys.pageJumpKeys.clear()
+        keys.cancelPendingSingle()
         short.forEach { hk ->
             val key = runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
                 ?: return@forEach
             keyRouter.on(key) { runHotkey(hk) }
-            if (hk.page != null && hk.then.isEmpty()) pageJumpKeys += key
+            if (hk.page != null && hk.then.isEmpty()) keys.pageJumpKeys += key
         }
         long.forEach { hk ->
             val key = runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
@@ -993,12 +972,9 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Physical buttons arrive as standard KeyEvents. We intercept here to run
-     * tap-vs-hold logic:
-     *  - keys with a long-press binding fire their SHORT action on release (if
-     *    released before LONG_PRESS_MS) or their LONG action once held past it;
-     *  - keys without a long binding fire immediately on each down (so volume
-     *    etc. still repeat while held).
+     * Physical buttons arrive as standard KeyEvents. The screensaver, popups,
+     * IR mode and the voice key get first look; bound keys then go through
+     * [KeyDispatcher]'s tap / hold / double-tap timing.
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val code = event.keyCode
@@ -1061,12 +1037,8 @@ class MainActivity : ComponentActivity() {
             return true
         }
 
-        val shortH = keyRouter.shortHandler(code)
-        val longH = keyRouter.longHandler(code)
-        val doubleH = keyRouter.doubleHandler(code)
-
         // Unmapped: log/toast for diagnosis, then let the OS handle it.
-        if (shortH == null && longH == null && doubleH == null) {
+        if (!keys.isBound(code)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 Log.i(KEY_TAG, "keyCode=$code (${KeyEvent.keyCodeToString(code)})")
                 if (DEBUG_KEYS) Toast.makeText(this, "Unmapped key: $code", Toast.LENGTH_SHORT).show()
@@ -1074,84 +1046,7 @@ class MainActivity : ComponentActivity() {
             return super.dispatchKeyEvent(event)
         }
 
-        when (event.action) {
-            KeyEvent.ACTION_DOWN -> {
-                // A press arriving while this key's single-tap is still held
-                // back IS the second tap: cancel the deferred single and fire
-                // the double instead. Checked before the long-press timer so a
-                // double tap never also arms a hold.
-                if (doubleH != null && event.repeatCount == 0 &&
-                    pendingSingle != null && pendingSingleKey == code
-                ) {
-                    cancelPendingSingle()
-                    cancelPendingLong()
-                    longFired = true // suppress the short action on this release
-                    activeLongKey = -1
-                    doubleH.invoke()
-                    return true
-                }
-                // Page jumps don't wait for the release; see pageJumpKeys.
-                tapFiredOnDown = -1
-                if (event.repeatCount == 0 && (longH != null || doubleH != null) && key in pageJumpKeys) {
-                    shortH?.invoke()
-                    tapFiredOnDown = code
-                }
-                if (longH != null) {
-                    // Long-capable: start the hold timer on first press, ignore repeats.
-                    if (event.repeatCount == 0) {
-                        cancelPendingLong()
-                        longFired = false
-                        activeLongKey = code
-                        val r = Runnable {
-                            longFired = true
-                            holdHaptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            longH.invoke()
-                        }
-                        pendingLong = r
-                        keyHandler.postDelayed(r, LONG_PRESS_MS)
-                    }
-                } else if (doubleH != null) {
-                    // Short-only but double-capable: nothing can fire until the
-                    // window closes on release. Arming here rather than on UP
-                    // would make a held key auto-repeat into a double tap.
-                    longFired = false
-                    activeLongKey = code
-                } else {
-                    // Short-only: fire on every down (preserves hold-to-repeat).
-                    shortH?.invoke()
-                }
-                return true
-            }
-            KeyEvent.ACTION_UP -> {
-                if ((longH != null || doubleH != null) && code == activeLongKey) {
-                    cancelPendingLong()
-                    activeLongKey = -1
-                    // Already ran on the DOWN (a page jump): don't run it twice.
-                    val tap = if (tapFiredOnDown == code) null else shortH
-                    tapFiredOnDown = -1
-                    // Released before the hold threshold → it was a tap.
-                    if (!longFired) {
-                        if (doubleH != null) {
-                            // Hold the single back until the window closes
-                            // (still armed when the tap already ran, so a
-                            // second tap is recognised as the double).
-                            cancelPendingSingle()
-                            val r = Runnable {
-                                pendingSingle = null
-                                pendingSingleKey = -1
-                                tap?.invoke()
-                            }
-                            pendingSingle = r
-                            pendingSingleKey = code
-                            keyHandler.postDelayed(r, DOUBLE_TAP_MS)
-                        } else {
-                            tap?.invoke()
-                        }
-                    }
-                }
-                return true
-            }
-        }
+        if (keys.handle(code, event.action, event.repeatCount)) return true
         return super.dispatchKeyEvent(event)
     }
 
@@ -1369,17 +1264,6 @@ class MainActivity : ComponentActivity() {
         if (lp.screenBrightness == value) return
         lp.screenBrightness = value
         window.attributes = lp
-    }
-
-    private fun cancelPendingLong() {
-        pendingLong?.let { keyHandler.removeCallbacks(it) }
-        pendingLong = null
-    }
-
-    private fun cancelPendingSingle() {
-        pendingSingle?.let { keyHandler.removeCallbacks(it) }
-        pendingSingle = null
-        pendingSingleKey = -1
     }
 
     // ---- wake word while docked ---------------------------------------------
@@ -1670,8 +1554,7 @@ class MainActivity : ComponentActivity() {
         networkCallback?.let { cb ->
             runCatching { (getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(cb) }
         }
-        cancelPendingLong()
-        cancelPendingSingle()
+        keys.cancelPending()
         client.close()
         stopService(Intent(this, KeepAliveService::class.java))
         super.onDestroy()
