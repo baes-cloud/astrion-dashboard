@@ -17,8 +17,9 @@ data class EntityState(
     val entityId: String,
     val state: String,
     val attributes: JsonObject,
-    val lastChanged: String? = null,
-    val lastUpdated: String? = null,
+    /** Epoch millis, as HA sends them (it sends seconds); null if unknown. */
+    val lastChangedMs: Long? = null,
+    val lastUpdatedMs: Long? = null,
 ) {
     val domain: String get() = entityId.substringBefore('.')
 

@@ -33,9 +33,6 @@ import com.custom.astrion.ui.holdOnly
 import com.custom.astrion.ui.humanise
 import com.custom.astrion.ui.tap
 import kotlinx.coroutines.delay
-import java.time.Instant
-import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
 
 /**
  * Door-lock card: name, how long the bolt has been where it is, and one
@@ -91,7 +88,7 @@ class LockCard : CardRenderer {
                 now = System.currentTimeMillis()
             }
         }
-        val age = if (showAge) ago(e?.lastChanged, now) else null
+        val age = if (showAge) ago(e?.lastChangedMs, now) else null
 
         fun call(service: String) {
             ctx.client.callService(ServiceCall(domain = "lock", service = service, entityId = entityId))
@@ -231,19 +228,10 @@ class LockCard : CardRenderer {
         }
     }
 
-    /**
-     * "3 min ago" from HA's `last_changed`, which arrives as ISO-8601 with a
-     * six-digit fraction and an offset (2026-09-04T20:53:45.944550+00:00).
-     * API 26 has java.time, so no desugaring is needed for this.
-     */
-    private fun ago(lastChanged: String?, nowMs: Long): String? {
-        val iso = lastChanged ?: return null
-        val then = runCatching {
-            OffsetDateTime.parse(iso, DateTimeFormatter.ISO_OFFSET_DATE_TIME).toInstant()
-        }.getOrElse {
-            runCatching { Instant.parse(iso) }.getOrNull()
-        } ?: return null
-        val secs = (nowMs - then.toEpochMilli()) / 1000
+    /** "3 min ago" from the entity's last change (epoch millis). */
+    private fun ago(lastChangedMs: Long?, nowMs: Long): String? {
+        val then = lastChangedMs ?: return null
+        val secs = (nowMs - then) / 1000
         if (secs < 0) return null
         return when {
             secs < 60 -> "just now"

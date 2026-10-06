@@ -1688,7 +1688,9 @@ class MainActivity : ComponentActivity() {
         networkCallback?.let { cb ->
             runCatching { (getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(cb) }
         }
-        client.disconnect()
+        cancelPendingLong()
+        cancelPendingSingle()
+        client.close()
         stopService(Intent(this, KeepAliveService::class.java))
         super.onDestroy()
     }

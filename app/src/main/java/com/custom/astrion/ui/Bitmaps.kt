@@ -82,7 +82,12 @@ fun rememberSampledBitmap(path: String?, targetPx: Int): State<ImageBitmap?> =
         val key = cacheKey(p, targetPx)
         sampledCache[key]?.let { value = it; return@produceState }
         val decoded = withContext(Dispatchers.IO) { decodeSampled(p, targetPx) }
-        if (decoded != null) sampledCache[key] = decoded
+        if (decoded != null) {
+            // A changed file (new mtime) makes the old decodes of it garbage;
+            // without this every edit of the floorplan kept ~1 MB resident.
+            sampledCache.keys.removeAll { it.startsWith("$p|$targetPx|") && it != key }
+            sampledCache[key] = decoded
+        }
         value = decoded
     }
 

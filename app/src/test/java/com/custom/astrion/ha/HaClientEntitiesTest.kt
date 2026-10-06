@@ -29,10 +29,10 @@ class HaClientEntitiesTest {
         val light = c.entityState("light.kitchen").value!!
         assertEquals("off", light.state)
         assertEquals("Kitchen", light.friendlyName)
-        assertEquals("2024-09-29T08:53:20.500Z", light.lastChanged)
+        assertEquals(1727600000500L, light.lastChangedMs)
         // lu omitted means it equals lc.
-        assertEquals(light.lastChanged, light.lastUpdated)
-        assertEquals("2024-09-29T08:54:20Z", c.entityState("sensor.temp").value!!.lastUpdated)
+        assertEquals(light.lastChangedMs, light.lastUpdatedMs)
+        assertEquals(1727600060000L, c.entityState("sensor.temp").value!!.lastUpdatedMs)
     }
 
     @Test fun diffMergesStateAndAttributes() {
@@ -47,8 +47,8 @@ class HaClientEntitiesTest {
         assertEquals("on", light.state)
         assertEquals(200.0, light.attrDouble("brightness")!!, 0.0)
         assertNull(light.attr("friendly_name"))
-        assertEquals("2024-09-29T08:55:00Z", light.lastChanged)
-        assertEquals(light.lastChanged, light.lastUpdated)
+        assertEquals(1727600100000L, light.lastChangedMs)
+        assertEquals(light.lastChangedMs, light.lastUpdatedMs)
     }
 
     @Test fun attributeOnlyDiffKeepsLastChanged() {
@@ -57,8 +57,8 @@ class HaClientEntitiesTest {
         val t = c.entityState("sensor.temp").value!!
         assertEquals("21.5", t.state)
         assertEquals("°C", t.attrString("unit_of_measurement"))
-        assertEquals("2024-09-29T08:53:20Z", t.lastChanged)
-        assertEquals("2024-09-29T08:56:40Z", t.lastUpdated)
+        assertEquals(1727600000000L, t.lastChangedMs)
+        assertEquals(1727600200000L, t.lastUpdatedMs)
     }
 
     @Test fun removalDropsEntity() {

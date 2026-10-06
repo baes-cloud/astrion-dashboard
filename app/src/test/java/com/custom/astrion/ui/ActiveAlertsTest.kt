@@ -7,8 +7,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ActiveAlertsTest {
-    private fun e(id: String, state: String, lastChanged: String? = "2026-10-06T00:00:00Z") =
-        EntityState(id, state, JsonObject(emptyMap()), lastChanged, lastChanged)
+    private val changed = java.time.Instant.parse("2026-10-06T00:00:00Z").toEpochMilli()
+
+    private fun e(id: String, state: String) =
+        EntityState(id, state, JsonObject(emptyMap()), changed, changed)
 
     private val now = java.time.Instant.parse("2026-10-06T00:10:00Z").toEpochMilli()
 
@@ -18,7 +20,7 @@ class ActiveAlertsTest {
         val s = specs(mapOf("entity" to "binary_sensor.leak", "severity" to "alarm"))
         val out = activeAlerts(s, mapOf("binary_sensor.leak" to e("binary_sensor.leak", "on")), now)
         assertEquals(1, out.size)
-        assertEquals("binary_sensor.leak@2026-10-06T00:00:00Z", out[0].token)
+        assertEquals("binary_sensor.leak@$changed", out[0].token)
     }
 
     @Test fun otherStateIsNotActive() {

@@ -113,7 +113,7 @@ class PlexCard : CardRenderer {
     private data class Shelf(val title: String, val items: List<PlexItem>)
 
     private companion object {
-        val http: OkHttpClient = OkHttpClient.Builder()
+        val http: OkHttpClient = com.custom.astrion.ha.Http.base.newBuilder()
             .callTimeout(12, TimeUnit.SECONDS)
             .build()
         val json = Json { ignoreUnknownKeys = true }

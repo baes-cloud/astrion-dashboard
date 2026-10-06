@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -24,14 +25,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*
 import com.custom.astrion.config.JsonPlain
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString.Companion.toByteString
-import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -83,13 +82,14 @@ class HaClient(
     // The only heartbeat. There used to be a second, app-level HA `ping`
     // every 30 s on top of this; each one wakes the Wi-Fi radio, and only
     // this one actually notices a dead socket (no pong fails the connection).
-    private val http = OkHttpClient.Builder()
+    private val http = Http.base.newBuilder()
         .pingInterval(30, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
 
-    // Separate, sanely-timed client for one-shot HTTP GETs (album art).
-    private val imageHttp = OkHttpClient.Builder()
+    // Separate, sanely-timed client for one-shot HTTP GETs (album art). Both
+    // derive from Http.base, so they share its connection pool and threads.
+    private val imageHttp = Http.base.newBuilder()
         .callTimeout(10, TimeUnit.SECONDS)
         .build()
 
@@ -238,6 +238,15 @@ class HaClient(
         _connection.value = ConnectionState.DISCONNECTED
         socket?.close(1000, "client closing")
         socket = null
+    }
+
+    /**
+     * Disconnect for good: also stops this client's coroutines (reconnect,
+     * publish, posts), which [disconnect] leaves alive for a later [connect].
+     */
+    fun close() {
+        disconnect()
+        scope.cancel()
     }
 
     /**
@@ -789,13 +798,13 @@ class HaClient(
         }
         added?.forEach { (entityId, el) ->
             val c = el as? JsonObject ?: return@forEach
-            val lc = isoTime(c["lc"])
+            val lc = epochMs(c["lc"])
             entityStore[entityId] = EntityState(
                 entityId = entityId,
                 state = c["s"]?.jsonPrimitive?.content ?: "unknown",
                 attributes = c["a"] as? JsonObject ?: JsonObject(emptyMap()),
-                lastChanged = lc,
-                lastUpdated = isoTime(c["lu"]) ?: lc,
+                lastChangedMs = lc,
+                lastUpdatedMs = epochMs(c["lu"]) ?: lc,
             )
             changedIds += entityId
             meaningful = true
@@ -809,13 +818,13 @@ class HaClient(
             var attrs: Map<String, JsonElement> = old.attributes
             if (minusAttrs.isNotEmpty()) attrs = attrs - minusAttrs
             (plus?.get("a") as? JsonObject)?.let { attrs = attrs + it }
-            val lc = isoTime(plus?.get("lc"))
+            val lc = epochMs(plus?.get("lc"))
             val updated = old.copy(
                 state = plus?.get("s")?.jsonPrimitive?.content ?: old.state,
                 attributes = if (attrs === old.attributes) old.attributes else JsonObject(attrs),
-                lastChanged = lc ?: old.lastChanged,
+                lastChangedMs = lc ?: old.lastChangedMs,
                 // A new last_changed implies the same last_updated.
-                lastUpdated = isoTime(plus?.get("lu")) ?: lc ?: old.lastUpdated,
+                lastUpdatedMs = epochMs(plus?.get("lu")) ?: lc ?: old.lastUpdatedMs,
             )
             entityStore[entityId] = updated
             // Kept in the store, but nothing redraws for it; it goes out with
@@ -848,9 +857,13 @@ class HaClient(
         return attrs.keys.all { it in PLAYHEAD_ATTRS }
     }
 
-    /** HA's epoch-seconds timestamp as ISO-8601, the format cards parse. */
-    private fun isoTime(el: JsonElement?): String? =
-        (el as? JsonPrimitive)?.doubleOrNull?.let { Instant.ofEpochMilli((it * 1000).toLong()).toString() }
+    /**
+     * HA's epoch-seconds timestamp as epoch millis. Kept numeric: these
+     * used to become ISO strings on every diff, only for readers to parse
+     * them straight back.
+     */
+    private fun epochMs(el: JsonElement?): Long? =
+        (el as? JsonPrimitive)?.doubleOrNull?.let { (it * 1000).toLong() }
 
     private fun send(msg: JsonObject) {
         // Never before auth_ok: HA drops a connection whose first message
