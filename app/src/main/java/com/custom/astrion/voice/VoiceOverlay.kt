@@ -1,6 +1,5 @@
 package com.custom.astrion.voice
 
-import android.graphics.BitmapFactory
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -26,7 +25,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -34,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import java.io.File
+import com.custom.astrion.ui.rememberSampledBitmap
 import com.custom.astrion.ui.tap
 
 /**
@@ -53,10 +52,11 @@ fun VoiceOverlay(
 ) {
     if (state.phase == VoicePhase.IDLE) return
 
-    // Decode once per (dir, phase) — these are small and the SoC is modest.
-    val art: ImageBitmap? = remember(imageDir, state.phase) {
-        loadPhaseImage(imageDir, state.phase)
-    }
+    // Decoded off the main thread, downsampled to the panel and cached, so
+    // the overlay opening (at the wake word) and each phase change don't
+    // stall on a full-size PNG decode.
+    val artPath = remember(imageDir, state.phase) { phaseImagePath(imageDir, state.phase) }
+    val art: ImageBitmap? = rememberSampledBitmap(artPath, targetPx = 256).value
 
     // In-content overlay rather than a Dialog, so MainActivity keeps input
     // focus and the VOICE key can still be intercepted while this is open
@@ -207,7 +207,7 @@ private fun accentColor(p: VoicePhase) = when (p) {
 private fun haloColor(p: VoicePhase) = accentColor(p).copy(alpha = 0.14f)
 
 /** `<dir>/<phase>.png`, falling back to `<dir>/idle.png`, else null. */
-private fun loadPhaseImage(dir: String, phase: VoicePhase): ImageBitmap? {
+private fun phaseImagePath(dir: String, phase: VoicePhase): String? {
     val names = when (phase) {
         VoicePhase.LISTENING -> listOf("listening", "idle")
         VoicePhase.PROCESSING -> listOf("processing", "thinking", "idle")
@@ -216,12 +216,5 @@ private fun loadPhaseImage(dir: String, phase: VoicePhase): ImageBitmap? {
         VoicePhase.ERROR -> listOf("error", "idle")
         VoicePhase.IDLE -> listOf("idle")
     }
-    for (n in names) {
-        val f = File(dir, "$n.png")
-        if (f.exists()) {
-            runCatching { BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() }
-                .getOrNull()?.let { return it }
-        }
-    }
-    return null
+    return names.map { File(dir, "$it.png") }.firstOrNull { it.isFile }?.absolutePath
 }

@@ -776,7 +776,7 @@ private fun parseHexColor(hex: String?): Color? {
  */
 @Composable
 private fun rememberArt(ctx: CardContext, path: String?): ImageBitmap? {
-    var art by remember(path) { mutableStateOf(path?.let { ArtCache.peek(it) }) }
+    var art by remember(path) { mutableStateOf(path?.let { ArtCache.peek(it, 480) }) }
     LaunchedEffect(path) {
         art = path?.let { p -> ArtCache.load(p, 480) { ctx.client.fetchBytes(p) } }
     }

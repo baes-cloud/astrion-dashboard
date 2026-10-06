@@ -1,13 +1,10 @@
 package com.custom.astrion.ha
 
-import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.Snapshot
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -294,14 +291,11 @@ class HaClient(
     }
 
     /**
-     * Fetch an image (e.g. a media_player `entity_picture`) as an ImageBitmap.
-     * `path` may be absolute or an HA-relative path like /api/media_player_proxy/…;
-     * the bearer token is attached so proxied/authenticated art loads too.
+     * Fetch an image (e.g. a media_player `entity_picture`) as raw bytes, to
+     * decode downsampled (ui/Bitmaps.kt) or cache (ArtCache). `path` may be
+     * absolute or an HA-relative path like /api/media_player_proxy/…; the
+     * bearer token is attached so proxied/authenticated art loads too.
      */
-    suspend fun fetchBitmap(path: String): ImageBitmap? =
-        fetchBytes(path)?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
-
-    /** The raw bytes behind [fetchBitmap] (e.g. to cache before decoding). */
     suspend fun fetchBytes(path: String): ByteArray? = withContext(Dispatchers.IO) {
         try {
             val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
@@ -535,6 +529,17 @@ class HaClient(
         frame[0] = handlerId.toByte()
         System.arraycopy(pcm, 0, frame, 1, length)
         return sock.send(frame.toByteString(0, frame.size))
+    }
+
+    /**
+     * Send an audio frame the caller has already laid out as HA wants it:
+     * `frame[0]` is the handler id, then [length]` - 1` bytes of PCM. Lets
+     * the recorder reuse one buffer instead of allocating a frame per chunk.
+     */
+    fun sendAudioFrame(frame: ByteArray, length: Int, forEpoch: Int = epoch): Boolean {
+        if (forEpoch != epoch) return false
+        val sock = socket ?: return false
+        return sock.send(frame.toByteString(0, length))
     }
 
     /** Absolute URL for an HA-relative path, with the bearer token attached. */

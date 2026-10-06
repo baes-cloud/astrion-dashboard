@@ -505,7 +505,7 @@ private fun NowPlaying(
     val artPath = e.attrString("entity_picture")
     // Shared with the media player card via ArtCache, so it's usually
     // already decoded; 76dp needs ~128px.
-    var art by remember(artPath) { mutableStateOf(artPath?.let { ArtCache.peek(it) }) }
+    var art by remember(artPath) { mutableStateOf(artPath?.let { ArtCache.peek(it, 128) }) }
     LaunchedEffect(artPath) {
         art = artPath?.let { p -> ArtCache.load(p, 128) { client.fetchBytes(p) } }
     }

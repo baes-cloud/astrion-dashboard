@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,7 +44,10 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
+import com.custom.astrion.ui.decodeSampled
 import com.custom.astrion.ui.tap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Robot vacuum card: the map (from a Roborock/Xiaomi map image entity, which
@@ -110,8 +114,13 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
 
     val mapPic = mapEntity?.let { ctx.entities[it]?.attrString("entity_picture") }
     var mapBmp by remember(mapPic, rotation) { mutableStateOf<ImageBitmap?>(null) }
+    // Drawn up to 1.9x zoomed into a mapHeight-tall box; anything finer is
+    // wasted memory. Not cached: the URL stays the same while the map
+    // itself changes, so a refetch (HA rotates its token) is how it updates.
+    val mapPx = with(LocalDensity.current) { (mapHeight * 2).dp.roundToPx() }
     LaunchedEffect(mapPic, rotation) {
-        val fetched = mapPic?.let { ctx.client.fetchBitmap(it) } ?: return@LaunchedEffect
+        val bytes = mapPic?.let { ctx.client.fetchBytes(it) } ?: return@LaunchedEffect
+        val fetched = withContext(Dispatchers.Default) { decodeSampled(bytes, mapPx) } ?: return@LaunchedEffect
         mapBmp = if (rotation == 0) fetched else rotateVacuumBitmap(fetched, rotation)
     }
 
