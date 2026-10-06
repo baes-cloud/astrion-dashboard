@@ -1,6 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
+import com.custom.astrion.ui.LocalMinuteClock
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -81,13 +82,7 @@ class LockCard : CardRenderer {
 
         // Re-tick so "12 min ago" doesn't sit frozen at whatever it said when
         // the page was first composed.
-        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-        LaunchedEffect(Unit) {
-            while (true) {
-                delay(30_000)
-                now = System.currentTimeMillis()
-            }
-        }
+        val now = LocalMinuteClock.current
         val age = if (showAge) ago(e?.lastChangedMs, now) else null
 
         fun call(service: String) {

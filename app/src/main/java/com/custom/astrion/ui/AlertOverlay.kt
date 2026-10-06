@@ -138,6 +138,20 @@ fun activeAlerts(specs: List<AlertSpec>, entities: Map<String, EntityState>, now
         ActiveAlert(spec, since, "${spec.id}@${e.lastChangedMs}")
     }.sortedBy { it.spec.rank }
 
+/**
+ * When the next `for_seconds` alert whose entity is already in an alerting
+ * state comes due, or null if none is pending. Lets the caller sleep until
+ * then instead of polling.
+ */
+fun nextAlertDueMs(specs: List<AlertSpec>, entities: Map<String, EntityState>, nowMs: Long): Long? =
+    specs.mapNotNull { spec ->
+        if (spec.forSeconds <= 0) return@mapNotNull null
+        val e = entities[spec.entity] ?: return@mapNotNull null
+        if (e.state !in spec.states) return@mapNotNull null
+        val since = e.lastChangedMs ?: return@mapNotNull null
+        (since + spec.forSeconds * 1000L).takeIf { it > nowMs }
+    }.minOrNull()
+
 private data class Palette(val top: Color, val bottom: Color, val accent: Color, val buttonHi: Color, val buttonLo: Color, val ink: Color)
 
 private fun paletteFor(severity: String): Palette = when (severity) {

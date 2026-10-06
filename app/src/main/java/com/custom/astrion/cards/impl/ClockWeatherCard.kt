@@ -1,6 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
+import com.custom.astrion.ui.LocalMinuteClock
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -85,15 +86,8 @@ class ClockWeatherCard : CardRenderer {
         // Size of the faint condition glyph behind the card; 0 turns it off.
         val watermark = config.int("watermark_size", 150)
 
-        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-        LaunchedEffect(Unit) {
-            while (true) {
-                now = System.currentTimeMillis()
-                // Tick on the minute (like ClockHeaderCard) so the time is
-                // never up to 10 s stale, and wake 6x less often.
-                delay(60_000 - (System.currentTimeMillis() % 60_000) + 250)
-            }
-        }
+        // Ticks on the minute, shared with every other clock on the dashboard.
+        val now = LocalMinuteClock.current
         val timeFmt = remember(is24) {
             SimpleDateFormat(if (is24) "HH:mm" else "h:mm a", Locale.getDefault())
         }

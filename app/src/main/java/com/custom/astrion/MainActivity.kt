@@ -34,7 +34,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 import androidx.activity.ComponentActivity
@@ -74,12 +77,14 @@ import com.custom.astrion.ui.AlertAction
 import com.custom.astrion.ui.AlertOverlay
 import com.custom.astrion.ui.AlertSpec
 import com.custom.astrion.ui.activeAlerts
+import com.custom.astrion.ui.nextAlertDueMs
 import com.custom.astrion.ui.Dashboard
 import com.custom.astrion.ui.ActionToast
 import com.custom.astrion.ui.AstrionMaterialTheme
 import com.custom.astrion.ui.ToastMessage
 import com.custom.astrion.ui.humanise
 import com.custom.astrion.ui.LocalDashboardShowing
+import com.custom.astrion.ui.MinuteClock
 import com.custom.astrion.ui.LocalSheetHost
 import com.custom.astrion.ui.SheetHost
 import com.custom.astrion.ui.StrongHaptics
@@ -152,8 +157,11 @@ class MainActivity : ComponentActivity() {
          */
         const val DOUBLE_TAP_MS = 280L
 
-        /** How often the wake word watcher re-checks dock/config/connection. */
-        const val WAKE_WORD_POLL_MS = 2_000L
+        /**
+         * Wanted but blocked on something with no event of its own (the mic
+         * permission granted from Settings): look again this often.
+         */
+        const val WAKE_WORD_RECHECK_MS = 60_000L
 
         /** `voice.wake_word_undocked_minutes` default: keep listening this long off the dock. */
         const val WAKE_WORD_UNDOCKED_MIN = 10
@@ -181,8 +189,15 @@ class MainActivity : ComponentActivity() {
         const val MOTION_THRESHOLD = 0.9f
         const val WAKE_COOLDOWN_MS = 2000L
 
-        /** How often the idle timer checks whether the screensaver is due. */
+        /**
+         * How often the idle timer looks again while something holds the
+         * screensaver off (IR mode, the alarm, voice). When nothing does, it
+         * waits exactly as long as the idle time has left.
+         */
         const val SCREENSAVER_TICK_MS = 5_000L
+
+        /** While the screensaver is up: re-check the backlight for sunset/sunrise. */
+        const val SCREENSAVER_SHOWN_TICK_MS = 60_000L
 
         /**
          * `screensaver.undocked_idle_seconds` default: off the dock a short
@@ -370,8 +385,7 @@ class MainActivity : ComponentActivity() {
 
     private val screensaverTick = object : Runnable {
         override fun run() {
-            checkScreensaver()
-            keyHandler.postDelayed(this, SCREENSAVER_TICK_MS)
+            keyHandler.postDelayed(this, checkScreensaver())
         }
     }
 
@@ -461,6 +475,7 @@ class MainActivity : ComponentActivity() {
                     CompositionLocalProvider(
                         LocalDashboardShowing provides (screenOnState && inFrontState && !screensaverOn),
                     ) {
+                    MinuteClock {
                     Dashboard(
                         client = client,
                         connectionState = connection,
@@ -472,6 +487,7 @@ class MainActivity : ComponentActivity() {
                     // Light / vacuum / media-browser popups, in this window so
                     // the hardware keys and the idle timer keep working.
                     sheetHost.Host()
+                    }
                     }
                     }
 
@@ -520,19 +536,29 @@ class MainActivity : ComponentActivity() {
                     ActionToast(toast, onGone = { toast = null })
 
                     // Voice modal, driven by the session's own state machine.
-                    val voiceState = voice.state.collectAsState().value
-                    VoiceOverlay(
-                        state = voiceState,
-                        imageDir = voiceImageDir(),
-                        onDismiss = {
-                            if (voiceState.phase == VoicePhase.LISTENING) voice.stopListening()
-                            else voice.cancel()
-                        },
-                    )
+                    VoiceHost()
                 }
               }
             }
         }
+    }
+
+    /**
+     * Collects the voice state in its own scope: while listening the mic
+     * level updates it several times a second, which collected at the root
+     * re-ran the whole root content each time.
+     */
+    @Composable
+    private fun VoiceHost() {
+        val voiceState = voice.state.collectAsState().value
+        VoiceOverlay(
+            state = voiceState,
+            imageDir = voiceImageDir(),
+            onDismiss = {
+                if (voiceState.phase == VoicePhase.LISTENING) voice.stopListening()
+                else voice.cancel()
+            },
+        )
     }
 
     /**
@@ -783,19 +809,26 @@ class MainActivity : ComponentActivity() {
     private var alertSpecsCached: List<AlertSpec> = emptyList()
 
     /**
-     * Like [watchAlarm] for the configured alerts. Polls (every 3 s) rather
-     * than collecting, because `for_seconds` alerts become due with no state
-     * change. A new "alarm" wakes the screen and keeps it on until cleared or
-     * hidden; a "warning" wakes it once; an "info" just waits to be seen.
+     * Like [watchAlarm] for the configured alerts. A new "alarm" wakes the
+     * screen and keeps it on until cleared or hidden; a "warning" wakes it
+     * once; an "info" just waits to be seen.
      */
     private fun watchAlerts() {
         var lastToken: String? = null
         var keepAwake: kotlinx.coroutines.Job? = null
         alarmScope.launch {
-            while (true) {
-                alertNow = System.currentTimeMillis()
-                val top = activeAlerts(alertSpecs(), client.live, alertNow)
-                    .firstOrNull { it.token !in hiddenAlerts }
+            // Re-evaluated when an alert's entity, the config or a hide
+            // changes (client.live reads subscribe per entity), and when
+            // [alertNow] ticks. The clock only ticks when something needs
+            // it: a `for_seconds` alert coming due, or one on screen whose
+            // "for N min" must move. This used to scan every 3 s for the
+            // life of the app, alerts or not.
+            snapshotFlow {
+                val specs = alertSpecs()
+                val now = alertNow
+                val top = activeAlerts(specs, client.live, now).firstOrNull { it.token !in hiddenAlerts }
+                Triple(top, nextAlertDueMs(specs, client.live, now), top != null)
+            }.collectLatest { (top, dueMs, shown) ->
                 if (top?.token != lastToken) {
                     keepAwake?.cancel()
                     keepAwake = null
@@ -830,7 +863,13 @@ class MainActivity : ComponentActivity() {
                     }
                     lastToken = top?.token
                 }
-                delay(3_000)
+                val now = System.currentTimeMillis()
+                val wait = listOfNotNull(
+                    dueMs?.let { it - now },
+                    if (shown) 60_000 - now % 60_000 else null,
+                ).minOrNull() ?: return@collectLatest
+                delay(wait.coerceAtLeast(250))
+                alertNow = System.currentTimeMillis()
             }
         }
     }
@@ -1289,6 +1328,9 @@ class MainActivity : ComponentActivity() {
         dockConfirmPending = false
         if (value == docked) return
         docked = value
+        if (!value) undockedAtMs = System.currentTimeMillis()
+        // Docked and undocked idle times differ.
+        rescheduleScreensaverTick()
         // Dropping it in the dock starts the idle countdown from now;
         // lifting it out takes the screensaver down at once (it comes back,
         // dimmer, once it's been put down off the dock).
@@ -1363,24 +1405,32 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Idle tick: show the screensaver when due, and keep its backlight right. */
-    private fun checkScreensaver() {
+    /**
+     * Idle tick: show the screensaver when due, and keep its backlight right.
+     * Returns when to look again: at the moment the idle time would run out
+     * rather than every few seconds, and once a minute while it is up.
+     */
+    private fun checkScreensaver(): Long {
         if (screensaverOn) {
             // Re-evaluated each tick so the backlight follows sunset/sunrise.
             applyScreensaverBrightness()
-            return
+            return SCREENSAVER_SHOWN_TICK_MS
         }
-        if (!inFront || !screensaverArmed() || irMode) return
-        if (alarmUiState(client.live) != null && !alarmHidden) return
+        if (!inFront || !screensaverArmed() || irMode) return SCREENSAVER_TICK_MS
+        if (alarmUiState(client.live) != null && !alarmHidden) return SCREENSAVER_TICK_MS
         val phase = voice.state.value.phase
-        if (phase != VoicePhase.IDLE && phase != VoicePhase.DONE) return
+        if (phase != VoicePhase.IDLE && phase != VoicePhase.DONE) return SCREENSAVER_TICK_MS
         val dockedIdleMs = ((screensaverOptions()["idle_seconds"] as? Number)?.toLong() ?: 45L) * 1000
         val idleMs = if (docked) dockedIdleMs else undockedIdleMs().takeIf { it >= 0 } ?: dockedIdleMs
-        if (System.currentTimeMillis() - lastActivityMs < idleMs) return
+        val left = idleMs - (System.currentTimeMillis() - lastActivityMs)
+        // Activity since only pushes the deadline later, so waking at the old
+        // one and measuring again is always early enough.
+        if (left > 0) return left + 50
         screensaverOn = true
         // Waking it lands on the start page, not wherever it was left.
         navTarget = dashboard.config.startPage
         applyScreensaverBrightness()
+        return SCREENSAVER_SHOWN_TICK_MS
     }
 
     private fun applyScreensaverBrightness() {
@@ -1398,9 +1448,16 @@ class MainActivity : ComponentActivity() {
         setWindowBrightness(level.coerceIn(0.01f, 1f))
     }
 
+    /** Look again soon: something changed what the idle deadline is. */
+    private fun rescheduleScreensaverTick() {
+        keyHandler.removeCallbacks(screensaverTick)
+        if (inFront) keyHandler.postDelayed(screensaverTick, SCREENSAVER_TICK_MS)
+    }
+
     private fun hideScreensaver() {
         if (!screensaverOn) return
         screensaverOn = false
+        rescheduleScreensaverTick()
         markActivity()
         setWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
     }
@@ -1440,31 +1497,59 @@ class MainActivity : ComponentActivity() {
      */
     private fun watchWakeWord() {
         alarmScope.launch {
-            var lastDockedMs = 0L
-            while (true) {
-                delay(WAKE_WORD_POLL_MS)
-                val now = System.currentTimeMillis()
-                if (docked) lastDockedMs = now
-                val graceMs = ((voiceOptions()["wake_word_undocked_minutes"] as? Number)?.toLong()
-                    ?: WAKE_WORD_UNDOCKED_MIN.toLong()) * 60_000
-                val mode = (voiceOptions()["wake_word"] as? String) ?: "docked"
-                val want = when (mode) {
-                    "always" -> true
-                    "docked" -> lastDockedMs > 0 && now - lastDockedMs < graceMs
-                    else -> false
-                } && voice.hasPermission && client.connection.value == ConnectionState.CONNECTED
-
-                val s = voice.state.value
-                if (want && !s.armed && s.phase == VoicePhase.IDLE &&
-                    System.currentTimeMillis() - voice.lastWakeFailureAt > WAKE_WORD_BACKOFF_MS
-                ) {
-                    voice.armWakeWord(voicePipelineId())
-                } else if (!want && s.armed) {
-                    voice.disarm()
+            // Re-checked when something it depends on changes (dock, config,
+            // connection, the session's own state) and at the one moment a
+            // clock matters (the undocked grace or a failure backoff running
+            // out), instead of every 2 s for the life of the app.
+            combine(
+                snapshotFlow { docked to voiceOptions() },
+                client.connection,
+                voice.state.map { it.armed to it.phase }.distinctUntilChanged(),
+            ) { _, _, _ -> }.collectLatest {
+                while (true) {
+                    val wait = updateWakeWord() ?: break
+                    delay(wait)
                 }
-                holdWakeWordLock(voice.state.value.armed)
             }
         }
+    }
+
+    /** When the remote last left the dock; 0 = not since launch. */
+    private var undockedAtMs = 0L
+
+    /**
+     * Arm or disarm the wake word to match the dock, config and connection.
+     * Returns how long until it needs looking at again with nothing else
+     * changing, or null if only an event can change the answer.
+     */
+    private fun updateWakeWord(): Long? {
+        val now = System.currentTimeMillis()
+        val graceMs = ((voiceOptions()["wake_word_undocked_minutes"] as? Number)?.toLong()
+            ?: WAKE_WORD_UNDOCKED_MIN.toLong()) * 60_000
+        val mode = (voiceOptions()["wake_word"] as? String) ?: "docked"
+        val graceLeft = if (!docked && undockedAtMs > 0) undockedAtMs + graceMs - now else 0L
+        val wantByMode = when (mode) {
+            "always" -> true
+            "docked" -> docked || graceLeft > 0
+            else -> false
+        }
+        // Permission can be granted from Settings without any event here.
+        val want = wantByMode && voice.hasPermission && client.connection.value == ConnectionState.CONNECTED
+
+        val s = voice.state.value
+        val backoffLeft = voice.lastWakeFailureAt + WAKE_WORD_BACKOFF_MS - now
+        if (want && !s.armed && s.phase == VoicePhase.IDLE && backoffLeft <= 0) {
+            voice.armWakeWord(voicePipelineId())
+        } else if (!want && s.armed) {
+            voice.disarm()
+        }
+        holdWakeWordLock(voice.state.value.armed)
+
+        return listOfNotNull(
+            graceLeft.takeIf { mode == "docked" && it > 0 },
+            backoffLeft.takeIf { want && it > 0 },
+            WAKE_WORD_RECHECK_MS.takeIf { wantByMode && !want },
+        ).minOrNull()?.coerceAtLeast(250)
     }
 
     /**

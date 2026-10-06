@@ -52,4 +52,19 @@ class ActiveAlertsTest {
         val s = specs(mapOf("entity" to "binary_sensor.gone"))
         assertTrue(activeAlerts(s, emptyMap(), now).isEmpty())
     }
+
+    @Test fun nextDueIsWhenForSecondsRunsOut() {
+        val s = specs(
+            mapOf("entity" to "lock.front", "state" to "unlocked", "for_seconds" to 900),
+            mapOf("entity" to "binary_sensor.leak"),
+        )
+        val ents = mapOf(
+            "lock.front" to e("lock.front", "unlocked"),
+            "binary_sensor.leak" to e("binary_sensor.leak", "on"),
+        )
+        assertEquals(changed + 900_000, nextAlertDueMs(s, ents, now))
+        // Already due, or not in an alerting state: nothing pending.
+        assertEquals(null, nextAlertDueMs(s, ents, changed + 900_000))
+        assertEquals(null, nextAlertDueMs(s, mapOf("lock.front" to e("lock.front", "locked")), now))
+    }
 }

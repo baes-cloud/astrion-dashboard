@@ -1,6 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
+import com.custom.astrion.ui.LocalMinuteClock
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -110,13 +111,7 @@ class CalendarLineCard : CardRenderer {
 
         // The label is relative ("Tomorrow 6:15 PM"), so it has to re-evaluate
         // as the day turns, not just when the entity changes.
-        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-        LaunchedEffect(Unit) {
-            while (true) {
-                delay(60_000)
-                now = System.currentTimeMillis()
-            }
-        }
+        val now = LocalMinuteClock.current
 
         val line = nextCalendarEvent(ctx.entity(entityId), now, config.string("title_separator"))
             ?: return
@@ -272,13 +267,7 @@ class NextUpCard : CardRenderer {
 
     @Composable
     override fun Render(config: CardConfig, ctx: CardContext) {
-        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-        LaunchedEffect(Unit) {
-            while (true) {
-                delay(30_000)
-                now = System.currentTimeMillis()
-            }
-        }
+        val now = LocalMinuteClock.current
 
         val event = config.string("calendar_entity")?.let {
             nextCalendarEvent(ctx.entity(it), now, config.string("title_separator"))
