@@ -55,7 +55,7 @@ changes; `dashboard.json` files keep working as they are.
 - Config feature blocks are parsed once into typed options (A-3); shared
   helpers replace duplicated date, colour and service-call code (A-4).
 - Toolchain: AGP 8.13.2, Gradle 8.14.5, Kotlin 2.3.21, Compose BOM
-  2026.04.00, compileSdk 36 (A-7). targetSdk stays 34.
+  2025.08.00, compileSdk 36 (A-7). targetSdk stays 34.
 
 ### Battery (measured)
 
