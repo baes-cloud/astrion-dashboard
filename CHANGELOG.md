@@ -7,6 +7,56 @@ MT6580, a battery pass (`docs/POWER.md`), and a usability pass that followed
 a design review and a review of two weeks of real use. Home Assistant
 companion automations and scripts are in `docs/HOME_ASSISTANT.md`.
 
+### Code audit (October 2026)
+
+Everything from the October 2026 code audit (`audit/astrion-code-audit.md`
+in the project files), in its suggested order. No setting or config key
+changes; `dashboard.json` files keep working as they are.
+
+#### Battery
+
+- The vacuum icon on the floor plan rocks in the draw phase, and only while
+  its page is on screen, instead of recomposing ~60 times a second for the
+  whole clean (B-1).
+- The screensaver redraws only when the minute or what it shows changes (B-2).
+- The alarm and alert checks read only their own entities, so other HA
+  updates no longer re-run them (B-3).
+- The wake word sends 80 ms audio frames instead of 32 ms: 12 Wi-Fi sends a
+  second instead of 31 (B-4).
+- The wake word, alert and screensaver timers wait for the next thing that
+  can change instead of polling every few seconds (B-5).
+- The mic level while listening only redraws the voice overlay (B-6).
+- One shared minute clock for all clocks and "ago" labels, paused while the
+  dashboard isn't showing, replaces five tickers (B-7).
+
+#### Memory
+
+- HA updates no longer copy every entity into a new map, up to 8 times a
+  second (M-1).
+- Audio frames reuse one buffer instead of allocating twice per frame (M-2).
+- Cover art is cached per size and loaded once when several cards ask (M-3).
+- The vacuum map, voice images and floor plan decode downsampled and off the
+  main thread; an edited floor plan no longer leaves the old copy in memory
+  (M-4, M-5, M-6).
+- One OkHttp connection pool instead of three; timestamps stay numbers
+  instead of round-tripping through ISO strings (M-7, M-8).
+
+#### Code health
+
+- CI builds, unit-tests and lints every push (A-6), and rejects unused
+  imports (A-5, 61 removed). Unit tests now cover alerts, the next alarm,
+  the alarm popup, key timing, dock/battery rules, config options and the
+  bundled layout.
+- The live `device/config/dashboard.json` is bundled in the APK as the
+  default and fallback layout; the 700-line compiled copy is gone (A-8).
+- `MainActivity` is ~300 lines lighter: key timing, motion wake, alarm state
+  and battery rules are separate, tested classes (A-1). The HA connection
+  belongs to the app rather than the Activity (A-2, first part).
+- Config feature blocks are parsed once into typed options (A-3); shared
+  helpers replace duplicated date, colour and service-call code (A-4).
+- Toolchain: AGP 8.13.2, Gradle 8.14.5, Kotlin 2.3.21, Compose BOM
+  2026.09.00, compileSdk 36 (A-7). targetSdk stays 34.
+
 ### Battery (measured)
 
 - **The screen now actually turns off off the dock.** The stock HaRemote app
