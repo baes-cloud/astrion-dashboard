@@ -7,11 +7,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Air
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Blinds
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material.icons.outlined.Blinds
@@ -19,12 +24,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
@@ -36,6 +47,7 @@ import com.custom.astrion.ui.UnavailableLabel
 import com.custom.astrion.ui.dimIfUnavailable
 import com.custom.astrion.ui.humanise
 import com.custom.astrion.ui.tap
+import kotlinx.coroutines.delay
 
 /**
  * Cover / curtain card: open / stop / close buttons plus a position readout.
@@ -82,13 +94,15 @@ class CoverCard : CardRenderer {
                 .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(18.dp))
                 .background(AstrionTheme.cardBgAlt)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                // 68dp -> 52dp tall, so three blinds and the aircon fit the
+                // Climate page without scrolling.
+                .padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(AstrionTheme.raised),
                 contentAlignment = Alignment.Center,
             ) {
@@ -102,38 +116,49 @@ class CoverCard : CardRenderer {
                     },
                 )
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     name,
                     color = AstrionTheme.textPrimary,
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     // Was maxLines=1 with no overflow, so a long name simply clipped.
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (unavailable) {
-                    UnavailableLabel(13.sp)
+                    UnavailableLabel(12.sp)
                 } else {
-                    Text(stateLabel, color = AstrionTheme.textSecondary, fontSize = 13.sp)
+                    Text(stateLabel, color = AstrionTheme.textSecondary, fontSize = 12.sp)
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CircleBtn(Icons.Filled.KeyboardArrowUp, "Open $name", live) { call(openService) }
-                CircleBtn(Icons.Filled.Stop, "Stop $name", live) { call("stop_cover") }
-                CircleBtn(Icons.Filled.KeyboardArrowDown, "Close $name", live) { call(closeService) }
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                CircleBtn(Icons.Filled.KeyboardArrowUp, "Open $name", live, size = 38.dp) { call(openService) }
+                CircleBtn(Icons.Filled.Stop, "Stop $name", live, size = 38.dp) { call("stop_cover") }
+                CircleBtn(Icons.Filled.KeyboardArrowDown, "Close $name", live, size = 38.dp) { call(closeService) }
             }
         }
     }
 }
 
 /**
- * Fan card: toggle tile with a percentage readout and up/down speed steppers.
+ * Fan row: one line, the height of a blind row. Speed down / up and power sit
+ * on the right; tapping the name opens everything else (speed bars, modes,
+ * swing, timer) in [FanDetailDialog].
  *
- * Uses fan.toggle and fan.set_percentage.
+ * Speed taps settle locally and go to HA once they stop, as the aircon's
+ * setpoint does: each tap used to work from HA's last echo, so a quick
+ * double tap sent the same speed twice. "+" on a fan that's off starts it at
+ * speed 1; "−" stops at speed 1 rather than turning it off.
  *
- * Config: CardConfig("fan", mapOf("entity_id" to "fan.bedroom", "step" to 20))
+ * Config:
+ *   { "type": "fan", "options": { "entity_id": "fan.fann", "name": "Fan",
+ *       "swing_entity": "switch.fann_vertical_oscillation",   // second swing axis, optional
+ *       "timer_entity": "select.fann_timer",                  // sleep timer select, optional
+ *       "timer_left_entity": "sensor.fann_time_remaining",    // minutes left, optional
+ *       "temperature_entity": "sensor.fann_temperature",      // optional
+ *       "problem_entity": "binary_sensor.fann_problem" } }    // optional
  */
 class FanCard : CardRenderer {
     override val type = "fan"
@@ -146,49 +171,124 @@ class FanCard : CardRenderer {
         val on = e?.isOn == true
         val unavailable = e == null || e.isUnavailable
         val live = !unavailable && ctx.connected
-        val pct = e?.attrInt("percentage") ?: 0
-        val step = config.int("step", 20).coerceAtLeast(1)
+        val speeds = fanSpeedCount(e)
+        val speed = fanSpeedOf(e, speeds)
+        var detail by remember { mutableStateOf(false) }
 
-        fun setPct(p: Int) {
+        var pending by remember(entityId) { mutableStateOf<Int?>(null) }
+        LaunchedEffect(pending) {
+            val s = pending ?: return@LaunchedEffect
+            delay(FAN_SETTLE_MS)
             ctx.client.callService(
-                ServiceCall.of("fan", "set_percentage", entityId, "percentage" to p.coerceIn(0, 100))
+                ServiceCall.of("fan", "set_percentage", entityId, "percentage" to fanPercentFor(s, speeds))
             )
+            // If HA never echoes it, stop overriding.
+            delay(FAN_ECHO_MS)
+            pending = null
         }
+        LaunchedEffect(speed, on) {
+            if (on && pending == speed) pending = null
+        }
+        fun nudge(delta: Int) {
+            val from = pending ?: if (on) speed else 0
+            val next = (from + delta).coerceIn(1, speeds)
+            pending = if (on && next == speed) null else next
+        }
+        val shownSpeed = pending ?: if (on) speed else null
+        val left = config.string("timer_left_entity")
+            ?.let { ctx.entity(it)?.state?.toDoubleOrNull() }?.takeIf { it > 0 }
+        val stateLine = if (shownSpeed == null) "Off" else listOfNotNull(
+            "Speed $shownSpeed/$speeds",
+            e?.attrString("preset_mode")?.takeUnless { it.equals("normal", ignoreCase = true) }?.humanise(),
+            left?.let { formatMinutesLeft(it) },
+        ).joinToString(" · ")
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(18.dp))
-                .background(if (on) Color(0xFF3A4B5C) else AstrionTheme.cardBgAlt)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .background(AstrionTheme.cardBgAlt)
+                // Same 52dp as the blind rows it sits above.
+                .padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(
+            Row(
                 modifier = Modifier
                     .weight(1f)
-                    .tap(enabled = live) { ctx.client.toggle(entityId) }
+                    .clip(RoundedCornerShape(10.dp))
+                    .tap(enabled = e != null) { detail = true },
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    name, color = AstrionTheme.textPrimary, fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    // Previously had neither maxLines nor overflow, so a long
-                    // name wrapped and reflowed the whole row.
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                if (unavailable) {
-                    UnavailableLabel(13.sp)
-                } else {
-                    Text(if (on) "$pct%" else "Off", color = AstrionTheme.textSecondary, fontSize = 13.sp)
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(AstrionTheme.raised),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.Air,
+                        contentDescription = "$name, ${if (on) "on" else "off"}, more controls",
+                        tint = when {
+                            unavailable -> AstrionTheme.unavailable
+                            on -> AstrionTheme.accent
+                            else -> Color(0xFFC3D0CD)
+                        },
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            name, color = AstrionTheme.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                        )
+                        // Says the name opens more.
+                        Icon(
+                            Icons.Filled.ChevronRight, contentDescription = null,
+                            tint = AstrionTheme.textSecondary, modifier = Modifier.size(16.dp),
+                        )
+                    }
+                    if (unavailable) {
+                        UnavailableLabel(12.sp)
+                    } else {
+                        Text(
+                            stateLine, color = AstrionTheme.textSecondary, fontSize = 12.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CircleBtn(Icons.Filled.KeyboardArrowDown, "$name slower", live) { setPct(pct - step) }
-                CircleBtn(Icons.Filled.KeyboardArrowUp, "$name faster", live) { setPct(pct + step) }
+            Spacer(Modifier.width(7.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                CircleBtn(Icons.Filled.Remove, "$name slower", live && shownSpeed != null, size = 38.dp) { nudge(-1) }
+                CircleBtn(Icons.Filled.Add, "$name faster", live, size = 38.dp) { nudge(1) }
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(if (on) AstrionTheme.accentStrong else AstrionTheme.controlBg)
+                        .tap(enabled = live) { ctx.client.toggle(entityId) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.PowerSettingsNew,
+                        contentDescription = if (on) "Turn $name off" else "Turn $name on",
+                        tint = if (on) Color.White else AstrionTheme.textOnControl,
+                    )
+                }
             }
         }
+
+        if (detail) FanDetailDialog(entityId, name, config, ctx) { detail = false }
     }
 }
+
+/** Quiet time after the last speed tap before it's sent. */
+private const val FAN_SETTLE_MS = 700L
+/** How long the local speed overrides HA's while waiting for the echo. */
+private const val FAN_ECHO_MS = 5_000L
 
 /**
  * Switch tile: simple toggle. Works for switch.* (and anything toggleable).
@@ -209,6 +309,9 @@ class SwitchCard : CardRenderer {
         val icon = switchIcon(config.string("icon"))
         // On-state background (e.g. a semi-transparent dark red for a heater).
         val onColor = parseColor(config.options["on_color"]) ?: Color(0xFF2E5A46)
+        // `compact`: one line (name, state as a dot of colour), for a row of
+        // toggles that shouldn't take a card's worth of height each.
+        val compact = config.bool("compact", false)
 
         Row(
             modifier = Modifier
@@ -217,14 +320,14 @@ class SwitchCard : CardRenderer {
                 .clip(RoundedCornerShape(18.dp))
                 .background(if (on) onColor else AstrionTheme.cardBgAlt)
                 .tap(enabled = live) { ctx.client.toggle(entityId) }
-                .padding(14.dp),
+                .padding(if (compact) PaddingValues(horizontal = 10.dp, vertical = 6.dp) else PaddingValues(14.dp)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Leading icon box, matching the cover tiles below it.
             Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(if (compact) 28.dp else 42.dp)
+                    .clip(RoundedCornerShape(if (compact) 8.dp else 12.dp))
                     .background(AstrionTheme.raised),
                 contentAlignment = Alignment.Center,
             ) {
@@ -236,16 +339,19 @@ class SwitchCard : CardRenderer {
                         on -> Color(0xFFE79A9A)
                         else -> Color(0xFFC3D0CD)
                     },
+                    modifier = Modifier.size(if (compact) 17.dp else 24.dp),
                 )
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(if (compact) 8.dp else 12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    name, color = AstrionTheme.textPrimary, fontSize = 16.sp,
+                    name, color = AstrionTheme.textPrimary, fontSize = if (compact) 13.sp else 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                if (unavailable) {
+                if (compact) {
+                    // State is carried by the tile colour and the icon tint.
+                } else if (unavailable) {
                     UnavailableLabel(13.sp)
                 } else {
                     Text(if (on) "On" else "Off", color = AstrionTheme.textSecondary, fontSize = 13.sp)
@@ -260,6 +366,8 @@ private fun switchIcon(name: String?): ImageVector = when (name) {
     "heater", "heat" -> Icons.Filled.Whatshot
     "fan" -> Icons.Filled.Air
     "bulb", "light" -> Icons.Filled.Lightbulb
+    "music" -> Icons.Filled.MusicNote
+    "night" -> Icons.Filled.Bedtime
     else -> Icons.Filled.PowerSettingsNew
 }
 
@@ -276,11 +384,12 @@ private fun CircleBtn(
     icon: ImageVector,
     description: String? = null,
     enabled: Boolean = true,
+    size: Dp = 44.dp,
     onClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
-            .size(44.dp)
+            .size(size)
             .clip(CircleShape)
             .background(AstrionTheme.controlBg)
             .tap(enabled = enabled, onClick = onClick),

@@ -72,6 +72,8 @@ class VoiceSession(
     companion object {
         private const val TAG = "VoiceSession"
         private const val SAMPLE_RATE = 16_000
+        /** Voice log rolls over to log.1.txt past this size. */
+        private const val LOG_MAX_BYTES = 256 * 1024L
         /** ~32 ms of audio per frame; small enough for responsive VAD. */
         private const val CHUNK_SAMPLES = 512
         /** Hard stop so a stuck pipeline can never record forever. */
@@ -288,6 +290,11 @@ class VoiceSession(
                     ?.get("plain")?.jsonObject
                     ?.get("speech")?.jsonPrimitive?.content.orEmpty()
                 _state.value = _state.value.copy(reply = speech)
+                val type = event["data"]?.jsonObject
+                    ?.get("intent_output")?.jsonObject
+                    ?.get("response")?.jsonObject
+                    ?.get("response_type")?.jsonPrimitive?.content
+                logTranscript(_state.value.transcript, speech, type)
             }
 
             "tts-end" -> {
@@ -515,6 +522,28 @@ class VoiceSession(
         _state.value = VoiceState()
     }
 
+    /**
+     * One line per conversation in /sdcard/astrion/voice/log.txt: when, what
+     * was heard, what came back, and HA's response type (action_done /
+     * query_answer / error). There was no record of what voice was asked or
+     * how it failed, so nobody could tell questions from misfires. Rolls
+     * over to log.1.txt at [LOG_MAX_BYTES].
+     */
+    private fun logTranscript(heard: String?, reply: String?, type: String?) {
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val dir = java.io.File(android.os.Environment.getExternalStorageDirectory(), "astrion/voice")
+                dir.mkdirs()
+                val log = java.io.File(dir, "log.txt")
+                if (log.length() > LOG_MAX_BYTES) log.renameTo(java.io.File(dir, "log.1.txt"))
+                val stamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+                    .format(java.util.Date())
+                fun clean(t: String?) = t.orEmpty().replace('\t', ' ').replace('\n', ' ')
+                log.appendText("$stamp\t${clean(type)}\t${clean(heard)}\t${clean(reply)}\n")
+            }.onFailure { Log.w(TAG, "voice log write failed", it) }
+        }
+    }
+
     private fun fail(message: String) {
         endpointing = false
         if (_state.value.armed) {
@@ -523,6 +552,7 @@ class VoiceSession(
             return
         }
         Log.w(TAG, "voice failure: $message")
+        logTranscript(_state.value.transcript, message, "pipeline_error")
         streaming = false
         releaseRecorder()
         subscriptionId?.let { client.endSubscription(it) }

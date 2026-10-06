@@ -4,7 +4,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** subscribe_entities' compressed events, as HA sends them. */
@@ -63,5 +65,41 @@ class HaClientEntitiesTest {
         val c = client()
         c.onEntitiesEvent(event("""{"r": ["sensor.temp"]}"""))
         assertNull(c.entityState("sensor.temp").value)
+    }
+
+    private val reseed = """{"a": {"sensor.temp": {"s": "22.0", "a": {}, "c": "01GHI", "lc": 1727600300.0}}}"""
+
+    @Test fun fullSeedDropsEntitiesGoneFromHa() {
+        val c = client()
+        c.subscribeEntities()
+        c.onEntitiesEvent(event(reseed))
+        assertNull(c.entityState("light.kitchen").value)
+        assertEquals("22.0", c.entityState("sensor.temp").value!!.state)
+    }
+
+    @Test fun filteredSeedKeepsEntitiesOutsideTheFilter() {
+        val c = client()
+        // Not connected, so this only records the filter for the next subscribe.
+        c.setEntityFilter(setOf("sensor.temp"))
+        c.subscribeEntities()
+        c.onEntitiesEvent(event(reseed))
+        assertEquals("off", c.entityState("light.kitchen").value!!.state)
+        assertEquals("22.0", c.entityState("sensor.temp").value!!.state)
+    }
+
+    @Test fun playheadOnlyDiffOfPausedPlayerIsNoiseButStillStored() {
+        val c = client()
+        c.onEntitiesEvent(event("""{"a": {"media_player.tv": {"s": "paused",
+            "a": {"media_position": 10.0, "media_title": "Film"}, "c": "01P", "lc": 1727600000.0}}}"""))
+        val noise = event("""{"a": {"media_position": 10.5, "media_position_updated_at": "2026-10-04T09:52:21+00:00"},
+            "c": "01Q", "lu": 1727600010.0}""")
+        assertTrue(c.isPlayheadNoise(noise, emptySet(), "paused"))
+        assertFalse(c.isPlayheadNoise(noise, emptySet(), "playing"))
+        // A title or state change alongside is never noise.
+        assertFalse(c.isPlayheadNoise(event("""{"a": {"media_position": 1.0, "media_title": "Next"}}"""), emptySet(), "paused"))
+        assertFalse(c.isPlayheadNoise(event("""{"s": "playing", "a": {"media_position": 1.0}}"""), emptySet(), "playing"))
+
+        c.onEntitiesEvent(event("""{"c": {"media_player.tv": {"+": $noise}}}"""))
+        assertEquals(10.5, c.entityState("media_player.tv").value!!.attrDouble("media_position")!!, 0.0)
     }
 }

@@ -44,9 +44,17 @@ Requirements: Android Studio (Ladybug or newer) with the Android SDK.
    terminal with the SDK on PATH: `./gradlew assembleRelease`. Use release on
    the remote — it's much faster than a debug build on the HA100's MT6580.
    It's signed with your debug key, so no keystore setup is needed.
-4. Install onto the remote over ADB (same way you pulled the stock APK):
+4. Install onto the remote over ADB (same way you pulled the stock APK), then
+   compile it ahead of time. Android installs it in its slowest mode
+   (`quicken`, interpreted), which on the MT6580 made 89% of frames janky:
    ```
    adb install -r app/build/outputs/apk/release/app-release.apk
+   adb shell cmd package compile -m speed -f com.custom.astrion
+   ```
+   Once per remote, let the app manage the screen timeout (the stock HaRemote
+   app keeps setting it to "never"; see `docs/POWER.md`):
+   ```
+   adb shell appops set com.custom.astrion WRITE_SETTINGS allow
    ```
    (`./gradlew assembleDebug` and `app-debug.apk` still work for debugging.)
 5. Launch it. To make it the default home experience you can set it as launcher
@@ -81,15 +89,17 @@ More (from earlier versions, in the old colours): `screenshots/LD2450-tracking.g
   used glows), and a live floorplan with tappable lights, mmWave presence dots
   and the robot vacuum, with the now-playing / mute strip floating along its
   bottom edge.
-- **TV / Plex** — one-tap app logos, the poster and title of what's being
-  watched (a Samsung Serif illustration when nothing is on) with transport and
-  volume, plus Plex poster rows where one tap plays the exact episode or film,
-  even from a switched-off TV.
+- **TV / Plex** — what's on the TV: the poster at its own shape, show,
+  episode, rating, playing or paused and how far in (the app in front when
+  nothing is playing, a Samsung Serif illustration when the TV is off), one-tap
+  app logos, plus Plex poster rows where one tap plays the exact episode or
+  film, even from a switched-off TV.
 - **Media** — the full Sonos player, with Player / Media / Zones tabs for
   album-art shelves, playlist shortcuts and speaker grouping.
 - **Alerts** — leak, intruder, washer-done and door-left-unlocked popups in the
   alarm's style, driven entirely by Home Assistant state.
-- **Climate** — aircon with HVAC and fan modes, and the blinds.
+- **Climate** — aircon with HVAC and fan modes, a one-line fan row (tap it for
+  speed, modes, swing and the sleep timer), and the blinds.
 - **Alarm popup** — wakes the screen for a Home Assistant alarm; snooze with a
   tap, stop with a hold.
 - **Docked screensaver** — sit the remote in its dock and leave it: after 45 s
@@ -162,7 +172,7 @@ standard Android `KeyEvent`s, intercepted in `dispatchKeyEvent`.
 | `MainActivity.kt` | Compose host, hardware key dispatch, motion-wake, alarm wake |
 | `AstrionApp.kt` | Registers card types at startup |
 | `device/` | On-device scripts: restrict wireless ADB to your admin machine |
-| `docs/` | Alarm popup spec, IR capture notes, UI critique |
+| `docs/` | Battery life and home-app setup (`POWER.md`), the Home Assistant automations and scripts that go with the app (`HOME_ASSISTANT.md`), alarm popup spec, IR capture notes, UI critique |
 
 See `COMMUNITY.md` for the full card reference, the JSON config schema, and
 the physical-button map. See `ARCHITECTURE.md` for how the stock app works

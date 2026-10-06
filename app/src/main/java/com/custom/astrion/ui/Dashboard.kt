@@ -2,14 +2,16 @@ package com.custom.astrion.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -20,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,7 +36,46 @@ import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.HaClient
 
 /**
- * Swipeable, paginated dashboard. Each config page is one screen; pages are
+ * Whether the page this composable sits on is the one on screen. Hidden pages
+ * stay composed (see [Dashboard]); anything that ticks on its own — clocks,
+ * "x min ago" labels — can check this to stay still while off screen.
+ */
+val LocalPageVisible = compositionLocalOf { true }
+
+/**
+ * Whether the dashboard is actually on screen: screen on, app in front, no
+ * screensaver over it. Live feeds (the RMM dots) stop while it isn't; the
+ * dashboard stays composed underneath, so without this they kept streaming
+ * with the screen off.
+ */
+val LocalDashboardShowing = compositionLocalOf { true }
+
+/**
+ * Counts how many times this page has been brought on screen. Pages stay
+ * composed, so a card that loads data once (Plex rows, media shelves) would
+ * otherwise only ever load at app start; keying the load on this refreshes it
+ * on every visit, behind the cached rows.
+ */
+@Composable
+fun rememberPageVisits(): Int {
+    val visible = LocalPageVisible.current
+    var visits by remember { mutableIntStateOf(0) }
+    LaunchedEffect(visible) { if (visible) visits++ }
+    return visits
+}
+
+/**
+ * Measured but not placed when [hidden], so nothing inside is drawn while its
+ * composition (and with it page and scroll state) stays alive.
+ */
+fun Modifier.unplacedWhen(hidden: Boolean): Modifier =
+    if (!hidden) this else layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints)
+        layout(placeable.width, placeable.height) {}
+    }
+
+/**
+ * Paginated dashboard. Each config page is one screen; pages are
  * reached with the physical shortcut buttons (see MainActivity hotkeys).
  *
  * Sized for the HA100 panel — 480x800 at density 220, i.e. 349 x 582 dp
@@ -58,15 +100,13 @@ fun Dashboard(
     val ctx = remember(client) { CardContext(entitiesState, client, connectionState) }
 
     val pageCount = config.pages.size.coerceAtLeast(1)
-    val pagerState = rememberPagerState(
-        initialPage = config.startPage.coerceIn(0, pageCount - 1),
-        pageCount = { pageCount },
-    )
+    var current by remember { mutableIntStateOf(config.startPage.coerceIn(0, pageCount - 1)) }
+    if (current >= pageCount) current = pageCount - 1
 
     // Hardware-button navigation: jump to the requested page, then clear it.
     LaunchedEffect(navTarget) {
         val t = navTarget ?: return@LaunchedEffect
-        if (t in 0 until pageCount) pagerState.scrollToPage(t)
+        if (t in 0 until pageCount) current = t
         onNavHandled()
     }
 
@@ -75,16 +115,20 @@ fun Dashboard(
             .fillMaxSize()
             .background(AstrionTheme.pageBg),
     ) {
-        HorizontalPager(
-            state = pagerState,
-            // Swipe-to-change-page is paused: a horizontal-ish touch meant for
-            // a slider/drag control inside a card (volume bar, brightness
-            // pill) could otherwise get mistaken for a page swipe. Pages are
-            // reached with the four physical shortcut buttons.
-            userScrollEnabled = false,
-            modifier = Modifier.fillMaxSize(),
-        ) { pageIndex ->
-            PageContent(config.pages[pageIndex], ctx)
+        // Every page stays composed and only the current one is placed (and so
+        // drawn). This used to be a HorizontalPager holding just the visible
+        // page, so each page key tore one page down and built the next from
+        // scratch — Plex rows, shelves, the floorplan — 0.2–0.5s on this SoC.
+        // Swiping was already off, so the pager added nothing. Memory is not
+        // the constraint (≈70 MB of ≈590 MB free).
+        config.pages.forEachIndexed { i, page ->
+            key(i) {
+                CompositionLocalProvider(LocalPageVisible provides (i == current)) {
+                    Box(Modifier.fillMaxSize().unplacedWhen(i != current)) {
+                        PageContent(page, ctx)
+                    }
+                }
+            }
         }
 
         // Banners overlay the dashboard rather than being inserted above it.
@@ -123,8 +167,8 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(AstrionTheme.pinnedTopBg)
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 pinnedTop.forEach { RenderCard(it, ctx) }
             }

@@ -1,6 +1,18 @@
 on property:sys.boot_completed=1
     setprop service.adb.tcp.port 5555
+    # Persisted, so from the next boot on adbd listens on Wi-Fi as soon as it
+    # starts rather than only once boot completes. sys.boot_completed waits
+    # for the home app to start and settle: if it never does (a broken home
+    # app), wireless adb would otherwise never come up either, and the remote
+    # looks bricked instead of merely stuck on its boot screen.
+    setprop persist.adb.tcp.port 5555
     restart adbd
+    start adbfw
+
+# netd is up well before boot completes; apply the restriction then too, so
+# the early wireless adb above isn't open to the LAN until boot finishes.
+# adbfw.sh is idempotent, so running it twice is harmless.
+on property:init.svc.netd=running
     start adbfw
 
 # Re-applies the adbd port restriction on every boot. iptables rules live in

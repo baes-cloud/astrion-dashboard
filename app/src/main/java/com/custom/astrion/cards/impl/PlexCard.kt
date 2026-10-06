@@ -29,7 +29,9 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.rememberPageVisits
 import com.custom.astrion.ui.tap
+import com.custom.astrion.ui.tightTextStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
@@ -146,7 +148,9 @@ class PlexCard : CardRenderer {
             }
         }
 
-        val shelves by produceState<List<Shelf>?>(initialValue = shelfCache[host], host, token, limit) {
+        // Refreshed on every visit to the page (it stays composed otherwise).
+        val visits = rememberPageVisits()
+        val shelves by produceState<List<Shelf>?>(initialValue = shelfCache[host], host, token, limit, visits) {
             // All rows at once rather than one after another.
             val fresh = kotlinx.coroutines.coroutineScope {
                 rowSpecs.map { spec ->
@@ -274,7 +278,7 @@ class PlexCard : CardRenderer {
             modifier = Modifier
                 .width(TILE_W)
                 .tap(onClick = onClick),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
         ) {
             val posterMod = Modifier
                 .fillMaxWidth()
@@ -285,8 +289,10 @@ class PlexCard : CardRenderer {
             } else {
                 Box(posterMod.background(AstrionTheme.raised))
             }
+            Spacer(Modifier.height(3.dp))
             Text(
                 item.title,
+                style = tightTextStyle(13.sp),
                 color = AstrionTheme.textPrimary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
@@ -296,6 +302,7 @@ class PlexCard : CardRenderer {
             if (item.subtitle.isNotBlank()) {
                 Text(
                     item.subtitle,
+                    style = tightTextStyle(12.sp),
                     color = AstrionTheme.textSecondary,
                     fontSize = 10.sp,
                     maxLines = 1,

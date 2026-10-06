@@ -5,7 +5,7 @@ live on the device; they are kept here so the only copy isn't on the hardware.
 
 | File | Goes to | Purpose |
 |---|---|---|
-| `adbwifi.rc` | `/vendor/etc/init/adbwifi.rc` | Boot hook: sets adbd's TCP port, then applies `adbfw.sh` |
+| `adbwifi.rc` | `/vendor/etc/init/adbwifi.rc` | Boot hook: sets adbd's TCP port (persisted, so wireless adb is up before boot completes), applies `adbfw.sh` as soon as netd starts and again at boot |
 | `adbfw.sh` | `/vendor/bin/adbfw.sh` | Restricts adbd (5555) to the admin workstation |
 | `adbfw-off.sh` | `/data/local/tmp/adbfw-off.sh` | Reopens adbd to the whole LAN (recovery) |
 
@@ -34,6 +34,16 @@ adb -s <ip>:5555 shell 'chmod 755 /vendor/bin/adbfw.sh; mount -o ro,remount /ven
 adb -s <ip>:5555 shell /vendor/bin/adbfw.sh
 ```
 
+## Why wireless adb comes up early
+
+`sys.boot_completed` is only set once the home app has started and gone idle.
+If the home app fails (see `docs/POWER.md`, "Making it the home app"), a hook
+that waits for it never runs and the remote is unreachable without USB. The
+hook therefore also sets `persist.adb.tcp.port`, which adbd reads when it
+starts on later boots, and applies the firewall as soon as netd is running.
+The first boot after installing the new `adbwifi.rc` still waits for boot to
+complete, as before.
+
 ## Changing the allowed workstation
 
 Edit `ALLOW_MAC` / `ALLOW_IP` in `adbfw.sh`, push it again, and re-run it.
@@ -46,3 +56,16 @@ clears them** — but the boot hook puts them straight back, so to get in from a
 different machine you must first remove `start adbfw` from
 `/vendor/etc/init/adbwifi.rc`. If you are locked out entirely, USB adb is
 unaffected: it never goes through the INPUT chain.
+
+## Per-remote setup after installing the app
+
+```sh
+adb -s <ip>:5555 install -r app-release.apk
+adb -s <ip>:5555 shell cmd package compile -m speed -f com.custom.astrion   # AOT; default is interpreted
+adb -s <ip>:5555 shell appops set com.custom.astrion WRITE_SETTINGS allow   # lets the app hold the screen timeout
+```
+
+`config/dashboard.json` is a sanitised copy of the live config: the Plex host
+and calendar entity are placeholders. On the remotes, each one's
+`power.report_entity` names its own battery sensor (for example
+`sensor.club_remote_113_battery`), so HA can tell the remotes apart.

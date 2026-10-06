@@ -1,6 +1,25 @@
 package com.custom.astrion.ui
 
+import android.content.Context
+import android.os.VibrationEffect
+import android.os.Vibrator
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -121,4 +140,81 @@ fun weatherLabel(condition: String): String = when (condition) {
     "pouring" -> "Heavy rain"
     "exceptional" -> "Severe"
     else -> condition.replace('-', ' ').humanise()
+}
+
+/**
+ * Material3 dressed in the Astrion palette, at the root of the window.
+ *
+ * Without it every `clickable` fell back to Compose's debug indication — a 30%
+ * black overlay, barely visible on these dark surfaces — and Material3 pieces
+ * (dropdown menus, the vacuum's mode list) rendered in the light default
+ * theme, in Roboto, with 4dp corners. Here the ripple is light
+ * ([LocalContentColor]), menus match the 12dp control radius, and the body
+ * font is Manrope throughout.
+ *
+ * Also swaps in [StrongHaptics]: the platform's LongPress feedback on the
+ * HA100 is two 1ms pulses, too faint to feel through the case.
+ */
+@Composable
+fun AstrionMaterialTheme(content: @Composable () -> Unit) {
+    val f = AstrionTheme.bodyFont
+    val base = remember { Typography() }
+    val context = LocalContext.current
+    val haptics = remember(context) { StrongHaptics(context) }
+    MaterialTheme(
+        colorScheme = darkColorScheme(
+            primary = AstrionTheme.accentStrong,
+            onPrimary = Color.White,
+            secondary = AstrionTheme.accent,
+            background = AstrionTheme.pageBg,
+            onBackground = AstrionTheme.textPrimary,
+            surface = AstrionTheme.cardBgAlt,
+            onSurface = AstrionTheme.textPrimary,
+            surfaceVariant = AstrionTheme.controlBg,
+            onSurfaceVariant = AstrionTheme.textSecondary,
+            surfaceContainer = AstrionTheme.cardBgAlt,
+            outline = AstrionTheme.controlBg,
+            error = AstrionTheme.danger,
+        ),
+        typography = base.copy(
+            bodyLarge = base.bodyLarge.copy(fontFamily = f),
+            bodyMedium = base.bodyMedium.copy(fontFamily = f),
+            bodySmall = base.bodySmall.copy(fontFamily = f),
+            labelLarge = base.labelLarge.copy(fontFamily = f),
+            labelMedium = base.labelMedium.copy(fontFamily = f),
+            titleMedium = base.titleMedium.copy(fontFamily = f),
+        ),
+        shapes = Shapes(extraSmall = RoundedCornerShape(12.dp)),
+    ) {
+        CompositionLocalProvider(
+            LocalContentColor provides AstrionTheme.textPrimary,
+            // Compose's plain default, not MaterialTheme's bodyLarge: that
+            // carries a 24sp line height and 0.5sp tracking, which made every
+            // label taller (header, lock card, Plex captions) and clipped text.
+            LocalTextStyle provides TextStyle.Default.copy(fontFamily = f),
+            LocalHapticFeedback provides haptics,
+            content = content,
+        )
+    }
+}
+
+/**
+ * A short real vibration for every haptic the app asks for. The platform's
+ * LongPress pattern on this device is `[0, 1, 20, 21]` — two 1ms pulses — which
+ * the small motor barely turns over for.
+ */
+class StrongHaptics(context: Context) : HapticFeedback {
+    private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+
+    override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
+        val v = vibrator ?: return
+        if (!v.hasVibrator()) return
+        runCatching {
+            v.vibrate(VibrationEffect.createOneShot(PULSE_MS, VibrationEffect.DEFAULT_AMPLITUDE))
+        }
+    }
+
+    private companion object {
+        const val PULSE_MS = 18L
+    }
 }

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -245,10 +246,11 @@ class NowPlayingLineCard : CardRenderer {
 }
 
 /**
- * One row, two facts: the next diary entry on the left, the next alarm on the
- * right.
+ * One tight row under the weather: the next diary entry on the left, the next
+ * alarm on the right. The icons say which is which, so the "Next event:" /
+ * "Next alarm:" words are gone and the event title has room.
  *
- *   📅 Next event: Tue 8:15 HQ          ⏰ Next alarm: 7:05 Tue
+ *   📅 Tue 8:15 HQ                     ⏰ 7:05 Tue
  *
  * The alarm is the earliest one still to come across `alarm_entities`
  * (timestamp sensors). It honours the same switches Home Assistant does:
@@ -289,27 +291,25 @@ class NextUpCard : CardRenderer {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // The event owns everything left of the alarm and ellipsises if it
-            // must; the alarm hugs the right edge, a fixed gap between them.
+            // must; the alarm hugs the right edge.
             Box(Modifier.weight(1f)) {
-                if (event != null) {
-                    Fact(Icons.Filled.Event, "Next event:", event, AstrionTheme.accent, Modifier)
-                }
+                if (event != null) Fact(Icons.Filled.Event, null, event, AstrionTheme.accent, Modifier)
             }
             if (alarm != null) {
-                Spacer(Modifier.width(12.dp))
-                Fact(Icons.Filled.Alarm, "Next alarm:", alarm, AstrionTheme.blush, Modifier)
+                Spacer(Modifier.width(10.dp))
+                Fact(Icons.Filled.Alarm, null, alarm, AstrionTheme.blush, Modifier)
             }
         }
     }
 
     @Composable
-    private fun Fact(icon: ImageVector, label: String, value: String, tint: Color, modifier: Modifier) {
+    private fun Fact(icon: ImageVector, label: String?, value: String, tint: Color, modifier: Modifier) {
         Row(modifier, verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(4.dp))
             Text(
                 buildAnnotatedString {
-                    withStyle(SpanStyle(color = AstrionTheme.textSecondary)) { append("$label ") }
+                    if (label != null) withStyle(SpanStyle(color = AstrionTheme.textSecondary)) { append("$label ") }
                     withStyle(SpanStyle(color = tint, fontWeight = FontWeight.Medium)) { append(value) }
                 },
                 fontSize = 12.sp,

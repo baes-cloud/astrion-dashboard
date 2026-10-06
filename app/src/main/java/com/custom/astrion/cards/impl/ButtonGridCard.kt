@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.LocalTextStyle
+import com.custom.astrion.ui.tightTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -35,6 +37,8 @@ import java.io.File
  * carry a PNG icon loaded from a file path (e.g. /sdcard/astrion/icons/mos.png),
  * a text label, or both. Used for the TV-app row, Group/Ungroup, and the
  * playlist buttons.
+ *
+ * `label_lines: 2` lets a long name wrap onto a second line.
  *
  * `tile_height`, `icon_size` and `spacing` (all dp) shrink the buttons where a
  * grid has to share a page with taller cards — the playlist grid sits under the
@@ -70,6 +74,7 @@ class ButtonGridCard : CardRenderer {
         val title = config.string("title")
         val tileHeight = config.int("tile_height", 0).takeIf { it > 0 }?.dp
         val iconSize = config.int("icon_size", 0).takeIf { it > 0 }?.dp
+        val labelLines = config.int("label_lines", 1).coerceIn(1, 2)
         val spacing = config.int("spacing", 10).coerceIn(2, 24).dp
 
         Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
@@ -82,7 +87,7 @@ class ButtonGridCard : CardRenderer {
                     horizontalArrangement = Arrangement.spacedBy(spacing),
                 ) {
                     row.forEach { b ->
-                        GridButton(b, Modifier.weight(1f), tileHeight, iconSize) { fire(ctx, b) }
+                        GridButton(b, Modifier.weight(1f), tileHeight, iconSize, labelLines) { fire(ctx, b) }
                     }
                     repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
@@ -108,6 +113,7 @@ class ButtonGridCard : CardRenderer {
         modifier: Modifier,
         tileHeight: Dp?,
         iconSize: Dp?,
+        labelLines: Int,
         onClick: () -> Unit,
     ) {
         val name = b["name"] as? String
@@ -137,15 +143,18 @@ class ButtonGridCard : CardRenderer {
         ) {
             bitmap?.let { bmp ->
                 Image(bitmap = bmp, contentDescription = name, modifier = Modifier.size(glyph))
-                if (!name.isNullOrBlank()) Spacer(Modifier.height(3.dp))
+                if (!name.isNullOrBlank()) Spacer(Modifier.height(if (labelLines > 1) 2.dp else 3.dp))
             }
             if (!name.isNullOrBlank()) {
+                // `label_lines: 2` wraps a long name ("Purple Disco") onto a
+                // second, tightly spaced line instead of cutting it off.
                 Text(
                     name,
+                    style = if (labelLines > 1) tightTextStyle(13.sp) else LocalTextStyle.current,
                     color = inkColor,
-                    fontSize = if (hasIcon) 12.sp else if (name.length > 8) 13.sp else 15.sp,
+                    fontSize = if (hasIcon) (if (labelLines > 1) 11.sp else 12.sp) else if (name.length > 8) 13.sp else 15.sp,
                     fontWeight = if (tileColor != null && !hasIcon) FontWeight.Bold else FontWeight.Medium,
-                    maxLines = 1,
+                    maxLines = labelLines,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
                 )

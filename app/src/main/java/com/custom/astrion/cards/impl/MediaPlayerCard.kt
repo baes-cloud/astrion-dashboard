@@ -16,8 +16,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VolumeDown
-import androidx.compose.material.icons.filled.VolumeMute
-import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -25,7 +23,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,10 +46,17 @@ import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.LocalDashboardShowing
+import com.custom.astrion.ui.LocalPageVisible
+import com.custom.astrion.ui.formatMediaTime
+import com.custom.astrion.ui.parseIsoMs
 import com.custom.astrion.ui.tap
+import com.custom.astrion.ui.tightTextStyle
+import kotlinx.coroutines.delay
 
 /**
  * Media player card with two layouts:
@@ -66,17 +73,21 @@ import com.custom.astrion.ui.tap
  *   { "type": "media_player", "options": { "entity_id": "media_player.club",
  *       "variant": "full" } }   // omit variant for compact
  *
- * "tv" variant (the TV page): wide hero artwork — the poster, or a
- * `placeholder` image file when nothing is showing — with the title and an
- * on/idle status over a gradient, a plain control row (mute / prev / play /
- * next / volume, sent to `volume_entity` for the volume pair), and an `apps`
- * row of launcher tiles inside the same card:
- *   "apps": [ { "name": "Plex", "badge": ">", "color": "#E5A00D",
- *               "service": "media_player.select_source", "entity_id": "…",
- *               "data": { "source": "com.plexapp.android" } },
- *             { "name": "iview", "wordmark": true, "color": "#2BC4B6", … },
- *             { "name": "Netflix", "badge": "N", "color": "#E50914", "dim": true, … } ]
- * An app with an `icon` (PNG path) shows just that logo, no label.
+ * "tv" variant (the TV page): what's on the TV, as information only. No
+ * transport or volume buttons and no service calls except the app tiles: the
+ * hardware keys and the TV's own remote do the controlling. Artwork keeps its
+ * own shape (a Plex poster is 2:3), with the title, episode, status and
+ * progress beside it, and a row of `apps` launcher tiles underneath:
+ *   { "variant": "tv",
+ *     "entity_id": "media_player.<the TV's ADB entity>",   // on/off and the app in front
+ *     "art_entities": [ "media_player.plex_…", "media_player.<cast entity>" ],
+ *     "placeholder": "/sdcard/astrion/serif_tv.png",       // shown while the TV is off
+ *     "apps": [ { "name": "Plex", "icon": "/sdcard/astrion/icons/logo_plex.png", "color": "#E5A00D",
+ *                 "service": "media_player.select_source", "entity_id": "…",
+ *                 "data": { "source": "com.plexapp.android" } }, … ] }
+ * An app with an `icon` (PNG path) shows just that logo; otherwise a tinted
+ * `badge` letter over its name, or its name as a `wordmark`. The tile of the
+ * app in front (matched on `data.source`) is outlined.
  */
 class MediaPlayerCard : CardRenderer {
     override val type = "media_player"
@@ -85,6 +96,10 @@ class MediaPlayerCard : CardRenderer {
     @Composable
     override fun Render(config: CardConfig, ctx: CardContext) {
         val entityId = config.string("entity_id") ?: return
+        if (config.string("variant") == "tv") {
+            TvCard(config, ctx, entityId)
+            return
+        }
         val full = config.string("variant") == "full"
         val topButtons = (config.options["top_buttons"] as? List<Map<String, Any?>>) ?: emptyList()
         val sourceEntity = config.string("source_entity")
@@ -127,70 +142,22 @@ class MediaPlayerCard : CardRenderer {
                 ?: e?.attrString("app_name")
                 ?: "—"
         }
-        // tv variant: borrow the poster and title from whichever of
-        // `art_entities` is actually showing something (the Plex client has
-        // the real poster; the cast entity only has the app's icon).
-        val watching = if (config.string("variant") != "tv") null else config.stringList("art_entities")
-            .mapNotNull { ctx.entities[it] }
-            .firstOrNull {
-                !it.isUnavailable && it.state in listOf("playing", "paused") &&
-                    !it.attrString("entity_picture").isNullOrBlank()
-            }
-        val artPath = watching?.attrString("entity_picture")
-            ?: (if (tv != null) tv.attrString("entity_picture") else null)
+        val artPath = (if (tv != null) tv.attrString("entity_picture") else null)
             ?: e?.attrString("entity_picture")
-
-        // Through ArtCache: the screensaver shows the same art, and a poster
-        // decoded at full size can be ~6 MB. 480px covers the panel's width.
-        var art by remember(artPath) { mutableStateOf(artPath?.let { ArtCache.peek(it) }) }
-        LaunchedEffect(artPath) {
-            art = artPath?.let { p -> ArtCache.load(p, 480) { ctx.client.fetchBytes(p) } }
-        }
-
-        val blurredBg = remember(art) {
-            art?.let { img ->
-                val src = img.asAndroidBitmap()
-                if (src.width <= 0) return@let null
-                val w = 32
-                val h = (w * src.height / src.width).coerceAtLeast(1)
-                Bitmap.createScaledBitmap(src, w, h, true).asImageBitmap()
-            }
-        }
+        val art = rememberArt(ctx, artPath)
 
         fun mp(service: String, vararg data: Pair<String, Any?>) {
             ctx.client.callService(ServiceCall.of("media_player", service, entityId, *data))
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF243140)),
-        ) {
-            // Blurred album art background + scrim for legibility.
-            blurredBg?.let { bg ->
-                Image(
-                    bitmap = bg,
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.Crop,
-                )
-                Box(modifier = Modifier.matchParentSize().background(Color(0xB3151D25)))
-            }
-
-            if (config.string("variant") == "tv") {
-                TvContent(
-                    ctx, entityId, e, watching?.attrString("media_title")?.takeIf { it.isNotBlank() } ?: title,
-                    playing || watching?.state == "playing", art, ::mp, live,
-                    showing = watching?.attrString("media_series_title") ?: watching?.attrString("app_name"),
-                    placeholder = config.string("placeholder"),
-                    volumeEntity = config.string("volume_entity") ?: entityId,
-                    apps = (config.options["apps"] as? List<Map<String, Any?>>) ?: emptyList(),
-                )
-            } else if (full) {
+        ArtBackdrop(art) {
+            if (full) {
                 FullContent(
                     ctx, title, artist, playing, art, ::mp, topButtons, sourceEntity, live,
                     showControls = config.bool("show_controls", true),
+                    // Width / height of the artwork; wider leaves room below
+                    // the card for the favourites row on one screen.
+                    artAspect = (config.options["art_aspect"] as? Number)?.toFloat() ?: 1.2f,
                 )
             } else {
                 CompactContent(title, artist, playing, art, ::mp, live)
@@ -210,151 +177,206 @@ class MediaPlayerCard : CardRenderer {
         )
     }
 
-    // ---- tv (TV page): hero art + status, plain controls, app tiles ----------
-    @Composable
-    private fun TvContent(
-        ctx: CardContext,
-        entityId: String,
-        e: com.custom.astrion.ha.EntityState?,
-        title: String,
-        playing: Boolean,
-        art: ImageBitmap?,
-        mp: (String, Array<out Pair<String, Any?>>) -> Unit,
-        enabled: Boolean,
-        showing: String?,
-        placeholder: String?,
-        volumeEntity: String,
-        apps: List<Map<String, Any?>>,
-    ) {
-        val placeholderArt by com.custom.astrion.ui.rememberSampledBitmap(placeholder, targetPx = 720)
-        val hero = art ?: placeholderArt
-        val state = e?.state ?: "unavailable"
-        val on = state !in listOf("off", "unavailable", "unknown", "standby")
-        val app = showing?.takeIf { it.isNotBlank() } ?: e?.attrString("app_name")?.takeIf { it.isNotBlank() }
-        val status = when (state) {
-            "playing" -> listOfNotNull("Playing", app).joinToString(" • ")
-            "paused" -> listOfNotNull("Paused", app).joinToString(" • ")
-            "off", "standby" -> "Off"
-            "unavailable", "unknown" -> "Unavailable"
-            else -> listOfNotNull("On", app ?: "Idle").joinToString(" • ")
-        }
-        val muted = ctx.entities[volumeEntity]?.attributes?.get("is_volume_muted")
-            ?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content == "true" } ?: false
-        fun vol(service: String, vararg data: Pair<String, Any?>) {
-            ctx.client.callService(ServiceCall.of("media_player", service, volumeEntity, *data))
-        }
+    // ---- tv (TV page): what's on, as information, and the app tiles -------------
 
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            // App launchers across the top: slim, logo-only.
-            if (apps.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    apps.forEach { a ->
-                        AppTile(a, Modifier.weight(1f), ctx.connected) { fireService(ctx, a) }
-                    }
-                }
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1.6f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(AstrionTheme.raised),
-            ) {
-                if (hero != null) {
-                    Image(hero, null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-                } else {
-                    Icon(
-                        Icons.Filled.Movie, contentDescription = null, tint = Color(0xFF506763),
-                        modifier = Modifier.size(56.dp).align(Alignment.Center),
-                    )
-                }
-                // Legibility scrim for the overlaid title.
-                Box(
-                    Modifier
-                        .matchParentSize()
-                        .background(
-                            androidx.compose.ui.graphics.Brush.verticalGradient(
-                                0.45f to Color.Transparent,
-                                1f to Color(0xE6121920),
-                            )
-                        )
+    /**
+     * The TV card's content. Only what it shows is derived from HA, so a
+     * position report or a fresh ADB screen-grab, which change nothing here,
+     * doesn't recompose it; the progress line reads its own entity.
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Composable
+    private fun TvCard(config: CardConfig, ctx: CardContext, entityId: String) {
+        val apps = remember(config) { (config.options["apps"] as? List<Map<String, Any?>>) ?: emptyList() }
+        val players = remember(config) { config.stringList("art_entities") }
+        val session by remember(config, ctx) {
+            derivedStateOf {
+                resolveTvSession(
+                    ctx.entity(entityId),
+                    players.mapNotNull { ctx.entity(it) }.filterNot { it.isUnavailable },
+                    apps,
                 )
-                Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 14.dp, vertical = 12.dp)) {
-                    Text(
-                        title, color = Color.White, fontFamily = AstrionTheme.headingFont, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier.size(7.dp).clip(CircleShape)
-                                .background(if (on) AstrionTheme.good else Color(0xFF748884))
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(status, color = Color(0xFFCFDBD6), fontSize = 13.sp, maxLines = 1)
+            }
+        }
+        val art = rememberArt(ctx, session.artPath)
+
+        ArtBackdrop(art, washPx = 6) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SessionArt(art, session, config.string("placeholder"))
+                    Spacer(Modifier.width(14.dp))
+                    SessionInfo(ctx, session, Modifier.weight(1f))
+                }
+                if (apps.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        apps.forEach { a ->
+                            AppTile(
+                                a, Modifier.weight(1f), ctx.connected,
+                                inFront = session.frontApp != null && appSource(a) == session.frontApp,
+                            ) { fireService(ctx, a) }
+                        }
                     }
                 }
             }
+        }
+    }
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                PlainControl(if (muted) Icons.Filled.VolumeOff else Icons.Filled.VolumeMute, "Mute", enabled) {
-                    vol("volume_mute", "is_volume_muted" to !muted)
+    /** Artwork at its own proportions: a poster stands, a thumbnail lies flat. */
+    @Composable
+    private fun SessionArt(art: ImageBitmap?, s: TvSession, placeholder: String?) {
+        val shape = RoundedCornerShape(10.dp)
+        val logo by com.custom.astrion.ui.rememberSampledBitmap(if (art == null) s.logo else null, targetPx = 128)
+        val tvPicture by com.custom.astrion.ui.rememberSampledBitmap(
+            if (art == null && s.state == TvState.OFF) placeholder else null, targetPx = 320,
+        )
+        val l = logo
+        val p = tvPicture
+        when {
+            art != null -> {
+                val aspect = art.width.toFloat() / art.height.coerceAtLeast(1)
+                val size = when {
+                    aspect < 0.85f -> Modifier.width(POSTER_W).aspectRatio(aspect.coerceAtLeast(0.6f))
+                    aspect <= 1.2f -> Modifier.size(SQUARE_ART)
+                    else -> Modifier.width(WIDE_ART_W).aspectRatio(aspect.coerceAtMost(2f))
                 }
-                PlainControl(Icons.Filled.SkipPrevious, "Previous", enabled) {
-                    mp("media_previous_track", emptyArray())
-                }
-                CircleControl(
-                    if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, 60.dp,
-                    description = if (playing) "Pause" else "Play",
-                    accent = true, enabled = enabled,
-                ) { mp("media_play_pause", emptyArray()) }
-                PlainControl(Icons.Filled.SkipNext, "Next", enabled) {
-                    mp("media_next_track", emptyArray())
-                }
-                PlainControl(Icons.Filled.VolumeUp, "Volume up", enabled) { vol("volume_up") }
+                Image(art, null, modifier = size.clip(shape), contentScale = ContentScale.Crop)
             }
-
+            // No artwork: the logo of the app in front, on its own colour.
+            l != null -> Box(
+                modifier = Modifier
+                    .size(SQUARE_ART)
+                    .clip(shape)
+                    .background(AstrionTheme.raised)
+                    .background(parseHexColor(s.logoColor)?.copy(alpha = 0.18f) ?: Color.Transparent),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(l, contentDescription = null, modifier = Modifier.size(52.dp))
+            }
+            p != null -> Image(
+                p, null, alpha = 0.55f, contentScale = ContentScale.Crop,
+                modifier = Modifier.width(WIDE_ART_W).aspectRatio(p.width.toFloat() / p.height.coerceAtLeast(1)).clip(shape),
+            )
+            else -> Box(
+                modifier = Modifier.size(SQUARE_ART).clip(shape).background(AstrionTheme.raised),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Movie, contentDescription = null, tint = Color(0xFF506763), modifier = Modifier.size(40.dp))
+            }
         }
     }
 
     @Composable
-    private fun PlainControl(icon: ImageVector, description: String, enabled: Boolean, onClick: () -> Unit) {
+    private fun SessionInfo(ctx: CardContext, s: TvSession, modifier: Modifier) {
+        val status = when (s.state) {
+            TvState.PLAYING -> "Playing"
+            TvState.PAUSED -> "Paused"
+            TvState.ON -> "On"
+            TvState.OFF -> null
+        }?.let { word -> listOfNotNull(word, s.appName?.takeIf { it != s.title }).joinToString(" · ") }
+        Column(modifier) {
+            Text(
+                s.title, color = AstrionTheme.textPrimary, fontFamily = AstrionTheme.headingFont,
+                fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                style = tightTextStyle(21.sp),
+            )
+            s.subtitle?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    it, color = AstrionTheme.textPrimary.copy(alpha = 0.85f), fontSize = 14.sp,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, style = tightTextStyle(17.sp),
+                )
+            }
+            s.meta?.let {
+                Spacer(Modifier.height(3.dp))
+                Text(it, color = AstrionTheme.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (status != null) {
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(7.dp).clip(CircleShape).background(
+                            when (s.state) {
+                                TvState.PLAYING -> AstrionTheme.good
+                                TvState.PAUSED -> AstrionTheme.on
+                                else -> AstrionTheme.good.copy(alpha = 0.5f)
+                            }
+                        )
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(status, color = Color(0xFFCFDBD6), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            s.progressEntity?.let { SessionProgress(ctx, it) }
+        }
+    }
+
+    /**
+     * Elapsed and length under a hairline, extrapolated from HA's last
+     * position report. It ticks each second only while playing and on screen.
+     */
+    @Composable
+    private fun SessionProgress(ctx: CardContext, entityId: String) {
+        val p = ctx.entity(entityId) ?: return
+        val duration = p.attrDouble("media_duration")?.takeIf { it > 0 } ?: return
+        val position = p.attrDouble("media_position") ?: return
+        val reportedAt = p.attrString("media_position_updated_at")?.let { parseIsoMs(it) }
+        val ticking = p.state == "playing" && reportedAt != null &&
+            LocalPageVisible.current && LocalDashboardShowing.current
+        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+        LaunchedEffect(ticking) {
+            while (ticking) {
+                now = System.currentTimeMillis()
+                delay(1000 - now % 1000)
+            }
+        }
+        val pos = (if (ticking && reportedAt != null) position + (now - reportedAt) / 1000.0 else position)
+            .coerceIn(0.0, duration)
+        Spacer(Modifier.height(8.dp))
         Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .tap(enabled = enabled, onClick = onClick),
-            contentAlignment = Alignment.Center,
+            Modifier
+                .fillMaxWidth()
+                .height(3.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Color(0x33FFFFFF)),
         ) {
-            Icon(icon, contentDescription = description, tint = Color(0xFFB0C2BB), modifier = Modifier.size(26.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth((pos / duration).toFloat().coerceIn(0f, 1f))
+                    .fillMaxHeight()
+                    .background(AstrionTheme.accent),
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(formatMediaTime(pos), color = AstrionTheme.textSecondary, fontSize = 11.sp)
+            Text(formatMediaTime(duration), color = AstrionTheme.textSecondary, fontSize = 11.sp)
         }
     }
 
-    /** Launcher tile: a tinted letter badge over a small-caps name, or a coloured wordmark. */
+    /**
+     * Launcher tile: the app's logo, or a tinted letter badge over a small-caps
+     * name, or a coloured wordmark. Outlined while that app is in front.
+     */
     @Composable
-    private fun AppTile(a: Map<String, Any?>, modifier: Modifier, enabled: Boolean, onClick: () -> Unit) {
+    private fun AppTile(a: Map<String, Any?>, modifier: Modifier, enabled: Boolean, inFront: Boolean, onClick: () -> Unit) {
         val name = a["name"] as? String ?: ""
-        val color = (a["color"] as? String)?.let { hex ->
-            val h = hex.removePrefix("#")
-            h.toLongOrNull(16)?.let { v -> if (h.length <= 6) Color(0xFF000000L or v) else Color(v) }
-        } ?: Color(0xFF98B5B0)
+        val color = parseHexColor(a["color"] as? String) ?: Color(0xFF98B5B0)
         val dim = a["dim"] as? Boolean ?: false
         val badge = a["badge"] as? String
         val hasIcon = a["icon"] is String
+        val shape = RoundedCornerShape(12.dp)
         Column(
             modifier = modifier
                 .height(if (hasIcon) 44.dp else 76.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0x55161F28))
+                .clip(shape)
+                .background(if (inFront) Color(0x80283646) else Color(0x55161F28))
+                .then(if (inFront) Modifier.border(1.5.dp, AstrionTheme.accent.copy(alpha = 0.75f), shape) else Modifier)
                 .tap(enabled = enabled, onClick = onClick)
                 .padding(if (hasIcon) 3.dp else 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -465,6 +487,7 @@ class MediaPlayerCard : CardRenderer {
         sourceEntity: String?,
         enabled: Boolean,
         showControls: Boolean,
+        artAspect: Float,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -506,7 +529,7 @@ class MediaPlayerCard : CardRenderer {
             // Big album art, or a placeholder glyph when nothing is playing /
             // the poster can't be fetched — otherwise the card is a large
             // empty rectangle that reads as broken rather than idle.
-            val artMod = Modifier.fillMaxWidth().aspectRatio(1.2f).clip(RoundedCornerShape(16.dp))
+            val artMod = Modifier.fillMaxWidth().aspectRatio(artAspect).clip(RoundedCornerShape(16.dp))
             if (art != null) {
                 Image(art, null, modifier = artMod, contentScale = ContentScale.Crop)
             } else {
@@ -651,5 +674,143 @@ class MediaPlayerCard : CardRenderer {
         ) {
             Icon(icon, contentDescription = description, tint = Color.White)
         }
+    }
+}
+
+
+/** What the TV card shows: a session on the TV, or what the TV itself is doing. */
+private enum class TvState { PLAYING, PAUSED, ON, OFF }
+
+private data class TvSession(
+    val state: TvState,
+    val title: String,
+    val subtitle: String? = null,
+    /** "S16 E13 · TV-14". */
+    val meta: String? = null,
+    /** The app the session is in, after the state word ("Paused · Plex"). */
+    val appName: String? = null,
+    /** HA `entity_picture` of the session: a poster or a thumbnail. */
+    val artPath: String? = null,
+    /** Logo (and its colour) for the art slot when there's no artwork. */
+    val logo: String? = null,
+    val logoColor: String? = null,
+    /** Entity whose media_position / media_duration drive the progress line. */
+    val progressEntity: String? = null,
+    /** Package of the app in front, to outline its tile. */
+    val frontApp: String? = null,
+)
+
+private const val PLAYER_OFF_STATES = "off standby unavailable unknown"
+
+private val POSTER_W = 104.dp
+private val SQUARE_ART = 108.dp
+private val WIDE_ART_W = 148.dp
+
+private fun appSource(a: Map<String, Any?>): String? = (a["data"] as? Map<*, *>)?.get("source") as? String
+
+/**
+ * Picks what the TV card shows. A playing session wins. A paused one only
+ * counts while the TV is on and its app is the one in front: Plex keeps a
+ * paused session open in the background for hours after you've moved on to
+ * another app, and that isn't what's on the TV.
+ */
+private fun resolveTvSession(tv: EntityState?, players: List<EntityState>, apps: List<Map<String, Any?>>): TvSession {
+    fun named(text: String?): Map<String, Any?>? = text?.let { t ->
+        apps.firstOrNull { a -> (a["name"] as? String)?.let { t.contains(it, ignoreCase = true) } == true }
+    }
+    fun appOf(p: EntityState) = named(p.attrString("app_name")) ?: named(p.friendlyName)
+
+    val tvOn = tv != null && tv.state !in PLAYER_OFF_STATES.split(' ')
+    val frontPkg = if (!tvOn) null else tv?.attrString("app_id") ?: tv?.attrString("source")
+    val front = frontPkg?.let { pkg -> apps.firstOrNull { appSource(it) == pkg } }
+
+    val session = players.firstOrNull { it.state == "playing" }
+        ?: players.firstOrNull { p ->
+            val pkg = appOf(p)?.let(::appSource)
+            tvOn && p.state == "paused" && (pkg == null || frontPkg == null || pkg == frontPkg)
+        }
+    if (session != null) {
+        val app = appOf(session) ?: front
+        val series = session.attrString("media_series_title")?.takeIf { it.isNotBlank() }
+        val title = session.attrString("media_title")?.takeIf { it.isNotBlank() }
+        val episode = listOfNotNull(
+            session.attrInt("media_season")?.let { "S$it" },
+            session.attrInt("media_episode")?.let { "E$it" },
+        ).joinToString(" ")
+        return TvSession(
+            state = if (session.state == "playing") TvState.PLAYING else TvState.PAUSED,
+            title = series ?: title ?: (app?.get("name") as? String) ?: session.friendlyName,
+            subtitle = if (series != null) title else session.attrString("media_artist"),
+            meta = listOfNotNull(episode.ifEmpty { null }, session.attrString("media_content_rating"))
+                .joinToString(" · ").ifEmpty { null },
+            appName = (app?.get("name") as? String) ?: session.attrString("app_name"),
+            artPath = session.attrString("entity_picture"),
+            logo = app?.get("icon") as? String,
+            logoColor = app?.get("color") as? String,
+            progressEntity = session.entityId,
+            frontApp = frontPkg,
+        )
+    }
+    if (!tvOn) return TvSession(TvState.OFF, "TV off")
+    val playing = tv?.state == "playing"
+    return TvSession(
+        state = if (playing) TvState.PLAYING else TvState.ON,
+        title = (front?.get("name") as? String) ?: "TV",
+        subtitle = if (playing) null else "Nothing playing",
+        logo = front?.get("icon") as? String,
+        logoColor = front?.get("color") as? String,
+        frontApp = frontPkg,
+    )
+}
+
+/** "#RRGGBB" or "#AARRGGBB". */
+private fun parseHexColor(hex: String?): Color? {
+    val h = hex?.removePrefix("#") ?: return null
+    val v = h.toLongOrNull(16) ?: return null
+    return if (h.length <= 6) Color(0xFF000000L or v) else Color(v)
+}
+
+/**
+ * Artwork for [path] through ArtCache: the screensaver shows the same art, and
+ * a poster decoded at full size can be ~6 MB. 480px covers the panel's width.
+ */
+@Composable
+private fun rememberArt(ctx: CardContext, path: String?): ImageBitmap? {
+    var art by remember(path) { mutableStateOf(path?.let { ArtCache.peek(it) }) }
+    LaunchedEffect(path) {
+        art = path?.let { p -> ArtCache.load(p, 480) { ctx.client.fetchBytes(p) } }
+    }
+    return art
+}
+
+/**
+ * The player card's shell: rounded, with the artwork blurred behind it under
+ * a scrim. Modifier.blur is a no-op on API 26, so "blurred" is a [washPx]-wide
+ * copy stretched to fill. The TV card, whose poster sits beside the text
+ * rather than filling the card, uses a few pixels: just the poster's colours,
+ * where 32px still drew its shapes, blocky, behind the title.
+ */
+@Composable
+private fun ArtBackdrop(art: ImageBitmap?, washPx: Int = 32, content: @Composable () -> Unit) {
+    val blurred = remember(art, washPx) {
+        art?.let { img ->
+            val src = img.asAndroidBitmap()
+            if (src.width <= 0) return@let null
+            val w = washPx
+            val h = (w * src.height / src.width).coerceAtLeast(1)
+            Bitmap.createScaledBitmap(src, w, h, true).asImageBitmap()
+        }
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFF243140)),
+    ) {
+        blurred?.let { bg ->
+            Image(bitmap = bg, contentDescription = null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+            Box(modifier = Modifier.matchParentSize().background(Color(0xB3151D25)))
+        }
+        content()
     }
 }

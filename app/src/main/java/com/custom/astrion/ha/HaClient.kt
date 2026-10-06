@@ -13,7 +13,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -21,7 +24,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*
+import com.custom.astrion.config.JsonPlain
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -43,7 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger
  *   3. Server sends   { type: "auth_ok" }  (or "auth_invalid")
  *   4. We             subscribe_entities: the first event carries every
  *                     entity's state, later ones compact per-entity diffs
- *   6. Heartbeat via  { type: "ping" } / { type: "pong" }
+ *   5. Heartbeat via  WebSocket ping frames (OkHttp's pingInterval)
  *
  * Because it's the stock protocol, this app needs nothing from Sanytron's
  * cloud or their custom integration to function — only a reachable HA instance
@@ -59,20 +65,28 @@ class HaClient(
 ) {
     companion object {
         private const val TAG = "HaClient"
-        private const val PING_INTERVAL_MS = 30_000L
         private const val PUBLISH_INTERVAL_MS = 120L
+        /** Stands in for an empty [setEntityFilter]; see subscribeEntities. */
+        private const val NO_ENTITY = "sensor.astrion_no_entity"
         /** How long a request waits for the socket to (re)authenticate. */
         private const val CONNECT_WAIT_MS = 15_000L
         private const val RECONNECT_MIN_MS = 3_000L
         private const val RECONNECT_MAX_MS = 60_000L
+        /** A call made while offline is sent on reconnect if it is younger than this. */
+        private const val QUEUE_MAX_AGE_MS = 30_000L
+        private const val QUEUE_MAX = 20
+        private val PLAYHEAD_ATTRS = setOf("media_position", "media_position_updated_at")
     }
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val idCounter = AtomicInteger(1)
 
+    // The only heartbeat. There used to be a second, app-level HA `ping`
+    // every 30 s on top of this; each one wakes the Wi-Fi radio, and only
+    // this one actually notices a dead socket (no pong fails the connection).
     private val http = OkHttpClient.Builder()
-        .pingInterval(20, TimeUnit.SECONDS)
+        .pingInterval(30, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
 
@@ -101,6 +115,31 @@ class HaClient(
      */
     private val eventHandlers = ConcurrentHashMap<Int, (JsonObject) -> Unit>()
 
+    /** What happened to a service call; see [outcomes]. */
+    data class CallOutcome(
+        val call: ServiceCall,
+        val kind: Kind,
+        val error: String? = null,
+    ) {
+        enum class Kind { DONE, FAILED, QUEUED, DROPPED }
+    }
+
+    private val _outcomes = MutableSharedFlow<CallOutcome>(extraBufferCapacity = 16)
+    /**
+     * Failures always; successes only for calls made with `confirm = true`
+     * (the hardware keys, which otherwise give no sign anything happened).
+     * Calls made while offline are queued and reported as QUEUED, then sent
+     * on reconnect, or DROPPED if HA was away longer than [QUEUE_MAX_AGE_MS].
+     */
+    val outcomes: SharedFlow<CallOutcome> = _outcomes.asSharedFlow()
+
+    /** `call_service` replies awaited for [outcomes], keyed by request id. */
+    private val resultHandlers = ConcurrentHashMap<Int, (JsonObject) -> Unit>()
+
+    private class Queued(val at: Long, val call: ServiceCall, val confirm: Boolean)
+    /** Calls made while not connected; flushed in [onAuthOk]. */
+    private val offlineQueue = ArrayDeque<Queued>()
+
     private val _connection = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connection: StateFlow<ConnectionState> = _connection.asStateFlow()
 
@@ -111,9 +150,10 @@ class HaClient(
     // Working store updated on every event; published to _entities at most once
     // per PUBLISH_INTERVAL_MS so a chatty sensor (e.g. mmWave radar at several
     // Hz) can't force the whole UI to repaint faster than the SoC can handle.
+    // Scheduled by the event itself rather than a loop polling a dirty flag,
+    // so nothing runs at all while HA is quiet.
     private val entityStore = ConcurrentHashMap<String, EntityState>()
-    @Volatile private var entitiesDirty = false
-    @Volatile private var publisherStarted = false
+    private val publishScheduled = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /**
      * One snapshot state per entity, for [entityState]. A composable that
@@ -128,6 +168,14 @@ class HaClient(
     @Volatile private var entitiesSubId = -1
     /** True until the current subscription's first (full-snapshot) event. */
     @Volatile private var awaitingSeed = false
+
+    /**
+     * Entities the live subscription is limited to; null = every entity.
+     * See [setEntityFilter].
+     */
+    @Volatile private var entityFilter: Set<String>? = null
+    /** The filter the live subscription was actually made with. */
+    @Volatile private var subscribedFilter: Set<String>? = null
 
     private var reconnectJob: Job? = null
     /** Consecutive failed connects, for backoff; reset on auth_ok. */
@@ -170,19 +218,64 @@ class HaClient(
     }
 
     /**
+     * Limit the entity subscription to [ids] (null: everything).
+     *
+     * With the screen off nothing is drawn, but an unfiltered subscription
+     * still carries every change in HA — the floorplan's radar sensors alone
+     * several times a second — and each packet wakes the Wi-Fi radio and the
+     * CPU. MainActivity narrows it to what the alarm and alerts watch while
+     * the screen is off, and widens it again on wake; the full snapshot that
+     * re-subscribing brings refreshes everything that was missed meanwhile.
+     */
+    fun setEntityFilter(ids: Set<String>?) {
+        entityFilter = ids
+        if (_connection.value == ConnectionState.CONNECTED && ids != subscribedFilter) {
+            val old = entitiesSubId
+            if (old > 0) send(buildJsonObject {
+                put("id", idCounter.getAndIncrement())
+                put("type", "unsubscribe_events")
+                put("subscription", old)
+            })
+            subscribeEntities()
+        }
+    }
+
+    /**
      * Live state of one entity, as Compose state. Reading its value inside a
      * composable subscribes that scope to this entity alone.
      */
     fun entityState(entityId: String): State<EntityState?> =
         entityStates.getOrPut(entityId) { mutableStateOf(entityStore[entityId]) }
 
-    /** Fire a HA service call, e.g. light.toggle on light.kitchen. */
-    fun callService(call: ServiceCall) {
+    /**
+     * Fire a HA service call, e.g. light.toggle on light.kitchen. Offline, it
+     * is queued rather than dropped (see [outcomes]); [confirm] also reports
+     * success, not just failure.
+     */
+    fun callService(call: ServiceCall, confirm: Boolean = false) {
+        if (_connection.value != ConnectionState.CONNECTED) {
+            synchronized(offlineQueue) {
+                offlineQueue.addLast(Queued(System.currentTimeMillis(), call, confirm))
+                while (offlineQueue.size > QUEUE_MAX) offlineQueue.removeFirst()
+            }
+            _outcomes.tryEmit(CallOutcome(call, CallOutcome.Kind.QUEUED))
+            return
+        }
         val target = buildJsonObject {
             call.entityId?.let { put("entity_id", it) }
         }
+        val id = idCounter.getAndIncrement()
+        resultHandlers[id] = { reply ->
+            val ok = reply["success"]?.jsonPrimitive?.booleanOrNull ?: false
+            if (!ok) {
+                val err = (reply["error"] as? JsonObject)?.get("message")?.jsonPrimitive?.contentOrNull
+                _outcomes.tryEmit(CallOutcome(call, CallOutcome.Kind.FAILED, err))
+            } else if (confirm) {
+                _outcomes.tryEmit(CallOutcome(call, CallOutcome.Kind.DONE))
+            }
+        }
         val msg = buildJsonObject {
-            put("id", idCounter.getAndIncrement())
+            put("id", id)
             put("type", "call_service")
             put("domain", call.domain)
             put("service", call.service)
@@ -220,6 +313,27 @@ class HaClient(
         } catch (e: Exception) {
             Log.w(TAG, "fetchBytes failed for $path", e)
             null
+        }
+    }
+
+    /**
+     * Set an entity's state through HA's REST API (`POST /api/states/<id>`),
+     * e.g. the remote's own battery. The websocket API has no equivalent.
+     * Fire and forget; a failure is only logged.
+     */
+    fun postState(entityId: String, state: String, attributes: Map<String, Any?>) {
+        val body = buildJsonObject {
+            put("state", state)
+            put("attributes", JsonPlain.toJson(attributes))
+        }.toString().toRequestBody("application/json".toMediaType())
+        val req = Request.Builder()
+            .url(baseUrl.trimEnd('/') + "/api/states/" + entityId)
+            .header("Authorization", "Bearer $token")
+            .post(body)
+            .build()
+        scope.launch {
+            runCatching { imageHttp.newCall(req).execute().close() }
+                .onFailure { Log.w(TAG, "postState failed for $entityId", it) }
         }
     }
 
@@ -326,6 +440,69 @@ class HaClient(
         return id
     }
 
+    /** A streaming subscription that should only run while the screen is on. */
+    private class ForegroundSub(
+        val build: JsonObjectBuilder.() -> Unit,
+        val onEvent: (JsonObject) -> Unit,
+    ) {
+        @Volatile var id: Int? = null
+    }
+
+    private val foregroundSubs = mutableSetOf<ForegroundSub>()
+    @Volatile private var foreground = true
+
+    /**
+     * Like [startSubscription], but only live while the screen is on (see
+     * [setForeground]) and re-made on every reconnect. Screen-off has to be
+     * handled here rather than in Compose: with the display off no frames
+     * run, so an effect keyed on screen state never gets to cancel, and the
+     * RMM stream (~1.4 KB/s on the wire) kept arriving all night.
+     * Returns a function that cancels it for good.
+     */
+    fun startForegroundSubscription(
+        build: JsonObjectBuilder.() -> Unit,
+        onEvent: (JsonObject) -> Unit,
+    ): () -> Unit {
+        val sub = ForegroundSub(build, onEvent)
+        synchronized(foregroundSubs) {
+            foregroundSubs += sub
+            if (foreground) sub.id = startSubscription(build, onEvent)
+        }
+        return {
+            synchronized(foregroundSubs) {
+                foregroundSubs -= sub
+                sub.id?.let { unsubscribe(it) }
+                sub.id = null
+            }
+        }
+    }
+
+    /** Screen on / off: start or stop every [startForegroundSubscription]. */
+    fun setForeground(on: Boolean) {
+        synchronized(foregroundSubs) {
+            if (on == foreground) return
+            foreground = on
+            foregroundSubs.forEach { s ->
+                if (on) {
+                    if (s.id == null) s.id = startSubscription(s.build, s.onEvent)
+                } else {
+                    s.id?.let { unsubscribe(it) }
+                    s.id = null
+                }
+            }
+        }
+    }
+
+    /** A new socket: the old subscriptions died with the old one. */
+    private fun resubscribeForeground() {
+        synchronized(foregroundSubs) {
+            foregroundSubs.forEach { s ->
+                s.id?.let { eventHandlers.remove(it) }
+                s.id = if (foreground) startSubscription(s.build, s.onEvent) else null
+            }
+        }
+    }
+
     /** Stop routing events for a streaming command started by [startSubscription]. */
     fun endSubscription(id: Int) {
         eventHandlers.remove(id)
@@ -414,6 +591,7 @@ class HaClient(
                         // Route replies to the command awaiting this id, if any.
                         val id = obj["id"]?.jsonPrimitive?.intOrNull
                         id?.let { pending.remove(it) }?.complete(obj)
+                        id?.let { resultHandlers.remove(it) }?.invoke(obj)
                     }
                     "event" -> onEvent(obj)
                     "pong" -> { /* heartbeat ok */ }
@@ -454,23 +632,30 @@ class HaClient(
         Log.i(TAG, "Authenticated")
         reconnectAttempts = 0
         _connection.value = ConnectionState.CONNECTED
-        startPublisher()
+        // Replies to calls on the old socket will never come.
+        resultHandlers.clear()
         subscribeEntities()
-        startHeartbeat()
+        resubscribeForeground()
+        flushOfflineQueue()
     }
 
-    /** Coalesce entity updates: publish the store to the StateFlow at a bounded rate. */
-    private fun startPublisher() {
-        if (publisherStarted) return
-        publisherStarted = true
+    /** Send what was tapped while offline, if it's still recent enough to mean it. */
+    private fun flushOfflineQueue() {
+        val queued = synchronized(offlineQueue) { offlineQueue.toList().also { offlineQueue.clear() } }
+        val now = System.currentTimeMillis()
+        queued.forEach { q ->
+            if (now - q.at <= QUEUE_MAX_AGE_MS) callService(q.call, q.confirm)
+            else _outcomes.tryEmit(CallOutcome(q.call, CallOutcome.Kind.DROPPED))
+        }
+    }
+
+    /** Coalesce entity updates: publish the store at most every PUBLISH_INTERVAL_MS. */
+    private fun schedulePublish() {
+        if (publishScheduled.getAndSet(true)) return
         scope.launch {
-            while (true) {
-                kotlinx.coroutines.delay(PUBLISH_INTERVAL_MS)
-                if (entitiesDirty) {
-                    entitiesDirty = false
-                    publish()
-                }
-            }
+            kotlinx.coroutines.delay(PUBLISH_INTERVAL_MS)
+            publishScheduled.set(false)
+            publish()
         }
     }
 
@@ -481,32 +666,25 @@ class HaClient(
      * full snapshot, so no separate get_states is needed. Unfiltered, because
      * some cards look entities up by computed id (floorplan radar sensors) or
      * scan all of them (screensaver), so a config-derived list would miss some.
+     * The exception is [setEntityFilter], used only while nothing is drawn.
      */
-    private fun subscribeEntities() {
+    @androidx.annotation.VisibleForTesting
+    internal fun subscribeEntities() {
         val id = idCounter.getAndIncrement()
+        val filter = entityFilter
         entitiesSubId = id
+        subscribedFilter = filter
         awaitingSeed = true
         send(buildJsonObject {
             put("id", id)
             put("type", "subscribe_entities")
-        })
-    }
-
-    private fun startHeartbeat() {
-        val mine = epoch
-        scope.launch {
-            while (_connection.value == ConnectionState.CONNECTED && epoch == mine) {
-                kotlinx.coroutines.delay(PING_INTERVAL_MS)
-                // Re-check after the sleep: a ping landing on a fresh,
-                // not-yet-authenticated socket makes HA drop the connection.
-                if (_connection.value != ConnectionState.CONNECTED || epoch != mine) break
-                val ping = buildJsonObject {
-                    put("id", idCounter.getAndIncrement())
-                    put("type", "ping")
-                }
-                send(ping)
+            // HA reads an empty entity_ids as "no filter" (everything), so an
+            // empty filter subscribes to a placeholder that never exists.
+            if (filter != null) {
+                val ids = filter.ifEmpty { setOf(NO_ENTITY) }
+                put("entity_ids", JsonArray(ids.map { JsonPrimitive(it) }))
             }
-        }
+        })
     }
 
     /**
@@ -548,13 +726,17 @@ class HaClient(
      */
     @androidx.annotation.VisibleForTesting
     internal fun onEntitiesEvent(event: JsonObject) {
+        // Set by anything other than playhead noise; see isPlayheadNoise.
+        var meaningful = false
         val added = event["a"] as? JsonObject
         val seeded = awaitingSeed && added != null
         if (seeded) {
             awaitingSeed = false
-            // The seed is the complete set: drop anything deleted from HA
-            // while we were disconnected.
-            for (gone in entityStore.keys - added!!.keys) {
+            // An unfiltered seed is the complete set: drop anything deleted
+            // from HA while we were disconnected. A filtered one only covers
+            // its own entities, so everything else is kept (stale) for the
+            // full snapshot that comes back with the screen.
+            if (subscribedFilter == null) for (gone in entityStore.keys - added!!.keys) {
                 entityStore.remove(gone)
                 changedIds += gone
             }
@@ -570,6 +752,7 @@ class HaClient(
                 lastUpdated = isoTime(c["lu"]) ?: lc,
             )
             changedIds += entityId
+            meaningful = true
         }
         (event["c"] as? JsonObject)?.forEach { (entityId, el) ->
             val diff = el as? JsonObject ?: return@forEach
@@ -581,22 +764,42 @@ class HaClient(
             if (minusAttrs.isNotEmpty()) attrs = attrs - minusAttrs
             (plus?.get("a") as? JsonObject)?.let { attrs = attrs + it }
             val lc = isoTime(plus?.get("lc"))
-            entityStore[entityId] = old.copy(
+            val updated = old.copy(
                 state = plus?.get("s")?.jsonPrimitive?.content ?: old.state,
                 attributes = if (attrs === old.attributes) old.attributes else JsonObject(attrs),
                 lastChanged = lc ?: old.lastChanged,
                 // A new last_changed implies the same last_updated.
                 lastUpdated = isoTime(plus?.get("lu")) ?: lc ?: old.lastUpdated,
             )
+            entityStore[entityId] = updated
+            // Kept in the store, but nothing redraws for it; it goes out with
+            // the next real change.
+            if (isPlayheadNoise(plus, minusAttrs, updated.state)) return@forEach
             changedIds += entityId
+            meaningful = true
         }
         (event["r"] as? JsonArray)?.forEach { el ->
             val entityId = el.jsonPrimitive.contentOrNull ?: return@forEach
             entityStore.remove(entityId)
             changedIds += entityId
         }
+        (event["r"] as? JsonArray)?.let { if (it.isNotEmpty()) meaningful = true }
         // The seed is important — publish at once so the first frame has data.
-        if (seeded) publish() else entitiesDirty = true
+        if (seeded) publish() else if (meaningful) schedulePublish()
+    }
+
+    /**
+     * A diff that only moves the playhead of a player that isn't playing.
+     * The Club TV's Cast session (Plex, paused) sent one of these about four
+     * times a second, all day: nothing on screen changes for them, but each
+     * one redrew whatever showed that player.
+     */
+    internal fun isPlayheadNoise(plus: JsonObject?, minusAttrs: Set<String>, state: String): Boolean {
+        if (state == "playing" || minusAttrs.isNotEmpty() || plus == null) return false
+        // "lu" (last_updated) and "c" (context) come with every diff.
+        if (plus.keys.any { it != "a" && it != "lu" && it != "c" }) return false
+        val attrs = plus["a"] as? JsonObject ?: return false
+        return attrs.keys.all { it in PLAYHEAD_ATTRS }
     }
 
     /** HA's epoch-seconds timestamp as ISO-8601, the format cards parse. */

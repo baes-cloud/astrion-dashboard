@@ -105,16 +105,16 @@ class LockCard : CardRenderer {
                     if (config.bool("flush")) Modifier
                     else Modifier.clip(RoundedCornerShape(18.dp)).background(AstrionTheme.cardBgAlt)
                 )
-                // 66dp -> 50dp. This card sits above the `pin: fill`
-                // floorplan, so its padding is floorplan. The chips stay the
-                // full 32dp — they are the only thing here you touch.
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                // 66dp -> 50dp -> 40dp. This card sits above the `pin: fill`
+                // floorplan, so its padding is floorplan: one line of text,
+                // and the button is the only thing here you touch.
+                .padding(horizontal = 12.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(30.dp)
+                    .clip(RoundedCornerShape(9.dp))
                     .background(if (locked) AstrionTheme.controlSunken else AstrionTheme.raised)
                     // Hold only: a tap here must not move the bolt by accident.
                     // Always applied, gated by `enabled`, so the modifier chain
@@ -136,7 +136,7 @@ class LockCard : CardRenderer {
                     } else {
                         "$name, ${state.humanise()}"
                     },
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(18.dp),
                     tint = when {
                         unavailable -> AstrionTheme.unavailable
                         // Once a hold_entity exists the padlock reports THAT:
@@ -149,7 +149,8 @@ class LockCard : CardRenderer {
                 )
             }
             Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
+            // Name and age on one line.
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom) {
                 Text(
                     name,
                     color = AstrionTheme.textPrimary,
@@ -157,7 +158,9 @@ class LockCard : CardRenderer {
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                Spacer(Modifier.width(8.dp))
                 if (unavailable) {
                     UnavailableLabel(13.sp)
                 } else {
@@ -182,6 +185,7 @@ class LockCard : CardRenderer {
             // One button that shows the state and flips it (owner's call:
             // the two-chip segmented control was more than the door needs).
             // Inert while the bolt is moving or the lock is unreachable.
+            Spacer(Modifier.width(8.dp))
             StateButton(
                 state = state,
                 locked = locked,
@@ -200,7 +204,7 @@ class LockCard : CardRenderer {
         }
         Row(
             modifier = Modifier
-                .height(34.dp)
+                .height(30.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(tint.copy(alpha = 0.16f))
                 .tap(enabled = live, onClick = onClick)

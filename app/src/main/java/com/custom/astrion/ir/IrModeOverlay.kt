@@ -46,9 +46,12 @@ import com.custom.astrion.ui.tap
  *   "tv_entity":     "media_player.the_serif_qa55ls01dawxxy",
  *   "remote_entity": "remote.the_serif_qa55ls01dawxxy",
  *   "codes":   { "POWER": "0xE0E040BF" },
- *   "buttons": [ { "name": "Netflix", "app": "Netflix" },
- *                { "name": "HDMI",    "source": "HDMI" },
- *                { "name": "Mute",    "ir": "MUTE" } ]
+ *   "buttons": [ { "name": "HDMI",    "source": "HDMI" },
+ *                { "name": "Mute",    "ir": "MUTE" },
+ *                { "name": "Eye comfort", "service": "script.turn_on",
+ *                  "entity_id": "script.tv_eye_comfort_toggle",
+ *                  "unless": { "entity_id": "media_player.tv", "attribute": "source", "is": "hdmi2" },
+ *                  "unless_text": "Not on the PC input" } ]
  * }
  * ```
  */
@@ -68,6 +71,23 @@ fun IrModeOverlay(
 
     fun press(b: Map<String, Any?>) {
         val name = b["name"] as? String ?: "?"
+        // Optional guard, e.g. Eye Comfort, which the TV greys out on the PC
+        // input: {"unless": {"entity_id": "media_player.tv", "attribute":
+        // "source", "is": "hdmi2"}, "unless_text": "Not on the PC input"}.
+        // Without "attribute" the entity's state is compared.
+        (b["unless"] as? Map<*, *>)?.let { u ->
+            val e = (u["entity_id"] as? String)?.let { client.entities.value[it] }
+            val actual = (u["attribute"] as? String)?.let { e?.attrString(it) } ?: e?.state
+            val blocked = when (val v = u["is"]) {
+                is List<*> -> actual in v.map { it.toString() }
+                null -> false
+                else -> actual == v.toString()
+            }
+            if (blocked) {
+                toast = b["unless_text"] as? String ?: "$name isn't available right now"
+                return
+            }
+        }
         when {
             // Straight IR code by name, e.g. {"name":"Source","ir":"SOURCE"}
             b["ir"] != null -> {
@@ -269,9 +289,6 @@ private fun Divider() {
 
 /** Sensible starting set if `ir_mode.buttons` isn't configured. */
 private fun defaultButtons(): List<Map<String, Any?>> = listOf(
-    mapOf("name" to "Netflix", "app" to "Netflix"),
-    mapOf("name" to "YouTube", "app" to "YouTube"),
-    mapOf("name" to "Plex", "app" to "Plex"),
     mapOf("name" to "TV", "source" to "TV"),
     mapOf("name" to "HDMI", "source" to "HDMI"),
     mapOf("name" to "Source", "ir" to "SOURCE"),

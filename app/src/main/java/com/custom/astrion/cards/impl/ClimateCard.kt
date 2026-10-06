@@ -13,6 +13,11 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,6 +34,7 @@ import com.custom.astrion.ui.UnavailableLabel
 import com.custom.astrion.ui.dimIfUnavailable
 import com.custom.astrion.ui.humanise
 import com.custom.astrion.ui.tap
+import kotlinx.coroutines.delay
 
 /**
  * Climate / thermostat card.
@@ -46,6 +52,11 @@ import com.custom.astrion.ui.tap
  *       "step" to 0.5,          // optional, default 0.5
  *   ))
  */
+/** Quiet time after the last setpoint tap before it's sent. */
+private const val SETPOINT_SETTLE_MS = 900L
+/** How long the local setpoint overrides HA's while waiting for the echo. */
+private const val SETPOINT_ECHO_MS = 6_000L
+
 class ClimateCard : CardRenderer {
     override val type = "climate"
 
@@ -75,6 +86,30 @@ class ClimateCard : CardRenderer {
                 ServiceCall.of("climate", "set_temperature", entityId, "temperature" to clamped)
             )
         }
+        // Setpoint taps settle locally and go to HA once they stop. Each tap
+        // used to send its own set_temperature, computed from HA's last echo:
+        // three quick taps sent the same +1 three times, and the bursts
+        // tripped the Fujitsu cloud's rate limit (16 "429"s in 10 days).
+        var pendingTarget by remember(entityId) { mutableStateOf<Double?>(null) }
+        LaunchedEffect(pendingTarget) {
+            val t = pendingTarget ?: return@LaunchedEffect
+            delay(SETPOINT_SETTLE_MS)
+            setTemp(t)
+            // If HA never echoes it (rejected, or rounded), stop overriding.
+            delay(SETPOINT_ECHO_MS)
+            pendingTarget = null
+        }
+        // HA has caught up (or the taps came back to where it was): show HA's value.
+        LaunchedEffect(target) {
+            if (pendingTarget != null && target == pendingTarget) pendingTarget = null
+        }
+        fun nudge(delta: Double) {
+            val from = pendingTarget ?: target ?: return
+            val next = (from + delta).let { t -> t.coerceIn(minT ?: t, maxT ?: t) }
+            pendingTarget = if (next == target) null else next
+        }
+        val shownTarget = pendingTarget ?: target
+
         fun setMode(m: String) {
             ctx.client.callService(
                 ServiceCall.of("climate", "set_hvac_mode", entityId, "hvac_mode" to m)
@@ -99,8 +134,10 @@ class ClimateCard : CardRenderer {
                 .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(20.dp))
                 .background(AstrionTheme.cardBg)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                // Tightened so the Climate page (this card plus three blinds)
+                // fits one screen without scrolling.
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // Header: name + a dedicated off button.
             Row(
@@ -108,10 +145,10 @@ class ClimateCard : CardRenderer {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(name, color = Color(0xFFEEF2EF), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(name, color = Color(0xFFEEF2EF), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
                         .background(if (isOff) AstrionTheme.dangerBg else AstrionTheme.controlBg)
                         .tap(enabled = live) { turnOff() },
@@ -132,14 +169,14 @@ class ClimateCard : CardRenderer {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Stepper(Icons.Filled.Remove, "Lower target temperature", live) {
-                    target?.let { setTemp(it - step) }
+                    nudge(-step)
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        target?.let { "${trim(it)}°" } ?: "—",
+                        shownTarget?.let { "${trim(it)}°" } ?: "—",
                         color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
-                        fontFamily = AstrionTheme.headingFont, fontSize = 44.sp,
+                        fontFamily = AstrionTheme.headingFont, fontSize = 40.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     // The steppers silently no-op when there is no target, so
@@ -157,7 +194,7 @@ class ClimateCard : CardRenderer {
                 }
 
                 Stepper(Icons.Filled.Add, "Raise target temperature", live) {
-                    target?.let { setTemp(it + step) }
+                    nudge(step)
                 }
             }
 
@@ -209,7 +246,7 @@ class ClimateCard : CardRenderer {
     ) {
         Box(
             modifier = Modifier
-                .size(56.dp)
+                .size(50.dp)
                 .clip(CircleShape)
                 .background(AstrionTheme.controlBg)
                 .tap(enabled = enabled, onClick = onClick),
@@ -230,7 +267,7 @@ class ClimateCard : CardRenderer {
         Box(
             modifier = modifier
                 // Raised from 40dp; this is the row that carries mode state.
-                .height(44.dp)
+                .height(40.dp)
                 .clip(RoundedCornerShape(12.dp))
                 // accentStrong is a darkened 0xFF4C6EF5 — white 13sp on the
                 // original measured 4.32:1, the only real contrast failure in

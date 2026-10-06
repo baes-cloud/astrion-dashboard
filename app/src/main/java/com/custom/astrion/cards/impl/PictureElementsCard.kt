@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,19 +54,26 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import com.custom.astrion.ui.InWindowDialog
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.rememberSampledBitmap
+import com.custom.astrion.ui.AstrionTheme
+import kotlin.math.roundToInt
+import com.custom.astrion.ui.LocalDashboardShowing
+import com.custom.astrion.ui.LocalPageVisible
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -88,6 +96,9 @@ import com.custom.astrion.ui.tap
  * Long-pressing a light icon opens the same colour/brightness detail popup
  * as the bubble_light card on the Lights page.
  */
+/** How long a floorplan icon shows its "sent" ring after a tap. */
+private const val SENT_RING_MS = 1200L
+
 class PictureElementsCard : CardRenderer {
     override val type = "picture_elements"
 
@@ -98,6 +109,7 @@ class PictureElementsCard : CardRenderer {
         val elements = (config.options["elements"] as? List<Map<String, Any?>>) ?: emptyList()
         var showVacuumDialog by remember { mutableStateOf(false) }
         var detailEntity by remember { mutableStateOf<String?>(null) }
+        val haptics = LocalHapticFeedback.current
 
         // Decoded off-thread AND downsampled. The floorplan on this device is
         // 1089 x 1047, i.e. 4.56 MB resident as ARGB_8888, held for the life of
@@ -239,6 +251,17 @@ class PictureElementsCard : CardRenderer {
                     else -> Icons.Outlined.Lightbulb
                 }
 
+                // The most-tapped targets on Main, and they gave no feedback
+                // at all until HA echoed the new state back (often hundreds
+                // of ms). Now: a haptic on tap and hold, and a ring for a
+                // moment to show the tap was sent.
+                var sent by remember(entityId, service) { mutableStateOf(false) }
+                LaunchedEffect(sent) {
+                    if (sent) {
+                        delay(SENT_RING_MS)
+                        sent = false
+                    }
+                }
                 Icon(
                     imageVector = icon,
                     contentDescription = entityId,
@@ -248,14 +271,23 @@ class PictureElementsCard : CardRenderer {
                         .size(iconBox)
                         .clip(CircleShape)
                         .background(bg)
+                        .then(
+                            if (sent) Modifier.border(2.dp, AstrionTheme.on.copy(alpha = 0.85f), CircleShape)
+                            else Modifier
+                        )
                         .pointerInput(entityId, service) {
                             detectTapGestures(
                                 // Long-press a light icon → colour/brightness popup
                                 // (same dialog as the bubble_light card).
                                 onLongPress = if (entityId?.startsWith("light.") == true) {
-                                    { _ -> detailEntity = entityId }
+                                    { _ ->
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        detailEntity = entityId
+                                    }
                                 } else null,
                                 onTap = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    sent = true
                                     when {
                                         entityId != null -> ctx.client.toggle(entityId)
                                         service != null -> {
@@ -319,7 +351,7 @@ class PictureElementsCard : CardRenderer {
             }
 
             if (showVacuumDialog && vacuumOpts != null) {
-                Dialog(onDismissRequest = { showVacuumDialog = false }) {
+                InWindowDialog(onDismissRequest = { showVacuumDialog = false }) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -533,27 +565,35 @@ class PictureElementsCard : CardRenderer {
         val accent = parseArgb(opts["accent_color"] as? String) ?: Color(0xFF8CE0D4)
 
         var targets by remember { mutableStateOf<List<RmmTarget>>(emptyList()) }
-        val connected = ctx.connected
+        // Only while the floorplan is actually on screen. The stream sends two
+        // frames a second (~6 KB/s, radar diagnostics included), and with every
+        // page kept composed it ran on other pages, under the screensaver and
+        // with the screen off — waking the Wi-Fi all night.
+        // HaClient re-makes it on every reconnect and stops it with the screen
+        // off; this only has to follow the page and the screensaver.
+        val live = LocalPageVisible.current && LocalDashboardShowing.current
         val client = ctx.client
 
-        // Re-subscribe on every (re)connect: a subscription dies with its socket.
-        DisposableEffect(connected, group, showHibernating) {
-            val id = if (connected) client.startSubscription(build = { put("type", "rmm/stream") }) { event ->
+        DisposableEffect(live, group, showHibernating) {
+            val cancel = if (live) client.startForegroundSubscription(build = { put("type", "rmm/stream") }) { event ->
                 val map = event["data"]?.jsonObject?.get("maps")?.jsonObject?.get(group)?.jsonObject
-                    ?: return@startSubscription
-                targets = map["targets"]?.jsonArray.orEmpty().mapNotNull { el ->
+                    ?: return@startForegroundSubscription
+                val next = map["targets"]?.jsonArray.orEmpty().mapNotNull { el ->
                     val t = el as? JsonObject ?: return@mapNotNull null
                     val count = t["count"]?.jsonPrimitive?.intOrNull ?: 0
                     if (count <= 0 && !showHibernating) return@mapNotNull null
+                    // Rounded to 0.1 %: about two thirds of frames only jitter the
+                    // fourth decimal, and an equal list doesn't redraw.
                     RmmTarget(
                         id = t["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
-                        x = t["x"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null,
-                        y = t["y"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null,
+                        x = t["x"]?.jsonPrimitive?.floatOrNull?.let { (it * 10).roundToInt() / 10f } ?: return@mapNotNull null,
+                        y = t["y"]?.jsonPrimitive?.floatOrNull?.let { (it * 10).roundToInt() / 10f } ?: return@mapNotNull null,
                     )
                 }
+                if (next != targets) targets = next
             } else null
-            if (id == null) targets = emptyList()
-            onDispose { id?.let { client.unsubscribe(it) } }
+            if (cancel == null) targets = emptyList()
+            onDispose { cancel?.invoke() }
         }
 
         targets.forEachIndexed { i, t ->
