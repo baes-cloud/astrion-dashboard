@@ -11,7 +11,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -238,15 +237,6 @@ class HaClient(
         _connection.value = ConnectionState.DISCONNECTED
         socket?.close(1000, "client closing")
         socket = null
-    }
-
-    /**
-     * Disconnect for good: also stops this client's coroutines (reconnect,
-     * publish, posts), which [disconnect] leaves alive for a later [connect].
-     */
-    fun close() {
-        disconnect()
-        scope.cancel()
     }
 
     /**

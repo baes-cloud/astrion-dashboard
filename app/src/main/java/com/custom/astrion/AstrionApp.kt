@@ -31,6 +31,7 @@ import com.custom.astrion.cards.impl.SwipeStackCard
 import com.custom.astrion.cards.impl.SwitchCard
 import com.custom.astrion.cards.impl.TvRemoteCard
 import com.custom.astrion.cards.impl.VacuumCard
+import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ui.ArtCache
 
 /**
@@ -45,6 +46,13 @@ import com.custom.astrion.ui.ArtCache
  * taxonomy of 11 types.
  */
 class AstrionApp : Application() {
+    /**
+     * The one Home Assistant connection, owned by the process rather than an
+     * Activity instance, so a recreated Activity picks up the same socket and
+     * entity states instead of reconnecting from scratch.
+     */
+    val client: HaClient by lazy { HaClient(baseUrl = BuildConfig.HA_URL, token = BuildConfig.HA_TOKEN) }
+
     override fun onCreate() {
         super.onCreate()
         ArtCache.init(cacheDir)

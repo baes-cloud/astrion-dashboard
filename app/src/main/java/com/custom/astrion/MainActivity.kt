@@ -337,7 +337,7 @@ class MainActivity : ComponentActivity() {
 
         motionWake = MotionWake(this, keyHandler, ::wakeScreen)
 
-        client = HaClient(baseUrl = BuildConfig.HA_URL, token = BuildConfig.HA_TOKEN)
+        client = (application as AstrionApp).client
         irBlaster = IrBlaster(this)
         voice = VoiceSession(this, client)
         voice.onWakeWord = { runOnUiThread { onWakeWordHeard() } }
@@ -346,7 +346,8 @@ class MainActivity : ComponentActivity() {
             dashboard.config.longHotkeys,
             dashboard.config.doubleHotkeys,
         )
-        client.connect()
+        // Already up when this is a recreated Activity on the same process.
+        if (client.connection.value == ConnectionState.DISCONNECTED) client.connect()
         startForegroundService(Intent(this, KeepAliveService::class.java))
         requestBatteryExemptionOnce()
         watchNetwork()
@@ -1452,7 +1453,8 @@ class MainActivity : ComponentActivity() {
             runCatching { (getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(cb) }
         }
         keys.cancelPending()
-        client.close()
+        // Leaving for good: drop the connection. A recreated Activity keeps it.
+        if (isFinishing) client.disconnect()
         stopService(Intent(this, KeepAliveService::class.java))
         super.onDestroy()
     }
