@@ -10,15 +10,11 @@ import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -33,7 +29,6 @@ import com.custom.astrion.ui.dimIfUnavailable
 import com.custom.astrion.ui.holdOnly
 import com.custom.astrion.ui.humanise
 import com.custom.astrion.ui.tap
-import kotlinx.coroutines.delay
 
 /**
  * Door-lock card: name, how long the bolt has been where it is, and one
