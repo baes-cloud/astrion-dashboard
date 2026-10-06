@@ -1,6 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
+import com.custom.astrion.ui.Time
 import com.custom.astrion.ui.LocalMinuteClock
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -319,9 +320,7 @@ class NextUpCard : CardRenderer {
             alwaysEntities = config.stringList("always_entities").toSet(),
         ) ?: return null
 
-        val d = java.util.Date(next)
-        return java.text.SimpleDateFormat("h:mm", java.util.Locale.getDefault()).format(d) + " " +
-            java.text.SimpleDateFormat("EEE", java.util.Locale.getDefault()).format(d)
+        return Time.format(next, "h:mm") + " " + Time.format(next, "EEE")
     }
 }
 
@@ -340,14 +339,13 @@ internal fun nextAlarmMs(
     alwaysEntities: Set<String>,
 ): Long? {
     val offToday = offTodayEntity?.let { entities[it]?.state == "on" } == true
-    val dayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-    val today = dayKey.format(java.util.Date(nowMs))
+    val today = Time.day(nowMs)
     return ids.mapNotNull { id ->
         val iso = entities[id]?.state ?: return@mapNotNull null
         val t = runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
             ?: return@mapNotNull null
         if (t <= nowMs) return@mapNotNull null
-        if (offToday && id !in alwaysEntities && dayKey.format(java.util.Date(t)) == today) return@mapNotNull null
+        if (offToday && id !in alwaysEntities && Time.day(t) == today) return@mapNotNull null
         t
     }.minOrNull()
 }

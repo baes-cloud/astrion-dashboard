@@ -441,9 +441,8 @@ private fun calendarFact(cal: EntityState, options: Map<String, Any?>, now: Long
         ?.trim()?.takeIf { it.isNotEmpty() }
         ?: return null
     val place = cal.attrString("location")?.trim()?.takeIf { it.isNotEmpty() }
-    val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-    val start = cal.attrString("start_time")?.let { runCatching { fmt.parse(it) }.getOrNull() }?.time ?: return null
-    val end = cal.attrString("end_time")?.let { runCatching { fmt.parse(it) }.getOrNull() }?.time
+    val start = cal.attrString("start_time")?.let { Time.parseHaLocal(it) } ?: return null
+    val end = cal.attrString("end_time")?.let { Time.parseHaLocal(it) }
     val allDay = (cal.attr("all_day") as? JsonPrimitive)?.booleanOrNull ?: false
     val within = ((options["event_within_hours"] as? Number)?.toDouble() ?: 12.0) * 3_600_000
 
@@ -633,7 +632,7 @@ private fun formatUntil(ms: Long): String {
 
 /** "7:05 am" today, "7:05 am tomorrow", else "7:05 am Tue". */
 private fun clockLabel(t: Long, now: Long): String {
-    val time = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(t)).lowercase(Locale.getDefault())
+    val time = Time.format(t, "h:mm a").lowercase(Locale.getDefault())
     return when (val d = dayLabel(t, now)) {
         "today" -> time
         else -> "$time $d"
@@ -641,11 +640,10 @@ private fun clockLabel(t: Long, now: Long): String {
 }
 
 private fun dayLabel(t: Long, now: Long): String {
-    val key = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-    val tomorrow = Calendar.getInstance().apply { timeInMillis = now; add(Calendar.DAY_OF_YEAR, 1) }.timeInMillis
-    return when (key.format(Date(t))) {
-        key.format(Date(now)) -> "today"
-        key.format(Date(tomorrow)) -> "tomorrow"
-        else -> SimpleDateFormat("EEE", Locale.getDefault()).format(Date(t))
+    val today = Time.day(now)
+    return when (Time.day(t)) {
+        today -> "today"
+        today.plusDays(1) -> "tomorrow"
+        else -> Time.format(t, "EEE")
     }
 }

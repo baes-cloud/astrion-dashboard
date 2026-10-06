@@ -1,6 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import android.graphics.BitmapFactory
+import com.custom.astrion.ui.parseHexColor
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.runtime.DisposableEffect
@@ -517,8 +518,8 @@ class PictureElementsCard : CardRenderer {
         val divisor = (radar["units_per_metre"] as? Number)?.toFloat()
             ?: if ((radar["unit"] as? String)?.lowercase() == "mm") 1000f else 1f
         // Per-sensor dot colours so you can tell which radar a dot came from.
-        val fill = parseArgb(radar["color"] as? String) ?: Color(0xD94F726D)
-        val accent = parseArgb(radar["accent_color"] as? String) ?: Color(0xFF8CBDB5)
+        val fill = parseHexColor(radar["color"] as? String) ?: Color(0xD94F726D)
+        val accent = parseHexColor(radar["accent_color"] as? String) ?: Color(0xFF8CBDB5)
         val label = radar["label"] as? String ?: ""
 
         // Loop handles layout of children, but child states are read ONLY inside child scopes!
@@ -568,8 +569,8 @@ class PictureElementsCard : CardRenderer {
         val showHibernating = opts["show_hibernating"] as? Boolean ?: false
         val src = (opts["source_size"] as? List<*>)?.filterIsInstance<Number>()?.map { it.toFloat() }
         val crop = (opts["crop"] as? List<*>)?.filterIsInstance<Number>()?.map { it.toFloat() }
-        val fill = parseArgb(opts["color"] as? String) ?: Color(0xD92CAA9C)
-        val accent = parseArgb(opts["accent_color"] as? String) ?: Color(0xFF8CE0D4)
+        val fill = parseHexColor(opts["color"] as? String) ?: Color(0xD92CAA9C)
+        val accent = parseHexColor(opts["accent_color"] as? String) ?: Color(0xFF8CE0D4)
 
         var targets by remember { mutableStateOf<List<RmmTarget>>(emptyList()) }
         // Only while the floorplan is actually on screen. The stream sends two
@@ -631,12 +632,6 @@ class PictureElementsCard : CardRenderer {
         }
     }
 
-    /** Parse "#AARRGGBB" / "#RRGGBB" to a Color; null if absent or malformed. */
-    private fun parseArgb(s: String?): Color? {
-        val hex = s?.removePrefix("#") ?: return null
-        val v = hex.toLongOrNull(16) ?: return null
-        return if (hex.length <= 6) Color(v or 0xFF000000L) else Color(v)
-    }
 
     /**
      * Isolated Radar Dot. Splitting this out prevents coordinate updates of target #1

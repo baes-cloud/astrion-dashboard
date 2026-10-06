@@ -875,14 +875,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun fireAlertAction(action: AlertAction) {
-        client.callService(
-            ServiceCall.of(
-                action.service.substringBefore('.'),
-                action.service.substringAfter('.'),
-                action.entityId,
-                *action.data.entries.map { it.key to it.value }.toTypedArray(),
-            )
-        )
+        client.callService(ServiceCall.fromConfig(action.service, action.entityId, action.data))
     }
 
     private fun wakeForAlarm() {
@@ -921,13 +914,7 @@ class MainActivity : ComponentActivity() {
     private fun fireAlarmAction(which: String) {
         val action = alarmOptions()[which] as? Map<String, Any?> ?: return
         val service = action["service"] as? String ?: return
-        client.callService(
-            ServiceCall(
-                domain = service.substringBefore('.'),
-                service = service.substringAfter('.'),
-                entityId = action["entity_id"] as? String,
-            )
-        )
+        client.callService(ServiceCall.fromConfig(service, action["entity_id"] as? String))
     }
 
     /** `voice` block from dashboard.json. */

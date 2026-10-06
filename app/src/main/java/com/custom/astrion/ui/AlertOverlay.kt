@@ -185,9 +185,7 @@ fun AlertOverlay(
 ) {
     val spec = alert.spec
     val p = paletteFor(spec.severity)
-    val sinceText = alert.sinceMs?.let {
-        java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(it))
-    }
+    val sinceText = alert.sinceMs?.let { Time.format(it, "h:mm a") }
     val minutes = alert.sinceMs?.let { ((nowMs - it) / 60_000).coerceAtLeast(0) }
     val message = spec.message
         ?.replace("{since}", sinceText ?: "")

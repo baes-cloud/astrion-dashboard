@@ -1,6 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.animation.core.animateDpAsState
+import com.custom.astrion.ui.parseHexColor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -87,7 +88,7 @@ class SceneGridCard : CardRenderer {
         fun nameOf(scene: Map<String, Any?>, entityId: String) =
             scene["name"] as? String ?: ctx.entities[entityId]?.friendlyName ?: entityId
         fun colorOf(scene: Map<String, Any?>): Color =
-            (scene["color"] as? String)?.let(::parseHexColor) ?: Color(0xFF34454F)
+            parseHexColor(scene["color"] as? String) ?: Color(0xFF34454F)
         fun iconOf(scene: Map<String, Any?>): ImageVector? = sceneIcon(scene["icon"] as? String)
 
         if (title != null) {
@@ -126,7 +127,7 @@ class SceneGridCard : CardRenderer {
         ) {
             scenes.forEach { scene ->
                 val entityId = scene["entity_id"] as? String ?: return@forEach
-                val color = (scene["color"] as? String)?.let(::parseHexColor) ?: Color(0xFFA9D2CB)
+                val color = parseHexColor(scene["color"] as? String) ?: Color(0xFFA9D2CB)
                 val name = scene["name"] as? String ?: ctx.entities[entityId]?.friendlyName ?: entityId
                 val isActive = entityId == active
                 val haptics = LocalHapticFeedback.current
@@ -246,11 +247,6 @@ class SceneGridCard : CardRenderer {
     }
 
     /** Parse "#RRGGBB" (treated opaque) or "#AARRGGBB" to a Color. */
-    private fun parseHexColor(s: String): Color? {
-        val h = s.removePrefix("#")
-        val v = h.toLongOrNull(16) ?: return null
-        return if (h.length <= 6) Color(0xFF000000L or v) else Color(v)
-    }
 
     /** Perceived luminance of the base RGB (0..1) — used to pick a readable text colour. */
     private fun luminance(c: Color): Float =

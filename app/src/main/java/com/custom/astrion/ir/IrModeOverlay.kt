@@ -130,13 +130,7 @@ fun IrModeOverlay(
             // Fallback: an arbitrary service call.
             b["service"] != null -> {
                 val svc = b["service"] as String
-                client.callService(
-                    ServiceCall(
-                        domain = svc.substringBefore('.'),
-                        service = svc.substringAfter('.'),
-                        entityId = b["entity_id"] as? String ?: tvEntity,
-                    )
-                )
+                client.callService(ServiceCall.fromConfig(svc, b["entity_id"] as? String ?: tvEntity))
                 toast = "Sent $name"
             }
             else -> toast = "$name not configured"
