@@ -71,6 +71,7 @@ import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.input.KeyDispatcher
 import com.custom.astrion.input.KeyTimers
+import com.custom.astrion.power.MotionWake
 import com.custom.astrion.ir.IrBlaster
 import com.custom.astrion.ir.IrModeOverlay
 import com.custom.astrion.ui.AlarmOverlay
@@ -169,9 +170,7 @@ class MainActivity : ComponentActivity() {
          */
         const val COLD_ARRIVAL_MS = 30_000L
 
-        // Motion-wake tuning: accel magnitude delta (m/s²) that counts as
-        // "moved", and a cooldown so a single lift fires one wake.
-        const val MOTION_THRESHOLD = 0.9f
+        /** Motion-wake cooldown, so a single lift fires one wake. */
         const val WAKE_COOLDOWN_MS = 2000L
 
         /**
@@ -197,35 +196,9 @@ class MainActivity : ComponentActivity() {
 
     private val keyHandler = Handler(Looper.getMainLooper())
 
-    // Motion-wake: an accelerometer wakes the screen when the remote is
-    // lifted/moved. NOT cheap at rest: a wake-up accelerometer wakes the SoC
-    // for every reading (~5 a second), moving or not, so the CPU can never
-    // suspend while it's registered. Hence only for `power.motion_wake_minutes`
-    // after the screen goes off — when a pick-up is most likely — and never
-    // on the dock, where the screen is kept on anyway.
-    private var sensorManager: SensorManager? = null
-    private var motionSensor: Sensor? = null
-    private var lastMagnitude = 0f
+    /** Wakes the screen when the remote is picked up; see [MotionWake]. */
+    private lateinit var motionWake: MotionWake
     private var lastWakeMs = 0L
-    /** elapsedRealtime after which motion-wake gives up; Long.MAX_VALUE = never. */
-    private var motionUntil = 0L
-    private val motionListener = object : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent) {
-            // Checked here too, not just by the timer: uptime-based timers
-            // stall while the SoC sleeps, the sensor's own wake-ups don't.
-            if (SystemClock.elapsedRealtime() > motionUntil) {
-                keyHandler.post { listenForMotion(false) }
-                return
-            }
-            val (x, y, z) = event.values
-            val mag = sqrt(x * x + y * y + z * z)
-            if (lastMagnitude != 0f && abs(mag - lastMagnitude) > MOTION_THRESHOLD) {
-                wakeScreen()
-            }
-            lastMagnitude = mag
-        }
-        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-    }
 
     private lateinit var client: HaClient
     private val keyRouter = HardwareKeyRouter()
@@ -369,7 +342,7 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        setupMotionWake()
+        motionWake = MotionWake(this, keyHandler, ::wakeScreen)
 
         client = HaClient(baseUrl = BuildConfig.HA_URL, token = BuildConfig.HA_TOKEN)
         irBlaster = IrBlaster(this)
@@ -1402,37 +1375,14 @@ class MainActivity : ComponentActivity() {
 
     // ---- motion wake --------------------------------------------------------
 
-    private fun setupMotionWake() {
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
-        // Prefer a wake-up accelerometer so events still arrive with the screen
-        // off; fall back to the normal one (which only helps while awake).
-        motionSensor = sensorManager?.getSensorList(Sensor.TYPE_ACCELEROMETER)
-            ?.firstOrNull { it.isWakeUpSensor }
-            ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-    }
-
-    /** Ends the motion-wake window; see [motionUntil]. */
-    private val motionTimeout = Runnable { listenForMotion(false) }
-
     /**
      * Only listen while the screen is off — with it on, wakeScreen() has
      * nothing to do — and then only for `power.motion_wake_minutes`
      * (default 5; 0 = never, -1 = for as long as it's off), and not on the
-     * dock. See [motionListener] for why it isn't free.
+     * dock.
      */
     private fun listenForMotion(on: Boolean) {
-        val sm = sensorManager ?: return
-        val sensor = motionSensor ?: return
-        sm.unregisterListener(motionListener)
-        keyHandler.removeCallbacks(motionTimeout)
-        val minutes = features.power.motionWakeMinutes
-        if (!on || minutes == 0 || docked) return
-        motionUntil = if (minutes < 0) Long.MAX_VALUE else SystemClock.elapsedRealtime() + minutes * 60_000L
-        if (minutes > 0) keyHandler.postDelayed(motionTimeout, minutes * 60_000L)
-        // A fresh baseline, so a reading from before the screen went off
-        // can't register as movement.
-        lastMagnitude = 0f
-        sm.registerListener(motionListener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+        if (on && !docked) motionWake.start(features.power.motionWakeMinutes) else motionWake.stop()
     }
 
     // ---- screen timeout -------------------------------------------------------
@@ -1547,8 +1497,7 @@ class MainActivity : ComponentActivity() {
         keyHandler.removeCallbacks(screensaverTick)
         runCatching { unregisterReceiver(batteryReceiver) }
         keyHandler.removeCallbacks(dockConfirm)
-        keyHandler.removeCallbacks(motionTimeout)
-        sensorManager?.unregisterListener(motionListener)
+        motionWake.stop()
         runCatching { unregisterReceiver(screenReceiver) }
         runCatching { contentResolver.unregisterContentObserver(timeoutObserver) }
         networkCallback?.let { cb ->
