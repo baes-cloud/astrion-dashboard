@@ -16,6 +16,28 @@ val secrets = Properties().apply {
 }
 fun secret(key: String, default: String) = (secrets.getProperty(key) ?: default)
 
+/**
+ * Copies device/config/dashboard.json into the APK's assets, so the layout
+ * the remote runs is also the one written out on first start and fallen back
+ * to when /sdcard/astrion/dashboard.json can't be read. One copy, not two.
+ */
+abstract class BundleDashboardConfig : DefaultTask() {
+    @get:InputFile
+    abstract val source: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        source.get().asFile.copyTo(outputDir.file("dashboard.json").get().asFile, overwrite = true)
+    }
+}
+
+val bundleDashboardConfig = tasks.register<BundleDashboardConfig>("bundleDashboardConfig") {
+    source.set(rootProject.layout.projectDirectory.file("device/config/dashboard.json"))
+}
+
 android {
     namespace = "com.custom.astrion"
     compileSdk = 34
@@ -67,6 +89,12 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(bundleDashboardConfig, BundleDashboardConfig::outputDir)
     }
 }
 

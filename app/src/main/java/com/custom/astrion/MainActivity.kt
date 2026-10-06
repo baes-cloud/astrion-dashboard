@@ -52,7 +52,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import com.custom.astrion.config.DashboardConfig
 import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HotkeyConfig
 import com.custom.astrion.config.JsonPlain
@@ -208,7 +207,7 @@ class MainActivity : ComponentActivity() {
     private val holdHaptics by lazy { StrongHaptics(this) }
 
     /** Current layout: starts as the compiled-in defaults, replaced from disk. */
-    private var dashboard by mutableStateOf(DashboardLoader.Result(DashboardConfig.default, null))
+    private var dashboard by mutableStateOf(DashboardLoader.Result(DashboardLoader.default, null))
 
     /** Page index requested by a hardware button; consumed by the Dashboard. */
     private var navTarget by mutableStateOf<Int?>(null)

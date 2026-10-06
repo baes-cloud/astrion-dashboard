@@ -31,6 +31,7 @@ import com.custom.astrion.cards.impl.SwipeStackCard
 import com.custom.astrion.cards.impl.SwitchCard
 import com.custom.astrion.cards.impl.TvRemoteCard
 import com.custom.astrion.cards.impl.VacuumCard
+import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ui.ArtCache
 
@@ -40,7 +41,7 @@ import com.custom.astrion.ui.ArtCache
  * To add a brand-new native card type:
  *   1. Create a class implementing CardRenderer (see cards/impl/ for examples).
  *   2. Add one line below.
- *   3. Reference it in DashboardConfig with its `type` string.
+ *   3. Reference it in device/config/dashboard.json with its `type` string.
  *
  * That's the whole extension model — no re-patching anyone's APK, no fixed
  * taxonomy of 11 types.
@@ -56,6 +57,7 @@ class AstrionApp : Application() {
     override fun onCreate() {
         super.onCreate()
         ArtCache.init(cacheDir)
+        DashboardLoader.init(assets)
         CardRegistry.register(
             LightCard(),
             LightGroupCard(),
