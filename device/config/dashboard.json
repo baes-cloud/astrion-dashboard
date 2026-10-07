@@ -860,6 +860,10 @@
   {
    "key": "CUSTOM_4",
    "service": "script.long_yellow"
+  },
+  {
+   "key": "MUTE",
+   "service": "astrion.open_settings"
   }
  ],
  "doubleHotkeys": [
@@ -894,6 +898,13 @@
    "entityId": "media_player.55_the_serif_3",
    "data": {
     "source": "hdmi2"
+   }
+  },
+  {
+   "key": "MUTE",
+   "service": "astrion.launch",
+   "data": {
+    "package": "com.aiks.HaRemote"
    }
   }
  ],
