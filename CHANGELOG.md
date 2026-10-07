@@ -24,7 +24,10 @@ companion automations and scripts are in `docs/HOME_ASSISTANT.md`.
 - Nights are darker and warmer: unlit rooms shade to `shade_alpha` 0.8, a
   pool tints the plan in its light's colour like lamplight on a surface
   instead of washing it towards white, and a room with any light on keeps a
-  soft glow across the whole room (`room_glow`, default 0.3).
+  soft glow across the whole room (`room_glow`).
+- Night glow toned down, as lit rooms looked washed out: `glow` 0.6 → 0.45,
+  `room_glow` 0.3 → 0.15, pools cut less of the shade and add less white
+  highlight, and the whole-room tint is fainter.
 
 ### Other changes
 
