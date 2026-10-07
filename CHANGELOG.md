@@ -18,6 +18,29 @@ companion automations and scripts are in `docs/HOME_ASSISTANT.md`.
 - With lit rooms on, a lit bulb icon takes its light's colour.
 - One light that drives several fittings (the six downlights) can glow from
   each of them with `glow_spots` on its floorplan element.
+- The glow is faint by day (`day_glow`, default 0.3 of full strength) and
+  comes up with the dark, on the same sun curve as the shade. Full-strength
+  pools bleached the bright daytime plan.
+- Nights are darker and warmer: unlit rooms shade to `shade_alpha` 0.8, a
+  pool tints the plan in its light's colour like lamplight on a surface
+  instead of washing it towards white, and a room with any light on keeps a
+  soft glow across the whole room (`room_glow`, default 0.3).
+
+### Other changes
+
+- The aircon's target temperature uses Syne's lighter cut, matching the
+  weather temperature; the bold cut was very wide and odd in numerals.
+- README rewritten for the current app, with new screenshots.
+
+### Plex tiles and the October 2026 Plex app
+
+Plex for Android TV 2026.19 (rolled out 3 October 2026) is a rewrite that
+ignores the `plex://server://…` links the Plex tiles send, so a tap did
+nothing while Plex was open. Its own links only reach an item's page, and
+casting it through HA plays a single item without autoplay or Back. The fix
+was to keep the classic app: Plex 10.30.8 for Android TV (January 2026),
+reinstalled with Play Store auto-update turned off for Plex. The tiles work
+unchanged with it.
 
 ### Code audit (October 2026)
 

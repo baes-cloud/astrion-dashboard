@@ -306,6 +306,10 @@ next-alarm parsing, config parsing and that the bundled `dashboard.json` loads.
 
 ## Notes
 
+- **Plex tiles need the classic Plex for Android TV app** (10.x; 10.30.8 is
+  known good). The rewritten 2026.x app ignores the links the tiles send.
+  Turn off Play Store auto-update for Plex on the TV so it stays on 10.x.
+  See [`CHANGELOG.md`](CHANGELOG.md) for what was tried.
 - **IR** goes through Android's `ConsumerIrManager` on the remote's own
   emitter. Everything else goes over the network through HA services
   (`remote.*`, `media_player.*`, `androidtv.*`).
