@@ -39,7 +39,7 @@ val LocalPageNameOverride = compositionLocalOf<MutableState<String?>?> { null }
 
 /**
  * The Bæo device name for the page on screen (BÆOREMOTE, BÆOVISION, …):
- * Syne 13sp, all caps, 0.4em tracking, `textSecondary` at 60%, centred in a
+ * Syne 15sp, all caps, 0.28em tracking, `textSecondary` at 60%, centred in a
  * fixed [PageNameHeight] footer; see [baeoWordmark] for the weights. No box,
  * rule or icon.
  *
@@ -65,14 +65,14 @@ fun PageName(name: String?, modifier: Modifier = Modifier) {
         Text(
             baeoWordmark(text),
             // Tracking also trails the last letter; pushing the text right by
-            // one tracking step (0.4em of 13sp ≈ 5) centres it optically.
+            // one tracking step (0.28em of 15sp ≈ 4) centres it optically.
             modifier = Modifier
-                .padding(start = 5.dp)
+                .padding(start = 4.dp)
                 .graphicsLayer { alpha = fade.value },
             color = AstrionTheme.textSecondary.copy(alpha = 0.6f),
             fontFamily = AstrionTheme.headingFont,
             fontWeight = FontWeight.Normal,
-            fontSize = 13.sp,
+            fontSize = 15.sp,
             letterSpacing = WordmarkTracking,
             maxLines = 1,
         )
@@ -93,7 +93,7 @@ fun baeoWordmark(name: String): AnnotatedString {
 }
 
 /** Wordmark letter spacing, shared with the screensaver's. */
-val WordmarkTracking = 0.4.em
+val WordmarkTracking = 0.28.em
 
 private const val BAEO = "BÆO"
 
