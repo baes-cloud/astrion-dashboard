@@ -470,7 +470,7 @@ private fun HoldToStop(onDismiss: () -> Unit) {
     }
 }
 
-private const val HOLD_MS = 1500
+private const val HOLD_MS = 900
 
 /**
  * Null when no alarm is on; otherwise what the popup should show. Pure
