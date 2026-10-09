@@ -189,22 +189,14 @@ class MediaShelvesCard : CardRenderer {
      */
     @Composable
     private fun ShelfLabel(text: String) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text.uppercase(),
-                color = Color(0xFF7FA9A2),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.2.sp,
-            )
-            Spacer(Modifier.width(10.dp))
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(1.dp)
-                    .background(AstrionTheme.controlSunken),
-            )
-        }
+        // Same as the Plex rows and section titles ("On Deck", "Blinds").
+        Text(
+            text,
+            color = Color(0xFFAEBFBB),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.sp,
+        )
     }
 
     @Composable

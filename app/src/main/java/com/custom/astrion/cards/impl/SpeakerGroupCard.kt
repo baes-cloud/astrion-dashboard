@@ -201,6 +201,13 @@ class SpeakerGroupCard : CardRenderer {
                     val id = t["entity_id"] as? String ?: return@forEach
                     TogglePill(ctx, id, t["name"] as? String, t["icon"] as? String, Modifier)
                 }
+                val mLive = !mUnavailable && ctx.connected
+                WideBtn(Icons.Filled.VolumeDown, "Club volume down", Modifier.width(56.dp), enabled = mLive, height = 38.dp) {
+                    ctx.client.callService(ServiceCall("media_player", "volume_down", master))
+                }
+                WideBtn(Icons.Filled.VolumeUp, "Club volume up", Modifier.width(56.dp), enabled = mLive, height = 38.dp) {
+                    ctx.client.callService(ServiceCall("media_player", "volume_up", master))
+                }
             }
             speakers.forEach { sp ->
                 val id = sp["entity_id"] as? String ?: return@forEach
@@ -220,7 +227,7 @@ class SpeakerGroupCard : CardRenderer {
         val unavailable = e == null || e.isUnavailable
         Row(
             modifier = modifier
-                .height(40.dp)
+                .height(38.dp)
                 .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(12.dp))
                 .background(if (on) AstrionTheme.accentStrong else AstrionTheme.controlSunken)
