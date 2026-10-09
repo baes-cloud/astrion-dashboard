@@ -64,7 +64,7 @@ All keys are optional.
 | `screen_off_filter_seconds` | 30 | How long the screen must be off before the HA subscription narrows. `-1` never narrows. |
 | `screen_off_entities` | – | Extra entities to keep live with the screen off, on top of the alarm's and alerts'. |
 | `dock_debounce_seconds` | 5 | How long it must be charging before it counts as docked. Lifting it off counts at once. |
-| `screen_timeout_seconds` | 120 | The system screen timeout, enforced (see above). Docked, the screen stays on regardless. `0` leaves the setting alone. |
+| `screen_timeout_seconds` | 120 | The system screen timeout, enforced (see above). Docked, the screen stays on regardless. `0` leaves the setting alone; `-1` never times out, so an undocked remote stays on its screensaver all night (about 6% an hour). |
 | `report_entity` | – | Publish this remote's battery to HA under this id (see below). Give each remote its own. |
 | `report_name` | – | Friendly name for that entity. |
 

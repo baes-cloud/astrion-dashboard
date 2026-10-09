@@ -1342,8 +1342,8 @@ class MainActivity : ComponentActivity() {
      */
     private fun enforceScreenTimeout() {
         val secs = features.power.screenTimeoutSeconds
-        if (secs <= 0 || !Settings.System.canWrite(this)) return
-        val want = secs * 1000
+        if (secs == 0 || secs < -1 || !Settings.System.canWrite(this)) return
+        val want = if (secs == -1) Int.MAX_VALUE else secs * 1000
         val current = Settings.System.getInt(contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, -1)
         if (current == want) return
         runCatching { Settings.System.putInt(contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, want) }

@@ -247,7 +247,9 @@
           {
            "entity_id": "light.club_led_group",
            "left": 12,
-           "top": 46
+           "top": 46,
+           "glow_spots": [[2, 47], [7, 47], [12, 47], [17, 47], [22, 47], [27, 47], [32, 47], [37, 47], [42, 47], [47, 47], [52, 47], [57, 47], [62, 47], [67, 47], [72, 47], [77, 47], [82, 47], [87, 47], [92, 47], [97, 47]],
+           "glow_reach": 0.35
           },
           {
            "entity_id": "light.bedroom_cupboard_light",
@@ -1015,6 +1017,7 @@
   }
  ],
  "power": {
+  "screen_timeout_seconds": -1,
   "report_entity": "sensor.club_remote_battery",
   "report_name": "Club remote"
  },
