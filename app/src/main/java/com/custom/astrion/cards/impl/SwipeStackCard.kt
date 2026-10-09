@@ -14,6 +14,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -89,8 +90,8 @@ class SwipeStackCard : CardRenderer {
                 // Segmented tab bar ("Player | Media"): says what's behind each
                 // page and, unlike a swipe, always gets through children built
                 // from LazyRows (which eat horizontal drags).
-                // Recessed track, the current tab a raised panel with a short
-                // Hailstorm rule under its name. Gunmetal fill is kept for
+                // Recessed track; the current tab sinks a shade darker and
+                // gets a bright Hailstorm neon rule under its name. Gunmetal fill is kept for
                 // things that are ON (Linked, BÆOLINK, the active scene), so
                 // the tab no longer reads as a switched-on button.
                 Row(
@@ -108,7 +109,7 @@ class SwipeStackCard : CardRenderer {
                                 .weight(1f)
                                 .height(38.dp)
                                 .clip(RoundedCornerShape(9.dp))
-                                .background(if (current) AstrionTheme.raised else AstrionTheme.trackBg)
+                                .background(if (current) TabSelectedBg else AstrionTheme.trackBg)
                                 .tap { scope.launch { pagerState.animateScrollToPage(i) } },
                             contentAlignment = Alignment.Center,
                         ) {
@@ -119,13 +120,25 @@ class SwipeStackCard : CardRenderer {
                                 fontWeight = FontWeight.SemiBold,
                             )
                             if (current) {
+                                // Neon rule: a faint glow rising off a bright core.
+                                Box(
+                                    Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .padding(bottom = 8.dp)
+                                        .size(width = 40.dp, height = 10.dp)
+                                        .background(
+                                            Brush.radialGradient(
+                                                listOf(TabNeon.copy(alpha = 0.18f), Color.Transparent),
+                                            )
+                                        ),
+                                )
                                 Box(
                                     Modifier
                                         .align(Alignment.BottomCenter)
                                         .padding(bottom = 5.dp)
-                                        .size(width = 18.dp, height = 2.dp)
-                                        .clip(RoundedCornerShape(1.dp))
-                                        .background(AstrionTheme.accent),
+                                        .size(width = 26.dp, height = 3.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(TabNeon),
                                 )
                             }
                         }
@@ -202,3 +215,9 @@ class SwipeStackCard : CardRenderer {
         }
     }
 }
+
+/** The current tab: a shade darker than the track it sits in. */
+private val TabSelectedBg = Color(0xFF131A21)
+
+/** Hailstorm pushed brighter for the tab's neon rule. */
+private val TabNeon = Color(0xFFA6E3D9)
