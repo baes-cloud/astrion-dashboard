@@ -55,6 +55,7 @@ import androidx.compose.ui.layout.AlignmentLine
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -210,7 +211,7 @@ fun Screensaver(
                     fontWeight = FontWeight.Medium,
                     letterSpacing = (-1.5).sp,
                     lineHeight = 81.sp,
-                    fontFeatureSettings = "tnum",
+                    style = TextStyle(fontFeatureSettings = "tnum"),
                     maxLines = 1,
                     modifier = Modifier.alignByBaseline(),
                 )
