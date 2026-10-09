@@ -23,9 +23,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.tap
 
 /**
@@ -169,19 +171,20 @@ fun IrModeOverlay(
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFE0663A)),
+                        .background(AstrionTheme.blush),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Filled.SettingsRemote, contentDescription = null,
-                        tint = Color(0xFF20120C), modifier = Modifier.size(22.dp),
+                        tint = AstrionTheme.onBlush, modifier = Modifier.size(22.dp),
                     )
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
                         "IR MODE",
-                        color = Color(0xFFFFC24B), fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 2.sp,
+                        color = AstrionTheme.blush, fontSize = 19.sp,
+                        fontFamily = AstrionTheme.headingFont,
+                        fontWeight = FontWeight.Bold, letterSpacing = 0.06.em,
                     )
                     Text(
                         "Hardware buttons blast to the TV",
@@ -191,7 +194,7 @@ fun IrModeOverlay(
             }
 
             // Capability line — makes a dead emitter obvious instead of silent.
-            val statusColor = if (blaster.available) Color(0xFF5FD3A0) else Color(0xFFE06767)
+            val statusColor = if (blaster.available) AstrionTheme.good else AstrionTheme.danger
             Text(blaster.statusLine(), color = statusColor, fontSize = 11.sp)
 
             Divider()
@@ -257,13 +260,13 @@ fun IrModeOverlay(
                     .fillMaxWidth()
                     .height(46.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF3A2E2E))
+                    .background(AstrionTheme.dangerBg)
                     .tap(onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     "Exit IR Mode",
-                    color = Color(0xFFE79A9A), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                    color = AstrionTheme.danger, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                 )
             }
         }
