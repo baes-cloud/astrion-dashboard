@@ -144,15 +144,30 @@ fun Dashboard(
         // scratch — Plex rows, shelves, the floorplan — 0.2–0.5s on this SoC.
         // Swiping was already off, so the pager added nothing. Memory is not
         // the constraint (≈70 MB of ≈590 MB free).
+        // One name slot per page, for a card that names itself (see
+        // LocalPageNameOverride); the footer reads the current page's.
+        val nameOverrides = remember(config.pages) { config.pages.map { mutableStateOf<String?>(null) } }
         config.pages.forEachIndexed { i, page ->
             key(i) {
-                CompositionLocalProvider(LocalPageVisible provides (i == current)) {
+                CompositionLocalProvider(
+                    LocalPageVisible provides (i == current),
+                    LocalPageNameOverride provides nameOverrides[i],
+                ) {
                     Box(Modifier.fillMaxSize().unplacedWhen(i != current)) {
                         PageContent(page, ctx)
                     }
                 }
             }
         }
+
+        // The device name sits in the footer slot every page leaves free. It's
+        // drawn once, here, rather than per page, so a page change crossfades
+        // the name in place instead of swapping it.
+        val page = config.pages.getOrNull(current)
+        PageName(
+            name = nameOverrides.getOrNull(current)?.value ?: page?.deviceName,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
 
         // Banners overlay the dashboard rather than being inserted above it.
         // Inserting them pushed every page down by ~44dp — 7.5% of a 582dp
@@ -227,6 +242,9 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
                 pinnedBottom.forEach { RenderCard(it, ctx) }
             }
         }
+        // Footer slot for the device name (drawn by Dashboard): the same
+        // height on every page, named or not.
+        Spacer(Modifier.fillMaxWidth().height(PageNameHeight))
     }
 }
 
