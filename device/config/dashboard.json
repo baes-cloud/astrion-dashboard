@@ -516,7 +516,7 @@
          "layout": "list",
          "master": "media_player.club",
          "name": "Club",
-         "height": 486,
+         "height": 468,
          "toggles": [
           {
            "entity_id": "input_boolean.music_follows_me",

@@ -168,16 +168,15 @@ class SpeakerGroupCard : CardRenderer {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (height > 0) Modifier.height(height.dp) else Modifier)
-                .clip(RoundedCornerShape(18.dp))
-                .background(AstrionTheme.cardBg)
-                .padding(12.dp),
+                .then(if (height > 0) Modifier.height(height.dp) else Modifier),
+            // No card of its own: the header and the speaker cards sit
+            // straight on the page.
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // One line: the master's name and level, then the toggles on the
             // right. The level is set like the speakers' own, not bold.
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 6.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -265,7 +264,7 @@ class SpeakerGroupCard : CardRenderer {
         val vol = e?.attrDouble("volume_level")
         val members = e?.attrStringList("group_members") ?: emptyList()
         val grouped = members.contains(master) && members.size > 1
-        val shape = RoundedCornerShape(14.dp)
+        val shape = RoundedCornerShape(18.dp)
         fun toggleGroup() {
             if (grouped) {
                 ctx.client.callService(ServiceCall("media_player", "unjoin", entityId))
@@ -285,9 +284,9 @@ class SpeakerGroupCard : CardRenderer {
                 .fillMaxWidth()
                 .dimIfUnavailable(unavailable)
                 .clip(shape)
-                .background(AstrionTheme.trackBg)
+                .background(AstrionTheme.cardBg)
                 .then(if (grouped) Modifier.border(1.5.dp, AstrionTheme.accentStrong, shape) else Modifier)
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
         ) {
             Row(
