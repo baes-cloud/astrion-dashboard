@@ -176,15 +176,15 @@ class SpeakerGroupCard : CardRenderer {
         ) {
             // Title: the master's name and level, nothing to press.
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 2.dp),
-                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Same as the Aircon card's title.
                 Text(
                     config.string("name") ?: m?.friendlyName ?: master,
                     color = AstrionTheme.textPrimary,
-                    fontFamily = AstrionTheme.headingFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 17.sp,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
@@ -194,9 +194,8 @@ class SpeakerGroupCard : CardRenderer {
                         else -> "—"
                     },
                     color = if (mUnavailable) AstrionTheme.unavailable else AstrionTheme.accent,
-                    fontFamily = AstrionTheme.headingFont,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 20.sp,
+                    fontSize = 15.sp,
                 )
             }
             if (toggles.isNotEmpty()) {
