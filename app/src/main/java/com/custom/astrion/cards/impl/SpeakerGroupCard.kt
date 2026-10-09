@@ -240,11 +240,11 @@ class SpeakerGroupCard : CardRenderer {
                 Text(
                     baeoWordmark(label),
                     // One step of start padding centres the trailing tracking.
-                    modifier = Modifier.padding(start = 4.dp),
+                    modifier = Modifier.padding(start = 3.dp),
                     color = if (on) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
                     fontFamily = AstrionTheme.headingFont,
                     fontWeight = FontWeight.Normal,
-                    fontSize = 15.sp,
+                    fontSize = 13.sp,
                     letterSpacing = WordmarkTracking,
                     maxLines = 1,
                 )
