@@ -417,7 +417,7 @@
       "device_names": [
        "BÆOSOUND",
        "BÆOSOUND",
-       "BÆOLINK"
+       "BÆOSOUND"
       ],
       "cards": [
        {
@@ -520,8 +520,8 @@
          "toggles": [
           {
            "entity_id": "input_boolean.music_follows_me",
-           "name": "Follow me",
-           "icon": "music"
+           "name": "BÆOLINK",
+           "icon": "wordmark"
           }
          ],
          "speakers": [

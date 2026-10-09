@@ -34,6 +34,8 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.WordmarkTracking
+import com.custom.astrion.ui.baeoWordmark
 import com.custom.astrion.ui.dimIfUnavailable
 import com.custom.astrion.ui.tap
 import kotlinx.serialization.json.JsonArray
@@ -212,7 +214,7 @@ class SpeakerGroupCard : CardRenderer {
         }
     }
 
-    /** Follow me / Night sound: icon + word, filled Gunmetal when on. */
+    /** A toggle such as Follow me: icon + word (or a wordmark), filled Gunmetal when on. */
     @Composable
     private fun TogglePill(ctx: CardContext, entityId: String, name: String?, icon: String?, modifier: Modifier) {
         val e = ctx.entities[entityId]
@@ -231,6 +233,23 @@ class SpeakerGroupCard : CardRenderer {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         ) {
+            val label = name ?: e?.friendlyName ?: entityId
+            // "icon": "wordmark" sets the name as a Bæo wordmark (BÆOLINK),
+            // with no glyph, in the footer's Syne and tracking.
+            if (icon == "wordmark") {
+                Text(
+                    baeoWordmark(label),
+                    // One step of start padding centres the trailing tracking.
+                    modifier = Modifier.padding(start = 4.dp),
+                    color = if (on) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
+                    fontFamily = AstrionTheme.headingFont,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 15.sp,
+                    letterSpacing = WordmarkTracking,
+                    maxLines = 1,
+                )
+                return@Row
+            }
             Icon(
                 if (icon == "night") Icons.Filled.NightsStay else Icons.Filled.MusicNote,
                 contentDescription = null,
@@ -238,7 +257,7 @@ class SpeakerGroupCard : CardRenderer {
                 modifier = Modifier.size(18.dp),
             )
             Text(
-                name ?: e?.friendlyName ?: entityId,
+                label,
                 color = if (on) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
