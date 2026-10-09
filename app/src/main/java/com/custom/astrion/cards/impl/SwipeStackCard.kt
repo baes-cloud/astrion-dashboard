@@ -89,31 +89,45 @@ class SwipeStackCard : CardRenderer {
                 // Segmented tab bar ("Player | Media"): says what's behind each
                 // page and, unlike a swipe, always gets through children built
                 // from LazyRows (which eat horizontal drags).
+                // Recessed track, the current tab a raised panel with a short
+                // Hailstorm rule under its name. Gunmetal fill is kept for
+                // things that are ON (Linked, BÆOLINK, the active scene), so
+                // the tab no longer reads as a switched-on button.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(AstrionTheme.controlSunken)
-                        .padding(2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AstrionTheme.trackBg)
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     children.indices.forEach { i ->
                         val current = i == pagerState.currentPage
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(40.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (current) AstrionTheme.accentStrong else AstrionTheme.controlSunken)
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(if (current) AstrionTheme.raised else AstrionTheme.trackBg)
                                 .tap { scope.launch { pagerState.animateScrollToPage(i) } },
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
                                 titles[i],
-                                color = if (current) Color.White else AstrionTheme.textSecondary,
+                                color = if (current) AstrionTheme.textPrimary else AstrionTheme.textMuted,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                             )
+                            if (current) {
+                                Box(
+                                    Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .padding(bottom = 5.dp)
+                                        .size(width = 18.dp, height = 2.dp)
+                                        .clip(RoundedCornerShape(1.dp))
+                                        .background(AstrionTheme.accent),
+                                )
+                            }
                         }
                     }
                 }
