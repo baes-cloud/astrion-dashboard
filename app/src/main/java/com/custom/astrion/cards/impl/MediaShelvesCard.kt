@@ -189,13 +189,12 @@ class MediaShelvesCard : CardRenderer {
      */
     @Composable
     private fun ShelfLabel(text: String) {
-        // Same as the Plex rows and section titles ("On Deck", "Blinds").
+        // Set like the speaker names on the Link tab.
         Text(
             text,
-            color = Color(0xFFAEBFBB),
-            fontSize = 12.sp,
+            color = AstrionTheme.textPrimary,
+            fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.sp,
         )
     }
 
