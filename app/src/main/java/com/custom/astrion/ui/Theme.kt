@@ -41,7 +41,7 @@ object AstrionTheme {
     // Doll is the warm accent (attention states, the next alarm, mute badge).
 
     // ---- surfaces -----------------------------------------------------------
-    val pageBg = Color(0xFF1A232C)
+    val pageBg = Color(0xFF1B242D)
     val pinnedTopBg = Color(0xFF151D25)
     val pinnedBottomBg = Color(0xFF182129)
 
@@ -62,7 +62,7 @@ object AstrionTheme {
     // cards are separated by spacing, not strokes.
 
     // ---- text ---------------------------------------------------------------
-    val textPrimary = Color(0xFFEEF2EF)
+    val textPrimary = Color(0xFFF1ECEA)
     val textSecondary = Color(0xFFA9BAB6)
     val textOnControl = Color(0xFFD9E3E0)
     val textMuted = Color(0xFF718583)
@@ -79,9 +79,19 @@ object AstrionTheme {
      *  the next alarm. Text/icons on it use [onBlush]. */
     val blush = Color(0xFFE6BCB6)
     val onBlush = Color(0xFF4A2A26)
-    val danger = Color(0xFFE06767)
+    val danger = Color(0xFFE37B7B)
     val dangerBg = Color(0xFF3A2E2E)
     val good = Color(0xFF8CBDB5)
+
+    // ---- night (docked screensaver) -----------------------------------------
+    // BæoRemote rebrand, 2026-10: the night face moved from amber to a dimmed
+    // Baby Doll rose.
+    /** Clock and title on the night face (≈7.5:1 on [nightFace]). */
+    val nightInk = Color(0xFFC29690)
+    /** Date, artist, meta, progress and the BÆOREMOTE name (≈4.8:1). */
+    val nightInk2 = Color(0xFF9C7570)
+    /** Night face ground. */
+    val nightFace = Color(0xFF0C0E10)
 
     /**
      * Unavailable / unknown. Deliberately a desaturated slate that is NOT the

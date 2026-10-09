@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -22,6 +23,7 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.LocalPageNameOverride
 import com.custom.astrion.ui.tap
 import kotlinx.coroutines.launch
 
@@ -49,6 +51,9 @@ import kotlinx.coroutines.launch
  *       ]
  *   } }
  *
+ * `device_names` (optional, one per child) replaces the page's device name in
+ * the footer while that child is showing.
+ *
  * A tab can hold several cards: { "type": "column", "options": {
  *   "spacing": 10, "cards": [ ... ] } }.
  *
@@ -69,6 +74,15 @@ class SwipeStackCard : CardRenderer {
 
         val pagerState = rememberPagerState(pageCount = { children.size })
         val scope = rememberCoroutineScope()
+
+        // Per-tab device names for the page footer (Media: BÆOSOUND, …,
+        // BÆOLINK); without `device_names` the page's own name stands.
+        val deviceNames = config.stringList("device_names")
+        val nameOverride = LocalPageNameOverride.current
+        if (deviceNames.isNotEmpty() && nameOverride != null) {
+            val tabName = deviceNames.getOrNull(pagerState.currentPage)
+            SideEffect { nameOverride.value = tabName }
+        }
 
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (titles.size >= children.size) {

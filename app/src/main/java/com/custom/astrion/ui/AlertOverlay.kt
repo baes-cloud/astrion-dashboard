@@ -152,12 +152,25 @@ fun nextAlertDueMs(specs: List<AlertSpec>, entities: Map<String, EntityState>, n
         (since + spec.forSeconds * 1000L).takeIf { it > nowMs }
     }.minOrNull()
 
-private data class Palette(val top: Color, val bottom: Color, val accent: Color, val buttonHi: Color, val buttonLo: Color, val ink: Color)
+/**
+ * [radial], when set, replaces the top-to-bottom ground and its accent pool
+ * with one radial wash from behind the glyph outwards. A primary button whose
+ * [buttonHi] and [buttonLo] match is a solid fill.
+ */
+private data class Palette(
+    val top: Color, val bottom: Color, val accent: Color,
+    val buttonHi: Color, val buttonLo: Color, val ink: Color,
+    val radial: List<Color>? = null,
+)
 
 private fun paletteFor(severity: String): Palette = when (severity) {
     "alarm" -> Palette(Color(0xFF4A1119), Color(0xFF1C070B), Color(0xFFFF5A67), Color(0xFFE2404E), Color(0xFFA81F2D), Color.White)
     "warning" -> Palette(Color(0xFF3F2C0C), Color(0xFF1A1206), Color(0xFFFFB347), Color(0xFFF6C75A), Color(0xFFDC9A22), Color(0xFF3A2605))
-    else -> Palette(Color(0xFF27403E), Color(0xFF131B22), Color(0xFFA9D2CB), Color(0xFFA9D2CB), Color(0xFF4F726D), Color(0xFF14211F))
+    else -> Palette(
+        Color(0xFF27403E), Color(0xFF131B22), Color(0xFFA9D2CB),
+        AstrionTheme.accent, AstrionTheme.accent, Color(0xFF151D25),
+        radial = listOf(Color(0xFF3B5650), Color(0xFF22302F), Color(0xFF151D25)),
+    )
 }
 
 private fun iconFor(key: String?): ImageVector = when (key) {
@@ -208,6 +221,16 @@ fun AlertOverlay(
                 .clip(RoundedCornerShape(30.dp))
                 .background(Brush.verticalGradient(listOf(p.top, p.bottom)))
                 .drawBehind {
+                    p.radial?.let { stops ->
+                        drawRect(
+                            Brush.radialGradient(
+                                stops,
+                                center = Offset(size.width / 2, size.height * 0.25f),
+                                radius = size.height * 0.85f,
+                            ),
+                        )
+                        return@drawBehind
+                    }
                     drawCircle(
                         brush = Brush.radialGradient(
                             listOf(p.accent.copy(alpha = 0.22f), Color.Transparent),

@@ -97,7 +97,8 @@ object DashboardLoader {
                     val obj = p as? JsonObject ?: error("each page must be an object")
                     val name = (obj["name"] as? JsonPrimitive)?.content ?: "Page"
                     val cards = (obj["cards"] as? JsonArray)?.map { parseCard(it as JsonObject) } ?: emptyList()
-                    PageConfig(name, cards)
+                    val deviceName = (obj["device_name"] as? JsonPrimitive)?.content
+                    PageConfig(name, cards, deviceName)
                 }
                 if (pages.isEmpty()) error("\"pages\" is empty")
                 val start = (root["startPage"] as? JsonPrimitive)?.intOrNull ?: 0

@@ -1,6 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.animation.core.animateDpAsState
+import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.parseHexColor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,6 +37,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
@@ -135,7 +137,10 @@ class SceneGridCard : CardRenderer {
                     modifier = Modifier
                         .height(38.dp)
                         .clip(RoundedCornerShape(13.dp))
-                        .background(if (isActive) Color(0xFF2A4240) else Color(0xFF1C2A2C))
+                        // Inactive sits on the card fill so it still reads
+                        // as a pill against the page; active is sunken, tinted
+                        // with the scene colour below.
+                        .background(if (isActive) AstrionTheme.controlSunken else AstrionTheme.cardBg)
                         .then(if (isActive) Modifier.background(color.copy(alpha = 0.10f)) else Modifier)
                         .then(
                             if (isActive) Modifier.border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(13.dp))
@@ -167,13 +172,26 @@ class SceneGridCard : CardRenderer {
                     Spacer(Modifier.width(8.dp))
                     Text(
                         name,
-                        color = if (isActive) Color.White else Color(0xFF9CA3AF),
+                        color = if (isActive) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         letterSpacing = 0.3.sp,
                         maxLines = 1,
                         softWrap = false,
                     )
+                    // Colour is never the only signal: the active pill says so.
+                    if (isActive) {
+                        Text(
+                            "ON",
+                            modifier = Modifier.padding(start = 2.dp),
+                            color = AstrionTheme.accent,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.16.em,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                    }
                 }
             }
         }

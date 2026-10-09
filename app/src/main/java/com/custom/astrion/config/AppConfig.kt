@@ -37,10 +37,15 @@ data class AppConfig(
     val features: FeatureOptions by lazy { FeatureOptions(options, mapOf("screensaver" to DashboardConfig.screensaverDefaults)) }
 }
 
-/** One swipeable page: a name (used by hotkey `page` navigation) and its cards. */
+/**
+ * One swipeable page: a name (used by hotkey `page` navigation) and its cards.
+ * [deviceName] is the Bæo name shown in the page's footer (BÆOREMOTE,
+ * BÆOVISION, …); null leaves the footer empty.
+ */
 data class PageConfig(
     val name: String,
     val cards: List<CardConfig>,
+    val deviceName: String? = null,
 )
 
 /**

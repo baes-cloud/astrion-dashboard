@@ -308,8 +308,10 @@ class ClockWeatherCard : CardRenderer {
                     Text(
                         temp?.let { "${whole(it)}°" } ?: "—",
                         color = AstrionTheme.textPrimary,
-                        fontFamily = AstrionTheme.headingFont, fontSize = 30.sp,
-                        fontWeight = FontWeight.Light,
+                        // Manrope Bold, not Syne: the BæoRemote system keeps
+                        // Syne for names and headings.
+                        fontFamily = AstrionTheme.bodyFont, fontSize = 25.sp,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                     )
                     Spacer(Modifier.width(7.dp))

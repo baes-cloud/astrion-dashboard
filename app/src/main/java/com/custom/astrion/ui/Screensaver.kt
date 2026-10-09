@@ -1,5 +1,8 @@
 package com.custom.astrion.ui
 
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -14,10 +17,12 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Event
@@ -41,13 +46,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.AlignmentLine
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.impl.nextAlarmMs
 import com.custom.astrion.cards.impl.weatherEmoji
@@ -62,6 +75,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
  * The screensaver: a black, dim, night-friendly face that takes over once the
@@ -79,8 +93,13 @@ import java.util.Locale
  *  - HA unreachable, and the remote's own charge.
  *
  * At night (sun below the horizon, else outside 07:00–21:00) the palette goes
- * warm and dimmer and the backlight drops to `night_brightness`; MainActivity
- * owns the backlight and the idle timer, this only draws.
+ * to a dimmed Baby Doll rose on a near-black face and the backlight drops to
+ * `night_brightness`; MainActivity owns the backlight and the idle timer, this
+ * only draws.
+ *
+ * BÆOREMOTE sits centred with its baseline at 92% of the height. It fades in
+ * last (1.2 s ease-out), drops to half after five minutes, and drifts at most
+ * 1% of the height every ten — the only motion besides the face's own drift.
  *
  * The whole block drifts a few dp every minute. The HA100 is an LCD so burn-in
  * isn't the worry it is on OLED, but a static clock on a panel that stays lit
@@ -169,55 +188,73 @@ fun Screensaver(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(if (night) NightFaceBrush else SolidColor(Color.Black)),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .offset(x = dx.dp, y = dy.dp)
-                .padding(horizontal = 20.dp, vertical = 32.dp),
+                // The bottom inset keeps the name's clear field below.
+                .padding(start = 20.dp, end = 20.dp, top = 32.dp, bottom = 92.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.weight(0.8f))
 
             // ---- clock -------------------------------------------------------
-            Row(verticalAlignment = Alignment.Bottom) {
+            Row {
                 Text(
                     timeFmt.format(Date(now)),
-                    // Faded through the colour, not Modifier.alpha: no extra layer.
-                    color = clockInk.copy(alpha = if (night) 0.55f else 0.62f),
-                    // ~260dp wide for "12:45" on a ~349dp-wide panel.
-                    fontFamily = AstrionTheme.headingFont, fontSize = 96.sp,
-                    fontWeight = FontWeight.Thin,
-                    lineHeight = 96.sp,
+                    // Faded through the colour, not Modifier.alpha: no extra
+                    // layer. The rose night ink is already dim at full alpha.
+                    color = if (night) clockInk else clockInk.copy(alpha = 0.62f),
+                    fontFamily = AstrionTheme.bodyFont, fontSize = 81.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = (-1.5).sp,
+                    lineHeight = 81.sp,
+                    style = TextStyle(fontFeatureSettings = "tnum"),
                     maxLines = 1,
+                    modifier = Modifier.alignByBaseline(),
                 )
                 if (!is24) {
                     Text(
                         amPmFmt.format(Date(now)).lowercase(Locale.getDefault()),
                         color = faint,
-                        fontFamily = AstrionTheme.headingFont, fontSize = 20.sp,
-                        fontWeight = FontWeight.Light,
-                        modifier = Modifier.padding(start = 4.dp, bottom = 18.dp),
+                        fontFamily = AstrionTheme.bodyFont, fontSize = 19.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(start = 6.dp).alignByBaseline(),
                     )
                 }
             }
+            Spacer(Modifier.height(13.dp))
+            // Date · weather · the remote's own charge. The battery lives here,
+            // not at the bottom, to keep the name's clear field empty.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(dateFmt.format(Date(now)), color = ink, fontSize = 16.sp, fontWeight = FontWeight.Light, maxLines = 1)
+                Text(dateFmt.format(Date(now)), color = ink, fontSize = 15.sp, maxLines = 1)
                 if (weather != null && !weather.isUnavailable) {
                     val temp = weather.attrDouble("temperature")
-                    Text("  ·  ", color = faint, fontSize = 16.sp)
+                    Text("  ·  ", color = faint, fontSize = 15.sp)
                     Text(
                         weatherEmoji(weather.state),
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         // Emoji ignore the text colour; fade them instead so a
                         // bright sun doesn't glare out of a dark room.
                         modifier = Modifier.alpha(if (night) 0.45f else 0.7f),
                     )
                     if (temp != null) {
                         Spacer(Modifier.width(5.dp))
-                        Text("${Math.round(temp)}°", color = ink, fontSize = 16.sp, fontWeight = FontWeight.Light)
+                        Text("${Math.round(temp)}°", color = ink, fontSize = 15.sp)
                     }
+                }
+                if (batteryPct != null) {
+                    Text("  ·  ", color = faint, fontSize = 15.sp)
+                    Icon(
+                        if (charging) Icons.Filled.BatteryChargingFull else Icons.Filled.BatteryStd,
+                        contentDescription = null,
+                        tint = ink,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(Modifier.width(2.dp))
+                    Text("$batteryPct%", color = ink, fontSize = 15.sp, maxLines = 1)
                 }
             }
 
@@ -236,46 +273,96 @@ fun Screensaver(
 
             // ---- now playing --------------------------------------------------
             if (media != null) {
-                NowPlaying(media, client, night, ink, faint, accent)
-                Spacer(Modifier.height(18.dp))
+                NowPlaying(
+                    media, client, night,
+                    titleInk = if (night) clockInk else ink,
+                    ink = ink, faint = faint, accent = accent,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                )
             }
+        }
 
-            // ---- footer: the remote's own charge -----------------------------
-            if (batteryPct != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Filled.BatteryChargingFull,
-                        contentDescription = null,
-                        tint = faint,
-                        modifier = Modifier.size(13.dp),
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        when {
-                            batteryPct >= 100 -> "Charged"
-                            charging -> "Charging $batteryPct%"
-                            else -> "$batteryPct%"
-                        },
-                        color = faint,
-                        fontSize = 12.sp,
-                    )
-                }
-            }
+        ScreensaverName(now, night)
+    }
+}
+
+/**
+ * BÆOREMOTE, centred, baseline at 92% of the height. Fades in last, after the
+ * face (1.2 s ease-out, no slide), drops to half after [NAME_DIM_AFTER_MS],
+ * and steps ≤1% of the height every ten minutes against burn-in. A single
+ * animateFloatAsState: nothing runs between those steps.
+ */
+@Composable
+private fun ScreensaverName(now: Long, night: Boolean) {
+    val shownAt = remember { System.currentTimeMillis() }
+    var arrived by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { arrived = true }
+    val dimmed = now - shownAt >= NAME_DIM_AFTER_MS
+    val full = if (night) 1f else 0.7f
+    val nameAlpha by animateFloatAsState(
+        targetValue = when {
+            !arrived -> 0f
+            dimmed -> full * 0.5f
+            else -> full
+        },
+        animationSpec = tween(NAME_FADE_MS, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)),
+        label = "nameAlpha",
+    )
+    val dy = NAME_DRIFT[((now / 600_000) % NAME_DRIFT.size).toInt()]
+    Layout(
+        content = {
+            Text(
+                "BÆOREMOTE",
+                // Tracking trails the last letter too; one step of start
+                // padding (0.318em of 13sp) centres it optically.
+                modifier = Modifier
+                    .padding(start = 4.dp)
+                    .graphicsLayer { alpha = nameAlpha },
+                color = if (night) AstrionTheme.nightInk2 else DayName,
+                fontFamily = AstrionTheme.headingFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                letterSpacing = 0.318.em,
+                maxLines = 1,
+            )
+        },
+        modifier = Modifier.fillMaxSize(),
+    ) { measurables, constraints ->
+        val p = measurables.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
+        val baseline = p[FirstBaseline].takeIf { it != AlignmentLine.Unspecified } ?: p.height
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            p.place(
+                (constraints.maxWidth - p.width) / 2,
+                (constraints.maxHeight * 0.92f).roundToInt() - baseline + dy.dp.roundToPx(),
+            )
         }
     }
 }
 
 // ---- palette -----------------------------------------------------------------
-// Day: cool greys off the app's own palette. Night: warm, dim amber — blue-ish
-// light is the one that keeps people awake, and it reads softer in the dark.
+// Day: cool greys off the app's own palette. Night: a dimmed Baby Doll rose —
+// blue-ish light is the one that keeps people awake, and warm reads softer in
+// the dark. Clock and title in nightInk; date, artist, meta and progress in
+// nightInk2.
 private val DayClock = Color(0xFFDDE7E3)
 private val DayInk = Color(0xFFA9BAB6)
 private val DayFaint = Color(0xFF718583)
 private val DayAccent = Color(0xFFE8B25A)
-private val NightClock = Color(0xFFD9A06A)
-private val NightInk = Color(0xFF9C7556)
-private val NightFaint = Color(0xFF5E4634)
-private val NightAccent = Color(0xFFD9824A)
+/** `device-ink` at 70% is applied by [ScreensaverName]'s alpha. */
+private val DayName = Color(0xFFE9EDF2)
+private val NightClock = AstrionTheme.nightInk
+private val NightInk = AstrionTheme.nightInk2
+private val NightFaint = AstrionTheme.nightInk2
+private val NightAccent = AstrionTheme.nightInk
+/** Night face: [AstrionTheme.nightFace] at the centre, darkening outwards. */
+private val NightFaceBrush = Brush.radialGradient(listOf(AstrionTheme.nightFace, Color(0xFF050607)))
+/** Night progress track. */
+private val NightTrack = Color(0xFF1A1D21)
+
+private const val NAME_FADE_MS = 1200
+private const val NAME_DIM_AFTER_MS = 5 * 60_000L
+/** Name offsets in dp, one per ten minutes: within 1% of the 582dp height. */
+private val NAME_DRIFT = listOf(0, -4, 3, -2, 5, -5, 2, -3)
 
 /** How often the face looks at HA (it redraws only if something changed). */
 private const val SAMPLE_MS = 10_000L
@@ -491,9 +578,11 @@ private fun NowPlaying(
     e: EntityState,
     client: HaClient,
     night: Boolean,
+    titleInk: Color,
     ink: Color,
     faint: Color,
     accent: Color,
+    modifier: Modifier = Modifier,
 ) {
     val title = e.playingTitle() ?: return
     val subtitle = (e.attrString("media_artist") ?: e.attrString("media_series_title") ?: e.attrString("app_name"))
@@ -508,7 +597,7 @@ private fun NowPlaying(
         art = artPath?.let { p -> ArtCache.load(p, 128) { client.fetchBytes(p) } }
     }
 
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -520,17 +609,17 @@ private fun NowPlaying(
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     // Art is the brightest thing on the screen by far, so it
-                    // is faded hardest — more so at night.
-                    alpha = if (night) 0.35f else 0.6f,
+                    // is faded hardest.
+                    alpha = 0.55f,
                     modifier = Modifier
                         .size(76.dp)
-                        .clip(RoundedCornerShape(10.dp)),
+                        .clip(RoundedCornerShape(7.dp)),
                 )
             } else {
                 Box(
                     modifier = Modifier
                         .size(76.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(7.dp))
                         .background(Color(0xFF12181E)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -541,7 +630,7 @@ private fun NowPlaying(
             Column(Modifier.weight(1f)) {
                 Text(
                     title,
-                    color = ink,
+                    color = titleInk,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Normal,
                     maxLines = 2,
@@ -565,14 +654,18 @@ private fun NowPlaying(
         val position = e.attrDouble("media_position")
         if (duration != null && duration > 0 && position != null) {
             val reportedAt = e.attrString("media_position_updated_at")?.let { parseIsoMs(it) }
-            MediaProgress(position, reportedAt, duration, faint, accent)
+            MediaProgress(
+                position, reportedAt, duration, faint,
+                fill = if (night) faint else accent.copy(alpha = 0.7f),
+                track = if (night) NightTrack else faint.copy(alpha = 0.35f),
+            )
         }
     }
 }
 
 /** Position, hairline and length: the one part of the face that ticks each second. */
 @Composable
-private fun MediaProgress(position: Double, reportedAt: Long?, duration: Double, faint: Color, accent: Color) {
+private fun MediaProgress(position: Double, reportedAt: Long?, duration: Double, faint: Color, fill: Color, track: Color) {
     val now = rememberSecondTick()
     val pos = position + (reportedAt?.let { (now - it) / 1000.0 } ?: 0.0)
     val frac = (pos / duration).toFloat().coerceIn(0f, 1f)
@@ -584,13 +677,15 @@ private fun MediaProgress(position: Double, reportedAt: Long?, duration: Double,
                 .weight(1f)
                 .padding(horizontal = 8.dp)
                 .height(2.dp)
-                .background(faint.copy(alpha = 0.35f)),
+                .clip(CircleShape)
+                .background(track),
         ) {
             Box(
                 Modifier
                     .fillMaxWidth(frac)
                     .height(2.dp)
-                    .background(accent.copy(alpha = 0.7f)),
+                    .clip(CircleShape)
+                    .background(fill),
             )
         }
         Text(formatMediaTime(duration), color = faint, fontSize = 11.sp, modifier = Modifier.width(40.dp))
