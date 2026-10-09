@@ -93,9 +93,9 @@ class CoverCard : CardRenderer {
                 .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(18.dp))
                 .background(AstrionTheme.cardBgAlt)
-                // 68dp -> 52dp tall, so three blinds and the aircon fit the
-                // Climate page without scrolling.
-                .padding(horizontal = 12.dp, vertical = 7.dp),
+                // 55dp tall: three blinds, the fan and the aircon fill the
+                // Climate page exactly, without scrolling.
+                .padding(horizontal = 12.dp, vertical = 8.5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
