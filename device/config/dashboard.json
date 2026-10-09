@@ -483,7 +483,8 @@
        {
         "type": "media_shelves",
         "options": {
-          "row_spacing": 26,
+          "row_spacing": 22,
+          "top_padding": 12,
          "entity_id": "media_player.club",
          "limit": 10,
          "rows": [
@@ -521,11 +522,6 @@
            "entity_id": "input_boolean.music_follows_me",
            "name": "Follow me",
            "icon": "music"
-          },
-          {
-           "entity_id": "switch.club_night_sound",
-           "name": "Night sound",
-           "icon": "night"
           }
          ],
          "speakers": [

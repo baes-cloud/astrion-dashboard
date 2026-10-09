@@ -146,7 +146,9 @@ class MediaShelvesCard : CardRenderer {
         // fixed height the page itself scrolls, and nesting would crash.
         BoxWithConstraints {
             Column(
-                modifier = if (constraints.hasBoundedHeight) Modifier.verticalScroll(rememberScrollState()) else Modifier,
+                modifier = (if (constraints.hasBoundedHeight) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                    .padding(top = config.int("top_padding", 0).dp),
+                // "top_padding" (dp) sets the first row off the tab bar;
                 // "row_spacing" (dp) spreads fewer rows over the tab.
                 verticalArrangement = Arrangement.spacedBy(config.int("row_spacing", 12).dp),
             ) {

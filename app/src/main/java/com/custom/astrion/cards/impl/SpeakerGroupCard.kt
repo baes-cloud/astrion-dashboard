@@ -172,12 +172,14 @@ class SpeakerGroupCard : CardRenderer {
                 .clip(RoundedCornerShape(18.dp))
                 .background(AstrionTheme.cardBg)
                 .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            // Title: the master's name and level, nothing to press.
+            // One line: the master's name and level, then the toggles on the
+            // right. The level is set like the speakers' own, not bold.
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 2.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 // Same as the Aircon card's title.
                 Text(
@@ -185,7 +187,6 @@ class SpeakerGroupCard : CardRenderer {
                     color = AstrionTheme.textPrimary,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 17.sp,
-                    modifier = Modifier.weight(1f),
                 )
                 Text(
                     when {
@@ -193,17 +194,13 @@ class SpeakerGroupCard : CardRenderer {
                         mVol != null -> "${(mVol * 100).roundToInt()}%"
                         else -> "—"
                     },
-                    color = if (mUnavailable) AstrionTheme.unavailable else AstrionTheme.accent,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp,
+                    color = if (mUnavailable) AstrionTheme.unavailable else AstrionTheme.textSecondary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f),
                 )
-            }
-            if (toggles.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    toggles.forEach { t ->
-                        val id = t["entity_id"] as? String ?: return@forEach
-                        TogglePill(ctx, id, t["name"] as? String, t["icon"] as? String, Modifier.weight(1f))
-                    }
+                toggles.forEach { t ->
+                    val id = t["entity_id"] as? String ?: return@forEach
+                    TogglePill(ctx, id, t["name"] as? String, t["icon"] as? String, Modifier)
                 }
             }
             speakers.forEach { sp ->
