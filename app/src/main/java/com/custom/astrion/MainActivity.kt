@@ -1010,6 +1010,20 @@ class MainActivity : ComponentActivity() {
 
     private fun markActivity() {
         lastActivityMs = System.currentTimeMillis()
+        keyHandler.removeCallbacks(homeTimeout)
+        val secs = features.power.homeAfterSeconds
+        if (secs > 0) keyHandler.postDelayed(homeTimeout, secs * 1000L)
+    }
+
+    /**
+     * `power.home_after_seconds` with nothing pressed: land back on the start
+     * page. Undocked the screensaver never runs, so without this the remote
+     * sat on whatever page it was left on until the screen slept.
+     */
+    private val homeTimeout = Runnable {
+        if (irMode) return@Runnable
+        sheetHost.dismissAll()
+        navTarget = dashboard.config.startPage
     }
 
     /**
@@ -1437,6 +1451,7 @@ class MainActivity : ComponentActivity() {
         keyHandler.removeCallbacks(screensaverTick)
         runCatching { unregisterReceiver(batteryReceiver) }
         keyHandler.removeCallbacks(dockConfirm)
+        keyHandler.removeCallbacks(homeTimeout)
         motionWake.stop()
         runCatching { unregisterReceiver(screenReceiver) }
         runCatching { contentResolver.unregisterContentObserver(timeoutObserver) }
