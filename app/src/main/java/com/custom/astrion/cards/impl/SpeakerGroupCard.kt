@@ -222,14 +222,14 @@ class SpeakerGroupCard : CardRenderer {
         val unavailable = e == null || e.isUnavailable
         Row(
             modifier = modifier
-                .height(38.dp)
+                .height(if (icon == "wordmark") 34.dp else 38.dp)
                 .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(12.dp))
                 .background(if (on) AstrionTheme.accentStrong else AstrionTheme.controlSunken)
                 .tap(enabled = !unavailable && ctx.connected) {
                     ctx.client.callService(ServiceCall(entityId.substringBefore('.'), "toggle", entityId))
                 }
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = if (icon == "wordmark") 10.dp else 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         ) {
@@ -244,7 +244,7 @@ class SpeakerGroupCard : CardRenderer {
                     color = if (on) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
                     fontFamily = AstrionTheme.headingFont,
                     fontWeight = FontWeight.Normal,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     letterSpacing = WordmarkTracking,
                     maxLines = 1,
                 )
