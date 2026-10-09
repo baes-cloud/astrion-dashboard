@@ -10,6 +10,7 @@
      "options": {
       "entity_id": "media_player.club_android_tv_10_0_0_248_club_tv",
       "variant": "tv",
+      "pin": "top",
       "placeholder": "/sdcard/astrion/serif_tv.png",
       "apps": [
        {
@@ -513,64 +514,44 @@
         }
        },
        {
-        "type": "column",
+        "type": "speaker_group",
         "options": {
-         "spacing": 10,
-         "cards": [
+         "layout": "list",
+         "master": "media_player.club",
+         "name": "Club",
+         "height": 486,
+         "toggles": [
           {
-           "type": "row",
-           "options": {
-            "cards": [
-             {
-              "type": "switch",
-              "options": {
-               "entity_id": "input_boolean.music_follows_me",
-               "name": "Follow me",
-               "icon": "music",
-               "on_color": "#FF4F726D",
-               "compact": true
-              }
-             },
-             {
-              "type": "switch",
-              "options": {
-               "entity_id": "switch.club_night_sound",
-               "name": "Night sound",
-               "icon": "night",
-               "on_color": "#FF4F726D",
-               "compact": true
-              }
-             }
-            ]
-           }
+           "entity_id": "input_boolean.music_follows_me",
+           "name": "Follow me",
+           "icon": "music"
           },
           {
-           "type": "speaker_group",
-           "options": {
-            "title": "",
-            "master": "media_player.club",
-            "name": "Club",
-            "icon": "sub",
-            "speakers": [
-             {
-              "entity_id": "media_player.bathroom_sonos",
-              "name": "Bathroom",
-              "icon": "move"
-             },
-             {
-              "entity_id": "media_player.bedroom_sonos",
-              "name": "Bedroom",
-              "icon": "lamp"
-             },
-             {
-              "entity_id": "media_player.office_sonos",
-              "name": "Office",
-              "icon": "play1"
-             }
-            ],
-            "compact": true,
-            "height": 432
-           }
+           "entity_id": "switch.club_night_sound",
+           "name": "Night sound",
+           "icon": "night"
+          }
+         ],
+         "speakers": [
+          {
+           "entity_id": "media_player.unnamed_room_5",
+           "name": "Living Room",
+           "icon": "play3"
+          },
+          {
+           "entity_id": "media_player.bathroom_sonos",
+           "name": "Bathroom",
+           "icon": "move"
+          },
+          {
+           "entity_id": "media_player.bedroom_sonos",
+           "name": "Bedroom",
+           "icon": "lamp"
+          },
+          {
+           "entity_id": "media_player.office_sonos",
+           "name": "Office",
+           "icon": "play1"
           }
          ]
         }
