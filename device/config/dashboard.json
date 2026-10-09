@@ -483,7 +483,7 @@
        {
         "type": "media_shelves",
         "options": {
-          "row_spacing": 14,
+          "row_spacing": 17,
           "top_padding": 6,
          "entity_id": "media_player.club",
          "limit": 10,
@@ -516,7 +516,7 @@
          "layout": "list",
          "master": "media_player.club",
          "name": "Club",
-         "height": 468,
+         "height": 474,
          "toggles": [
           {
            "entity_id": "input_boolean.music_follows_me",
