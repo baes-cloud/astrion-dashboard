@@ -6,14 +6,6 @@
    "device_name": "BÆOVISION",
    "cards": [
     {
-     "type": "clock_header",
-     "options": {
-      "pin": "top",
-      "time_format": 12,
-      "title": "TV"
-     }
-    },
-    {
      "type": "media_player",
      "options": {
       "entity_id": "media_player.club_android_tv_10_0_0_248_club_tv",
@@ -401,17 +393,6 @@
           "accent_color": "#FF8CE0D4"
          }
         }
-       },
-       {
-        "type": "now_playing",
-        "options": {
-         "entity_id": "media_player.club",
-         "tv_entities": [
-          "media_player.plex_plex_for_android_tv_tv",
-          "media_player.the_club_tv"
-         ],
-         "controls": true
-        }
        }
       ]
      }
@@ -423,20 +404,12 @@
    "device_name": "BÆOSOUND",
    "cards": [
     {
-     "type": "clock_header",
-     "options": {
-      "pin": "top",
-      "time_format": 12,
-      "title": "Sonos"
-     }
-    },
-    {
      "type": "swipe_stack",
      "options": {
       "titles": [
        "Player",
        "Media",
-       "Zones"
+       "Link"
       ],
       "device_names": [
        "BÆOSOUND",
@@ -609,14 +582,6 @@
    "name": "Climate",
    "device_name": "BÆOLIVING",
    "cards": [
-    {
-     "type": "clock_header",
-     "options": {
-      "pin": "top",
-      "time_format": 12,
-      "title": "Climate"
-     }
-    },
     {
      "type": "climate",
      "options": {
