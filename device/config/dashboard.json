@@ -483,6 +483,7 @@
        {
         "type": "media_shelves",
         "options": {
+          "row_spacing": 26,
          "entity_id": "media_player.club",
          "limit": 10,
          "rows": [
@@ -494,11 +495,6 @@
            "media_type": "album",
            "order_by": "random",
            "limit": 12
-          },
-          {
-           "title": "Spotify Albums",
-           "content_id": "spotify://01kqjrgbzw0346tka5e7ay95ex/current_user_saved_albums",
-           "content_type": "spotify://current_user_saved_albums"
           },
           {
            "title": "Favourite Songs",

@@ -147,7 +147,8 @@ class MediaShelvesCard : CardRenderer {
         BoxWithConstraints {
             Column(
                 modifier = if (constraints.hasBoundedHeight) Modifier.verticalScroll(rememberScrollState()) else Modifier,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                // "row_spacing" (dp) spreads fewer rows over the tab.
+                verticalArrangement = Arrangement.spacedBy(config.int("row_spacing", 12).dp),
             ) {
                 when {
                     shelves == null -> ShelfLabel("Loading…")
