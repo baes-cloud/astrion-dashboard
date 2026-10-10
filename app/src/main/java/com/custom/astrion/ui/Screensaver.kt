@@ -221,7 +221,7 @@ fun Screensaver(
                         color = faint,
                         fontFamily = AstrionTheme.bodyFont, fontSize = 19.sp,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(start = 6.dp).alignByBaseline(),
+                        modifier = Modifier.padding(start = 5.dp).alignByBaseline(),
                     )
                 }
             }
@@ -312,17 +312,17 @@ private fun ScreensaverName(now: Long, night: Boolean) {
     Layout(
         content = {
             Text(
-                "BÆOREMOTE",
+                baeoWordmark("BÆOREMOTE"),
                 // Tracking trails the last letter too; one step of start
-                // padding (0.318em of 13sp) centres it optically.
+                // padding (0.28em of 17sp) centres it optically.
                 modifier = Modifier
-                    .padding(start = 4.dp)
+                    .padding(start = 5.dp)
                     .graphicsLayer { alpha = nameAlpha },
                 color = if (night) AstrionTheme.nightInk2 else DayName,
                 fontFamily = AstrionTheme.headingFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                letterSpacing = 0.318.em,
+                fontWeight = FontWeight.Normal,
+                fontSize = 17.sp,
+                letterSpacing = WordmarkTracking,
                 maxLines = 1,
             )
         },

@@ -95,9 +95,15 @@ class PowerOptions(raw: Map<String, Any?>) {
      * Applied to the system setting and re-applied whenever something else
      * changes it: the stock HaRemote app writes "never" (2147483647), which
      * kept an undocked remote's screen on until it ran flat. 0 = leave the
-     * setting alone.
+     * setting alone; -1 = never time out, so an undocked remote stays on its
+     * screensaver (about 6% battery an hour).
      */
     val screenTimeoutSeconds = raw.int("screen_timeout_seconds") ?: 120
+    /**
+     * Back to the start page after this long without a touch or key press,
+     * docked or not, screen on or off. 0 = stay where you left it.
+     */
+    val homeAfterSeconds = raw.int("home_after_seconds") ?: 300
     /** Listen for a pick-up this long after the screen goes off. */
     val motionWakeMinutes = raw.int("motion_wake_minutes") ?: 5
     /** Narrow the HA subscription after this long dark. */

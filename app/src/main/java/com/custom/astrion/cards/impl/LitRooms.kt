@@ -37,8 +37,8 @@ import kotlin.math.pow
  *                                // dusk (6° to -6°); "night": on/off at sunset;
  *                                // "always" or "off"
  *     "shade_alpha": 0.8,        // how dark an unlit room gets, 0–1
- *     "glow": 0.6,               // colour strength at night, 0–1
- *     "room_glow": 0.3,          // a room with any light on lifts this much of
+ *     "glow": 0.45,              // colour strength at night, 0–1
+ *     "room_glow": 0.15,         // a room with any light on lifts this much of
  *                                // its shade everywhere and takes a faint tint
  *     "day_glow": 0.3,           // share of that strength in full daylight, 0–1;
  *                                // rises to 1 through dusk with the shade
@@ -75,12 +75,12 @@ private class Glow(
 )
 
 /** How much of the shade a full-brightness pool removes at its centre. */
-private const val POOL_CUT = 0.85f
+private const val POOL_CUT = 0.6f
 /** Pool colour: Multiply tint and Screen highlight, relative to glow. */
-private const val TINT = 0.9f
-private const val SHINE = 0.35f
+private const val TINT = 0.8f
+private const val SHINE = 0.15f
 /** Tint strength of a lit room's ambient wash, relative to room_glow. */
-private const val ROOM_TINT = 0.5f
+private const val ROOM_TINT = 0.35f
 
 private const val FADE_MS = 400
 private const val SHADE_FADE_MS = 1500
@@ -107,10 +107,10 @@ internal fun LitRoomsLayer(
         }
     }
     val reach = ((opts["reach"] as? Number)?.toFloat() ?: 26f) / 100f
-    val glowStrength = ((opts["glow"] as? Number)?.toFloat() ?: 0.6f).coerceIn(0f, 1f)
+    val glowStrength = ((opts["glow"] as? Number)?.toFloat() ?: 0.45f).coerceIn(0f, 1f)
     val dayGlow = ((opts["day_glow"] as? Number)?.toFloat() ?: 0.3f).coerceIn(0f, 1f)
     val maxShade = ((opts["shade_alpha"] as? Number)?.toFloat() ?: 0.8f).coerceIn(0f, 1f)
-    val roomGlow = ((opts["room_glow"] as? Number)?.toFloat() ?: 0.3f).coerceIn(0f, 1f)
+    val roomGlow = ((opts["room_glow"] as? Number)?.toFloat() ?: 0.15f).coerceIn(0f, 1f)
     val night = { if (screensaverIsNight(ctx.entities, System.currentTimeMillis())) 1f else 0f }
     val shadeMode = opts["shade"] as? String ?: "sun"
     // Reads only sun.sun, whose elevation HA refreshes every few minutes.

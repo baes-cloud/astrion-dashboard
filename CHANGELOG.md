@@ -24,7 +24,19 @@ companion automations and scripts are in `docs/HOME_ASSISTANT.md`.
 - Nights are darker and warmer: unlit rooms shade to `shade_alpha` 0.8, a
   pool tints the plan in its light's colour like lamplight on a surface
   instead of washing it towards white, and a room with any light on keeps a
-  soft glow across the whole room (`room_glow`, default 0.3).
+  soft glow across the whole room (`room_glow`).
+- Night glow toned down, as lit rooms looked washed out: `glow` 0.6 → 0.45,
+  `room_glow` 0.3 → 0.15, pools cut less of the shade and add less white
+  highlight, and the whole-room tint is fainter.
+- The club's ceiling LED strip glows along the whole back wall (20
+  `glow_spots` in a line) rather than from its icon.
+
+### Screen timeout
+
+- `power.screen_timeout_seconds: -1` never times out, so an undocked remote
+  stays on its screensaver instead of turning the screen off after two
+  minutes (the 4 October behaviour). Costs about 6% battery an hour off the
+  dock. The bundled dashboard uses it.
 
 ### Other changes
 
