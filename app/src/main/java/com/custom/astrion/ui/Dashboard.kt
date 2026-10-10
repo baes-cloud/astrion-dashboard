@@ -130,9 +130,15 @@ fun Dashboard(
     if (current >= pageCount) current = pageCount - 1
 
     // Hardware-button navigation: jump to the requested page, then clear it.
+    // Bumped on every jump by button (or start-page reset), so a page's
+    // tabs can go back to their first one: the music key lands on Player.
+    var navEpoch by remember { mutableIntStateOf(0) }
     LaunchedEffect(navTarget) {
         val t = navTarget ?: return@LaunchedEffect
-        if (t in 0 until pageCount) current = t
+        if (t in 0 until pageCount) {
+            current = t
+            navEpoch++
+        }
         onNavHandled()
     }
 
@@ -155,6 +161,7 @@ fun Dashboard(
                 CompositionLocalProvider(
                     LocalPageVisible provides (i == current),
                     LocalPageNameOverride provides nameOverrides[i],
+                    LocalNavEpoch provides navEpoch,
                 ) {
                     Box(Modifier.fillMaxSize().unplacedWhen(i != current)) {
                         PageContent(page, ctx)
@@ -186,6 +193,9 @@ fun Dashboard(
         }
     }
 }
+
+/** Counts button jumps to a page; see SwipeStackCard. 0 = none yet. */
+val LocalNavEpoch = compositionLocalOf { 0 }
 
 @Composable
 private fun PageContent(page: PageConfig, ctx: CardContext) {
