@@ -273,10 +273,13 @@ private fun FloatingTopPage(
     val pinnedDp = with(LocalDensity.current) { pinnedPx.toDp() }
     Box(modifier.fillMaxWidth()) {
         Column(
+            // Clipped 4dp above the footer slot, so a row cut off by the
+            // scroll ends level with the other pages' last card.
             modifier = Modifier
                 .fillMaxSize()
+                .padding(bottom = 4.dp)
                 .verticalScroll(rememberScrollState())
-                .padding(start = 10.dp, end = 10.dp, top = pinnedDp + 10.dp, bottom = 8.dp),
+                .padding(start = 10.dp, end = 10.dp, top = pinnedDp + 10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             middle.forEach { RenderCard(it, ctx) }

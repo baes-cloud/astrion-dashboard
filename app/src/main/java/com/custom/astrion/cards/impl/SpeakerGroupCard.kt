@@ -223,6 +223,7 @@ class SpeakerGroupCard : CardRenderer {
         Row(
             modifier = modifier
                 .height(if (icon == "wordmark") 34.dp else 38.dp)
+                .then(if (icon == "wordmark") Modifier.widthIn(min = 140.dp) else Modifier)
                 .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(12.dp))
                 .background(if (on) AstrionTheme.accentStrong else AstrionTheme.controlSunken)
