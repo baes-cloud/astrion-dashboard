@@ -3,6 +3,7 @@ package com.custom.astrion.cards.impl
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.border
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -189,13 +190,23 @@ class MediaShelvesCard : CardRenderer {
      */
     @Composable
     private fun ShelfLabel(text: String) {
-        // Set like the speaker names on the Link tab.
-        Text(
-            text,
-            color = AstrionTheme.textPrimary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
+        // Set like the speaker names on the Zones tab, in a dug-out label:
+        // a recess a shade darker than the page with a hairline rim, the
+        // same well the current media tab sits in.
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(9.dp))
+                .background(LabelWell)
+                .border(1.dp, LabelRim, RoundedCornerShape(9.dp))
+                .padding(horizontal = 11.dp, vertical = 4.dp),
+        ) {
+            Text(
+                text,
+                color = AstrionTheme.textPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 
     @Composable
@@ -312,3 +323,7 @@ class MediaShelvesCard : CardRenderer {
         )
     }
 }
+
+/** Dug-out shelf label: darker than the page, as the current media tab. */
+private val LabelWell = Color(0xFF131A21)
+private val LabelRim = Color(0xFF2D3C4B)
