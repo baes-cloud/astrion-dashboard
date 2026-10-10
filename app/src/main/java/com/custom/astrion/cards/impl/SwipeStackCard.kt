@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -27,6 +28,7 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.LocalNavEpoch
 import com.custom.astrion.ui.LocalPageNameOverride
 import com.custom.astrion.ui.tap
 import kotlinx.coroutines.launch
@@ -78,6 +80,12 @@ class SwipeStackCard : CardRenderer {
 
         val pagerState = rememberPagerState(pageCount = { children.size })
         val scope = rememberCoroutineScope()
+        // A button jump (the music key, the 5 min home timer) opens on the
+        // first tab rather than wherever it was left.
+        val navEpoch = LocalNavEpoch.current
+        LaunchedEffect(navEpoch) {
+            if (navEpoch > 0 && pagerState.currentPage != 0) pagerState.scrollToPage(0)
+        }
 
         // Per-tab device names for the page footer (Media: BÆOSOUND, …,
         // BÆOLINK); without `device_names` the page's own name stands.
