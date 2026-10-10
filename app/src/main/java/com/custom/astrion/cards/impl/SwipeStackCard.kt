@@ -16,6 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -113,11 +116,22 @@ class SwipeStackCard : CardRenderer {
                                 .tap { scope.launch { pagerState.animateScrollToPage(i) } },
                             contentAlignment = Alignment.Center,
                         ) {
+                            // Cut-out titles: a dark drop shadow sinks the
+                            // names into the track; the current one also
+                            // glows faintly in the neon of its rule, which
+                            // reads larger without a bigger font.
                             Text(
                                 titles[i],
                                 color = if (current) AstrionTheme.textPrimary else AstrionTheme.textMuted,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
+                                style = TextStyle(
+                                    shadow = if (current) {
+                                        Shadow(TabNeon.copy(alpha = 0.55f), Offset(0f, 0f), blurRadius = 10f)
+                                    } else {
+                                        Shadow(Color.Black.copy(alpha = 0.75f), Offset(0f, 2f), blurRadius = 3f)
+                                    },
+                                ),
                             )
                             if (current) {
                                 // Neon rule: a faint glow rising off a bright core.

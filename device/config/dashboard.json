@@ -483,8 +483,8 @@
        {
         "type": "media_shelves",
         "options": {
-          "row_spacing": 8,
-          "top_padding": 2,
+          "row_spacing": 17,
+          "top_padding": 6,
          "entity_id": "media_player.club",
          "limit": 10,
          "rows": [
