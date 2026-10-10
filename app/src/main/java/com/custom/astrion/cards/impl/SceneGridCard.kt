@@ -135,7 +135,7 @@ class SceneGridCard : CardRenderer {
                 val haptics = LocalHapticFeedback.current
                 Row(
                     modifier = Modifier
-                        .height(38.dp)
+                        .height(34.dp)
                         .clip(RoundedCornerShape(13.dp))
                         // Inactive sits on the card fill so it still reads
                         // as a pill against the page; active is sunken, tinted

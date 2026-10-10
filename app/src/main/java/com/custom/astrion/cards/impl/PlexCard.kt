@@ -124,8 +124,8 @@ class PlexCard : CardRenderer {
         val shelfCache = java.util.concurrent.ConcurrentHashMap<String, List<Shelf>>()
 
         // ~3.5 tiles across a 480px/220dpi panel.
-        val TILE_W = 92.dp
-        val POSTER_H = 132.dp
+        val TILE_W = 84.dp
+        val POSTER_H = 120.dp
     }
 
     @Suppress("UNCHECKED_CAST")

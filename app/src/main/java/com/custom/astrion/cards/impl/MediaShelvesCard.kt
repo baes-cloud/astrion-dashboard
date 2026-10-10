@@ -146,8 +146,11 @@ class MediaShelvesCard : CardRenderer {
         // fixed height the page itself scrolls, and nesting would crash.
         BoxWithConstraints {
             Column(
-                modifier = if (constraints.hasBoundedHeight) Modifier.verticalScroll(rememberScrollState()) else Modifier,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = (if (constraints.hasBoundedHeight) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                    .padding(top = config.int("top_padding", 0).dp),
+                // "top_padding" (dp) sets the first row off the tab bar;
+                // "row_spacing" (dp) spreads fewer rows over the tab.
+                verticalArrangement = Arrangement.spacedBy(config.int("row_spacing", 12).dp),
             ) {
                 when {
                     shelves == null -> ShelfLabel("Loading…")
@@ -186,22 +189,13 @@ class MediaShelvesCard : CardRenderer {
      */
     @Composable
     private fun ShelfLabel(text: String) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text.uppercase(),
-                color = Color(0xFF7FA9A2),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.2.sp,
-            )
-            Spacer(Modifier.width(10.dp))
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(1.dp)
-                    .background(AstrionTheme.controlSunken),
-            )
-        }
+        // Set like the speaker names on the Link tab.
+        Text(
+            text,
+            color = AstrionTheme.textPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 
     @Composable

@@ -21,7 +21,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -200,34 +203,38 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
     val hasFill = middle.any { it.options["pin"] == "fill" }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        if (pinnedTop.isNotEmpty()) {
+        if (pinnedTop.isNotEmpty() && !hasFill) {
+            FloatingTopPage(pinnedTop, middle, ctx, Modifier.weight(1f))
+        } else {
+            if (pinnedTop.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(AstrionTheme.pinnedTopBg)
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    pinnedTop.forEach { RenderCard(it, ctx) }
+                }
+            }
             Column(
                 modifier = Modifier
+                    .weight(1f)
                     .fillMaxWidth()
-                    .background(AstrionTheme.pinnedTopBg)
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
+                    .then(
+                        // A weighted child can't live inside a scrollable column
+                        // (infinite height), so it's one or the other per page.
+                        if (hasFill) Modifier else Modifier.verticalScroll(rememberScrollState())
+                    )
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                pinnedTop.forEach { RenderCard(it, ctx) }
-            }
-        }
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .then(
-                    // A weighted child can't live inside a scrollable column
-                    // (infinite height), so it's one or the other per page.
-                    if (hasFill) Modifier else Modifier.verticalScroll(rememberScrollState())
-                )
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            middle.forEach { card ->
-                if (card.options["pin"] == "fill") {
-                    Box(Modifier.weight(1f).fillMaxWidth()) { RenderCard(card, ctx) }
-                } else {
-                    RenderCard(card, ctx)
+                middle.forEach { card ->
+                    if (card.options["pin"] == "fill") {
+                        Box(Modifier.weight(1f).fillMaxWidth()) { RenderCard(card, ctx) }
+                    } else {
+                        RenderCard(card, ctx)
+                    }
                 }
             }
         }
@@ -245,6 +252,54 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
         // Footer slot for the device name (drawn by Dashboard): the same
         // height on every page, named or not.
         Spacer(Modifier.fillMaxWidth().height(PageNameHeight))
+    }
+}
+
+/**
+ * A scrolling page whose pinned-top cards float over the content instead of
+ * sitting in their own band: the content starts just under them and scrolls
+ * up behind them, fading out under the card's rounded bottom edge (the TV
+ * page's Plex rows under the TV card). Pages with a "fill" card keep the
+ * band, since their middle doesn't scroll.
+ */
+@Composable
+private fun FloatingTopPage(
+    pinnedTop: List<CardConfig>,
+    middle: List<CardConfig>,
+    ctx: CardContext,
+    modifier: Modifier,
+) {
+    var pinnedPx by remember { mutableIntStateOf(0) }
+    val pinnedDp = with(LocalDensity.current) { pinnedPx.toDp() }
+    Box(modifier.fillMaxWidth()) {
+        Column(
+            // Clipped 4dp above the footer slot, so a row cut off by the
+            // scroll ends level with the other pages' last card.
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 4.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 10.dp, end = 10.dp, top = pinnedDp + 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            middle.forEach { RenderCard(it, ctx) }
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onSizeChanged { pinnedPx = it.height }
+                .background(
+                    Brush.verticalGradient(
+                        0f to AstrionTheme.pageBg,
+                        0.82f to AstrionTheme.pageBg,
+                        1f to AstrionTheme.pageBg.copy(alpha = 0f),
+                    )
+                )
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            pinnedTop.forEach { RenderCard(it, ctx) }
+        }
     }
 }
 

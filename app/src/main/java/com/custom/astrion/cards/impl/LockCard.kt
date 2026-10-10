@@ -92,16 +92,15 @@ class LockCard : CardRenderer {
                     if (config.bool("flush")) Modifier
                     else Modifier.clip(RoundedCornerShape(18.dp)).background(AstrionTheme.cardBgAlt)
                 )
-                // 66dp -> 50dp -> 40dp. This card sits above the `pin: fill`
-                // floorplan, so its padding is floorplan: one line of text,
-                // and the button is the only thing here you touch.
-                .padding(horizontal = 12.dp, vertical = 5.dp),
+                // Shaped like the blind rows: icon tile, name over state,
+                // the button on the right. The scene pills gave up 4dp for it.
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(30.dp)
-                    .clip(RoundedCornerShape(9.dp))
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(if (locked) AstrionTheme.controlSunken else AstrionTheme.raised)
                     // Hold only: a tap here must not move the bolt by accident.
                     // Always applied, gated by `enabled`, so the modifier chain
@@ -136,20 +135,18 @@ class LockCard : CardRenderer {
                 )
             }
             Spacer(Modifier.width(10.dp))
-            // Name and age on one line.
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom) {
+            // Name over state and age, as the blind rows.
+            Column(Modifier.weight(1f)) {
                 Text(
                     name,
                     color = AstrionTheme.textPrimary,
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
                 )
-                Spacer(Modifier.width(8.dp))
                 if (unavailable) {
-                    UnavailableLabel(13.sp)
+                    UnavailableLabel(12.sp)
                 } else {
                     Text(
                         // When the door is being held unlocked that outranks
@@ -191,8 +188,8 @@ class LockCard : CardRenderer {
         }
         Row(
             modifier = Modifier
-                .height(30.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .height(36.dp)
+                .clip(RoundedCornerShape(12.dp))
                 .background(tint.copy(alpha = 0.16f))
                 .tap(enabled = live, onClick = onClick)
                 .padding(horizontal = 12.dp),

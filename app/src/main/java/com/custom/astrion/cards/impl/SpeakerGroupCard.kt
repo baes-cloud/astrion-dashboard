@@ -1,12 +1,15 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.PhoneBluetoothSpeaker
 import androidx.compose.material.icons.filled.Speaker
@@ -31,6 +34,8 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.WordmarkTracking
+import com.custom.astrion.ui.baeoWordmark
 import com.custom.astrion.ui.dimIfUnavailable
 import com.custom.astrion.ui.tap
 import kotlinx.serialization.json.JsonArray
@@ -84,6 +89,13 @@ import kotlin.math.roundToInt
  * across the top and each speaker is a darker panel inside it. `"height"`
  * (dp) fixes the whole card's height and the panels share what's left, so the
  * group fills the screen exactly (the page scrolls, so it can't be measured).
+ *
+ * `"layout": "list"` is the Link tab: the master is a title only (name and
+ * level, no controls) with optional `"toggles"` pills under it
+ * (`[{ "entity_id", "name", "icon": "music" | "night" }]`, each toggled with
+ * `<domain>.toggle`). Each speaker is one row: name over a level bar, then
+ * vol- / vol+ / link. No mute. A linked speaker's row is outlined in the
+ * accent, so the group reads at a glance. `"height"` works as in compact.
  */
 class SpeakerGroupCard : CardRenderer {
     override val type = "speaker_group"
@@ -94,6 +106,10 @@ class SpeakerGroupCard : CardRenderer {
         val master = config.string("master") ?: return
         val speakers = (config.options["speakers"] as? List<Map<String, Any?>>) ?: emptyList()
         val compact = config.bool("compact", false)
+        if (config.string("layout") == "list") {
+            LinkList(config, ctx, master, speakers)
+            return
+        }
 
         // Each speaker is its own card rather than a row inside one big one:
         // at 349dp wide a stacked group ran long enough that speakers blurred
@@ -138,6 +154,235 @@ class SpeakerGroupCard : CardRenderer {
                 speakers.forEach { sp ->
                     val id = sp["entity_id"] as? String ?: return@forEach
                     SpeakerRow(ctx, id, sp["name"] as? String, sp["icon"] as? String, isMaster = false, master = master)
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun LinkList(config: CardConfig, ctx: CardContext, master: String, speakers: List<Map<String, Any?>>) {
+        val height = config.int("height", 0)
+        val m = ctx.entities[master]
+        val mVol = m?.attrDouble("volume_level")
+        val mUnavailable = m == null || m.isUnavailable
+        @Suppress("UNCHECKED_CAST")
+        val toggles = (config.options["toggles"] as? List<Map<String, Any?>>) ?: emptyList()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (height > 0) Modifier.height(height.dp) else Modifier),
+            // No card of its own: the header and the speaker cards sit
+            // straight on the page.
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // One line: the master's name and level, then the toggles on the
+            // right. The level is set like the speakers' own, not bold.
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // Same as the Aircon card's title.
+                Text(
+                    config.string("name") ?: m?.friendlyName ?: master,
+                    color = AstrionTheme.textPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 17.sp,
+                )
+                Text(
+                    when {
+                        mUnavailable -> "Unavailable"
+                        mVol != null -> "${(mVol * 100).roundToInt()}%"
+                        else -> "—"
+                    },
+                    color = if (mUnavailable) AstrionTheme.unavailable else AstrionTheme.textSecondary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                toggles.forEach { t ->
+                    val id = t["entity_id"] as? String ?: return@forEach
+                    TogglePill(ctx, id, t["name"] as? String, t["icon"] as? String, Modifier)
+                }
+            }
+            speakers.forEach { sp ->
+                val id = sp["entity_id"] as? String ?: return@forEach
+                LinkRow(
+                    ctx, id, sp["name"] as? String, sp["icon"] as? String, master,
+                    if (height > 0) Modifier.weight(1f) else Modifier,
+                )
+            }
+        }
+    }
+
+    /** A toggle such as Follow me: icon + word (or a wordmark), filled Gunmetal when on. */
+    @Composable
+    private fun TogglePill(ctx: CardContext, entityId: String, name: String?, icon: String?, modifier: Modifier) {
+        val e = ctx.entities[entityId]
+        val on = e?.isOn == true
+        val unavailable = e == null || e.isUnavailable
+        Row(
+            modifier = modifier
+                .height(if (icon == "wordmark") 34.dp else 38.dp)
+                .then(if (icon == "wordmark") Modifier.widthIn(min = 140.dp) else Modifier)
+                .dimIfUnavailable(unavailable)
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (on) AstrionTheme.accentStrong else AstrionTheme.controlSunken)
+                .tap(enabled = !unavailable && ctx.connected) {
+                    ctx.client.callService(ServiceCall(entityId.substringBefore('.'), "toggle", entityId))
+                }
+                .padding(horizontal = if (icon == "wordmark") 10.dp else 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        ) {
+            val label = name ?: e?.friendlyName ?: entityId
+            // "icon": "wordmark" sets the name as a Bæo wordmark (BÆOLINK),
+            // with no glyph, in the footer's Syne and tracking.
+            if (icon == "wordmark") {
+                Text(
+                    baeoWordmark(label),
+                    // One step of start padding centres the trailing tracking.
+                    modifier = Modifier.padding(start = 3.dp),
+                    color = if (on) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
+                    fontFamily = AstrionTheme.headingFont,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 12.sp,
+                    letterSpacing = WordmarkTracking,
+                    maxLines = 1,
+                )
+                return@Row
+            }
+            Icon(
+                if (icon == "night") Icons.Filled.NightsStay else Icons.Filled.MusicNote,
+                contentDescription = null,
+                tint = if (on) AstrionTheme.blush else AstrionTheme.textMuted,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                label,
+                color = if (on) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+            )
+        }
+    }
+
+    /** One speaker on the Link tab: name over its level, then - / + / link. */
+    @Composable
+    private fun LinkRow(
+        ctx: CardContext,
+        entityId: String,
+        name: String?,
+        icon: String?,
+        master: String,
+        modifier: Modifier,
+    ) {
+        val e = ctx.entities[entityId]
+        val label = name ?: e?.friendlyName ?: entityId
+        val unavailable = e == null || e.isUnavailable
+        val live = !unavailable && ctx.connected
+        val vol = e?.attrDouble("volume_level")
+        val members = e?.attrStringList("group_members") ?: emptyList()
+        val grouped = members.contains(master) && members.size > 1
+        val shape = RoundedCornerShape(18.dp)
+        fun toggleGroup() {
+            if (grouped) {
+                ctx.client.callService(ServiceCall("media_player", "unjoin", entityId))
+            } else {
+                ctx.client.callService(
+                    ServiceCall(
+                        "media_player", "join", master,
+                        mapOf("group_members" to JsonArray(listOf(JsonPrimitive(entityId)))),
+                    )
+                )
+            }
+        }
+        // Two lines: name, level and link on top; vol- / level bar / vol+
+        // under it, so the buttons sit either side of what they change.
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .dimIfUnavailable(unavailable)
+                .clip(shape)
+                .background(AstrionTheme.cardBg)
+                .then(if (grouped) Modifier.border(1.5.dp, AstrionTheme.accentStrong, shape) else Modifier)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    speakerIcon(icon),
+                    contentDescription = null,
+                    tint = when {
+                        unavailable -> AstrionTheme.unavailable
+                        grouped -> AstrionTheme.accent
+                        else -> AstrionTheme.textMuted
+                    },
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    label,
+                    color = AstrionTheme.textPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    when {
+                        unavailable -> "Unavailable"
+                        vol != null -> "${(vol * 100).roundToInt()}%"
+                        else -> "—"
+                    },
+                    color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textSecondary,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                )
+                Row(
+                    modifier = Modifier
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (grouped) AstrionTheme.accentStrong else AstrionTheme.controlSunken)
+                        .tap(enabled = live, onClick = ::toggleGroup)
+                        .padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Icon(
+                        if (grouped) Icons.Filled.Link else Icons.Filled.LinkOff,
+                        contentDescription = if (grouped) "Remove $label from group" else "Add $label to group",
+                        tint = if (grouped) AstrionTheme.textPrimary else AstrionTheme.textMuted,
+                        modifier = Modifier.size(17.dp),
+                    )
+                    Text(
+                        if (grouped) "Linked" else "Join",
+                        color = if (grouped) AstrionTheme.textPrimary else AstrionTheme.textMuted,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                WideBtn(Icons.Filled.VolumeDown, "$label volume down", Modifier.width(56.dp), enabled = live, height = 38.dp) {
+                    ctx.client.callService(ServiceCall("media_player", "volume_down", entityId))
+                }
+                Box(Modifier.weight(1f)) {
+                    LevelBar(
+                        level = (vol ?: 0.0).toFloat(), muted = false, unavailable = unavailable,
+                        track = AstrionTheme.controlSunken, thickness = 6.dp,
+                    )
+                }
+                WideBtn(Icons.Filled.VolumeUp, "$label volume up", Modifier.width(56.dp), enabled = live, height = 38.dp) {
+                    ctx.client.callService(ServiceCall("media_player", "volume_up", entityId))
                 }
             }
         }
@@ -383,13 +628,19 @@ class SpeakerGroupCard : CardRenderer {
 
     /** Non-interactive volume level indicator. */
     @Composable
-    private fun LevelBar(level: Float, muted: Boolean, unavailable: Boolean) {
+    private fun LevelBar(
+        level: Float,
+        muted: Boolean,
+        unavailable: Boolean,
+        track: Color = AstrionTheme.trackBg,
+        thickness: androidx.compose.ui.unit.Dp = 5.dp,
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(5.dp)
+                .height(thickness)
                 .clip(RoundedCornerShape(3.dp))
-                .background(AstrionTheme.trackBg),
+                .background(track),
         ) {
             if (!unavailable) {
                 Box(
