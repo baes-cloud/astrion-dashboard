@@ -35,7 +35,7 @@ data class AstrionTypography(
     val labelMedium: TextStyle,                        // 12sp SemiBold, 1sp tracking (Section headers)
     val labelSmall: TextStyle,                         // 11sp Medium, 0.5sp tracking (Connection pill)
     val labelMicro: TextStyle,                         // 8sp Bold, 0.16em tracking ("ON" badge)
-    val wordmark: TextStyle,                           // 16sp Normal, 0.28em tracking (BÆOREMOTE footer)
+    val wordmark: TextStyle,                           // 16sp Bold, 0.318em tracking (BÆOREMOTE footer)
 ) {
     // Backwards-compatible TextUnit accessors
     val displaySize: TextUnit get() = display.fontSize
@@ -79,6 +79,6 @@ fun defaultAstrionTypography(): AstrionTypography {
         labelMedium = TextStyle(fontFamily = bodyFont, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp),
         labelSmall = TextStyle(fontFamily = bodyFont, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp),
         labelMicro = TextStyle(fontFamily = bodyFont, fontSize = 8.sp, lineHeight = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.16.em),
-        wordmark = TextStyle(fontFamily = headingFont, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.28.em),
+        wordmark = TextStyle(fontFamily = headingFont, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.318.em),
     )
 }

@@ -18,13 +18,13 @@ data class AstrionColors(
     // ---- Material 3 & Smart Display Semantic Extensions ---------------------
     val primary: Color = Color(0xFF4F726D),            // Gunmetal Grey: filled buttons & chips
     val onPrimary: Color = Color.White,
-    val background: Color = Color(0xFF1B242D),         // Yacht Race base page background
+    val background: Color = Color(0xFF1B242D),         // Yacht Race base page background (lighter, classic tone)
     val onBackground: Color = Color(0xFFEEF2EF),
     val surface: Color = Color(0xFF243140),            // Default card surface fill
-    val surfaceVariant: Color = Color(0xFF283646),     // Alternate card fill (secondary cards, tiles)
+    val surfaceVariant: Color = Color(0xFF283646),     // Alternate card fill (panel-plan floorplan canvas)
     val onSurfaceVariant: Color = Color(0xFFAEBFBB),   // Section badges, secondary title labels
     val surfaceSunkenControl: Color = Color(0xFF2C3B45), // Recessed lip under active scene tiles
-    val controlSunken: Color = Color(0xFF2C3B45),      // Recessed control, e.g. the lip under a scene tile
+    val controlSunken: Color = Color(0xFF2C3B45),      // Recessed control, e.g. lip under scene tile
     val pinnedTopBg: Color = Color(0xFF151D25),        // Pinned header band
     val pinnedBottomBg: Color = Color(0xFF182129),     // Pinned footer band
     val raised: Color = Color(0xFF34454F),             // Raised element inside cards (grid buttons)
@@ -33,9 +33,9 @@ data class AstrionColors(
 
     // ---- Content Text Inks --------------------------------------------------
     val textPrimary: Color = Color(0xFFEEF2EF),        // High-contrast primary text
-    val textSecondary: Color = Color(0xFFA9BAB6),      // Secondary labels, captions
+    val textSecondary: Color = Color(0xFFA9BAB6),      // Secondary labels, captions (mute)
     val textOnControl: Color = Color(0xFFD9E3E0),      // Icon/text on control chrome buttons
-    val textMuted: Color = Color(0xFF718583),          // Faint metadata, timestamps
+    val textMuted: Color = Color(0xFF718583),          // Faint metadata, timestamps (faint)
     val textInverse: Color = Color(0xFF141414),        // Dark text on high-luminance tiles
 
     // ---- Accent & State Palettes --------------------------------------------

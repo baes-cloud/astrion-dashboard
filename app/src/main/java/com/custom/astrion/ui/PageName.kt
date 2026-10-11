@@ -65,13 +65,13 @@ fun PageName(name: String?, modifier: Modifier = Modifier) {
         Text(
             baeoWordmark(text),
             // Tracking also trails the last letter; pushing the text right by
-            // one tracking step (0.28em of 16sp ≈ 4.5) centres it optically.
+            // one tracking step (0.318em of 16sp ≈ 5.1dp) centres it optically.
             modifier = Modifier
-                .padding(start = 4.5.dp)
+                .padding(start = 5.dp)
                 .graphicsLayer { alpha = fade.value },
-            color = AstrionTheme.textSecondary.copy(alpha = 0.6f),
+            color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
             fontFamily = AstrionTheme.headingFont,
-            fontWeight = FontWeight.Normal,
+            fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
             letterSpacing = WordmarkTracking,
             maxLines = 1,
@@ -80,20 +80,17 @@ fun PageName(name: String?, modifier: Modifier = Modifier) {
 }
 
 /**
- * A Bæo name in caps with the BÆO prefix in Syne Bold and the rest at the
- * text's own weight (Syne Regular), e.g. **BÆO**REMOTE.
+ * A Bæo name in caps set in Syne Bold 700, all capitals, Æ kept as one letter.
  */
 fun baeoWordmark(name: String): AnnotatedString {
     val caps = name.uppercase()
-    val prefix = if (caps.startsWith(BAEO)) BAEO.length else 0
     return buildAnnotatedString {
-        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(caps.take(prefix)) }
-        append(caps.drop(prefix))
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(caps) }
     }
 }
 
-/** Wordmark letter spacing, shared with the screensaver's. */
-val WordmarkTracking = 0.28.em
+/** Wordmark letter spacing (7px at 22px = 0.318em). */
+val WordmarkTracking = 0.318.em
 
 private const val BAEO = "BÆO"
 
