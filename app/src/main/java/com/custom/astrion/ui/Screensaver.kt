@@ -592,6 +592,7 @@ private fun NowPlaying(
     val subtitle = (e.attrString("media_artist") ?: e.attrString("media_series_title") ?: e.attrString("app_name"))
         ?.takeIf { it.isNotBlank() }
     val album = e.attrString("media_album_name")?.takeIf { it.isNotBlank() && it != title }
+    val isPlaying = e.state == "playing"
 
     val artPath = e.attrString("entity_picture")
     // Shared with the media player card via ArtCache, so it's usually
@@ -600,6 +601,12 @@ private fun NowPlaying(
     LaunchedEffect(artPath) {
         art = artPath?.let { p -> ArtCache.load(p, 128) { client.fetchBytes(p) } }
     }
+
+    // When playing, make the media display significantly brighter and crisper
+    val artAlpha = if (isPlaying) (if (night) 0.85f else 1.0f) else 0.55f
+    val currentTitleInk = if (isPlaying) (if (night) DayClock else Color.White) else titleInk
+    val currentSubtitleInk = if (isPlaying) (if (night) DayClock else AstrionTheme.textPrimary) else faint
+    val currentMetaInk = if (isPlaying) (if (night) ink else AstrionTheme.textSecondary) else faint.copy(alpha = 0.8f)
 
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(
@@ -612,9 +619,8 @@ private fun NowPlaying(
                     bitmap = img,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    // Art is the brightest thing on the screen by far, so it
-                    // is faded hardest.
-                    alpha = 0.55f,
+                    // Art is dimmed when idle/paused, but clear and bright when playing.
+                    alpha = artAlpha,
                     modifier = Modifier
                         .size(76.dp)
                         .clip(RoundedCornerShape(7.dp)),
@@ -624,28 +630,40 @@ private fun NowPlaying(
                     modifier = Modifier
                         .size(76.dp)
                         .clip(RoundedCornerShape(7.dp))
-                        .background(Color(0xFF12181E)),
+                        .background(if (isPlaying) Color(0xFF1B242D) else Color(0xFF12181E)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Filled.MusicNote, contentDescription = null, tint = faint, modifier = Modifier.size(28.dp))
+                    Icon(
+                        Icons.Filled.MusicNote,
+                        contentDescription = null,
+                        tint = if (isPlaying) (if (night) ink else Color.White) else faint,
+                        modifier = Modifier.size(28.dp),
+                    )
                 }
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     title,
-                    color = titleInk,
+                    color = currentTitleInk,
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Normal,
+                    fontWeight = if (isPlaying) FontWeight.Medium else FontWeight.Normal,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (subtitle != null) {
-                    Text(subtitle, color = faint, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        subtitle,
+                        color = currentSubtitleInk,
+                        fontSize = 15.sp,
+                        fontWeight = if (isPlaying) FontWeight.Normal else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
                 Text(
                     listOfNotNull(album, e.friendlyName).joinToString(" · "),
-                    color = faint.copy(alpha = 0.8f),
+                    color = currentMetaInk,
                     fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -656,14 +674,14 @@ private fun NowPlaying(
         // Progress hairline, extrapolated from HA's last position report.
         val duration = e.attrDouble("media_duration")
         val position = e.attrDouble("media_position")
-        val isPlaying = e.state == "playing"
         if (duration != null && duration > 0 && position != null) {
             val reportedAt = e.attrString("media_position_updated_at")?.let { parseIsoMs(it) }
             val ticking = charging && isPlaying
             MediaProgress(
-                position, reportedAt, duration, faint,
-                fill = if (night) faint else accent.copy(alpha = 0.7f),
-                track = if (night) NightTrack else faint.copy(alpha = 0.35f),
+                position, reportedAt, duration,
+                faint = if (isPlaying) currentMetaInk else faint,
+                fill = if (isPlaying) (if (night) accent else accent) else (if (night) faint else accent.copy(alpha = 0.7f)),
+                track = if (night) NightTrack else (if (isPlaying) faint.copy(alpha = 0.5f) else faint.copy(alpha = 0.35f)),
                 ticking = ticking,
             )
         }

@@ -2,11 +2,13 @@ package com.custom.astrion.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -81,25 +83,19 @@ fun PageName(name: String?, modifier: Modifier = Modifier) {
         }
     }
 
-    BoxWithConstraints(
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .height(PageNameHeight),
         contentAlignment = Alignment.Center,
     ) {
-        if (shownPrefix.isEmpty() && shownSuffix.isEmpty()) return@BoxWithConstraints
+        if (shownPrefix.isEmpty() && shownSuffix.isEmpty()) return@Box
 
         if (shownPrefix == BAEO) {
-            // Anchored BÆO layout: BÆO position is pinned to the nominal center of BÆOREMOTE
-            // so it never shifts or jitters when suffixes of varying length (REMOTE vs VISION vs SOUND) swap.
-            val nominalTotalWidth = 170.dp
-            val opticalPadding = 5.dp
-            val startOffset = ((maxWidth - nominalTotalWidth) / 2 + opticalPadding).coerceAtLeast(0.dp)
-
+            // Unified width wordmark: BÆO is bold, and the suffix letters are
+            // spaced out across SuffixTargetWidth (105.dp) so that REMOTE, VISION,
+            // SOUND, LIVING all end up with the exact same width and boundaries.
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = startOffset),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -112,16 +108,38 @@ fun PageName(name: String?, modifier: Modifier = Modifier) {
                     letterSpacing = WordmarkTracking,
                     maxLines = 1,
                 )
-                Text(
-                    text = shownSuffix,
-                    modifier = Modifier.graphicsLayer { alpha = suffixFade.value },
-                    color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
-                    fontFamily = AstrionTheme.headingFont,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 16.sp,
-                    letterSpacing = WordmarkTracking,
-                    maxLines = 1,
-                )
+                if (shownSuffix.isNotEmpty()) {
+                    if (shownSuffix.length > 1) {
+                        Row(
+                            modifier = Modifier
+                                .width(SuffixTargetWidth)
+                                .graphicsLayer { alpha = suffixFade.value },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            shownSuffix.forEach { char ->
+                                Text(
+                                    text = char.toString(),
+                                    color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
+                                    fontFamily = AstrionTheme.headingFont,
+                                    fontWeight = FontWeight.Normal,
+                                    fontSize = 16.sp,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = shownSuffix,
+                            modifier = Modifier.graphicsLayer { alpha = suffixFade.value },
+                            color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
+                            fontFamily = AstrionTheme.headingFont,
+                            fontWeight = FontWeight.Normal,
+                            fontSize = 16.sp,
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
         } else {
             // Generic fallback for non-BÆO titles: centered
@@ -140,6 +158,9 @@ fun PageName(name: String?, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** Fixed width for the suffix (matches natural 16sp Syne width of REMOTE). */
+val SuffixTargetWidth = 105.dp
 
 /**
  * A Bæo name in caps with the BÆO prefix in Syne Bold and the rest at the
