@@ -65,9 +65,6 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /** What the alarm popup shows. Built by MainActivity from live HA state. */
 data class AlarmUiState(
@@ -132,9 +129,6 @@ fun AlarmOverlay(
             delay(1000)
         }
     }
-    val timeFmt = remember { SimpleDateFormat("h:mm", Locale.getDefault()) }
-    val ampmFmt = remember { SimpleDateFormat("a", Locale.getDefault()) }
-    val dateFmt = remember { SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()) }
     val light = if (state.ringing) Dawn else Dusk
 
     Box(
@@ -183,7 +177,7 @@ fun AlarmOverlay(
 
             Row {
                 Text(
-                    timeFmt.format(Date(now)),
+                    Time.format(now, "h:mm"),
                     color = Ink,
                     fontFamily = AstrionTheme.headingFont, fontSize = 88.sp,
                     fontWeight = FontWeight.ExtraLight,
@@ -191,14 +185,14 @@ fun AlarmOverlay(
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    ampmFmt.format(Date(now)),
+                    Time.format(now, "a"),
                     color = InkSoft,
                     fontFamily = AstrionTheme.headingFont, fontSize = 28.sp,
                     fontWeight = FontWeight.Light,
                     modifier = Modifier.alignByBaseline(),
                 )
             }
-            Text(dateFmt.format(Date(now)), color = InkSoft, fontSize = 15.sp)
+            Text(Time.format(now, "EEEE, d MMMM"), color = InkSoft, fontSize = 15.sp)
 
             Spacer(Modifier.weight(0.5f))
 

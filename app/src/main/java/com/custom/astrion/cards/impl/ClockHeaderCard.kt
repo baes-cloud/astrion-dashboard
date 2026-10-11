@@ -41,10 +41,9 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Time
 import kotlin.math.roundToInt
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+
 
 /**
  * A slim page header laid out like a phone's status bar: the page's name (or
@@ -84,13 +83,8 @@ class ClockHeaderCard : CardRenderer {
 
         // Ticks just after the minute rolls over, so the shown minute is never stale.
         val now = LocalMinuteClock.current
-        val fmt = remember(is24) {
-            SimpleDateFormat(if (is24) "HH:mm" else "h:mm a", Locale.getDefault())
-        }
-        val dateFmt = remember(dateFormat) {
-            dateFormat?.let { runCatching { SimpleDateFormat(it, Locale.getDefault()) }.getOrNull() }
-        }
-        val heading = dateFmt?.format(Date(now)) ?: config.string("title").orEmpty()
+        val timePattern = if (is24) "HH:mm" else "h:mm a"
+        val heading = dateFormat?.let { runCatching { Time.format(now, it) }.getOrNull() } ?: config.string("title").orEmpty()
         val event = config.string("calendar_entity")?.let {
             nextCalendarLine(ctx.entity(it), now, config.string("title_separator"))
         }
@@ -131,7 +125,7 @@ class ClockHeaderCard : CardRenderer {
                 }
             }
             Box(contentAlignment = Alignment.Center) {
-                HeaderText(fmt.format(Date(now)))
+                HeaderText(Time.format(now, timePattern))
             }
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
                 if (config.bool("battery", true)) BatteryIndicator()

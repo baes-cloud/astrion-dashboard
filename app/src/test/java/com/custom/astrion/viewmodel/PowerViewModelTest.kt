@@ -1,0 +1,312 @@
+package com.custom.astrion.viewmodel
+
+import android.content.Context
+import android.content.Intent
+import android.os.BatteryManager
+import android.os.SystemClock
+import androidx.lifecycle.viewModelScope
+import app.cash.turbine.test
+import com.custom.astrion.config.AppConfig
+import com.custom.astrion.config.AppConfigRepository
+import com.custom.astrion.config.DashboardLoader
+import com.custom.astrion.ha.ConnectionState
+import com.custom.astrion.ha.HaClient
+import com.custom.astrion.power.MotionWakeController
+import com.custom.astrion.test.MainDispatcherRule
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.slot
+import io.mockk.unmockkStatic
+import io.mockk.verify
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class PowerViewModelTest {
+
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
+    private val context = mockk<Context>(relaxed = true)
+    private val client = mockk<HaClient>(relaxed = true)
+    private val motionWake = mockk<MotionWakeController>(relaxed = true)
+    private val configRepo = mockk<AppConfigRepository>(relaxed = true)
+
+    private val connectionFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
+    private lateinit var configFlow: MutableStateFlow<DashboardLoader.Result>
+
+    private var currentRealtime = 10_000L
+
+    private val baseConfig = AppConfig(
+        pages = emptyList(),
+        options = mapOf(
+            "power" to mapOf(
+                "report_entity" to "sensor.astrion_battery",
+                "report_name" to "Remote Battery",
+                "dock_debounce_seconds" to 2,
+                "home_after_seconds" to 5,
+            ),
+            "screensaver" to mapOf(
+                "enabled" to true,
+                "idle_seconds" to 10,
+                "undocked_idle_seconds" to 10,
+                "brightness" to 0.5f,
+            ),
+        ),
+    )
+
+    private lateinit var viewModel: PowerViewModel
+
+    @Before
+    fun setUp() {
+        mockkStatic(SystemClock::class)
+        every { SystemClock.elapsedRealtime() } answers { currentRealtime }
+
+        configFlow = MutableStateFlow(DashboardLoader.Result(baseConfig, null))
+        every { configRepo.configFlow } returns configFlow
+        every { configRepo.getCurrentResult() } answers { configFlow.value }
+
+        every { client.connection } returns connectionFlow
+        every { client.snapshot() } returns emptyMap()
+
+        viewModel = PowerViewModel(context, client, motionWake, configRepo)
+    }
+
+    @After
+    fun tearDown() {
+        unmockkStatic(SystemClock::class)
+    }
+
+    private fun runVmTest(block: suspend TestScope.() -> Unit) = runTest {
+        try {
+            block()
+        } finally {
+            viewModel.viewModelScope.cancel()
+        }
+    }
+
+    private fun mockBatteryIntent(
+        level: Int,
+        scale: Int = 100,
+        plugged: Int = BatteryManager.BATTERY_PLUGGED_AC,
+        status: Int = BatteryManager.BATTERY_STATUS_CHARGING,
+    ): Intent {
+        val intent = mockk<Intent>()
+        every { intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) } returns level
+        every { intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1) } returns scale
+        every { intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) } returns plugged
+        every { intent.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN) } returns status
+        return intent
+    }
+
+    @Test
+    fun initialPowerState() {
+        val state = viewModel.uiState.value
+        assertNull(state.batteryPct)
+        assertFalse(state.isPlugged)
+        assertFalse(state.isCharging)
+        assertFalse(state.isDocked)
+        assertFalse(state.isScreensaverOn)
+        assertTrue(state.isScreenOn)
+        assertEquals(-1, state.swallowKey)
+        assertFalse(state.swallowTouch)
+    }
+
+    @Test
+    fun batteryChangedUpdatesUiStateAndPostsTelemetry() = runVmTest {
+        val intent = mockBatteryIntent(level = 85, scale = 100, plugged = BatteryManager.BATTERY_PLUGGED_AC, status = BatteryManager.BATTERY_STATUS_CHARGING)
+
+        viewModel.onIntent(PowerIntent.BatteryChanged(intent))
+        runCurrent()
+
+        val state = viewModel.uiState.value
+        assertEquals(85, state.batteryPct)
+        assertTrue(state.isPlugged)
+        assertTrue(state.isCharging)
+        assertEquals(BatteryManager.BATTERY_STATUS_CHARGING, state.batteryStatus)
+
+        coVerify(timeout = 2000L) {
+            client.postState(
+                "sensor.astrion_battery",
+                "85",
+                match {
+                    it["plugged"] == true &&
+                    it["charging"] == true &&
+                    it["friendly_name"] == "Remote Battery" &&
+                    it["unit_of_measurement"] == "%"
+                }
+            )
+        }
+    }
+
+    @Test
+    fun reconnectPostsBatteryTelemetry() = runVmTest {
+        val intent = mockBatteryIntent(level = 90)
+        viewModel.onIntent(PowerIntent.BatteryChanged(intent))
+        runCurrent()
+
+        // Transition to CONNECTED
+        connectionFlow.value = ConnectionState.CONNECTED
+        runCurrent()
+
+        coVerify(timeout = 2000L, atLeast = 2) {
+            client.postState("sensor.astrion_battery", "90", any())
+        }
+    }
+
+    @Test
+    fun takingChargeTransitionsToDockedAfterDebounce() = runVmTest {
+        val chargingIntent = mockBatteryIntent(level = 80, plugged = BatteryManager.BATTERY_PLUGGED_AC, status = BatteryManager.BATTERY_STATUS_CHARGING)
+
+        viewModel.onIntent(PowerIntent.BatteryChanged(chargingIntent))
+        runCurrent()
+
+        // Debounce is 2 seconds: immediately not docked
+        assertFalse(viewModel.uiState.value.isDocked)
+
+        // Advance 2.5 seconds
+        advanceTimeBy(2500L)
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isDocked)
+    }
+
+    @Test
+    fun unpluggingImmediatelyUndocksWithoutDelay() = runVmTest {
+        val chargingIntent = mockBatteryIntent(level = 80, plugged = BatteryManager.BATTERY_PLUGGED_AC, status = BatteryManager.BATTERY_STATUS_CHARGING)
+        viewModel.onIntent(PowerIntent.BatteryChanged(chargingIntent))
+        advanceTimeBy(2500L)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isDocked)
+
+        // Unplug
+        val unpluggedIntent = mockBatteryIntent(level = 80, plugged = 0, status = BatteryManager.BATTERY_STATUS_DISCHARGING)
+        viewModel.onIntent(PowerIntent.BatteryChanged(unpluggedIntent))
+        runCurrent()
+
+        // Undocked immediately
+        assertFalse(viewModel.uiState.value.isDocked)
+    }
+
+    @Test
+    fun dockFaultDetectedWhenDrainingOnDock() = runVmTest {
+        // Dock at 68%
+        val chargingIntent = mockBatteryIntent(level = 68, plugged = BatteryManager.BATTERY_PLUGGED_AC, status = BatteryManager.BATTERY_STATUS_CHARGING)
+        viewModel.onIntent(PowerIntent.BatteryChanged(chargingIntent))
+        advanceTimeBy(2500L)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isDocked)
+        assertFalse(viewModel.uiState.value.isDockFault)
+
+        // Drop to 65% while plugged
+        val drainIntent = mockBatteryIntent(level = 65, plugged = BatteryManager.BATTERY_PLUGGED_AC, status = BatteryManager.BATTERY_STATUS_CHARGING)
+        viewModel.onIntent(PowerIntent.BatteryChanged(drainIntent))
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isDockFault)
+        assertTrue(viewModel.uiState.value.isDockDraining)
+    }
+
+    @Test
+    fun userActivityResetsScreensaverAndTriggersReturnHome() = runVmTest {
+        viewModel.events.test {
+            // Dismiss screensaver on user activity
+            viewModel.onIntent(PowerIntent.UserActivity)
+            assertFalse(viewModel.uiState.value.isScreensaverOn)
+
+            // home_after_seconds is 5s
+            advanceTimeBy(5100L)
+            runCurrent()
+
+            val event = awaitItem()
+            assertEquals(PowerEvent.ReturnHome, event)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun screensaverTimeoutActivatesScreensaver() = runVmTest {
+        assertFalse(viewModel.uiState.value.isScreensaverOn)
+
+        // Advance simulated realtime by 15s (idle_seconds = 10s)
+        currentRealtime += 15_000L
+        advanceTimeBy(1100L)
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isScreensaverOn)
+
+        // Dismiss screensaver intent
+        viewModel.onIntent(PowerIntent.DismissScreensaver)
+        assertFalse(viewModel.uiState.value.isScreensaverOn)
+    }
+
+    @Test
+    fun screenOffArmsMotionWakeAndScreenOnDisarms() = runVmTest {
+        // Turn screen off
+        viewModel.onIntent(PowerIntent.ScreenPowerChanged(isScreenOn = false))
+        runCurrent()
+
+        assertFalse(viewModel.uiState.value.isScreenOn)
+        verify { motionWake.start(any()) }
+
+        // Turn screen on
+        viewModel.onIntent(PowerIntent.ScreenPowerChanged(isScreenOn = true))
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isScreenOn)
+        verify { motionWake.stop() }
+        verify { client.setEntityFilter(null) }
+    }
+
+    @Test
+    fun motionWakeCallbackEmitsWakeScreenEvent() = runVmTest {
+        val callbackSlot = slot<() -> Unit>()
+        every { motionWake.start(capture(callbackSlot)) } answers { }
+
+        viewModel.events.test {
+            viewModel.onIntent(PowerIntent.ScreenPowerChanged(isScreenOn = false))
+            runCurrent()
+
+            assertTrue(callbackSlot.isCaptured)
+            // Trigger motion wake
+            callbackSlot.captured.invoke()
+            runCurrent()
+
+            val event = awaitItem()
+            assertEquals(PowerEvent.WakeScreen, event)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun swallowKeyAndTouchIntents() {
+        viewModel.onIntent(PowerIntent.SetSwallowKey(136))
+        assertEquals(136, viewModel.uiState.value.swallowKey)
+
+        viewModel.onIntent(PowerIntent.ClearSwallowKey)
+        assertEquals(-1, viewModel.uiState.value.swallowKey)
+
+        viewModel.onIntent(PowerIntent.SetSwallowTouch(true))
+        assertTrue(viewModel.uiState.value.swallowTouch)
+
+        viewModel.onIntent(PowerIntent.SetSwallowTouch(false))
+        assertFalse(viewModel.uiState.value.swallowTouch)
+    }
+}

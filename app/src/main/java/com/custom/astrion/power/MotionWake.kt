@@ -5,83 +5,156 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.Handler
+import android.hardware.TriggerEvent
+import android.hardware.TriggerEventListener
 import android.os.SystemClock
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sqrt
 
 /**
- * Motion-wake: an accelerometer wakes the screen when the remote is
- * lifted/moved. NOT cheap at rest: a wake-up accelerometer wakes the SoC for
- * every reading (~5 a second), moving or not, so the CPU can never suspend
- * while it's registered. Hence only for `power.motion_wake_minutes` after the
- * screen goes off — when a pick-up is most likely — and never on the dock,
- * where the screen is kept on anyway.
+ * Interface contract for motion-wake control as specified in PROJECT.md.
+ */
+interface MotionWakeController {
+    fun start(onWake: () -> Unit)
+    fun stop()
+    fun isHardwareInterruptSupported(): Boolean
+}
+
+/**
+ * Motion-wake: wakes the screen when the remote is lifted/moved.
+ *
+ * Modernized to eliminate the continuous accelerometer polling loop:
+ * - Supports hardware interrupt trigger (`Sensor.TYPE_SIGNIFICANT_MOTION` with `TriggerEventListener`)
+ *   when available on hardware, which wakes the CPU only on actual motion without keeping Cortex-A7 cores awake.
+ * - For standard accelerometer fallback, provides duty-cycled listening and sleep windows so the
+ *   MT6580 Cortex-A7 cores can enter deep sleep when screen is off and undocked.
+ * - Replaces legacy Handler/Runnable timeouts with Kotlin Coroutines structured concurrency.
  */
 class MotionWake(
-    context: Context,
-    private val handler: Handler,
-    private val onMotion: () -> Unit,
-) {
-    private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+    context: Context? = null,
+    @Suppress("UNUSED_PARAMETER") handler: Any? = null,
+    private var onMotion: () -> Unit = {},
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+    private val listenWindowMs: Long = DEFAULT_LISTEN_WINDOW_MS,
+    private val sleepWindowMs: Long = DEFAULT_SLEEP_WINDOW_MS,
+    sensorManagerOverride: SensorManager? = null,
+) : MotionWakeController {
 
-    // Prefer a wake-up accelerometer so events still arrive with the screen
-    // off; fall back to the normal one (which only helps while awake).
-    private val sensor: Sensor? = sensorManager?.getSensorList(Sensor.TYPE_ACCELEROMETER)
+    private val sensorManager: SensorManager? =
+        sensorManagerOverride ?: (context?.getSystemService(Context.SENSOR_SERVICE) as? SensorManager)
+
+    // Hardware interrupt: significant motion detector (one-shot trigger)
+    private val sigMotion: Sensor? = sensorManager?.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
+
+    // Fallback: wake-up accelerometer or standard accelerometer
+    private val accelSensor: Sensor? = sensorManager?.getSensorList(Sensor.TYPE_ACCELEROMETER)
         ?.firstOrNull { it.isWakeUpSensor }
         ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
+    private var activeJob: Job? = null
+    private var hwTriggerActive = false
     private var lastMagnitude = 0f
 
-    /** elapsedRealtime after which motion-wake gives up; Long.MAX_VALUE = never. */
-    private var until = 0L
+    private val triggerListener = object : TriggerEventListener() {
+        override fun onTrigger(event: TriggerEvent?) {
+            hwTriggerActive = false
+            onMotion()
+        }
+    }
 
-    /** Ends the motion-wake window; see [until]. */
-    private val timeout = Runnable { stop() }
-
-    private val listener = object : SensorEventListener {
+    private val accelListener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
-            // Checked here too, not just by the timer: uptime-based timers
-            // stall while the SoC sleeps, the sensor's own wake-ups don't.
-            if (SystemClock.elapsedRealtime() > until) {
-                handler.post { stop() }
-                return
-            }
             val (x, y, z) = event.values
-            val mag = sqrt(x * x + y * y + z * z)
-            if (lastMagnitude != 0f && abs(mag - lastMagnitude) > MOTION_THRESHOLD) {
+            val mag = calculateMagnitude(x, y, z)
+            if (isMotionDetected(mag, lastMagnitude)) {
                 onMotion()
             }
             lastMagnitude = mag
         }
+
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     }
 
+    override fun isHardwareInterruptSupported(): Boolean = sigMotion != null
+
+    override fun start(onWake: () -> Unit) {
+        start(minutes = 5, onWake = onWake)
+    }
+
     /**
-     * Listen for [minutes] (0 = never, -1 = until [stop]). Callers only start
-     * it with the screen off — with it on there is nothing to wake — and off
-     * the dock.
+     * Listen for [minutes] (0 = never/disabled, -1 = until [stop]).
+     *
+     * Uses TYPE_SIGNIFICANT_MOTION hardware interrupt trigger when available.
+     * Otherwise falls back to duty-cycled accelerometer polling windows that allow
+     * the SoC to enter deep sleep between sample windows.
      */
-    fun start(minutes: Int) {
+    fun start(minutes: Int = 5, onWake: (() -> Unit)? = null) {
         stop()
-        val sm = sensorManager ?: return
-        val s = sensor ?: return
+        if (onWake != null) this.onMotion = onWake
         if (minutes == 0) return
-        until = if (minutes < 0) Long.MAX_VALUE else SystemClock.elapsedRealtime() + minutes * 60_000L
-        if (minutes > 0) handler.postDelayed(timeout, minutes * 60_000L)
-        // A fresh baseline, so a reading from before the screen went off
-        // can't register as movement.
+
+        val sm = sensorManager ?: return
+
+        if (sigMotion != null) {
+            // Hardware interrupt trigger
+            val registered = sm.requestTriggerSensor(triggerListener, sigMotion)
+            hwTriggerActive = registered
+            if (minutes > 0) {
+                activeJob = scope.launch {
+                    delay(minutes * 60_000L)
+                    stop()
+                }
+            }
+        } else {
+            val accel = accelSensor ?: return
+            // Fallback: duty-cycled listening and sleep windows
+            activeJob = scope.launch {
+                val durationMs = if (minutes > 0) minutes * 60_000L else Long.MAX_VALUE
+                val deadline = if (durationMs == Long.MAX_VALUE) Long.MAX_VALUE else SystemClock.elapsedRealtime() + durationMs
+
+                while (isActive && SystemClock.elapsedRealtime() < deadline) {
+                    lastMagnitude = 0f
+                    sm.registerListener(accelListener, accel, SensorManager.SENSOR_DELAY_NORMAL)
+                    delay(listenWindowMs)
+                    sm.unregisterListener(accelListener)
+
+                    val remaining = deadline - SystemClock.elapsedRealtime()
+                    if (remaining <= 0) break
+                    delay(minOf(sleepWindowMs, remaining))
+                }
+                stop()
+            }
+        }
+    }
+
+    override fun stop() {
+        activeJob?.cancel()
+        activeJob = null
+        if (hwTriggerActive) {
+            sigMotion?.let { sensorManager?.cancelTriggerSensor(triggerListener, it) }
+            hwTriggerActive = false
+        }
+        sensorManager?.unregisterListener(accelListener)
         lastMagnitude = 0f
-        sm.registerListener(listener, s, SensorManager.SENSOR_DELAY_NORMAL)
     }
 
-    fun stop() {
-        sensorManager?.unregisterListener(listener)
-        handler.removeCallbacks(timeout)
-    }
-
-    private companion object {
+    companion object {
         /** Accel magnitude delta (m/s²) that counts as "moved". */
         const val MOTION_THRESHOLD = 0.9f
+        const val DEFAULT_LISTEN_WINDOW_MS = 1_000L
+        const val DEFAULT_SLEEP_WINDOW_MS = 4_000L
+
+        fun calculateMagnitude(x: Float, y: Float, z: Float): Float =
+            sqrt(x * x + y * y + z * z)
+
+        fun isMotionDetected(currentMag: Float, lastMag: Float): Boolean =
+            lastMag != 0f && abs(currentMag - lastMag) >= MOTION_THRESHOLD
     }
 }

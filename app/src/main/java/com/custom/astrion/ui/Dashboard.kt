@@ -23,7 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
@@ -188,7 +188,7 @@ fun Dashboard(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth(),
         ) {
-            ConnectionBanner(connectionState)
+            ConnectionBanner(connectionState, onRetry = { client.connect() })
             if (configNotice != null) ConfigNoticeBanner(configNotice)
         }
     }
@@ -279,36 +279,52 @@ private fun FloatingTopPage(
     ctx: CardContext,
     modifier: Modifier,
 ) {
-    var pinnedPx by remember { mutableIntStateOf(0) }
-    val pinnedDp = with(LocalDensity.current) { pinnedPx.toDp() }
-    Box(modifier.fillMaxWidth()) {
-        Column(
-            // Clipped 4dp above the footer slot, so a row cut off by the
-            // scroll ends level with the other pages' last card.
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 4.dp)
-                .verticalScroll(rememberScrollState())
-                .padding(start = 10.dp, end = 10.dp, top = pinnedDp + 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            middle.forEach { RenderCard(it, ctx) }
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .onSizeChanged { pinnedPx = it.height }
-                .background(
-                    Brush.verticalGradient(
-                        0f to AstrionTheme.pageBg,
-                        0.82f to AstrionTheme.pageBg,
-                        1f to AstrionTheme.pageBg.copy(alpha = 0f),
+    val scrollState = rememberScrollState()
+    SubcomposeLayout(modifier = modifier.fillMaxWidth()) { constraints ->
+        // Step 1: Subcompose and measure the floating pinned header
+        val headerPlaceables = subcompose("pinned_header") {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to AstrionTheme.pageBg,
+                            0.82f to AstrionTheme.pageBg,
+                            1f to AstrionTheme.pageBg.copy(alpha = 0f),
+                        )
                     )
-                )
-                .padding(horizontal = 10.dp, vertical = 5.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            pinnedTop.forEach { RenderCard(it, ctx) }
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                pinnedTop.forEach { RenderCard(it, ctx) }
+            }
+        }.map { it.measure(constraints.copy(minHeight = 0)) }
+
+        val headerHeight = headerPlaceables.maxOfOrNull { it.height } ?: 0
+        val headerDp = headerHeight.toDp()
+
+        // Step 2: Subcompose and measure scrolling middle content with exact dynamic top padding
+        val contentPlaceables = subcompose("scrolling_content") {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = 4.dp)
+                    .verticalScroll(scrollState)
+                    .padding(start = 10.dp, end = 10.dp, top = headerDp + 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                middle.forEach { RenderCard(it, ctx) }
+            }
+        }.map { it.measure(constraints) }
+
+        val layoutWidth = constraints.maxWidth
+        val layoutHeight = constraints.maxHeight
+
+        layout(layoutWidth, layoutHeight) {
+            // Place content first (underneath)
+            contentPlaceables.forEach { it.place(0, 0) }
+            // Place header floating on top
+            headerPlaceables.forEach { it.place(0, 0) }
         }
     }
 }
@@ -334,7 +350,10 @@ private fun RenderCard(cardConfig: CardConfig, ctx: CardContext) {
  * socket also disables the controls rather than letting them look live.
  */
 @Composable
-private fun ConnectionBanner(connectionState: State<ConnectionState>) {
+private fun ConnectionBanner(
+    connectionState: State<ConnectionState>,
+    onRetry: () -> Unit = {},
+) {
     val connection by connectionState
     if (connection == ConnectionState.CONNECTED) return
 
@@ -364,11 +383,12 @@ private fun ConnectionBanner(connectionState: State<ConnectionState>) {
         modifier = Modifier
             .fillMaxWidth()
             .background(AstrionTheme.danger)
+            .tap { onRetry() }
             .padding(10.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            label,
+            "$label  (tap to retry)",
             color = Color(0xFF241012),
             fontSize = AstrionTheme.body,
             fontWeight = FontWeight.Bold,

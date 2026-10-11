@@ -1,6 +1,8 @@
 package com.custom.astrion
 
 import android.app.Application
+import android.net.ConnectivityManager
+import android.net.Network
 import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.cards.impl.BubbleLightCard
 import com.custom.astrion.cards.impl.ButtonGridCard
@@ -32,8 +34,14 @@ import com.custom.astrion.cards.impl.SwitchCard
 import com.custom.astrion.cards.impl.TvRemoteCard
 import com.custom.astrion.cards.impl.VacuumCard
 import com.custom.astrion.config.DashboardLoader
+import com.custom.astrion.di.appModules
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ui.ArtCache
+import org.koin.android.ext.android.get
+import org.koin.android.ext.koin.androidContext
+import org.koin.android.ext.koin.androidLogger
+import org.koin.core.context.startKoin
+import org.koin.core.logger.Level
 
 /**
  * App entry point. Register all card types here once at startup.
@@ -52,10 +60,15 @@ class AstrionApp : Application() {
      * Activity instance, so a recreated Activity picks up the same socket and
      * entity states instead of reconnecting from scratch.
      */
-    val client: HaClient by lazy { HaClient(baseUrl = BuildConfig.HA_URL, token = BuildConfig.HA_TOKEN) }
+    val client: HaClient get() = get()
 
     override fun onCreate() {
         super.onCreate()
+        startKoin {
+            androidLogger(Level.ERROR)
+            androidContext(this@AstrionApp)
+            modules(appModules)
+        }
         ArtCache.init(cacheDir)
         DashboardLoader.init(assets)
         CardRegistry.register(
@@ -90,5 +103,18 @@ class AstrionApp : Application() {
             VacuumCard(),
             // ← register your own card types here
         )
+        setupNetworkMonitor()
+        client.connect()
+    }
+
+    private fun setupNetworkMonitor() {
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return
+        runCatching {
+            cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    client.onNetworkAvailable()
+                }
+            })
+        }
     }
 }

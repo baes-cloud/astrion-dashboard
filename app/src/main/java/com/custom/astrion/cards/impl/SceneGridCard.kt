@@ -21,6 +21,11 @@ import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,6 +41,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -207,58 +213,80 @@ class SceneGridCard : CardRenderer {
         iconOf: (Map<String, Any?>) -> ImageVector?,
         activate: (String) -> Unit,
     ) {
+        if (scenes.isEmpty()) return
+
+        val hasAnyIcon = scenes.any { sceneIcon(it["icon"] as? String) != null }
+        val faceH = if (hasAnyIcon) 60.dp else 48.dp
+        val lip = 5.dp
+        val tileHeight = faceH + lip
+
         if (row) {
-            // Horizontally scrollable row.
-            //
-            // Tiles used to be sized so exactly 4 fit, with no edge fade, peek
-            // or arrow — so with five scenes configured (Night/White/Day/Club/
-            // Off) the row filled edge to edge and the fifth was invisible.
-            // "Off" is the single most likely thing you want from a lighting
-            // remote at the end of the night, and it was the one you couldn't
-            // see. Fit them all when they're still a comfortable size, and
-            // otherwise leave half a tile showing so the row is self-evidently
-            // scrollable.
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val gap = 8.dp
-                val count = scenes.size
-                val tileW = if (count in 1..5) {
-                    (maxWidth - gap * (count - 1)) / count
-                } else {
-                    (maxWidth - gap * 4) / 4.5f
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(gap),
-                ) {
-                    scenes.forEach { scene ->
-                        val entityId = scene["entity_id"] as? String ?: return@forEach
-                        SceneButton(
-                            name = nameOf(scene, entityId),
-                            color = colorOf(scene),
-                            icon = iconOf(scene),
-                            modifier = Modifier.width(tileW),
-                        ) { activate(entityId) }
-                    }
+            // Horizontal Grid (Replaces manual subcomposed row with LazyHorizontalGrid)
+            val gap = 8.dp
+            val count = scenes.size
+            val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+            val availableWidth = (screenWidth - 20.dp).coerceAtLeast(100.dp)
+            val tileW = if (count in 1..5) {
+                (availableWidth - gap * (count - 1)) / count
+            } else {
+                (availableWidth - gap * 4) / 4.5f
+            }
+
+            LazyHorizontalGrid(
+                rows = GridCells.Fixed(1),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(tileHeight),
+                horizontalArrangement = Arrangement.spacedBy(gap),
+                contentPadding = PaddingValues(0.dp),
+                userScrollEnabled = count > 5 || (count * tileW.value > availableWidth.value),
+            ) {
+                items(
+                    count = scenes.size,
+                    key = { index -> scenes[index]["entity_id"] as? String ?: index.toString() },
+                ) { index ->
+                    val scene = scenes[index]
+                    val entityId = scene["entity_id"] as? String ?: return@items
+                    SceneButton(
+                        name = nameOf(scene, entityId),
+                        color = colorOf(scene),
+                        icon = iconOf(scene),
+                        faceH = faceH,
+                        lip = lip,
+                        modifier = Modifier.width(tileW),
+                    ) { activate(entityId) }
                 }
             }
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                scenes.chunked(columns).forEach { chunk ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        chunk.forEach { scene ->
-                            val entityId = scene["entity_id"] as? String ?: return@forEach
-                            SceneButton(
-                                name = nameOf(scene, entityId),
-                                color = colorOf(scene),
-                                icon = iconOf(scene),
-                                modifier = Modifier.weight(1f),
-                            ) { activate(entityId) }
-                        }
-                        // Pad the final short row so tiles keep equal width.
-                        repeat(columns - chunk.size) { Spacer(Modifier.weight(1f)) }
-                    }
+            // Vertical Grid (Replaces scenes.chunked(columns) + Row + weight(1f) + Spacer)
+            val spacing = 6.dp
+            val rowCount = (scenes.size + columns - 1) / columns
+            val totalGridHeight = (tileHeight * rowCount) + (spacing * (rowCount - 1).coerceAtLeast(0))
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(columns),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(totalGridHeight),
+                horizontalArrangement = Arrangement.spacedBy(spacing),
+                verticalArrangement = Arrangement.spacedBy(spacing),
+                contentPadding = PaddingValues(0.dp),
+                userScrollEnabled = false, // Nested scrolling safety with parent verticalScroll
+            ) {
+                items(
+                    count = scenes.size,
+                    key = { index -> scenes[index]["entity_id"] as? String ?: index.toString() },
+                ) { index ->
+                    val scene = scenes[index]
+                    val entityId = scene["entity_id"] as? String ?: return@items
+                    SceneButton(
+                        name = nameOf(scene, entityId),
+                        color = colorOf(scene),
+                        icon = iconOf(scene),
+                        faceH = faceH,
+                        lip = lip,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { activate(entityId) }
                 }
             }
         }
@@ -281,7 +309,15 @@ class SceneGridCard : CardRenderer {
     }
 
     @Composable
-    private fun SceneButton(name: String, color: Color, icon: ImageVector?, modifier: Modifier, onClick: () -> Unit) {
+    private fun SceneButton(
+        name: String,
+        color: Color,
+        icon: ImageVector?,
+        faceH: Dp,
+        lip: Dp,
+        modifier: Modifier,
+        onClick: () -> Unit,
+    ) {
         // Dark text/icon on light tiles (e.g. the white scene), light otherwise.
         val fg = if (luminance(color) > 0.75f) Color(0xFF141414) else Color(0xFFEEF2EF)
         // Semi-transparent face (darker/faded over the band) plus a darker,
@@ -292,8 +328,6 @@ class SceneGridCard : CardRenderer {
         val interaction = remember { MutableInteractionSource() }
         val pressed by interaction.collectIsPressedAsState()
         val haptics = LocalHapticFeedback.current
-        val lip = 5.dp
-        val faceH = if (icon != null) 60.dp else 48.dp
         val sink by animateDpAsState(if (pressed) lip else 0.dp, label = "sink")
 
         Box(
@@ -307,7 +341,7 @@ class SceneGridCard : CardRenderer {
                     .fillMaxWidth()
                     .height(faceH)
                     .align(Alignment.TopCenter)
-                    .offset(y = sink)
+                    .graphicsLayer { translationY = sink.toPx() }
                     .clip(RoundedCornerShape(14.dp))
                     .background(face)
                     .clickable(interactionSource = interaction, indication = null) {

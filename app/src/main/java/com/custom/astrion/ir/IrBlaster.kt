@@ -185,6 +185,10 @@ class IrBlaster(context: Context) {
         return any
     }
 
+    suspend fun blastAsync(code: Long, repeat: Int = 1): Boolean = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        blast(code, repeat)
+    }
+
     /** Human-readable capability line for the popup, so failures are visible. */
     fun statusLine(): String = when {
         manager == null -> "No IR service on this device"

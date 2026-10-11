@@ -56,8 +56,10 @@ import java.util.concurrent.atomic.AtomicInteger
  * here (those are only needed if you later want the local IR-blaster path).
  */
 class HaClient(
-    private val baseUrl: String,   // e.g. "http://YOUR_HA_IP:8123" or "https://ha.example.com"
+    val baseUrl: String,   // e.g. "http://YOUR_HA_IP:8123" or "https://ha.example.com"
     private val token: String,     // long-lived access token
+    private val cache: EntityCacheRepository? = null,
+    clientOverride: okhttp3.OkHttpClient? = null,
 ) {
     companion object {
         private const val TAG = "HaClient"
@@ -81,7 +83,7 @@ class HaClient(
     // The only heartbeat. There used to be a second, app-level HA `ping`
     // every 30 s on top of this; each one wakes the Wi-Fi radio, and only
     // this one actually notices a dead socket (no pong fails the connection).
-    private val http = Http.base.newBuilder()
+    private val http = (clientOverride ?: Http.base).newBuilder()
         .pingInterval(30, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
@@ -200,6 +202,24 @@ class HaClient(
     /** Entities changed since the last publish, for the per-entity states. */
     private val changedIds = ConcurrentHashMap.newKeySet<String>()
 
+    private val _entitiesFlow = MutableStateFlow<Map<String, EntityState>>(emptyMap())
+    val entities: StateFlow<Map<String, EntityState>> = _entitiesFlow.asStateFlow()
+
+    init {
+        scope.launch {
+            cache?.loadInitialSnapshot()?.let { cached ->
+                if (cached.isNotEmpty()) {
+                    entityStore.putAll(cached)
+                    _entitiesFlow.value = cached
+                    cached.forEach { (id, state) ->
+                        entityStates.getOrPut(id) { mutableStateOf(state) }.value = state
+                    }
+                    version.longValue += 1
+                }
+            }
+        }
+    }
+
     /** Request id of the live subscribe_entities, whose events are diffs. */
     @Volatile private var entitiesSubId = -1
     /** True until the current subscription's first (full-snapshot) event. */
@@ -293,6 +313,9 @@ class HaClient(
             synchronized(offlineQueue) {
                 offlineQueue.addLast(Queued(System.currentTimeMillis(), call, confirm))
                 while (offlineQueue.size > QUEUE_MAX) offlineQueue.removeFirst()
+            }
+            scope.launch {
+                cache?.enqueueOfflineCall(call, confirm)
             }
             _outcomes.tryEmit(CallOutcome(call, CallOutcome.Kind.QUEUED))
             return
@@ -685,11 +708,21 @@ class HaClient(
 
     /** Send what was tapped while offline, if it's still recent enough to mean it. */
     private fun flushOfflineQueue() {
-        val queued = synchronized(offlineQueue) { offlineQueue.toList().also { offlineQueue.clear() } }
-        val now = System.currentTimeMillis()
-        queued.forEach { q ->
-            if (now - q.at <= QUEUE_MAX_AGE_MS) callService(q.call, q.confirm)
-            else _outcomes.tryEmit(CallOutcome(q.call, CallOutcome.Kind.DROPPED))
+        scope.launch {
+            val drained = cache?.drainOfflineCalls(QUEUE_MAX_AGE_MS)
+            if (drained != null && drained.isNotEmpty()) {
+                synchronized(offlineQueue) { offlineQueue.clear() }
+                drained.forEach { call ->
+                    callService(call, confirm = false)
+                }
+            } else {
+                val queued = synchronized(offlineQueue) { offlineQueue.toList().also { offlineQueue.clear() } }
+                val now = System.currentTimeMillis()
+                queued.forEach { q ->
+                    if (now - q.at <= QUEUE_MAX_AGE_MS) callService(q.call, q.confirm)
+                    else _outcomes.tryEmit(CallOutcome(q.call, CallOutcome.Kind.DROPPED))
+                }
+            }
         }
     }
 
@@ -749,6 +782,7 @@ class HaClient(
             }
             version.longValue += 1
         }
+        _entitiesFlow.value = snapshot()
     }
 
     private fun onEvent(obj: JsonObject) {
@@ -830,7 +864,14 @@ class HaClient(
         }
         (event["r"] as? JsonArray)?.let { if (it.isNotEmpty()) meaningful = true }
         // The seed is important — publish at once so the first frame has data.
-        if (seeded) publish() else if (meaningful) schedulePublish()
+        if (seeded) {
+            publish()
+            if (subscribedFilter == null) {
+                scope.launch {
+                    cache?.saveSnapshot(snapshot())
+                }
+            }
+        } else if (meaningful) schedulePublish()
     }
 
     /**
