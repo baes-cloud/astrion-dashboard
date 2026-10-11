@@ -27,6 +27,8 @@ data class InputUiState(
     val irStatusLine: String = "",
     val irCodes: Map<HardwareKey, Long> = IrBlaster.DEFAULT_CODES,
     val irRepeat: Int = 1,
+    val volumeTriggerEpoch: Long = 0L,
+    val lastVolumeEntityId: String = "media_player.club",
 )
 
 sealed interface InputIntent {
@@ -178,6 +180,16 @@ class InputViewModel(
     private fun runAction(hk: HotkeyConfig): Boolean {
         val service = hk.service ?: return false
         val entityId = hk.entityId
+
+        if (service == "astrion.toggle_mute" || service.contains("volume_") || service.contains("volume")) {
+            _uiState.update {
+                it.copy(
+                    volumeTriggerEpoch = System.currentTimeMillis(),
+                    lastVolumeEntityId = entityId ?: it.lastVolumeEntityId,
+                )
+            }
+        }
+
         when (service) {
             "astrion.toggle_mute" -> {
                 if (entityId == null) return false

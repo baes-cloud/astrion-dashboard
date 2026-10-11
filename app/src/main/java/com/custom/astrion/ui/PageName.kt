@@ -2,7 +2,8 @@ package com.custom.astrion.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -39,53 +40,117 @@ val LocalPageNameOverride = compositionLocalOf<MutableState<String?>?> { null }
 
 /**
  * The Bæo device name for the page on screen (BÆOREMOTE, BÆOVISION, …):
- * Syne 16sp, all caps, 0.28em tracking, `textSecondary` at 60%, centred in a
- * fixed [PageNameHeight] footer; see [baeoWordmark] for the weights. No box,
- * rule or icon.
+ * Syne 16sp, all caps, 0.318em tracking, `textSecondary` at 70%, centred in a
+ * fixed [PageNameHeight] footer.
  *
- * When [name] changes the text crossfades in place: 200 ms out, swap, 200 ms
- * in. That's the only motion; nothing runs between changes. Never used in a
- * dialog or overlay.
+ * The "BÆO" prefix is styled in Bold and remains completely static during page
+ * navigation; the suffix (e.g. REMOTE, VISION, SOUND) crossfades in place:
+ * 200 ms out, swap, 200 ms in.
  */
 @Composable
 fun PageName(name: String?, modifier: Modifier = Modifier) {
-    var shown by remember { mutableStateOf(name) }
-    val fade = remember { Animatable(1f) }
+    val targetCaps = name?.uppercase() ?: ""
+    val targetPrefix = if (targetCaps.startsWith(BAEO)) BAEO else ""
+    val targetSuffix = if (targetPrefix.isNotEmpty()) targetCaps.removePrefix(BAEO) else targetCaps
+
+    var shownPrefix by remember { mutableStateOf(targetPrefix) }
+    var shownSuffix by remember { mutableStateOf(targetSuffix) }
+    val suffixFade = remember { Animatable(1f) }
+    val prefixFade = remember { Animatable(1f) }
+
     LaunchedEffect(name) {
-        if (name == shown) return@LaunchedEffect
-        fade.animateTo(0f, tween(FADE_MS))
-        shown = name
-        fade.animateTo(1f, tween(FADE_MS))
+        val caps = name?.uppercase() ?: ""
+        val newPrefix = if (caps.startsWith(BAEO)) BAEO else ""
+        val newSuffix = if (newPrefix.isNotEmpty()) caps.removePrefix(BAEO) else caps
+
+        if (newPrefix == shownPrefix && newSuffix == shownSuffix) return@LaunchedEffect
+
+        if (newPrefix == shownPrefix && shownPrefix.isNotEmpty()) {
+            // "BÆO" prefix is static! Only the suffix crossfades.
+            suffixFade.animateTo(0f, tween(FADE_MS))
+            shownSuffix = newSuffix
+            suffixFade.animateTo(1f, tween(FADE_MS))
+        } else {
+            // Entire name changed or non-BÆO name
+            suffixFade.animateTo(0f, tween(FADE_MS))
+            prefixFade.animateTo(0f, tween(FADE_MS))
+            shownPrefix = newPrefix
+            shownSuffix = newSuffix
+            prefixFade.animateTo(1f, tween(FADE_MS))
+            suffixFade.animateTo(1f, tween(FADE_MS))
+        }
     }
-    Box(
-        modifier = modifier.fillMaxWidth().height(PageNameHeight),
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(PageNameHeight),
         contentAlignment = Alignment.Center,
     ) {
-        val text = shown ?: return@Box
-        Text(
-            baeoWordmark(text),
-            // Tracking also trails the last letter; pushing the text right by
-            // one tracking step (0.318em of 16sp ≈ 5.1dp) centres it optically.
-            modifier = Modifier
-                .padding(start = 5.dp)
-                .graphicsLayer { alpha = fade.value },
-            color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
-            fontFamily = AstrionTheme.headingFont,
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            letterSpacing = WordmarkTracking,
-            maxLines = 1,
-        )
+        if (shownPrefix.isEmpty() && shownSuffix.isEmpty()) return@BoxWithConstraints
+
+        if (shownPrefix == BAEO) {
+            // Anchored BÆO layout: BÆO position is pinned to the nominal center of BÆOREMOTE
+            // so it never shifts or jitters when suffixes of varying length (REMOTE vs VISION vs SOUND) swap.
+            val nominalTotalWidth = 170.dp
+            val opticalPadding = 5.dp
+            val startOffset = ((maxWidth - nominalTotalWidth) / 2 + opticalPadding).coerceAtLeast(0.dp)
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = startOffset),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = shownPrefix,
+                    modifier = Modifier.graphicsLayer { alpha = prefixFade.value },
+                    color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
+                    fontFamily = AstrionTheme.headingFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    letterSpacing = WordmarkTracking,
+                    maxLines = 1,
+                )
+                Text(
+                    text = shownSuffix,
+                    modifier = Modifier.graphicsLayer { alpha = suffixFade.value },
+                    color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
+                    fontFamily = AstrionTheme.headingFont,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 16.sp,
+                    letterSpacing = WordmarkTracking,
+                    maxLines = 1,
+                )
+            }
+        } else {
+            // Generic fallback for non-BÆO titles: centered
+            Text(
+                text = shownSuffix,
+                modifier = Modifier
+                    .padding(start = 5.dp)
+                    .graphicsLayer { alpha = suffixFade.value },
+                color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
+                fontFamily = AstrionTheme.headingFont,
+                fontWeight = FontWeight.Normal,
+                fontSize = 16.sp,
+                letterSpacing = WordmarkTracking,
+                maxLines = 1,
+            )
+        }
     }
 }
 
 /**
- * A Bæo name in caps set in Syne Bold 700, all capitals, Æ kept as one letter.
+ * A Bæo name in caps with the BÆO prefix in Syne Bold and the rest at the
+ * text's own weight (Syne Regular / Normal), e.g. **BÆO**REMOTE.
  */
 fun baeoWordmark(name: String): AnnotatedString {
     val caps = name.uppercase()
+    val prefix = if (caps.startsWith(BAEO)) BAEO.length else 0
     return buildAnnotatedString {
-        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(caps) }
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(caps.take(prefix)) }
+        withStyle(SpanStyle(fontWeight = FontWeight.Normal)) { append(caps.drop(prefix)) }
     }
 }
 
@@ -95,3 +160,4 @@ val WordmarkTracking = 0.318.em
 private const val BAEO = "BÆO"
 
 private const val FADE_MS = 200
+

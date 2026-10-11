@@ -84,6 +84,12 @@ fun DashboardScreen(
                 )
             }
 
+            VolumePopup(
+                client = dashboardVm.client,
+                targetEntityId = inputState.lastVolumeEntityId,
+                externalTriggerEpoch = inputState.volumeTriggerEpoch,
+            )
+
             ActionToast(dashboardState.toastMessage, onGone = { dashboardVm.onIntent(DashboardIntent.ClearToast) })
 
             VoiceOverlay(
