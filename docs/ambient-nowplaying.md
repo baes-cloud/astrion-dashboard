@@ -78,16 +78,27 @@ selection, and the idle state machine.
 These targets from the brief have **not** been measured (no device in this
 session; the .113 unit is running another branch). Run them on the HA100:
 
-- **Per-track bake < 150 ms** — MISSED on device. Measured on the HA100
-  (10.0.0.141, release build): **~525 ms warm, ~1374 ms cold** for a real
-  cover, far over the 150 ms target. It is logged; watch it:
+- **Per-track bake < 150 ms** — MET, measured on the HA100 (10.0.0.141,
+  release, AOT-compiled): **~104 ms** total (`decode=32ms palette=30ms
+  backdrop=41ms`). It is logged with that breakdown; watch it:
   ```bash
   adb logcat -s Ambient:I
   ```
-  (look for `scene bake for "…" took N ms`). The bake runs off the main thread
-  so it does not block frames, but it needs optimising — likely the per-pixel
-  Oklab conversion in the palette + position passes over the 96px analysis
-  bitmap. Not yet profiled further.
+  Two things got it there from an initial ~1400 ms:
+  1. The palette work (Oklab + k-means over the analysis bitmap) was ~95% of
+     the cost. Fixed by: a 256-entry sRGB→linear lookup table, a real
+     early-stop in k-means (the convergence check was a no-op), squared
+     distance in the nearest-centre loops (no sqrt), converting each pixel
+     once and reusing it for both palette and pool placement, and a 40px
+     (not 96px) analysis bitmap.
+  2. The **first** bake was interpreted, not compiled — ~1400 ms cold vs
+     ~100 ms once JIT-warmed. **AOT-compiling the app removes that cliff**, so
+     the very first track is fast too. Do it at install (already in the README
+     build steps):
+     ```bash
+     adb shell cmd package compile -m speed -f com.custom.astrion
+     ```
+     Without the AOT step, expect a slow first bake per cold start, then ~100 ms.
 - **No frame drops below ~30 fps during a track change:**
   ```bash
   adb shell dumpsys gfxinfo com.custom.astrion reset

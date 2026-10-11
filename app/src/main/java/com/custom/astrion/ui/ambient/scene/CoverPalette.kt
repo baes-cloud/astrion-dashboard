@@ -33,7 +33,7 @@ object CoverPalette {
      */
     private const val CHROMA_FLOOR = 0.02f
 
-    private const val MAX_ITERATIONS = 12
+    private const val MAX_ITERATIONS = 8
 
     /**
      * @param pixels packed 0xRRGGBB, ideally a downscaled cover (~96px square).
@@ -42,7 +42,16 @@ object CoverPalette {
      */
     fun of(pixels: IntArray, k: Int = 5, minDistance: Float = MIN_DISTANCE): List<Swatch> {
         if (pixels.isEmpty()) return emptyList()
-        val labs = Array(pixels.size) { OklabConvert.toOklab(pixels[it]) }
+        return ofLabs(Array(pixels.size) { OklabConvert.toOklab(pixels[it]) }, k, minDistance)
+    }
+
+    /**
+     * As [of], but over colours already converted to Oklab, so the caller
+     * converts each pixel once and reuses the array (the scene builder also
+     * needs it to place the pools). This is the hot path on the device.
+     */
+    fun ofLabs(labs: Array<Oklab>, k: Int = 5, minDistance: Float = MIN_DISTANCE): List<Swatch> {
+        if (labs.isEmpty()) return emptyList()
 
         // Seed from distinct colours spread evenly through the sorted set, so a
         // flat image with one colour seeds one real centre, not k copies.
@@ -51,20 +60,22 @@ object CoverPalette {
         if (seeds.isEmpty()) return emptyList()
 
         var centres = seeds
-        val assign = IntArray(labs.size)
-        repeat(MAX_ITERATIONS) {
+        val assign = IntArray(labs.size) { -1 }
+        // Stop as soon as no pixel changes cluster (usually within a few passes),
+        // instead of always running the full cap.
+        for (iter in 0 until MAX_ITERATIONS) {
             var moved = false
             for (i in labs.indices) {
                 var best = 0; var bestD = Float.MAX_VALUE
                 for (c in centres.indices) {
-                    val d = labs[i].distance(centres[c])
+                    val d = labs[i].distanceSq(centres[c]) // ordering only: skip the sqrt
                     if (d < bestD) { bestD = d; best = c }
                 }
                 if (assign[i] != best) { assign[i] = best; moved = true }
             }
+            if (!moved) break
             val next = recompute(labs, assign, centres.size)
             centres = next.mapIndexed { idx, c -> c ?: centres[idx] }
-            if (!moved) return@repeat
         }
 
         // Turn each non-empty cluster into a swatch, then merge near-duplicates.

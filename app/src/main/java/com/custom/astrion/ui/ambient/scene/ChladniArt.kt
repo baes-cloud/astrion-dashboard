@@ -49,7 +49,9 @@ object ChladniArt {
         val maxR = size / 2f - 4f
 
         // Scatter grains, keeping those that land on a nodal line (|f| small).
-        val grains = size * size / 6
+        // Density is a cost knob: this runs on the weak SoC when art fails to
+        // load, so keep it light — the figure still reads at this grain count.
+        val grains = size * size / 18
         repeat(grains) {
             val x = rnd.nextFloat() * size
             val y = rnd.nextFloat() * size

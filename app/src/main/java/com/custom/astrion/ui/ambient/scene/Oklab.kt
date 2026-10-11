@@ -25,6 +25,16 @@ data class Oklab(val l: Float, val a: Float, val b: Float) {
 
     /** Perceptual distance to another colour, the thing "0.09 apart" measures. */
     fun distance(o: Oklab): Float = hypot(hypot(l - o.l, a - o.a), b - o.b)
+
+    /**
+     * Squared distance: same ordering as [distance] but no square root, for the
+     * hot nearest-centre loops in clustering where only "which is closest"
+     * matters. Compare against a squared threshold.
+     */
+    fun distanceSq(o: Oklab): Float {
+        val dl = l - o.l; val da = a - o.a; val db = b - o.b
+        return dl * dl + da * da + db * db
+    }
 }
 
 /** sRGB ↔ Oklab. Colours are packed 0xRRGGBB ints (the top byte is ignored). */
@@ -36,11 +46,16 @@ object OklabConvert {
     fun rgb(r: Int, g: Int, b: Int): Int =
         (r.coerceIn(0, 255) shl 16) or (g.coerceIn(0, 255) shl 8) or b.coerceIn(0, 255)
 
-    /** One 8-bit sRGB channel to linear light (0..1). */
-    private fun toLinear(c8: Int): Float {
+    /** 8-bit sRGB → linear, precomputed: the forward path runs this per pixel. */
+    private val LINEAR = FloatArray(256) { linearize(it) }
+
+    private fun linearize(c8: Int): Float {
         val c = c8 / 255f
         return if (c <= 0.04045f) c / 12.92f else ((c + 0.055f) / 1.055f).toDouble().pow(2.4).toFloat()
     }
+
+    /** One 8-bit sRGB channel to linear light (0..1), from the lookup table. */
+    private fun toLinear(c8: Int): Float = LINEAR[c8 and 0xFF]
 
     /** Linear light (0..1) back to an 8-bit sRGB channel. */
     private fun toSrgb8(c: Float): Int {

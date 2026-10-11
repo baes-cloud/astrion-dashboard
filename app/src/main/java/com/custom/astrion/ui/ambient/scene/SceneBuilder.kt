@@ -41,7 +41,13 @@ data class AmbientScene(
 object SceneBuilder {
     private const val TAG = "Ambient"
     const val DISPLAY_PX = 400
-    const val ANALYSIS_PX = 96
+
+    /**
+     * Analysis resolution for the palette. 40px (1600 pixels) still finds a
+     * cover's handful of colours and is the bake's dominant cost on this SoC
+     * (per-pixel Oklab + clustering), so it is kept small.
+     */
+    const val ANALYSIS_PX = 40
 
     suspend fun build(trackKey: String, artBytes: ByteArray?): AmbientScene = withContext(Dispatchers.Default) {
         val t0 = SystemClock.elapsedRealtime()
@@ -52,16 +58,21 @@ object SceneBuilder {
         val fromArtwork: Boolean
 
         val decoded = artBytes?.let { decode(it) }
+        var tDecode = 0L; var tPalette = 0L
         if (decoded != null) {
+            tDecode = SystemClock.elapsedRealtime() - t0
             cover = decoded
             val small = if (decoded.width > ANALYSIS_PX || decoded.height > ANALYSIS_PX)
                 Bitmap.createScaledBitmap(decoded, ANALYSIS_PX, ANALYSIS_PX, true) else decoded
             val px = IntArray(small.width * small.height)
             small.getPixels(px, 0, small.width, 0, 0, small.width, small.height)
-            val rgb = IntArray(px.size) { px[it] and 0xFFFFFF }
-            swatches = CoverPalette.of(rgb)
-            positioned = position(rgb, small.width, small.height, swatches)
+            // Convert each pixel to Oklab once and reuse it for both the palette
+            // and the pool placement — the conversion is the bake's hot spot.
+            val labs = Array(px.size) { OklabConvert.toOklab(px[it] and 0xFFFFFF) }
+            swatches = CoverPalette.ofLabs(labs)
+            positioned = position(labs, small.width, small.height, swatches)
             if (small !== decoded) small.recycle()
+            tPalette = SystemClock.elapsedRealtime() - t0 - tDecode
             fromArtwork = true
         } else {
             val art = ChladniArt.of(trackKey, DISPLAY_PX)
@@ -75,8 +86,10 @@ object SceneBuilder {
             fromArtwork = false
         }
 
+        val tBeforeBackdrop = SystemClock.elapsedRealtime()
         val ground = swatches.minByOrNull { it.color.l }?.color ?: Oklab(0.15f, 0f, 0f)
         val backdrop = Backdrop.build(positioned, ground)
+        val tBackdrop = SystemClock.elapsedRealtime() - tBeforeBackdrop
 
         // Text: near-white tinted with the dominant hue, each level lifted to
         // ≥4.5:1 over the darkest the veil leaves under the text.
@@ -87,7 +100,8 @@ object SceneBuilder {
         val inkFaint = tintedInk(0.72f, hue, veilBg)
 
         val scene = AmbientScene(trackKey, cover.asImageBitmap(), backdrop.asImageBitmap(), ink, inkDim, inkFaint, fromArtwork)
-        Log.i(TAG, "scene bake for \"$trackKey\" took ${SystemClock.elapsedRealtime() - t0} ms (fromArtwork=$fromArtwork)")
+        Log.i(TAG, "scene bake for \"$trackKey\" took ${SystemClock.elapsedRealtime() - t0} ms " +
+            "(fromArtwork=$fromArtwork decode=${tDecode}ms palette=${tPalette}ms backdrop=${tBackdrop}ms)")
         scene
     }
 
@@ -109,14 +123,14 @@ object SceneBuilder {
     }
 
     /** Average position of each swatch's colour across the cover, 0..1. */
-    private fun position(rgb: IntArray, w: Int, h: Int, swatches: List<Swatch>): List<PositionedSwatch> {
+    private fun position(labs: Array<Oklab>, w: Int, h: Int, swatches: List<Swatch>): List<PositionedSwatch> {
         if (swatches.isEmpty()) return emptyList()
         val sx = FloatArray(swatches.size); val sy = FloatArray(swatches.size); val n = IntArray(swatches.size)
-        val labs = swatches.map { it.color }
-        for (i in rgb.indices) {
-            val lab = OklabConvert.toOklab(rgb[i])
+        val centres = swatches.map { it.color }
+        for (i in labs.indices) {
+            val lab = labs[i]
             var best = 0; var bestD = Float.MAX_VALUE
-            for (c in labs.indices) { val d = lab.distance(labs[c]); if (d < bestD) { bestD = d; best = c } }
+            for (c in centres.indices) { val d = lab.distanceSq(centres[c]); if (d < bestD) { bestD = d; best = c } }
             sx[best] += (i % w).toFloat(); sy[best] += (i / w).toFloat(); n[best]++
         }
         return swatches.mapIndexed { idx, s ->
