@@ -7,3 +7,17 @@
 # Keep line numbers so stack traces from the remote stay readable.
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# Koin reflection-free DSL & warning suppression
+-dontwarn org.koin.**
+
+# Preserve ViewModel constructors for AndroidX Lifecycle & Koin factory resolution
+-keep class * extends androidx.lifecycle.ViewModel {
+    <init>(...);
+}
+
+# Preserve kotlinx.serialization serializable properties for disk caching (entity_cache.json)
+-keepclassmembers class * {
+    @kotlinx.serialization.SerialName <fields>;
+}
+-keepattributes *Annotation*, InnerClasses, EnclosingMethod

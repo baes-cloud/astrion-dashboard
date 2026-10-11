@@ -1,0 +1,13 @@
+# Astrion HA100 MT6580 Kernel & Hardware Tuning Init Service
+# Triggered when boot completes and system services settle
+
+on property:sys.boot_completed=1
+    start mt6580_tuning
+
+service mt6580_tuning /system/bin/sh /vendor/bin/init.mt6580_tuning.sh
+    class main
+    user root
+    group root system
+    oneshot
+    disabled
+    seclabel u:r:su:s0

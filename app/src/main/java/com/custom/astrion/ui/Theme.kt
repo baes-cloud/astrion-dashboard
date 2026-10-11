@@ -26,11 +26,20 @@ import androidx.compose.ui.text.font.FontWeight
 import com.custom.astrion.R
 import androidx.compose.ui.unit.sp
 
+import com.custom.astrion.ui.theme.AstrionDesignSystem
+import com.custom.astrion.ui.theme.AstrionDesignSystemTheme
+import com.custom.astrion.ui.theme.AstrionColors
+import com.custom.astrion.ui.theme.AstrionTypography
+import com.custom.astrion.ui.theme.AstrionElevation
+import com.custom.astrion.ui.theme.AstrionSurfaces
+import com.custom.astrion.ui.theme.AstrionStates
+
 /**
  * The single source of colour and type for the dashboard.
  *
  * Cards still carry some one-off literals of their own; those were remapped
  * onto this palette when it changed (2026-09), so they stay in the same family.
+ * Delegated to AstrionDesignSystem for centralized token management.
  */
 object AstrionTheme {
 
@@ -41,89 +50,94 @@ object AstrionTheme {
     // Doll is the warm accent (attention states, the next alarm, mute badge).
 
     // ---- surfaces -----------------------------------------------------------
-    val pageBg = Color(0xFF1B242D)
-    val pinnedTopBg = Color(0xFF151D25)
-    val pinnedBottomBg = Color(0xFF182129)
+    val pageBg get() = AstrionDesignSystem.defaultColors.background
+    val pinnedTopBg get() = AstrionDesignSystem.defaultColors.pinnedTopBg
+    val pinnedBottomBg get() = AstrionDesignSystem.defaultColors.pinnedBottomBg
 
     /** Default card fill. */
-    val cardBg = Color(0xFF243140)
+    val cardBg get() = AstrionDesignSystem.defaultColors.surfaceElevated
     /** Secondary card fill — cover/switch tiles used this historically. */
-    val cardBgAlt = Color(0xFF283646)
+    val cardBgAlt get() = AstrionDesignSystem.defaultColors.surfaceVariant
     /** Raised element inside a card (grid buttons, scene tile faces). */
-    val raised = Color(0xFF34454F)
+    val raised get() = AstrionDesignSystem.defaultColors.raised
     /** Control chrome: small round buttons, chips. */
-    val controlBg = Color(0xFF3A4F57)
+    val controlBg get() = AstrionDesignSystem.defaultColors.controlBg
     /** Recessed control, e.g. the lip under a scene tile. */
-    val controlSunken = Color(0xFF2C3B45)
+    val controlSunken get() = AstrionDesignSystem.defaultColors.controlSunken
     /** Slider / progress track. */
-    val trackBg = Color(0xFF1C2630)
-
-    // NOTE: a 1dp hairline card edge was tried here and removed by preference —
-    // cards are separated by spacing, not strokes.
+    val trackBg get() = AstrionDesignSystem.defaultColors.trackBg
 
     // ---- text ---------------------------------------------------------------
-    val textPrimary = Color(0xFFF1ECEA)
-    val textSecondary = Color(0xFFA9BAB6)
-    val textOnControl = Color(0xFFD9E3E0)
-    val textMuted = Color(0xFF718583)
+    val textPrimary get() = AstrionDesignSystem.defaultColors.onSurface
+    val textSecondary get() = AstrionDesignSystem.defaultColors.onSurfaceMuted
+    val textOnControl get() = AstrionDesignSystem.defaultColors.textOnControl
+    val textMuted get() = AstrionDesignSystem.defaultColors.textMuted
 
     // ---- state --------------------------------------------------------------
     /** Hailstorm, lifted to read as text/icons on the dark cards. */
-    val accent = Color(0xFF8CBDB5)
+    val accent get() = AstrionDesignSystem.defaultColors.accentSage
     /** Gunmetal Grey: selected chips and filled buttons under white text. */
-    val accentStrong = Color(0xFF4F726D)
+    val accentStrong get() = AstrionDesignSystem.defaultColors.accentStrong
     /** "On" amber — lights stay warm; the palette has no warm colour. */
-    val on = Color(0xFFFFC24B)
-    val onBg = Color(0xFF241A00)
+    val on get() = AstrionDesignSystem.defaultColors.accent
+    val onBg get() = AstrionDesignSystem.defaultColors.onWarm
     /** Baby Doll: the warm accent — "needs attention" (unlocked, open) and
      *  the next alarm. Text/icons on it use [onBlush]. */
-    val blush = Color(0xFFE6BCB6)
-    val onBlush = Color(0xFF4A2A26)
-    val danger = Color(0xFFE37B7B)
-    val dangerBg = Color(0xFF3A2E2E)
-    val good = Color(0xFF8CBDB5)
+    val blush get() = AstrionDesignSystem.defaultColors.blush
+    val onBlush get() = AstrionDesignSystem.defaultColors.onBlush
+    val danger get() = AstrionDesignSystem.defaultColors.danger
+    val dangerBg get() = AstrionDesignSystem.defaultColors.dangerBg
+    val good get() = AstrionDesignSystem.defaultColors.successSoft
 
     // ---- night (docked screensaver) -----------------------------------------
     // BæoRemote rebrand, 2026-10: the night face moved from amber to a dimmed
     // Baby Doll rose.
     /** Clock and title on the night face (≈7.5:1 on [nightFace]). */
-    val nightInk = Color(0xFFC29690)
+    val nightInk get() = AstrionDesignSystem.defaultColors.nightInk
     /** Date, artist, meta, progress and the BÆOREMOTE name (≈4.8:1). */
-    val nightInk2 = Color(0xFF9C7570)
+    val nightInk2 get() = AstrionDesignSystem.defaultColors.nightInk2
     /** Night face ground. */
-    val nightFace = Color(0xFF0C0E10)
+    val nightFace get() = AstrionDesignSystem.defaultColors.nightFace
 
     /**
      * Unavailable / unknown. Deliberately a desaturated slate that is NOT the
      * same as "off" — always pair it with the literal word (see
      * [com.custom.astrion.ui.UnavailableLabel]).
      */
-    val unavailable = Color(0xFF7B8C96)
+    val unavailable get() = AstrionDesignSystem.defaultColors.unavailable
 
     // ---- fonts --------------------------------------------------------------
     /** Manrope: everything by default (provided as the root text style). */
-    val bodyFont = FontFamily(
-        Font(R.font.manrope_400, FontWeight.Normal),
-        Font(R.font.manrope_500, FontWeight.Medium),
-        Font(R.font.manrope_600, FontWeight.SemiBold),
-        Font(R.font.manrope_700, FontWeight.Bold),
-    )
+    val bodyFont get() = AstrionDesignSystem.defaultTypography.bodyFont
     /** Syne: big numerals and headings (clock, temperatures, titles). */
-    val headingFont = FontFamily(
-        Font(R.font.syne_500, FontWeight.Light),
-        Font(R.font.syne_500, FontWeight.Normal),
-        Font(R.font.syne_500, FontWeight.Medium),
-        Font(R.font.syne_600, FontWeight.SemiBold),
-        Font(R.font.syne_700, FontWeight.Bold),
-    )
+    val headingFont get() = AstrionDesignSystem.defaultTypography.headingFont
 
     // ---- type ---------------------------------------------------------------
     // Sixteen distinct sizes were in use, eight of them clustered in 11–18sp
     // doing broadly two jobs. These four roles cover essentially everything.
-    val display = 34.sp
-    val title = 17.sp
-    val body = 14.sp
-    val label = 12.sp
+    val display get() = AstrionDesignSystem.defaultTypography.displaySize
+    val title get() = AstrionDesignSystem.defaultTypography.titleSize
+    val body get() = AstrionDesignSystem.defaultTypography.bodySize
+    val label get() = AstrionDesignSystem.defaultTypography.labelSize
+
+    @Composable
+    operator fun invoke(
+        colors: AstrionColors = AstrionDesignSystem.defaultColors,
+        typography: AstrionTypography = AstrionDesignSystem.defaultTypography,
+        elevation: AstrionElevation = AstrionDesignSystem.defaultElevation,
+        surfaces: AstrionSurfaces = AstrionDesignSystem.defaultSurfaces,
+        states: AstrionStates = AstrionDesignSystem.defaultStates,
+        content: @Composable () -> Unit,
+    ) {
+        AstrionDesignSystemTheme(
+            colors = colors,
+            typography = typography,
+            elevation = elevation,
+            surfaces = surfaces,
+            states = states,
+            content = content,
+        )
+    }
 }
 
 /**
@@ -167,45 +181,7 @@ fun weatherLabel(condition: String): String = when (condition) {
  */
 @Composable
 fun AstrionMaterialTheme(content: @Composable () -> Unit) {
-    val f = AstrionTheme.bodyFont
-    val base = remember { Typography() }
-    val context = LocalContext.current
-    val haptics = remember(context) { StrongHaptics(context) }
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = AstrionTheme.accentStrong,
-            onPrimary = Color.White,
-            secondary = AstrionTheme.accent,
-            background = AstrionTheme.pageBg,
-            onBackground = AstrionTheme.textPrimary,
-            surface = AstrionTheme.cardBgAlt,
-            onSurface = AstrionTheme.textPrimary,
-            surfaceVariant = AstrionTheme.controlBg,
-            onSurfaceVariant = AstrionTheme.textSecondary,
-            surfaceContainer = AstrionTheme.cardBgAlt,
-            outline = AstrionTheme.controlBg,
-            error = AstrionTheme.danger,
-        ),
-        typography = base.copy(
-            bodyLarge = base.bodyLarge.copy(fontFamily = f),
-            bodyMedium = base.bodyMedium.copy(fontFamily = f),
-            bodySmall = base.bodySmall.copy(fontFamily = f),
-            labelLarge = base.labelLarge.copy(fontFamily = f),
-            labelMedium = base.labelMedium.copy(fontFamily = f),
-            titleMedium = base.titleMedium.copy(fontFamily = f),
-        ),
-        shapes = Shapes(extraSmall = RoundedCornerShape(12.dp)),
-    ) {
-        CompositionLocalProvider(
-            LocalContentColor provides AstrionTheme.textPrimary,
-            // Compose's plain default, not MaterialTheme's bodyLarge: that
-            // carries a 24sp line height and 0.5sp tracking, which made every
-            // label taller (header, lock card, Plex captions) and clipped text.
-            LocalTextStyle provides TextStyle.Default.copy(fontFamily = f),
-            LocalHapticFeedback provides haptics,
-            content = content,
-        )
-    }
+    AstrionDesignSystemTheme(content = content)
 }
 
 /**
@@ -216,12 +192,18 @@ fun AstrionMaterialTheme(content: @Composable () -> Unit) {
 class StrongHaptics(context: Context) : HapticFeedback {
     private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
-    override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
+    fun pulse() {
         val v = vibrator ?: return
         if (!v.hasVibrator()) return
         runCatching {
             v.vibrate(VibrationEffect.createOneShot(PULSE_MS, VibrationEffect.DEFAULT_AMPLITUDE))
         }
+    }
+
+    fun tick() = pulse()
+
+    override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
+        pulse()
     }
 
     private companion object {

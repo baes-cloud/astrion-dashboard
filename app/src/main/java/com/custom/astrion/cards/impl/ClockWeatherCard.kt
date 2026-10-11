@@ -38,8 +38,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 /**
@@ -88,10 +86,7 @@ class ClockWeatherCard : CardRenderer {
 
         // Ticks on the minute, shared with every other clock on the dashboard.
         val now = LocalMinuteClock.current
-        val timeFmt = remember(is24) {
-            SimpleDateFormat(if (is24) "HH:mm" else "h:mm a", Locale.getDefault())
-        }
-        val dateFmt = remember { SimpleDateFormat("EEE, d MMM", Locale.getDefault()) }
+        val timePattern = if (is24) "HH:mm" else "h:mm a"
 
         // Fetch the forecast via the service; refresh every 30 min, or after a
         // minute if it failed (e.g. HA was still connecting at startup).
@@ -164,7 +159,7 @@ class ClockWeatherCard : CardRenderer {
                 Column(Modifier.weight(1f)) {
                     if (showTime) {
                         Text(
-                            timeFmt.format(Date(now)),
+                            Time.format(now, timePattern),
                             color = Color(0xFFEEF2EF),
                             fontFamily = AstrionTheme.headingFont, fontSize = 32.sp,
                             fontWeight = FontWeight.Light,
@@ -175,7 +170,7 @@ class ClockWeatherCard : CardRenderer {
                     // caption of something that is no longer there.
                     if (showDate) {
                         Text(
-                            dateFmt.format(Date(now)),
+                            Time.format(now, "EEE, d MMM"),
                             color = if (dense) Color(0xFFEEF2EF) else Color(0xFFA9BAB6),
                             fontSize = if (dense) 15.sp else 13.sp,
                             fontWeight = if (dense) FontWeight.Medium else FontWeight.Normal,
@@ -278,8 +273,7 @@ class ClockWeatherCard : CardRenderer {
         padV: androidx.compose.ui.unit.Dp,
         calendarLine: String?,
     ) {
-        val isoDay = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US) }
-        val todayKey = isoDay.format(Date(nowMs))
+        val todayKey = Time.format(nowMs, "yyyy-MM-dd", Locale.US)
         // Before the first forecast arrives, lay out invisible stand-ins of
         // the same shape, so the card is its final height from the start.
         val waiting = forecast.isEmpty()
@@ -491,17 +485,14 @@ class ClockWeatherCard : CardRenderer {
     )
 
     private fun parseForecast(arr: JsonArray): List<Forecast> {
-        val dayFmt = SimpleDateFormat("EEE", Locale.getDefault())
-        val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.getDefault())
-        val isoDay = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         return arr.mapNotNull { el ->
             val o = el as? JsonObject ?: return@mapNotNull null
             fun str(k: String) = (o[k] as? JsonPrimitive)?.content
             fun dbl(k: String) = (o[k] as? JsonPrimitive)?.content?.toDoubleOrNull()
             val dt = str("datetime")
-            val parsed = dt?.let { runCatching { parser.parse(it.take(16)) }.getOrNull() }
-            val day = parsed?.let { dayFmt.format(it) } ?: ""
-            val date = parsed?.let { isoDay.format(it) } ?: ""
+            val parsedMs = dt?.let { Time.parseIsoDateTime(it) }
+            val day = parsedMs?.let { Time.format(it, "EEE") } ?: ""
+            val date = parsedMs?.let { Time.format(it, "yyyy-MM-dd", Locale.US) } ?: ""
             Forecast(day, str("condition") ?: "unknown", dbl("templow"), dbl("temperature"), date)
         }
     }

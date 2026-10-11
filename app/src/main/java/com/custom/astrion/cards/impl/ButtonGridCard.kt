@@ -1,19 +1,28 @@
 package com.custom.astrion.cards.impl
 
-import com.custom.astrion.ui.parseHexColor
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.material3.LocalTextStyle
-import com.custom.astrion.ui.tightTextStyle
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -25,8 +34,9 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.parseHexColor
 import com.custom.astrion.ui.rememberSampledBitmap
-import com.custom.astrion.ui.tap
+import com.custom.astrion.ui.tightTextStyle
 
 /**
  * Generic grid of action buttons, each firing a HA service call. Buttons can
@@ -68,24 +78,57 @@ class ButtonGridCard : CardRenderer {
         val columns = config.int("columns", 3).coerceAtLeast(1)
         val buttons = (config.options["buttons"] as? List<Map<String, Any?>>) ?: emptyList()
         val title = config.string("title")
-        val tileHeight = config.int("tile_height", 0).takeIf { it > 0 }?.dp
+        val configuredTileHeight = config.int("tile_height", 0).takeIf { it > 0 }?.dp
         val iconSize = config.int("icon_size", 0).takeIf { it > 0 }?.dp
         val labelLines = config.int("label_lines", 1).coerceIn(1, 2)
         val spacing = config.int("spacing", 10).coerceIn(2, 24).dp
 
+        if (buttons.isEmpty()) return
+
+        val hasAnyIcon = buttons.any { it["icon"] != null }
+        val effectiveTileHeight = configuredTileHeight ?: if (hasAnyIcon) 68.dp else 48.dp
+
+        val rowCount = (buttons.size + columns - 1) / columns
+        val totalGridHeight = (effectiveTileHeight * rowCount) + (spacing * (rowCount - 1).coerceAtLeast(0))
+
         Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
             if (title != null) {
-                Text(title, color = Color(0xFFAEBFBB), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                Text(
+                    title,
+                    color = Color(0xFFAEBFBB),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
+                )
             }
-            buttons.chunked(columns).forEach { row ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(spacing),
-                ) {
-                    row.forEach { b ->
-                        GridButton(b, Modifier.weight(1f), tileHeight, iconSize, labelLines) { fire(ctx, b) }
-                    }
-                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(columns),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(totalGridHeight),
+                horizontalArrangement = Arrangement.spacedBy(spacing),
+                verticalArrangement = Arrangement.spacedBy(spacing),
+                contentPadding = PaddingValues(0.dp),
+                userScrollEnabled = false, // Nested scrolling safety with parent verticalScroll
+            ) {
+                items(
+                    count = buttons.size,
+                    key = { index ->
+                        val b = buttons[index]
+                        val name = b["name"] as? String ?: ""
+                        val entityId = b["entity_id"] as? String ?: ""
+                        val service = b["service"] as? String ?: ""
+                        "$name:$entityId:$service:$index"
+                    },
+                ) { index ->
+                    val b = buttons[index]
+                    GridButton(
+                        b = b,
+                        modifier = Modifier.fillMaxWidth(),
+                        tileHeight = effectiveTileHeight,
+                        iconSize = iconSize,
+                        labelLines = labelLines,
+                    ) { fire(ctx, b) }
                 }
             }
         }
@@ -122,36 +165,58 @@ class ButtonGridCard : CardRenderer {
         val height = tileHeight ?: if (hasIcon) 68.dp else 48.dp
         val glyph = iconSize ?: 32.dp
 
-        Column(
+        val lip = 5.dp
+        val baseColor = tileColor?.let {
+            Color(it.red * 0.5f, it.green * 0.5f, it.blue * 0.5f, 0.62f)
+        } ?: AstrionTheme.controlSunken
+        val faceColor = tileColor ?: AstrionTheme.raised
+
+        val interaction = remember { MutableInteractionSource() }
+        val pressed by interaction.collectIsPressedAsState()
+        val haptics = LocalHapticFeedback.current
+        val sink by animateDpAsState(if (pressed) lip else 0.dp, label = "button_sink")
+
+        Box(
             modifier = modifier
-                .height(height)
+                .height(height + lip)
                 .clip(RoundedCornerShape(14.dp))
-                .background(tileColor ?: AstrionTheme.raised)
-                .tap(onClick = onClick)
-                .padding(6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+                .background(baseColor),
         ) {
-            bitmap?.let { bmp ->
-                Image(bitmap = bmp, contentDescription = name, modifier = Modifier.size(glyph))
-                if (!name.isNullOrBlank()) Spacer(Modifier.height(if (labelLines > 1) 2.dp else 3.dp))
-            }
-            if (!name.isNullOrBlank()) {
-                // `label_lines: 2` wraps a long name ("Purple Disco") onto a
-                // second, tightly spaced line instead of cutting it off.
-                Text(
-                    name,
-                    style = if (labelLines > 1) tightTextStyle(13.sp) else LocalTextStyle.current,
-                    color = inkColor,
-                    fontSize = if (hasIcon) (if (labelLines > 1) 11.sp else 12.sp) else if (name.length > 8) 13.sp else 15.sp,
-                    fontWeight = if (tileColor != null && !hasIcon) FontWeight.Bold else FontWeight.Medium,
-                    maxLines = labelLines,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(height)
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer { translationY = sink.toPx() }
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(faceColor)
+                    .clickable(interactionSource = interaction, indication = null) {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onClick()
+                    }
+                    .padding(6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                bitmap?.let { bmp ->
+                    Image(bitmap = bmp, contentDescription = name, modifier = Modifier.size(glyph))
+                    if (!name.isNullOrBlank()) Spacer(Modifier.height(if (labelLines > 1) 2.dp else 3.dp))
+                }
+                if (!name.isNullOrBlank()) {
+                    // `label_lines: 2` wraps a long name ("Purple Disco") onto a
+                    // second, tightly spaced line instead of cutting it off.
+                    Text(
+                        name,
+                        style = if (labelLines > 1) tightTextStyle(13.sp) else LocalTextStyle.current,
+                        color = inkColor,
+                        fontSize = if (hasIcon) (if (labelLines > 1) 11.sp else 12.sp) else if (name.length > 8) 13.sp else 15.sp,
+                        fontWeight = if (tileColor != null && !hasIcon) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = labelLines,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
         }
     }
-
-    /** "#RRGGBB" (opaque) or "#AARRGGBB". */
 }

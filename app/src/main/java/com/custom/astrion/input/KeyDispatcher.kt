@@ -1,11 +1,35 @@
 package com.custom.astrion.input
 
 import android.view.KeyEvent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 
-/** Delayed callbacks, so the timing below runs on a Handler on device and a fake clock in tests. */
+/** Delayed callbacks, so the timing below runs on Coroutines on device and a fake clock in tests. */
 interface KeyTimers {
     fun postDelayed(r: Runnable, delayMs: Long)
     fun remove(r: Runnable)
+}
+
+/** Coroutine-based timers replacing legacy Android Handlers with structured concurrency. */
+class CoroutineKeyTimers(private val scope: CoroutineScope) : KeyTimers {
+    private val activeJobs = ConcurrentHashMap<Runnable, Job>()
+
+    override fun postDelayed(r: Runnable, delayMs: Long) {
+        activeJobs[r]?.cancel()
+        val job = scope.launch {
+            delay(delayMs)
+            activeJobs.remove(r)
+            r.run()
+        }
+        activeJobs[r] = job
+    }
+
+    override fun remove(r: Runnable) {
+        activeJobs.remove(r)?.cancel()
+    }
 }
 
 /**
@@ -25,6 +49,14 @@ class KeyDispatcher(
     private val longPressMs: Long = LONG_PRESS_MS,
     private val doubleTapMs: Long = DOUBLE_TAP_MS,
 ) {
+    /** Secondary constructor accepting a [CoroutineScope] for 100% structured concurrency. */
+    constructor(
+        router: HardwareKeyRouter,
+        scope: CoroutineScope,
+        onHoldFired: () -> Unit = {},
+        longPressMs: Long = LONG_PRESS_MS,
+        doubleTapMs: Long = DOUBLE_TAP_MS,
+    ) : this(router, CoroutineKeyTimers(scope), onHoldFired, longPressMs, doubleTapMs)
     /**
      * Keys whose tap is a plain page jump. Those jump on key-DOWN, even when
      * the key also has a hold or double-tap binding: a page jump is harmless

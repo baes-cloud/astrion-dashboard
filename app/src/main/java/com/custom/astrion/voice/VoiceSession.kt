@@ -543,8 +543,11 @@ class VoiceSession(
                 dir.mkdirs()
                 val log = java.io.File(dir, "log.txt")
                 if (log.length() > LOG_MAX_BYTES) log.renameTo(java.io.File(dir, "log.1.txt"))
-                val stamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
-                    .format(java.util.Date())
+                val stamp = com.custom.astrion.ui.Time.format(
+                    System.currentTimeMillis(),
+                    "yyyy-MM-dd HH:mm:ss",
+                    java.util.Locale.US,
+                )
                 fun clean(t: String?) = t.orEmpty().replace('\t', ' ').replace('\n', ' ')
                 log.appendText("$stamp\t${clean(type)}\t${clean(heard)}\t${clean(reply)}\n")
             }.onFailure { Log.w(TAG, "voice log write failed", it) }
