@@ -318,3 +318,11 @@ next-alarm parsing, config parsing and that the bundled `dashboard.json` loads.
   [`device/README.md`](device/README.md) explains how to lock it down.
 - **Licence:** MIT ([`LICENSE`](LICENSE)). Manrope and Syne are used under the
   SIL Open Font License ([`licenses/`](licenses)).
+
+## Credits
+
+- The **ambient now-playing** face ([`docs/ambient-nowplaying.md`](docs/ambient-nowplaying.md))
+  reimplements ideas from **[Klangbild](https://github.com/hazymorning/Klangbild)**
+  by **hazymorning** — a Music Assistant now-playing screensaver for Android TV.
+  Its approach to cover-driven backdrops inspired this screen. No Klangbild code
+  was copied; the implementation here is our own.

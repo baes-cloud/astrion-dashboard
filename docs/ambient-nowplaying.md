@@ -1,5 +1,11 @@
 # Ambient now-playing
 
+> **Credit:** the idea comes from
+> **[Klangbild](https://github.com/hazymorning/Klangbild)** by **hazymorning**,
+> a Music Assistant now-playing screensaver for Android TV. This is an
+> independent reimplementation of its ideas for the HA100 — no Klangbild code
+> was copied.
+
 A calm, full-screen "now playing" face for when the remote has been idle and
 music is playing: the cover large, the text typeset with care, the backdrop in
 the cover's own colours. When nothing is playing it shows a rest clock. It
@@ -72,11 +78,16 @@ selection, and the idle state machine.
 These targets from the brief have **not** been measured (no device in this
 session; the .113 unit is running another branch). Run them on the HA100:
 
-- **Per-track bake < 150 ms** — it is logged; watch it:
+- **Per-track bake < 150 ms** — MISSED on device. Measured on the HA100
+  (10.0.0.141, release build): **~525 ms warm, ~1374 ms cold** for a real
+  cover, far over the 150 ms target. It is logged; watch it:
   ```bash
   adb logcat -s Ambient:I
   ```
-  (look for `scene bake for "…" took N ms`)
+  (look for `scene bake for "…" took N ms`). The bake runs off the main thread
+  so it does not block frames, but it needs optimising — likely the per-pixel
+  Oklab conversion in the palette + position passes over the 96px analysis
+  bitmap. Not yet profiled further.
 - **No frame drops below ~30 fps during a track change:**
   ```bash
   adb shell dumpsys gfxinfo com.custom.astrion reset
