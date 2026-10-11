@@ -73,6 +73,20 @@ object DashboardConfig {
         ),
     )
 
+    /**
+     * The `ambient` block a config's own keys are laid over. Off by default:
+     * the cinematic now-playing face only takes over idle once a config opts in
+     * and names its players, e.g. `{ "enabled": true, "media_players":
+     * ["media_player.club"] }`. See [com.custom.astrion.config.AmbientOptions].
+     */
+    val ambientDefaults: Map<String, Any?> = mapOf(
+        "enabled" to false,
+        "media_players" to listOf(CLUB_MEDIA) + CLUB_TV_MEDIA,
+        "rest_clock" to true,
+        "show_album" to true,
+        "drift" to false,
+    )
+
     /** A clock and nothing else: the app still starts, and the banner says why. */
     val fallback = AppConfig(
         pages = listOf(PageConfig("Main", listOf(CardConfig("clock_header", emptyMap())))),

@@ -14,6 +14,7 @@ class FeatureOptions(options: Map<String, Any?>, defaults: Map<String, Any?>) {
         // written before the screensaver existed has no such block at all.
         block(defaults, "screensaver") + block(options, "screensaver"),
     )
+    val ambient = AmbientOptions(block(defaults, "ambient") + block(options, "ambient"))
     val voice = VoiceOptions.from(block(options, "voice"))
     val power = PowerOptions(block(options, "power"))
     val alarm = AlarmOptions(block(options, "alarm"))
@@ -67,6 +68,27 @@ class ScreensaverOptions(val raw: Map<String, Any?>) {
         /** `undocked_brightness` default: dimmer than docked, it's on battery. */
         const val UNDOCKED_BRIGHTNESS = 0.08f
     }
+}
+
+/**
+ * The `ambient` block: the cinematic now-playing idle face (see
+ * [com.custom.astrion.ui.ambient.AmbientScreen]). It reuses the screensaver's
+ * idle timer, backlight and key handling, so the only timing here is which
+ * players to watch and whether to fall back to a rest clock.
+ *
+ * `enabled` defaults off: turning it on changes what the remote shows on idle,
+ * so a config opts in explicitly. With it off the existing screensaver is
+ * unchanged.
+ */
+class AmbientOptions(val raw: Map<String, Any?>) {
+    val enabled = raw.bool("enabled") ?: false
+    /** Players to watch, in priority order. The first one `playing` wins. */
+    val mediaPlayers = raw.strings("media_players")
+    /** Show the brief's minimal rest clock when nothing plays; else the rich screensaver. */
+    val restClock = raw.bool("rest_clock") ?: true
+    val showAlbum = raw.bool("show_album") ?: true
+    /** Very slow pool drift. Off by default: only worth it if it holds frame rate. */
+    val drift = raw.bool("drift") ?: false
 }
 
 /** A data class, so a reload with the same `voice` block isn't a change. */

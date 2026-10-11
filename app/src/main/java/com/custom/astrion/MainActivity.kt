@@ -86,6 +86,8 @@ import com.custom.astrion.ui.LocalSheetHost
 import com.custom.astrion.ui.SheetHost
 import com.custom.astrion.ui.StrongHaptics
 import com.custom.astrion.ui.Screensaver
+import com.custom.astrion.ui.ambient.AmbientScreen
+import com.custom.astrion.ui.ambient.pickAmbientPlayer
 import com.custom.astrion.ui.unplacedWhen
 import com.custom.astrion.ui.screensaverIsNight
 import com.custom.astrion.voice.VoiceOverlay
@@ -172,6 +174,12 @@ class MainActivity : ComponentActivity() {
          * screensaver off (IR mode, the alarm, voice). When nothing does, it
          * waits exactly as long as the idle time has left.
          */
+        /** Keys the ambient now-playing screen handles itself (volume, mute, skip). */
+        val AMBIENT_TRANSPORT = setOf(
+            HardwareKey.VOLUME_UP, HardwareKey.VOLUME_DOWN, HardwareKey.MUTE,
+            HardwareKey.LEFT, HardwareKey.RIGHT,
+        )
+
         const val SCREENSAVER_TICK_MS = 5_000L
 
         /** While the screensaver is up: re-check the backlight for sunset/sunrise. */
@@ -284,6 +292,8 @@ class MainActivity : ComponentActivity() {
      */
     private var swallowTouch = false
     private var swallowKey = -1
+    /** The ambient transport key whose UP must also be eaten (so it never leaks). */
+    private var ambientSwallowKey = -1
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) = onBatteryChanged(intent)
@@ -474,14 +484,55 @@ class MainActivity : ComponentActivity() {
      */
     @Composable
     private fun ScreensaverHost(connection: State<ConnectionState>) {
-        Screensaver(
-            options = features.screensaver.raw,
-            entities = { client.snapshot() },
-            client = client,
-            connected = connection.value == ConnectionState.CONNECTED,
-            batteryPct = batteryPct,
-            charging = charging,
-        )
+        val connected = connection.value == ConnectionState.CONNECTED
+        if (features.ambient.enabled) {
+            AmbientScreen(
+                cfg = features.ambient,
+                screensaverOptions = features.screensaver.raw,
+                entities = { client.snapshot() },
+                client = client,
+                connected = connected,
+                batteryPct = batteryPct,
+                charging = charging,
+                is24 = (features.screensaver.raw["time_format"] as? Number)?.toInt() == 24,
+            )
+        } else {
+            Screensaver(
+                options = features.screensaver.raw,
+                entities = { client.snapshot() },
+                client = client,
+                connected = connected,
+                batteryPct = batteryPct,
+                charging = charging,
+            )
+        }
+    }
+
+    /** Keys the ambient now-playing screen acts on itself instead of dismissing. */
+    private fun ambientTransportKey(key: HardwareKey): Boolean = key in AMBIENT_TRANSPORT
+
+    /**
+     * Run a transport key against the active ambient player. Returns true if it
+     * acted (and the screen should stay up). The HA100 has no dedicated
+     * play/pause or next/previous buttons, so only volume, mute and the D-pad
+     * left/right are wired; everything else falls through to dismiss.
+     */
+    private fun handleAmbientKey(key: HardwareKey): Boolean {
+        val player = pickAmbientPlayer(client.snapshot(), features.ambient.mediaPlayers, System.currentTimeMillis())
+            ?: return false
+        val id = player.entityId
+        when (key) {
+            HardwareKey.VOLUME_UP -> client.callService(ServiceCall.of("media_player", "volume_up", id))
+            HardwareKey.VOLUME_DOWN -> client.callService(ServiceCall.of("media_player", "volume_down", id))
+            HardwareKey.MUTE -> {
+                val muted = player.attrString("is_volume_muted")?.toBooleanStrictOrNull() == true
+                client.callService(ServiceCall.of("media_player", "volume_mute", id, "is_volume_muted" to !muted))
+            }
+            HardwareKey.LEFT -> client.callService(ServiceCall.of("media_player", "media_previous_track", id))
+            HardwareKey.RIGHT -> client.callService(ServiceCall.of("media_player", "media_next_track", id))
+            else -> return false
+        }
+        return true
     }
 
     override fun onResume() {
@@ -912,6 +963,19 @@ class MainActivity : ComponentActivity() {
         // was also switching the TV on (21 of 68 Google TV sessions played
         // nothing).
         markActivity()
+        // Ambient now-playing: transport keys act on the active player and stay
+        // on screen; any other key falls through and dismisses as usual.
+        if (screensaverOn && features.ambient.enabled && ambientTransportKey(key)) {
+            if (event.action == KeyEvent.ACTION_DOWN && handleAmbientKey(key)) {
+                ambientSwallowKey = code
+                return true
+            }
+            // Eat the matching UP too, so volume/skip never reach the OS or a binding.
+            if (event.action == KeyEvent.ACTION_UP && code == ambientSwallowKey) {
+                ambientSwallowKey = -1
+                return true
+            }
+        }
         if (screensaverOn) {
             hideScreensaver()
             val passThrough = features.screensaver.passesThrough(key.name)

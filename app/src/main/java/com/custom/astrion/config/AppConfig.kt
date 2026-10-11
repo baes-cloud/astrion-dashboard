@@ -34,7 +34,15 @@ data class AppConfig(
     val options: Map<String, Any?> = emptyMap(),
 ) {
     /** [options]' feature blocks, typed; parsed on first use, once per config. */
-    val features: FeatureOptions by lazy { FeatureOptions(options, mapOf("screensaver" to DashboardConfig.screensaverDefaults)) }
+    val features: FeatureOptions by lazy {
+        FeatureOptions(
+            options,
+            mapOf(
+                "screensaver" to DashboardConfig.screensaverDefaults,
+                "ambient" to DashboardConfig.ambientDefaults,
+            ),
+        )
+    }
 }
 
 /**
