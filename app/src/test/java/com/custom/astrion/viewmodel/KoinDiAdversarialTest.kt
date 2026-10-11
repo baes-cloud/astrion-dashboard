@@ -23,7 +23,6 @@ import io.mockk.mockk
 import kotlinx.coroutines.cancel
 import okhttp3.OkHttpClient
 import org.junit.After
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame

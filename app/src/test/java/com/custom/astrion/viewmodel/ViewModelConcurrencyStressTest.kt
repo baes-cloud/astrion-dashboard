@@ -15,7 +15,6 @@ import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
-import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.ir.IrBlaster
 import com.custom.astrion.power.MotionWakeController

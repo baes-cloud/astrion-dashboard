@@ -12,7 +12,6 @@ import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HotkeyConfig
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.HaClient
-import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.ir.IrBlaster
@@ -29,10 +28,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After

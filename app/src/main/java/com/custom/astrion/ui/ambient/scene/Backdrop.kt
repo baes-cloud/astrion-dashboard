@@ -5,7 +5,6 @@ import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RadialGradient
-import android.graphics.RectF
 import android.graphics.Shader
 
 /** A cover swatch with roughly where in the cover it sits (0..1 of the cover). */

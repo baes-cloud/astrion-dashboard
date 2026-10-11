@@ -7,12 +7,12 @@ It talks to Home Assistant over the standard WebSocket API, draws whatever
 pages and cards you describe in one JSON file, and lets every physical button
 do whatever you want. It doesn't use Sanytron's cloud or their HA integration.
 
-| Main | Main at night | TV | Climate |
+| Main | Main at night | Volume OSD | Screensaver |
 |---|---|---|---|
-| ![Main page](screenshots/main.png) | ![Main page at night](screenshots/main-night.png) | ![TV page](screenshots/tv-idle.png) | ![Climate page](screenshots/climate.png) |
+| ![Main page](screenshots/main.png) | ![Main page at night](screenshots/main-night.png) | ![Volume OSD](screenshots/volume-osd.png) | ![Screensaver](screenshots/screensaver.png) |
 
 It runs every day on two HA100s. Releases are listed in
-[`CHANGELOG.md`](CHANGELOG.md).
+[`CHANGELOG.md`](CHANGELOG.md). An architectural comparison and migration guide is in [`docs/COMPARISON.md`](docs/COMPARISON.md).
 
 ---
 
@@ -24,9 +24,7 @@ style that HA and CSS can't change, and the card list is compiled into the APK,
 so you can't add to it. A real HA dashboard in a WebView (Fully Kiosk, the
 Companion app) is far too slow on the HA100's 2015-era MT6580 with 1 GB of RAM.
 
-This app owns the whole rendering layer instead. Each card is plain Jetpack
-Compose, and adding a new card type takes three small steps
-([below](#add-a-card-type)).
+This app owns the whole rendering layer instead with a modernized **MVI (Model-View-Intent) architecture**, **Koin Dependency Injection**, and lightweight tactile Jetpack Compose components. Adding a new card type takes three small steps ([below](#add-a-card-type)).
 
 ---
 
@@ -35,8 +33,12 @@ Compose, and adding a new card type takes three small steps
 - **Main page.** The date, time, weather now and for five days, your next
   calendar entry and next alarm. Below that: a one-tap door lock, scene pills
   (the last one used glows) and a live floor plan with tappable lights, mmWave
-  presence dots and the robot vacuum. A now-playing and mute strip runs along
-  the bottom.
+  presence dots and the robot vacuum. A fixed, anchored **BÆO** wordmark with
+  letter-spaced page suffixes anchors the footer.
+- **TV-Style Floating Volume Popup (OSD).** Changing volume or muting on the
+  remote brings up an instant TV-style floating capsule showing speaker name,
+  mute status, volume percentage, and an animated draggable slider that smoothly
+  auto-dismisses.
 - **Lit rooms.** The floor plan glows in each light's real colour and
   brightness. As the sun sets, rooms with nothing on fall gradually into shade,
   and a room with a light on keeps a soft glow. [More below](#lit-rooms).
@@ -54,33 +56,31 @@ Compose, and adding a new card type takes three small steps
 - **Voice.** The remote works as a Home Assistant Assist satellite, using the
   mic button or an optional wake word.
 - **Docked screensaver.** Leave the remote in its dock and after 45 s it
-  shows a big dim clock, what's playing, timers, the next alarm and anything
-  that needs attention. It's warmer and dimmer at night.
+  shows a big dim clock, timers, the next alarm, and what's playing. When media
+  is actively playing, the media section is rendered brighter and crisper with
+  full-contrast art and metadata.
 - **IR Mode.** Tap ☰ and the hardware buttons drive a Samsung TV over the
   remote's own IR emitter.
 - **Every physical button is configurable,** with tap, 1.5 s hold and
   (opt-in) double-tap actions.
-- **Battery-aware.** It lets the screen turn off (the stock app keeps it on
+- **Battery-aware & MT6580 Tuned.** It lets the screen turn off (the stock app keeps it on
   forever), limits the wake word and motion wake once the remote is off its
-  dock, and reports battery to HA. See [`docs/POWER.md`](docs/POWER.md).
+  dock, reports battery to HA, and includes system-level kernel/sysfs scripts
+  for 4-core governor and LMK optimization. See [`docs/POWER.md`](docs/POWER.md) and [`device/tuning/`](device/tuning/).
 
 ### More screenshots
 
 | TV and Plex | Sonos player | Music shelves |
 |---|---|---|
 | ![TV and Plex](screenshots/tv-plex.png) | ![Sonos player](screenshots/sonos-player.png) | ![Music shelves](screenshots/sonos-media.png) |
-| **Plex rows** | **Speaker zones** | **Alert popup** |
-| ![Plex rows](screenshots/tv-plex-rows.png) | ![Speaker zones](screenshots/sonos-group.png) | ![Washer done alert](screenshots/alert-washer.png) |
-| **Docked screensaver** | **Alarm** | **Alarm, snoozed** |
-| ![Screensaver](screenshots/screensaver.png) | ![Alarm ringing](screenshots/alarm-ringing.png) | ![Alarm snoozed](screenshots/alarm-snoozed.png) |
+| **TV idle** | **Speaker zones** | **Alert popup** |
+| ![TV idle](screenshots/tv-idle.png) | ![Speaker zones](screenshots/sonos-group.png) | ![Washer done alert](screenshots/alert-washer.png) |
+| **Plex rows** | **Alarm ringing** | **Alarm, snoozed** |
+| ![Plex rows](screenshots/tv-plex-rows.png) | ![Alarm ringing](screenshots/alarm-ringing.png) | ![Alarm snoozed](screenshots/alarm-snoozed.png) |
 | **IR Mode** | **Light popup** (long-press a light) | **Vacuum popup** |
 | ![IR Mode](screenshots/ir-mode.png) | ![Light popup](screenshots/light-control.png) | ![Vacuum popup](screenshots/robovac-control.png) |
 
 ![Hold to stop the alarm](screenshots/alarm-hold-to-stop.gif)
-
-Older captures, in the previous colours: `LD2450-tracking.gif` (mmWave
-presence dots moving on the floor plan), `sonos-control.gif`,
-`robovac-docked.png`, `robovac-kitchen.png` and `light-card.png`.
 
 ---
 
@@ -264,27 +264,31 @@ All source paths are under `app/src/main/java/com/custom/astrion/`.
 
 | Path | Role |
 |---|---|
-| `AstrionApp.kt` | Registers card types; owns the single HA connection |
-| `MainActivity.kt` | Compose host, key dispatch, alarm and alert wake, screensaver and backlight |
-| `ha/` | HA WebSocket client (auth, `subscribe_entities`, `call_service`), entity models, shared HTTP client |
-| `cards/Card.kt` | `CardRenderer` and `CardRegistry`, the extension point |
-| `cards/impl/` | The 29 card types, plus the lit-rooms layer (`LitRooms.kt`) and the light and fan popups |
-| `config/` | Loads `dashboard.json` (`DashboardLoader`), config models, typed feature options |
-| `ui/` | Pager (`Dashboard.kt`), alarm, alert and voice overlays, screensaver, theme and shared card parts |
-| `input/` | Keycode map and tap, hold and double-tap dispatch |
-| `power/` | Dock and battery rules, motion wake |
-| `voice/` | Assist satellite session and its overlay |
-| `ir/` | Samsung IR encoder over the built-in emitter, and IR Mode |
+| `AstrionApp.kt` | Application entry point; initializes Koin DI, config repository, and card registry |
+| `MainActivity.kt` | Thin Compose host (<200 lines), window manager, permissions, and key router |
+| `viewmodel/` | MVI ViewModels (`DashboardViewModel`, `PowerViewModel`, `InputViewModel`) with Coroutines & StateFlow |
+| `di/` | Lightweight Koin Dependency Injection modules (`ViewModelModule`, `RepositoryModule`, `NetworkModule`, `HardwareModule`) |
+| `ha/` | HA WebSocket client, state caching repository (`EntityCacheRepository`), entity models, HTTP client |
+| `cards/Card.kt` | `CardRenderer` and `CardRegistry`, the card extension points |
+| `cards/impl/` | The 29 card types, lit-rooms layer (`LitRooms.kt`), and popups |
+| `config/` | Reactive configuration repository (`AppConfigRepository`), loader, and feature options |
+| `ui/` | Dashboard host (`DashboardScreen.kt`), pager (`Dashboard.kt`), Volume OSD (`VolumePopup.kt`), screensaver, ambient mode, theme design system |
+| `ui/theme/` | Semantic Design System tokens: surfaces, colors, typography, elevations, states |
+| `input/` | Hardware keycodes, router, dispatcher, and debounced hotkeys |
+| `power/` | Dock/battery state machine and zero-wake accelerometer motion wake |
+| `voice/` | Assist satellite session and overlay |
+| `ir/` | Samsung IR encoder and IR Mode overlay |
 
 Elsewhere in the repo:
 
 | Path | Role |
 |---|---|
-| `device/config/dashboard.json` | Bundled default config |
-| `device/` | On-device scripts that restrict wireless ADB to your admin machine ([`device/README.md`](device/README.md)) |
-| `docs/` | Battery and home-app setup ([`POWER.md`](docs/POWER.md)), companion HA automations ([`HOME_ASSISTANT.md`](docs/HOME_ASSISTANT.md)), alarm spec, IR capture notes, UI critique |
-| `ARCHITECTURE.md` | How the stock app works and why this design follows from it |
-| `scripts/` | Screenshot and screen-recording helpers, the unused-import check |
+| `device/config/dashboard.json` | Bundled default configuration |
+| `device/tuning/` | MediaTek MT6580 kernel and sysfs tuning scripts (`init.mt6580_tuning.sh`, `mt6580_tuning.rc`, `verify_mt6580_tuning.sh`) |
+| `device/` | Wireless ADB security scripts ([`device/README.md`](device/README.md)) |
+| `docs/` | Architectural comparison ([`docs/COMPARISON.md`](docs/COMPARISON.md)), battery/power setup ([`POWER.md`](docs/POWER.md)), companion HA automations ([`HOME_ASSISTANT.md`](docs/HOME_ASSISTANT.md)), ambient now-playing ([`ambient-nowplaying.md`](docs/ambient-nowplaying.md)) |
+| `ARCHITECTURE.md` | Background on stock firmware and design principles |
+| `scripts/` | Screen capture and validation scripts |
 
 ---
 
