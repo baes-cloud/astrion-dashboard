@@ -426,7 +426,7 @@ fun screensaverIsNight(entities: EntityMap, nowMs: Long): Boolean {
         if (s == "below_horizon") return true
         if (s == "above_horizon") return false
     }
-    val hour = Calendar.getInstance().apply { timeInMillis = nowMs }.get(Calendar.HOUR_OF_DAY)
+    val hour = java.time.Instant.ofEpochMilli(nowMs).atZone(java.time.ZoneId.systemDefault()).hour
     return hour >= 21 || hour < 7
 }
 

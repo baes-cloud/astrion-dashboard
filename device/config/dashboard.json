@@ -662,7 +662,7 @@
      "service": "androidtv.adb_command",
      "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
      "data": {
-      "command": "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay"
+      "command": "input keyevent KEYCODE_WAKEUP; cmd hdmi_control onetouchplay"
      }
     }
    ]
@@ -729,7 +729,7 @@
    "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "command": "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay; monkey -p com.netflix.ninja -c android.intent.category.LEANBACK_LAUNCHER 1"
+    "command": "input keyevent KEYCODE_WAKEUP; cmd hdmi_control onetouchplay & am start -n com.netflix.ninja/.MainActivity"
    }
   },
   {
@@ -737,7 +737,7 @@
    "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "command": "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay; monkey -p com.plexapp.android -c android.intent.category.LEANBACK_LAUNCHER 1"
+    "command": "input keyevent KEYCODE_WAKEUP; cmd hdmi_control onetouchplay & am start -n com.plexapp.android/com.plexapp.plex.activities.SplashActivity"
    }
   },
   {
@@ -745,16 +745,13 @@
    "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "command": "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay; monkey -p au.net.abc.iview -c android.intent.category.LEANBACK_LAUNCHER 1"
+    "command": "input keyevent KEYCODE_WAKEUP; cmd hdmi_control onetouchplay & am start -n au.net.abc.iview/.ui.router.TvLauncherActivity"
    }
   },
   {
    "key": "CUSTOM_4",
-   "service": "androidtv.adb_command",
-   "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
-   "data": {
-    "command": "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay; monkey -p org.videolan.vlc -c android.intent.category.LEANBACK_LAUNCHER 1"
-   }
+   "service": "script.turn_on",
+   "entityId": "script.tv_ambient_show"
   }
  ],
  "longHotkeys": [

@@ -46,6 +46,7 @@ class KeyDispatcher(
     private val timers: KeyTimers,
     /** Runs just before a long action, for the hold's haptic tick. */
     private val onHoldFired: () -> Unit = {},
+    private val onTapFired: () -> Unit = {},
     private val longPressMs: Long = LONG_PRESS_MS,
     private val doubleTapMs: Long = DOUBLE_TAP_MS,
 ) {
@@ -54,9 +55,10 @@ class KeyDispatcher(
         router: HardwareKeyRouter,
         scope: CoroutineScope,
         onHoldFired: () -> Unit = {},
+        onTapFired: () -> Unit = {},
         longPressMs: Long = LONG_PRESS_MS,
         doubleTapMs: Long = DOUBLE_TAP_MS,
-    ) : this(router, CoroutineKeyTimers(scope), onHoldFired, longPressMs, doubleTapMs)
+    ) : this(router, CoroutineKeyTimers(scope), onHoldFired, onTapFired, longPressMs, doubleTapMs)
     /**
      * Keys whose tap is a plain page jump. Those jump on key-DOWN, even when
      * the key also has a hold or double-tap binding: a page jump is harmless
@@ -103,12 +105,14 @@ class KeyDispatcher(
                     cancelPendingLong()
                     longFired = true // suppress the short action on this release
                     activeLongKey = -1
+                    onTapFired()
                     doubleH.invoke()
                     return true
                 }
                 // Page jumps don't wait for the release; see pageJumpKeys.
                 tapFiredOnDown = -1
                 if (repeatCount == 0 && (longH != null || doubleH != null) && key in pageJumpKeys) {
+                    onTapFired()
                     shortH?.invoke()
                     tapFiredOnDown = code
                 }
@@ -134,6 +138,7 @@ class KeyDispatcher(
                     activeLongKey = code
                 } else {
                     // Short-only: fire on every down (preserves hold-to-repeat).
+                    if (repeatCount == 0) onTapFired()
                     shortH?.invoke()
                 }
                 return true
@@ -155,13 +160,19 @@ class KeyDispatcher(
                             val r = Runnable {
                                 pendingSingle = null
                                 pendingSingleKey = -1
-                                tap?.invoke()
+                                if (tap != null) {
+                                    onTapFired()
+                                    tap.invoke()
+                                }
                             }
                             pendingSingle = r
                             pendingSingleKey = code
                             timers.postDelayed(r, doubleTapMs)
                         } else {
-                            tap?.invoke()
+                            if (tap != null) {
+                                onTapFired()
+                                tap.invoke()
+                            }
                         }
                     }
                 }

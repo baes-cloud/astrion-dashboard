@@ -120,8 +120,8 @@ class PowerViewModel(
                 val elapsedMs = SystemClock.elapsedRealtime() - lastActivityMs
                 if (screensaver.enabled && idleMs > 0 && elapsedMs >= idleMs && !_uiState.value.isScreensaverOn) {
                     _uiState.update { it.copy(isScreensaverOn = true) }
+                    updateBrightness()
                 }
-                updateBrightness()
                 delay(1000L)
             }
         }
@@ -154,7 +154,7 @@ class PowerViewModel(
         val screensaver = currentConfig().features.screensaver
         val screensaverActive = _uiState.value.isScreensaverOn
         val docked = _uiState.value.isDocked
-        val isNight = screensaverIsNight(client.snapshot(), System.currentTimeMillis())
+        val isNight = screensaverIsNight(client.live, System.currentTimeMillis())
         val nightLevel = screensaver.nightBrightness
         val b = when {
             screensaverActive && isNight -> nightLevel

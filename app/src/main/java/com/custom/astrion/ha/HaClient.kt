@@ -25,6 +25,7 @@ import kotlinx.serialization.json.*
 import com.custom.astrion.config.JsonPlain
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -92,6 +93,12 @@ class HaClient(
     // derive from Http.base, so they share its connection pool and threads.
     private val imageHttp = Http.base.newBuilder()
         .callTimeout(10, TimeUnit.SECONDS)
+        .hostnameVerifier { hostname, session ->
+            if (hostname.matches(Regex("""^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.0\.0\.1).*""")) ||
+                hostname.endsWith(".plex.direct")
+            ) true
+            else OkHttpClient().hostnameVerifier.verify(hostname, session)
+        }
         .build()
 
     @Volatile private var socket: WebSocket? = null

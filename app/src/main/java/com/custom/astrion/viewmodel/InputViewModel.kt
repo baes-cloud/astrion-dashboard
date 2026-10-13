@@ -83,6 +83,7 @@ class InputViewModel(
         router = router,
         scope = viewModelScope,
         onHoldFired = { haptics.tick() },
+        onTapFired = { haptics.tick() },
     )
 
     private var lastIrToggleMs = 0L

@@ -80,11 +80,13 @@ class DashboardViewModel(
     private var toastJob: Job? = null
     private var alarmJob: Job? = null
     private var alertsJob: Job? = null
+    @Volatile private var cachedAlertSpecs: List<AlertSpec> = emptyList()
 
     init {
         // Observe config updates
         viewModelScope.launch {
             configRepo.configFlow.collect { res ->
+                cachedAlertSpecs = AlertSpec.parse(res.config.options["alerts"])
                 _uiState.update { current ->
                     current.copy(
                         config = res.config,
@@ -162,8 +164,7 @@ class DashboardViewModel(
         alarmJob = viewModelScope.launch {
             var lastPhase = 0
             while (isActive) {
-                val entities = client.snapshot()
-                val alarmState = alarmUiState(uiState.value.config.features.alarm, entities)
+                val alarmState = alarmUiState(uiState.value.config.features.alarm, client.live)
                 val phase = alarmState?.let { if (it.ringing) 1 else 2 } ?: 0
                 _uiState.update { it.copy(activeAlarm = alarmState) }
                 if (phase != lastPhase) {
@@ -174,7 +175,7 @@ class DashboardViewModel(
                     }
                     lastPhase = phase
                 }
-                delay(1000L)
+                delay(if (alarmState != null) 1000L else 5000L)
             }
         }
     }
@@ -185,9 +186,8 @@ class DashboardViewModel(
             var lastToken: String? = null
             while (isActive) {
                 val now = System.currentTimeMillis()
-                val entities = client.snapshot()
-                val specs = AlertSpec.parse(uiState.value.config.options["alerts"])
-                val active = activeAlerts(specs, entities, now)
+                val specs = cachedAlertSpecs
+                val active = activeAlerts(specs, client.live, now)
                 val hidden = uiState.value.hiddenAlertTokens
                 val filtered = active.filter { it.token !in hidden }
                 _uiState.update { it.copy(activeAlerts = filtered) }
@@ -202,22 +202,21 @@ class DashboardViewModel(
                     }
                     lastToken = top?.token
                 }
-                val dueMs = nextAlertDueMs(specs, entities, now)
+                val dueMs = nextAlertDueMs(specs, client.live, now)
                 val wait = listOfNotNull(
                     dueMs?.let { it - now },
                     if (filtered.isNotEmpty()) 60_000 - now % 60_000 else null,
-                ).minOrNull() ?: 2000L
-                delay(wait.coerceIn(250L, 5000L))
+                ).minOrNull() ?: 30_000L
+                delay(wait.coerceIn(1000L, 30_000L))
             }
         }
     }
 
     private fun updateAlertsAndAlarms() {
         val now = System.currentTimeMillis()
-        val entities = client.snapshot()
-        val alarmState = alarmUiState(uiState.value.config.features.alarm, entities)
-        val specs = AlertSpec.parse(uiState.value.config.options["alerts"])
-        val active = activeAlerts(specs, entities, now)
+        val alarmState = alarmUiState(uiState.value.config.features.alarm, client.live)
+        val specs = cachedAlertSpecs
+        val active = activeAlerts(specs, client.live, now)
         val hidden = uiState.value.hiddenAlertTokens
         val filtered = active.filter { it.token !in hidden }
         _uiState.update { it.copy(activeAlarm = alarmState, activeAlerts = filtered) }
