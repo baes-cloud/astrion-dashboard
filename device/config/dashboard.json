@@ -1005,6 +1005,7 @@
    "VOICE"
   ],
   "night_brightness": 0.12,
-  "undocked_brightness": 0.15
+  "undocked_brightness": 0.15,
+  "weather_entity": "weather.forecast_home"
  }
 }
