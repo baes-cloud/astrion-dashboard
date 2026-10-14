@@ -16,8 +16,38 @@ The app is built around four primary pages, reachable with dedicated physical sh
 
 1. **BÆOVISION (`TV`):** Instant TV state, playback controls, fast native app launchers (Netflix, Plex, ABC iview, Jellyfin), and Plex shelves (*On Deck* and *Recently Released*) where a single tap deep-links into the exact media episode or movie.
 2. **BÆOREMOTE (`Main`):** Five-day weather forecast, front door lock/unlock status, scene presets with illuminated active badges, and a live, interactive apartment floorplan with tappable lights and mmWave radar presence tracking.
-3. **BÆOSOUND (`Media`):** Club Sonos multi-room audio with high-precision volume slider, playback controls, queue management, and grouped zone selection.
+3. **BÆOSOUND (`Media`):** Club Sonos multi-room audio with high-precision volume slider, playback controls, Music Assistant media shelves, and grouped zone selection.
 4. **BÆOLIVING (`Climate`):** Air conditioning temperature steppers with target readouts, HVAC/fan modes, and motorized blind controls.
+
+---
+
+### BÆOSOUND (Multi-Room Media Stack)
+
+The media dashboard features three dedicated tabs tailored for single-touch music management:
+
+| Player (Now Playing) | Media (Shelves & Playlists) | Zones (BÆOLINK Multi-Room) |
+|---|---|---|
+| ![Sonos Player](screenshots/sonos-player.png) | ![Sonos Media](screenshots/sonos-media.png) | ![Sonos Zones](screenshots/sonos-group.png) |
+
+* **Player:** Full-bleed album art, live progress, tactile haptic transport controls (prev / play / next), volume steppers, and one-touch genre preset shortcuts.
+* **Media:** Live Music Assistant shelves displaying dynamically fetched random album picks, favourite tracks, and playlists with cached artwork.
+* **Zones:** Real-time multi-room speaker grouping with individual room volume sliders and join/link toggles.
+
+---
+
+### Dynamic Floorplan & LitRooms Lighting
+
+The interactive floorplan dynamically responds to solar elevation and lighting state, shifting seamlessly between Day, Dusk, and Night:
+
+![LitRooms Dynamic Lighting States](screenshots/lit-rooms.png)
+
+| Day (Solar Off) | Dusk (Twilight Shading) | Night (Atmospheric Glow) |
+|---|---|---|
+| ![Floorplan Day](screenshots/floorplan-day.png) | ![Floorplan Dusk](screenshots/floorplan-dusk.png) | ![Floorplan Night](screenshots/floorplan-night.png) |
+
+* **Atmospheric Shading:** Sun-synchronized ambient floor shading with automatic light halos that illuminate rooms when active.
+* **Interactive Control:** Tap any bulb to toggle room lighting, or long-press to open the full-screen brightness and color tuning slider.
+* **mmWave Radar Presence:** Real-time target tracking dots driven by LD2450 sensors plotted over the apartment layout.
 
 ---
 

@@ -82,28 +82,43 @@ through its HACS integration, carrying the remote's `serial_number` and `model`:
 - `astrion/control_command` — **IR control** commands (the local IR blaster)
 - `astrion/pair_request` + `astrion/submit_pair_data` — IR device pairing
 
-This project ignores all of these; everything works over standard HA services
-while online. If you later want the **offline IR blaster**, that's the path to
-replicate: subscribe/emit `astrion/control_command` against their integration,
-or drive the SoC's IR emitter directly via Android's `ConsumerIrManager` if the
-firmware exposes it.
+## Offline IR Blaster
 
-## Physical buttons
+The app drives the hardware IR emitter directly via Android's standard `ConsumerIrManager` (see `ir/IrBlaster.kt` and `ir/SamsungTvCodes.kt`).
+Pressing `MENU` (keycode 82) toggles the IR Blaster overlay (`IrModeOverlay.kt`), allowing direct physical control of Samsung TVs even when Wi-Fi is down or Home Assistant is offline.
 
-From `assets/device_key_code.json` (HA100 block), buttons surface as ordinary
-Android keycodes to the focused Activity. Full map is encoded in
-`input/HardwareKeys.kt`. The dedicated shortcut keys (LIGHT 134, CURTAIN 135,
-SCENE 136, AC 137, CUSTOM_1..4 138–141, VOICE 133) are the most useful to
-rebind. A separate `device_firmware_key_config.json` maps some of these at the
-firmware level to labels (LIGHT/CURTAIN/AC/MEDIA_PLAY/ONE..FOUR), but at the app
-layer they arrive as the keycodes above.
+## Physical Buttons
 
-## Hardware constraints
+From `reference/device_key_code.json` (HA100 block), buttons surface as ordinary Android keycodes to the focused Activity. Full map is encoded in `input/HardwareKeys.kt`:
+- Shortcut keys: `LIGHT` (134), `CURTAIN` (135), `SCENE` (136), `AC` (137)
+- Coloured keys: `CUSTOM_1`..`CUSTOM_4` (138–141)
+- Navigation: D-pad (`UP`, `DOWN`, `LEFT`, `RIGHT`, `CENTER`: 19–23)
+- Media: `VOLUME_UP` (24), `VOLUME_DOWN` (25), `MUTE` (91/164)
+- Utility: `MENU` (82), `VOICE` (133)
 
-- SoC: MediaTek MT6580 (2015), 1 GB RAM, 8 GB storage
-- OS: Android 8.1 (API 27)
+Pass-through routing in `InputViewModel.kt` ensures essential keys immediately wake the display and execute on the first stroke.
+
+## Modern MVI Architecture & Concurrency
+
+The app is decoupled into a clean Model-View-Intent pattern:
+- **`MainActivity.kt`**: Minimal ~220-line composition host, window flags, and gesture routing.
+- **ViewModels (`viewmodel/`)**:
+  - `DashboardViewModel`: Manages active page, Lovelace/dashboard config, Home Assistant entity state flows, connection monitoring, and tab navigation.
+  - `PowerViewModel`: Handles dock charging state, battery telemetry, motion interrupts, and screensaver transitions.
+  - `InputViewModel`: Hardware key dispatching, long-press hold timers, pass-through routing, and volume HUD presentation.
+- **Dependency Injection**: Modular **Koin** graph (`ViewModelModule`, `RepositoryModule`, `NetworkModule`, `HardwareModule`).
+- **Boot Persistence**: `BootReceiver` and `.HomeAlias` ensure automatic recovery and permanent launcher status across reboots.
+
+## Hardware Constraints & MT6580 Kernel Tuning
+
+- SoC: MediaTek MT6580 (4× ARM Cortex-A7 @ 1.3GHz, Mali-400 GPU, 1 GB RAM, 8 GB storage)
+- OS: Android 8.1 Go Edition (API 27)
 - Display: 480×800 LCD, portrait
 
-Keep cards light: avoid heavy animation, large images, or big dependency graphs.
-The UI here uses a simple vertical scroll rather than lazy lists, which is fine
-for a handful of cards and cheaper on this SoC.
+System tuning suite in `device/tuning/` (`init.mt6580_tuning.sh`):
+1. **Interactive Governor:** `hispeed_freq=1040000`, 40ms touch boost.
+2. **HPS Core Management:** Cores 1–3 offline during screen-off to allow deep sleep.
+3. **zRAM & Memory:** 512MB LZ4 compressed zRAM with tuned swappiness (`vm.swappiness=70`).
+4. **LMK Recalibration:** Protects dashboard foreground memory against low-RAM kills.
+5. **NTP Polling:** 30-minute interval prevents crystal oscillator RTC drift.
+
