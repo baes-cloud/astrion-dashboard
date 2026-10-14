@@ -1,11 +1,16 @@
 # Changelog
 
-## Unreleased
+## v1.3.0 — 2026-10-14
 
-Speed, memory and reliability work, mostly invisible but felt on the HA100's
-MT6580, a battery pass (`docs/POWER.md`), and a usability pass that followed
-a design review and a review of two weeks of real use. Home Assistant
-companion automations and scripts are in `docs/HOME_ASSISTANT.md`.
+Architectural modernization, system-level performance, and tactile interaction pass for the HA100's MT6580 SoC:
+- **MVI Architecture & DI:** Full migration to Model-View-Intent with Kotlin Coroutines, `StateFlow`, and Koin Dependency Injection. `MainActivity.kt` reduced from 1,500 lines to ~220 lines.
+- **Fast TV App Launches:** Colored hardware buttons (`CUSTOM_1`–`CUSTOM_3`) trigger native non-blocking `media_player.select_source` intents, launching Netflix, Plex, and ABC iview in under 150ms without blocking Home Assistant's ADB connection.
+- **Physical Key Pass-Through:** Configured hardware keys (`VOLUME_UP`, `VOLUME_DOWN`, `MUTE`, `LIGHT`, `CURTAIN`, `SCENE`, `AC`, `VOICE`) wake the screen and immediately execute on the very first press without being swallowed.
+- **Boot Persistence & Launcher Recovery:** Added `BootReceiver` and `.HomeAlias` default launcher locking so the remote automatically reboots straight into Astrion even after low-battery shutdowns.
+- **RTC Drift Prevention:** Aggressive NTP polling (30 minutes) eliminates MediaTek hardware crystal oscillator drift.
+- **Dynamic LitRooms Floorplan:** Shaded day/dusk/night ambient floor illumination with real-time bulb color/brightness halos and mmWave radar presence tracking.
+- **BÆOSOUND Multi-Room Media Stack:** Refactored into three dedicated tabs (Player, Media shelves with Music Assistant, and Zones multi-room grouping).
+- **MT6580 Kernel & Hardware Tuning:** Added `device/tuning/` suite for interactive CPU governor, 512MB LZ4 zRAM, LMK recalibration, and 40ms touch boost.
 
 ### Lit rooms
 
