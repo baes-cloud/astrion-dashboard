@@ -1,4 +1,4 @@
-# Astrion Custom (Bæo Smart Remote)
+# Astrion Custom (BæoRemote)
 
 A native, high-performance Home Assistant dashboard and launcher for the **Sanytron Astrion HA100** smart remote, written from scratch to replace the stock `HaRemote` app.
 
