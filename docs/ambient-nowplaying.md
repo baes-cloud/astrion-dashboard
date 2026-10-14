@@ -1,11 +1,5 @@
 # Ambient now-playing
 
-> **Credit:** the idea comes from
-> **[Klangbild](https://github.com/hazymorning/Klangbild)** by **hazymorning**,
-> a Music Assistant now-playing screensaver for Android TV. This is an
-> independent reimplementation of its ideas for the HA100 — no Klangbild code
-> was copied.
-
 A calm, full-screen "now playing" face for when the remote has been idle and
 music is playing: the cover large, the text typeset with care, the backdrop in
 the cover's own colours. When nothing is playing it shows a rest clock. It

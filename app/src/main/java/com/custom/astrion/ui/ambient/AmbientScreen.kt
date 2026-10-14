@@ -39,11 +39,6 @@ private fun EntityState.trackKey(): String =
 /**
  * The ambient idle face.
  *
- * The idea comes from Klangbild (https://github.com/hazymorning/Klangbild) by
- * hazymorning, a Music Assistant now-playing screensaver for Android TV. This
- * is an independent reimplementation of its ideas for the HA100 — no Klangbild
- * code was copied.
- *
  * Reuses MainActivity's idle timer, backlight, key
  * routing and touch-to-dismiss (it is hosted exactly like the screensaver); its
  * own job is only to decide and draw now-playing vs the rest clock, and to bake

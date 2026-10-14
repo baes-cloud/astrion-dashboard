@@ -233,9 +233,13 @@ class InputViewModel(
         val code = event.keyCode
         val key = HardwareKey.fromKeyCode(code)
 
-        // Wake screen and swallow key if screensaver is active
+        // When screensaver is active, pass-through keys wake the screen AND execute;
+        // all other keys only wake the screen and are swallowed.
         if (isScreensaverOn) {
-            return true
+            val screensaver = configRepo.getCurrentResult().config.features.screensaver
+            if (!screensaver.passesThrough(key.name)) {
+                return true
+            }
         }
 
         // IR Mode interception

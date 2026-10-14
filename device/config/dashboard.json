@@ -726,26 +726,26 @@
   },
   {
    "key": "CUSTOM_1",
-   "service": "androidtv.adb_command",
+   "service": "media_player.select_source",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "command": "input keyevent KEYCODE_WAKEUP; cmd hdmi_control onetouchplay & am start -n com.netflix.ninja/.MainActivity"
+    "source": "com.netflix.ninja"
    }
   },
   {
    "key": "CUSTOM_2",
-   "service": "androidtv.adb_command",
+   "service": "media_player.select_source",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "command": "input keyevent KEYCODE_WAKEUP; cmd hdmi_control onetouchplay & am start -n com.plexapp.android/com.plexapp.plex.activities.SplashActivity"
+    "source": "com.plexapp.android"
    }
   },
   {
    "key": "CUSTOM_3",
-   "service": "androidtv.adb_command",
+   "service": "media_player.select_source",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "command": "input keyevent KEYCODE_WAKEUP; cmd hdmi_control onetouchplay & am start -n au.net.abc.iview/.ui.router.TvLauncherActivity"
+    "source": "au.net.abc.iview"
    }
   },
   {
