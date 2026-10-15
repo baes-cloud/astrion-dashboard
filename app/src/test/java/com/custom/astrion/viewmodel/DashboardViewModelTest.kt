@@ -84,6 +84,7 @@ class DashboardViewModelTest {
         every { client.outcomes } returns outcomesFlow
         every { client.entities } returns entitiesFlow
         every { client.snapshot() } answers { entitiesFlow.value }
+        every { client.live } answers { entitiesFlow.value }
 
         every { voice.state } returns voiceStateFlow
 

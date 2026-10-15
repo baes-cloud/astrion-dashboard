@@ -1,0 +1,25 @@
+# Real-Time Clock Synchronization Service for Astrion HA100
+# Triggers on boot, every 15 minutes via daemon, or on property trigger
+
+on property:sys.boot_completed=1
+    start timesync
+    start timesync_d
+
+on property:debug.astrion.timesync=1
+    start timesync
+    setprop debug.astrion.timesync 0
+
+service timesync /system/bin/sh /vendor/bin/timesync.sh
+    class late_start
+    user root
+    group root system
+    oneshot
+    disabled
+    seclabel u:r:su:s0
+
+service timesync_d /system/bin/sh /vendor/bin/timesync.sh daemon
+    class late_start
+    user root
+    group root system
+    disabled
+    seclabel u:r:su:s0

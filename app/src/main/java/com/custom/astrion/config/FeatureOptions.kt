@@ -63,7 +63,7 @@ class ScreensaverOptions(val raw: Map<String, Any?>) {
          * up a dim screensaver, until the system timeout turns the screen
          * off. -1 = no screensaver off the dock.
          */
-        const val UNDOCKED_IDLE_S = 90
+        const val UNDOCKED_IDLE_S = 30
 
         /** `undocked_brightness` default: dimmer than docked, it's on battery. */
         const val UNDOCKED_BRIGHTNESS = 0.08f

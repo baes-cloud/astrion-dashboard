@@ -987,7 +987,7 @@
   }
  ],
  "power": {
-  "screen_timeout_seconds": -1,
+  "screen_timeout_seconds": 60,
   "report_entity": "sensor.club_remote_battery",
   "report_name": "Club remote"
  },
@@ -1004,6 +1004,8 @@
    "AC",
    "VOICE"
   ],
+  "idle_seconds": 45,
+  "undocked_idle_seconds": 30,
   "night_brightness": 0.12,
   "undocked_brightness": 0.15,
   "weather_entity": "weather.forecast_home"

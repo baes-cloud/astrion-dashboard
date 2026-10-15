@@ -175,7 +175,7 @@ class DashboardViewModel(
                     }
                     lastPhase = phase
                 }
-                delay(if (alarmState != null) 1000L else 5000L)
+                delay(1000L)
             }
         }
     }
@@ -202,12 +202,7 @@ class DashboardViewModel(
                     }
                     lastToken = top?.token
                 }
-                val dueMs = nextAlertDueMs(specs, client.live, now)
-                val wait = listOfNotNull(
-                    dueMs?.let { it - now },
-                    if (filtered.isNotEmpty()) 60_000 - now % 60_000 else null,
-                ).minOrNull() ?: 30_000L
-                delay(wait.coerceIn(1000L, 30_000L))
+                delay(1000L)
             }
         }
     }

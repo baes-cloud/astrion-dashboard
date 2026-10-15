@@ -79,14 +79,26 @@ class PowerViewModel(
     private fun currentConfig(): AppConfig = configRepo.getCurrentResult().config
 
     init {
+        // Enforce screen timeout on launch
+        enforceScreenTimeout()
+
         // Start screensaver loop
         startScreensaverLoop()
 
-        // Observe connection state to re-post battery telemetry on reconnect
+        // Observe config changes to keep screen timeout & brightness in sync
+        viewModelScope.launch {
+            configRepo.configFlow.collect {
+                enforceScreenTimeout()
+                updateBrightness()
+            }
+        }
+
+        // Observe connection state to re-post battery telemetry and trigger time sync on reconnect
         viewModelScope.launch {
             client.connection.collect { conn ->
                 if (conn == ConnectionState.CONNECTED) {
                     postBatteryTelemetry()
+                    triggerTimeSync()
                 }
             }
         }
@@ -207,12 +219,23 @@ class PowerViewModel(
         updateMotionWake()
         filterJob?.cancel()
         if (!isOn) {
+            screensaverJob?.cancel()
             filterJob = viewModelScope.launch {
                 delay(30_000L)
                 client.setEntityFilter(screenOffEntities())
             }
         } else {
+            startScreensaverLoop()
             client.setEntityFilter(null)
+            markUserActivity()
+        }
+    }
+
+    private fun triggerTimeSync() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                Runtime.getRuntime().exec(arrayOf("setprop", "debug.astrion.timesync", "1")).waitFor()
+            }
         }
     }
 
