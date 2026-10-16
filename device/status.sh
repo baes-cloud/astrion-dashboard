@@ -17,7 +17,7 @@ echo "== Device files ($TARGET vs repo)"
 grep -v '^#' files.txt | while read -r src dest _; do
   [ -n "$src" ] || continue
   want=$(md5sum "$src" | cut -d' ' -f1)
-  got=$(sh_ "md5sum $dest 2>/dev/null" | cut -d' ' -f1)
+  got=$(sh_ "md5sum $dest 2>/dev/null" | cut -d' ' -f1) || true
   if [ -z "$got" ]; then state=MISSING
   elif [ "$got" = "$want" ]; then state=ok
   else state=DIFFERS

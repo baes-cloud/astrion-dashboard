@@ -30,6 +30,17 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$IP" ] || { usage >&2; exit 2; }
 cd "$HERE"
+
+# The repo copies are sanitised. Pushing them as they are would lock adb out
+# (adbfw.sh allows only its placeholder MAC/IP) or break the live layout.
+if grep -q 'AA:BB:CC:DD:EE:FF\|192\.0\.2\.' adbfw.sh; then
+  echo "adbfw.sh still has the placeholder ALLOW_MAC/ALLOW_IP: set your workstation's first" >&2
+  exit 1
+fi
+if [ $LAYOUT -eq 1 ] && grep -q 'YOUR_PLEX_IP' config/dashboard.json; then
+  echo "config/dashboard.json has placeholders (YOUR_PLEX_IP): fill them in before --layout" >&2
+  exit 1
+fi
 case $IP in *:*) TARGET=$IP ;; *) TARGET=$IP:5555 ;; esac
 OCTET=${IP%%:*}; OCTET=${OCTET##*.}
 PKG=com.custom.astrion
