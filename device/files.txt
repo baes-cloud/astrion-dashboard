@@ -1,0 +1,9 @@
+# What device/install.sh pushes and device/status.sh checks, one per line:
+#   <repo path, relative to device/>  <path on the remote>  <mode>
+adbwifi.rc                  /vendor/etc/init/adbwifi.rc           644
+adbfw.sh                    /vendor/bin/adbfw.sh                  755
+timesync.rc                 /vendor/etc/init/timesync.rc          644
+timesync.sh                 /vendor/bin/timesync.sh               755
+tuning/mt6580_tuning.rc     /vendor/etc/init/mt6580_tuning.rc     644
+tuning/init.mt6580_tuning.sh /vendor/bin/init.mt6580_tuning.sh    755
+adbfw-off.sh                /data/local/tmp/adbfw-off.sh          755

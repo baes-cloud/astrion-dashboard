@@ -26,15 +26,32 @@ everyone out of a device that can then only be recovered over USB.
 The design fails **open**: if the script can't run, adb is reachable exactly as
 it was before, rather than the device becoming unreachable.
 
-## Installing
+## Installing and checking
+
+`files.txt` lists every file above with where it goes and its mode. Two
+scripts work from it, so what's on a remote always comes from the repo:
 
 ```sh
-adb -s <ip>:5555 shell mount -o rw,remount /vendor
-adb -s <ip>:5555 push adbfw.sh   /vendor/bin/adbfw.sh
-adb -s <ip>:5555 push adbwifi.rc /vendor/etc/init/adbwifi.rc
-adb -s <ip>:5555 shell 'chmod 755 /vendor/bin/adbfw.sh; mount -o ro,remount /vendor'
-adb -s <ip>:5555 shell /vendor/bin/adbfw.sh
+device/install.sh -n 10.0.0.113        # dry run: print every adb command
+device/install.sh 10.0.0.113           # push files.txt, re-apply the firewall, push device-113.json
+device/install.sh --apk app/build/outputs/apk/release/app-release.apk --layout 10.0.0.113
+device/status.sh 10.0.0.113            # read-only
 ```
+
+`install.sh` needs a root adb shell (the userdebug build gives one), remounts
+`/vendor` read-write only while it copies, and leaves it read-only again. The
+`.rc` files take effect on the next reboot. `--apk` also AOT-compiles the app,
+grants it `WRITE_SETTINGS` and whitelists it from Doze; `--layout` pushes the
+shared `config/dashboard.json`.
+
+`status.sh` changes nothing. It prints each file on the remote as `ok`,
+`DIFFERS` (with the diff against the repo) or `MISSING`, then the kernel
+wakelocks (`/sys/power/wake_lock`), the screen timeout, whether the app is on
+the Doze whitelist, and which `report_entity` each config file names.
+
+Nothing here, and nothing in the app, releases the kernel's `suspend_blocker`
+wakelock. If `status.sh` shows it missing from `/sys/power/wake_lock`, it was
+released by hand; reboot the remote to get it back.
 
 ## Why wireless adb comes up early
 
