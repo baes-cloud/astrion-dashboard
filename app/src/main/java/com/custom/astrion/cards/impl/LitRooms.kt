@@ -1,5 +1,7 @@
 package com.custom.astrion.cards.impl
 
+import com.custom.astrion.ui.AstrionTheme
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -86,7 +88,7 @@ private const val FADE_MS = 400
 private const val SHADE_FADE_MS = 1500
 private const val DAY_ELEVATION = 6.0
 private const val NIGHT_ELEVATION = -6.0
-private val SHADE = Color(0xFF060910)
+private val SHADE: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.void
 private val WARM_WHITE = Color(255, 196, 120)
 
 @Suppress("UNCHECKED_CAST")
@@ -170,6 +172,7 @@ internal fun LitRoomsLayer(
 
     // The shade needs its own layer so each pool can cut a hole in it.
     // In daylight there is no shade layer at all.
+    val shadeInk = SHADE
     if (shadeTarget > 0f || shade.value > 0.002f) {
         Box(
             Modifier
@@ -178,7 +181,7 @@ internal fun LitRoomsLayer(
                 .drawWithCache {
                     val paths = shapes.map { it.toPath(size.width, size.height) }
                     onDrawBehind {
-                        drawRect(SHADE.copy(alpha = shade.value))
+                        drawRect(shadeInk.copy(alpha = shade.value))
                         // A lit room is never as dark as an empty one.
                         roomLevels(glows).forEach { (room, lit) ->
                             val path = paths.getOrNull(room) ?: return@forEach

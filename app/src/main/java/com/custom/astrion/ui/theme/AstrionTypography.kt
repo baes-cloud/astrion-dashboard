@@ -36,6 +36,9 @@ data class AstrionTypography(
     val labelSmall: TextStyle,                         // 11sp Medium, 0.5sp tracking (Connection pill)
     val labelMicro: TextStyle,                         // 8sp Bold, 0.16em tracking ("ON" badge)
     val wordmark: TextStyle,                           // 16sp Bold, 0.318em tracking (BÆOREMOTE footer)
+
+    /** The font sizes in use, for text that sets its own weight and family. */
+    val sizes: AstrionTypeSizes = AstrionTypeSizes(),
 ) {
     // Backwards-compatible TextUnit accessors
     val displaySize: TextUnit get() = display.fontSize
@@ -82,3 +85,37 @@ fun defaultAstrionTypography(): AstrionTypography {
         wordmark = TextStyle(fontFamily = headingFont, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.318.em),
     )
 }
+
+/**
+ * Every font size the app uses, smallest to largest. A `fontSize` comes from
+ * here, never a literal, so the scale can be read (and changed) in one place.
+ */
+@Immutable
+data class AstrionTypeSizes(
+    /** The "ON" badge. */
+    val micro: TextUnit = 8.sp,
+    val tiny: TextUnit = 10.sp,
+    val caption: TextUnit = 11.sp,
+    val label: TextUnit = 12.sp,
+    val small: TextUnit = 13.sp,
+    val body: TextUnit = 14.sp,
+    val bodyLarge: TextUnit = 15.sp,
+    val emphasis: TextUnit = 16.sp,
+    val title: TextUnit = 17.sp,
+    val titleLarge: TextUnit = 18.sp,
+    val heading: TextUnit = 19.sp,
+    val headingLarge: TextUnit = 20.sp,
+    val displayXs: TextUnit = 22.sp,
+    val displaySm: TextUnit = 26.sp,
+    val displayMd: TextUnit = 28.sp,
+    val displayLg: TextUnit = 32.sp,
+    val displayXl: TextUnit = 34.sp,
+    /** Climate's set temperature. */
+    val readout: TextUnit = 40.sp,
+    /** The screensaver clock. */
+    val clock: TextUnit = 81.sp,
+    /** The ringing alarm's clock. */
+    val alarmClock: TextUnit = 88.sp,
+    /** The ambient rest clock. */
+    val restClock: TextUnit = 92.sp,
+)

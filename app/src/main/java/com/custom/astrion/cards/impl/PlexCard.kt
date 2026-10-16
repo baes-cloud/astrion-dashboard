@@ -17,7 +17,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -248,8 +247,8 @@ class PlexCard : CardRenderer {
     private fun ShelfLabel(text: String) {
         Text(
             text,
-            color = Color(0xFFAEBFBB),
-            fontSize = 12.sp,
+            color = AstrionTheme.colors.onSurfaceVariant,
+            fontSize = AstrionTheme.size.label,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.sp,
         )
@@ -294,7 +293,7 @@ class PlexCard : CardRenderer {
                 item.title,
                 style = tightTextStyle(13.sp),
                 color = AstrionTheme.textPrimary,
-                fontSize = 11.sp,
+                fontSize = AstrionTheme.size.caption,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -304,7 +303,7 @@ class PlexCard : CardRenderer {
                     item.subtitle,
                     style = tightTextStyle(12.sp),
                     color = AstrionTheme.textSecondary,
-                    fontSize = 10.sp,
+                    fontSize = AstrionTheme.size.tiny,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

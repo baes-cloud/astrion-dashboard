@@ -3,69 +3,118 @@ package com.custom.astrion.ui.theme
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
+/**
+ * Every colour the app draws with. Porter's Paints, 2026-09: Yacht Race
+ * #2F3E4C is the base the surfaces are built from, Hailstorm #6E9E97 and
+ * Gunmetal Grey #4F726D carry accents and selected state, Baby Doll #E6BCB6
+ * carries attention (warnings, the next alarm, mute). Off the card: red for
+ * errors only, and warm amber for lights that are on.
+ *
+ * One token per value: read them through [com.custom.astrion.ui.AstrionTheme]
+ * inside composition, never as literals.
+ */
 @Immutable
 data class AstrionColors(
-    // ---- E2E Contract Tokens (DesignSystemModel.SURFACES) -------------------
-    val surfacePrimary: Color = Color(0xFF151B21),     // Deepest background (Dark teal-grey)
-    val surfaceCard: Color = Color(0xFF1C2630),        // Base card surface / slider track
-    val surfaceElevated: Color = Color(0xFF243140),    // Raised card / dialog surface
-    val surfaceSunken: Color = Color(0xFF0F1318),      // Sunken 3D button lip background
-    val accent: Color = Color(0xFFFFC24B),             // Active gold-amber accent (E2E contract & active state)
-    val onSurface: Color = Color(0xFFEEF2EF),          // High contrast primary text (Light sage, 15.4:1 contrast)
-    val onSurfaceMuted: Color = Color(0xFFA9BAB6),     // Muted secondary text (Hailstorm grey, 8.5:1 contrast)
-    val unavailableAlpha: Float = 0.4f,                // Dimming opacity for disconnected entities
+    // ---- surfaces, darkest to lightest --------------------------------------
+    /** Near-black behind artwork and the lit-rooms shade. */
+    val void: Color = Color(0xFF070809),
+    val surfaceSunken: Color = Color(0xFF0F1318),
+    /** Deepest panel ground (dialogs' backdrop, the tab strip). */
+    val surfacePrimary: Color = Color(0xFF151B21),
+    val pinnedTopBg: Color = Color(0xFF151D25),
+    val pinnedBottomBg: Color = Color(0xFF182129),
+    /** Yacht Race, darkened: the page. */
+    val background: Color = Color(0xFF1B242D),
+    /** Slider and progress track. */
+    val surfaceCard: Color = Color(0xFF1C2630),
+    /** Default card fill. */
+    val surface: Color = Color(0xFF243140),
+    /** Alternate card fill (floorplan canvas, cover and switch tiles). */
+    val surfaceVariant: Color = Color(0xFF283646),
+    /** Recessed control, e.g. the lip under a scene tile. */
+    val controlSunken: Color = Color(0xFF2C3B45),
+    /** Raised element inside a card (grid buttons, scene tile faces). */
+    val raised: Color = Color(0xFF34454F),
+    /** Control chrome: small round buttons, chips, outlines. */
+    val controlBg: Color = Color(0xFF3A4F57),
+    /** Control chrome, pressed or highlighted. */
+    val controlRaised: Color = Color(0xFF42565E),
 
-    // ---- Material 3 & Smart Display Semantic Extensions ---------------------
-    val primary: Color = Color(0xFF4F726D),            // Gunmetal Grey: filled buttons & chips
+    // ---- text ---------------------------------------------------------------
+    val onSurface: Color = Color(0xFFEEF2EF),
+    /** Between [onSurface] and [onSurfaceMuted]: secondary titles. */
+    val textSoft: Color = Color(0xFFC3D0CD),
+    val textOnControl: Color = Color(0xFFD9E3E0),
+    /** Section badges, secondary title labels. */
+    val onSurfaceVariant: Color = Color(0xFFAEBFBB),
+    val onSurfaceMuted: Color = Color(0xFFA9BAB6),
+    /** Faint metadata, timestamps. */
+    val textMuted: Color = Color(0xFF718583),
+    /** Dark text on light tiles. */
+    val textInverse: Color = Color(0xFF141414),
     val onPrimary: Color = Color.White,
-    val background: Color = Color(0xFF1B242D),         // Yacht Race base page background (lighter, classic tone)
-    val onBackground: Color = Color(0xFFEEF2EF),
-    val surface: Color = Color(0xFF243140),            // Default card surface fill
-    val surfaceVariant: Color = Color(0xFF283646),     // Alternate card fill (panel-plan floorplan canvas)
-    val onSurfaceVariant: Color = Color(0xFFAEBFBB),   // Section badges, secondary title labels
-    val surfaceSunkenControl: Color = Color(0xFF2C3B45), // Recessed lip under active scene tiles
-    val controlSunken: Color = Color(0xFF2C3B45),      // Recessed control, e.g. lip under scene tile
-    val pinnedTopBg: Color = Color(0xFF151D25),        // Pinned header band
-    val pinnedBottomBg: Color = Color(0xFF182129),     // Pinned footer band
-    val raised: Color = Color(0xFF34454F),             // Raised element inside cards (grid buttons)
-    val controlBg: Color = Color(0xFF3A4F57),          // Control chrome: round buttons, chips
-    val trackBg: Color = Color(0xFF1C2630),            // Slider / progress track
 
-    // ---- Content Text Inks --------------------------------------------------
-    val textPrimary: Color = Color(0xFFEEF2EF),        // High-contrast primary text
-    val textSecondary: Color = Color(0xFFA9BAB6),      // Secondary labels, captions (mute)
-    val textOnControl: Color = Color(0xFFD9E3E0),      // Icon/text on control chrome buttons
-    val textMuted: Color = Color(0xFF718583),          // Faint metadata, timestamps (faint)
-    val textInverse: Color = Color(0xFF141414),        // Dark text on high-luminance tiles
+    // ---- accent: Hailstorm and Gunmetal -------------------------------------
+    /** Hailstorm, lifted to read as text and icons on the dark cards. */
+    val accent: Color = Color(0xFF8CBDB5),
+    /** A lighter Hailstorm tint: highlights, progress ends. */
+    val accentBright: Color = Color(0xFFA9D2CB),
+    /** Gunmetal Grey: selected chips and filled buttons under white text. */
+    val accentStrong: Color = Color(0xFF4F726D),
+    /** Gunmetal, quietened: secondary selected state. */
+    val accentMuted: Color = Color(0xFF506763),
+    /** Dark Hailstorm ground (info alerts, "on" tiles). */
+    val accentContainer: Color = Color(0xFF27403E),
 
-    // ---- Accent & State Palettes --------------------------------------------
-    val accentSage: Color = Color(0xFF8CBDB5),         // Hailstorm: lifted text, icons, progress
-    val accentStrong: Color = Color(0xFF4F726D),       // Gunmetal: selected state
-    val onWarm: Color = Color(0xFF241A00),             // Dark text on active amber
-    val blush: Color = Color(0xFFE6BCB6),              // Baby Doll warm accent: attention, alarms
-    val onBlush: Color = Color(0xFF4A2A26),            // Dark text on blush
-    val danger: Color = Color(0xFFE37B7B),             // Danger / error alert
-    val dangerSoft: Color = Color(0xFFE06767),         // Soft red toggle / disconnected state
-    val dangerBg: Color = Color(0xFF3A2E2E),           // Danger container background
-    val onDanger: Color = Color(0xFF241012),           // Dark text on red banner
-    val success: Color = Color(0xFF3DD68C),            // High temp / battery charging green
-    val successSoft: Color = Color(0xFF8CBDB5),        // Good / normal status
-    val warning: Color = Color(0xFFFFB347),            // Warning amber
-    val warningContainer: Color = Color(0xFF4A3B1E),   // Config warning banner background
-    val unavailable: Color = Color(0xFF7B8C96),        // Desaturated slate for dead/unknown entities
-    val outline: Color = Color(0xFF3A4F57),            // Border outline
-    val divider: Color = Color(0x333A4F57),            // 20% opacity hairline divider
-    val scrim: Color = Color(0xCC0B1015),              // 80% opacity dark overlay scrim
-    val scrimDark: Color = Color(0xF00A0F14),          // 94% opacity deep scrim for emergency alarms
+    // ---- attention: Baby Doll -----------------------------------------------
+    val blush: Color = Color(0xFFE6BCB6),
+    val onBlush: Color = Color(0xFF4A2A26),
+    /** Dark rose ground for warning banners and alerts. */
+    val blushContainer: Color = Color(0xFF3E2F30),
 
-    // ---- Docked Screensaver / Night Palette ---------------------------------
-    val nightFace: Color = Color(0xFF0C0E10),          // Docked night face ground
-    val nightInk: Color = Color(0xFFC29690),           // Dimmed Baby Doll rose clock and title
-    val nightInk2: Color = Color(0xFF9C7570),          // Secondary night meta, progress, date
-    val nightTrack: Color = Color(0xFF1A1D21),         // Night progress track
-    val dayClock: Color = Color(0xFFDDE7E3),           // Day screensaver clock ink
-    val dayInk: Color = Color(0xFFA9BAB6),             // Day screensaver secondary ink
-    val dayFaint: Color = Color(0xFF718583),           // Day screensaver faint text
-    val dayAccent: Color = Color(0xFFE8B25A),          // Day screensaver accent
-    val dayName: Color = Color(0xFFE9EDF2),            // Day screensaver device name
+    // ---- lights that are on (the one warm colour, by design) ----------------
+    val lightOn: Color = Color(0xFFFFC24B),
+    val onLightOn: Color = Color(0xFF241A00),
+    /** A lit room's glow on the floorplan. */
+    val lightOnBright: Color = Color(0xFFFFD37A),
+    /** A bulb's colour when HA doesn't report one. */
+    val lightWarmWhite: Color = Color(0xFFFFD9A0),
+
+    // ---- errors (the only red) ----------------------------------------------
+    val danger: Color = Color(0xFFE37B7B),
+    val dangerSoft: Color = Color(0xFFE06767),
+    val dangerBg: Color = Color(0xFF3A2E2E),
+    val onDanger: Color = Color(0xFF241012),
+
+    /**
+     * Unavailable / unknown. A desaturated slate that is NOT "off"; always
+     * pair it with the word (see [com.custom.astrion.ui.UnavailableLabel]).
+     */
+    val unavailable: Color = Color(0xFF7B8C96),
+    val unavailableAlpha: Float = 0.4f,
+
+    // ---- overlays -----------------------------------------------------------
+    val hairline: Color = Color(0x1AFFFFFF),
+    val hairlineStrong: Color = Color(0x33FFFFFF),
+    /** 8% white glass fill. */
+    val glass: Color = Color(0x14FFFFFF),
+    val divider: Color = Color(0x333A4F57),
+    val scrim: Color = Color(0xCC0B1015),
+    /** Deep scrim behind the ringing alarm. */
+    val scrimDark: Color = Color(0xF00A0F14),
+
+    // ---- alarm screen: Yacht Race into night --------------------------------
+    val alarmTop: Color = Color(0xFF2F3E4C),
+    val alarmMid: Color = Color(0xFF1D2A38),
+    val alarmBottom: Color = Color(0xFF141D27),
+
+    // ---- screensaver ----------------------------------------------------------
+    val dayClock: Color = Color(0xFFDDE7E3),
+    /** Night face ground. */
+    val nightFace: Color = Color(0xFF0C0E10),
+    /** Clock and title on the night face, a dimmed Baby Doll (≈7.5:1). */
+    val nightInk: Color = Color(0xFFC29690),
+    /** Date, artist, meta, progress (≈4.8:1). */
+    val nightInk2: Color = Color(0xFF9C7570),
+    val nightTrack: Color = Color(0xFF1A1D21),
 )

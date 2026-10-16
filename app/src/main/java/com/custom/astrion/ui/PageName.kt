@@ -28,7 +28,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 
 /** Height of the device-name footer. The same on every page, so the name never moves. */
 val PageNameHeight = 44.dp
@@ -104,7 +103,7 @@ fun PageName(name: String?, modifier: Modifier = Modifier) {
                     color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
                     fontFamily = AstrionTheme.headingFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
+                    fontSize = AstrionTheme.size.emphasis,
                     letterSpacing = WordmarkTracking,
                     maxLines = 1,
                 )
@@ -123,7 +122,7 @@ fun PageName(name: String?, modifier: Modifier = Modifier) {
                                     color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
                                     fontFamily = AstrionTheme.headingFont,
                                     fontWeight = FontWeight.Normal,
-                                    fontSize = 16.sp,
+                                    fontSize = AstrionTheme.size.emphasis,
                                     maxLines = 1,
                                 )
                             }
@@ -135,7 +134,7 @@ fun PageName(name: String?, modifier: Modifier = Modifier) {
                             color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
                             fontFamily = AstrionTheme.headingFont,
                             fontWeight = FontWeight.Normal,
-                            fontSize = 16.sp,
+                            fontSize = AstrionTheme.size.emphasis,
                             maxLines = 1,
                         )
                     }
@@ -151,7 +150,7 @@ fun PageName(name: String?, modifier: Modifier = Modifier) {
                 color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
                 fontFamily = AstrionTheme.headingFont,
                 fontWeight = FontWeight.Normal,
-                fontSize = 16.sp,
+                fontSize = AstrionTheme.size.emphasis,
                 letterSpacing = WordmarkTracking,
                 maxLines = 1,
             )

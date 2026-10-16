@@ -20,7 +20,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.ui.AstrionTheme
 import java.util.Locale
 import kotlin.math.abs
@@ -63,7 +62,7 @@ fun AmbientProgress(
 
     val shownSec = (frac.value * durationSec)
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text(time(shownSec), color = ink, fontSize = 11.sp, fontFamily = AstrionTheme.bodyFont, maxLines = 1)
+        Text(time(shownSec), color = ink, fontSize = AstrionTheme.size.caption, fontFamily = AstrionTheme.bodyFont, maxLines = 1)
         Box(
             Modifier
                 .weight(1f)
@@ -74,7 +73,7 @@ fun AmbientProgress(
         ) {
             Box(Modifier.fillMaxWidth(frac.value).height(4.dp).clip(RoundedCornerShape(2.dp)).background(fill))
         }
-        Text(time(durationSec), color = ink, fontSize = 11.sp, fontFamily = AstrionTheme.bodyFont, maxLines = 1, textAlign = TextAlign.End)
+        Text(time(durationSec), color = ink, fontSize = AstrionTheme.size.caption, fontFamily = AstrionTheme.bodyFont, maxLines = 1, textAlign = TextAlign.End)
     }
 }
 

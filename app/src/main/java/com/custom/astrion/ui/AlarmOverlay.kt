@@ -1,5 +1,6 @@
 package com.custom.astrion.ui
 
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.animation.core.Animatable
 import com.custom.astrion.config.AlarmOptions
 import com.custom.astrion.ha.EntityMap
@@ -85,14 +86,14 @@ data class AlarmUiState(
 // This screen's own palette. Deep night navy, one warm dawn light (the `on`
 // amber while ringing, the accent once snoozed), and the snooze button as the
 // only saturated thing on it.
-private val NavyTop = Color(0xFF2F3E4C)
-private val NavyMid = Color(0xFF1D2A38)
-private val NavyBottom = Color(0xFF141D27)
-private val Dawn = AstrionTheme.on
-private val Dusk = AstrionTheme.accent
-private val Ink = Color(0xFFEEF2EF)
-private val InkSoft = Color(0xFFB5C6BF)
-private val InkFaint = Color(0xFF7F948E)
+private val NavyTop: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.alarmTop
+private val NavyMid: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.alarmMid
+private val NavyBottom: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.alarmBottom
+private val Dawn: Color @Composable @ReadOnlyComposable get() = AstrionTheme.blush
+private val Dusk: Color @Composable @ReadOnlyComposable get() = AstrionTheme.accent
+private val Ink: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.onSurface
+private val InkSoft: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.textSoft
+private val InkFaint: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.textMuted
 
 /**
  * The work-alarm popup: almost, but not quite, full screen.
@@ -134,7 +135,7 @@ fun AlarmOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xF00A0F14))
+            .background(AstrionTheme.colors.scrimDark)
             // Swallow taps on the scrim so nothing underneath is hit by mistake.
             .clickable(
                 indication = null,
@@ -168,7 +169,7 @@ fun AlarmOverlay(
             Text(
                 if (state.ringing) "WAKE UP" else "SNOOZING",
                 color = light,
-                fontSize = 13.sp,
+                fontSize = AstrionTheme.size.small,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 3.sp,
             )
@@ -179,7 +180,7 @@ fun AlarmOverlay(
                 Text(
                     Time.format(now, "h:mm"),
                     color = Ink,
-                    fontFamily = AstrionTheme.headingFont, fontSize = 88.sp,
+                    fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.alarmClock,
                     fontWeight = FontWeight.ExtraLight,
                     modifier = Modifier.alignByBaseline(),
                 )
@@ -187,12 +188,12 @@ fun AlarmOverlay(
                 Text(
                     Time.format(now, "a"),
                     color = InkSoft,
-                    fontFamily = AstrionTheme.headingFont, fontSize = 28.sp,
+                    fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.displayMd,
                     fontWeight = FontWeight.Light,
                     modifier = Modifier.alignByBaseline(),
                 )
             }
-            Text(Time.format(now, "EEEE, d MMMM"), color = InkSoft, fontSize = 15.sp)
+            Text(Time.format(now, "EEEE, d MMMM"), color = InkSoft, fontSize = AstrionTheme.size.bodyLarge)
 
             Spacer(Modifier.weight(0.5f))
 
@@ -211,9 +212,9 @@ fun AlarmOverlay(
                 PillButton(
                     icon = Icons.Filled.Snooze,
                     label = "Snooze · 5 min",
-                    ink = AstrionTheme.onBg,
-                    fill = AstrionTheme.on,
-                    glowColor = AstrionTheme.on.copy(alpha = 0.3f),
+                    ink = AstrionTheme.onBlush,
+                    fill = AstrionTheme.blush,
+                    glowColor = AstrionTheme.blush.copy(alpha = 0.3f),
                     onClick = onSnooze,
                 )
                 Spacer(Modifier.height(14.dp))
@@ -225,7 +226,7 @@ fun AlarmOverlay(
                 Text(
                     "Hide until it rings again",
                     color = InkSoft,
-                    fontSize = 14.sp,
+                    fontSize = AstrionTheme.size.body,
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
                         .tap(onClick = onHide)
@@ -287,8 +288,8 @@ private fun ShiftCard(state: AlarmUiState) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0x14FFFFFF))
-            .border(1.dp, Color(0x1FFFFFFF), RoundedCornerShape(18.dp))
+            .background(AstrionTheme.colors.glass)
+            .border(1.dp, AstrionTheme.colors.hairline, RoundedCornerShape(18.dp))
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -296,7 +297,7 @@ private fun ShiftCard(state: AlarmUiState) {
             modifier = Modifier
                 .size(38.dp)
                 .clip(RoundedCornerShape(11.dp))
-                .background(Color(0x338CBDB5)),
+                .background(AstrionTheme.colors.accent.copy(alpha = 0.2f)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Filled.Event, contentDescription = null, tint = Dusk, modifier = Modifier.size(20.dp))
@@ -306,7 +307,7 @@ private fun ShiftCard(state: AlarmUiState) {
             Text(
                 state.title ?: "Work",
                 color = Ink,
-                fontSize = 17.sp,
+                fontSize = AstrionTheme.size.title,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -314,7 +315,7 @@ private fun ShiftCard(state: AlarmUiState) {
             Text(
                 listOfNotNull(state.place, state.startsAt?.let { "starts $it" }).joinToString("  ·  "),
                 color = InkSoft,
-                fontSize = 13.sp,
+                fontSize = AstrionTheme.size.small,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -328,23 +329,25 @@ private fun SnoozeRing(endsMs: Long, totalMs: Long, nowMs: Long) {
     val leftMs = (endsMs - nowMs).coerceAtLeast(0)
     val frac = (leftMs.toFloat() / totalMs.coerceAtLeast(1)).coerceIn(0f, 1f)
     val secs = leftMs / 1000
+    val track = AstrionTheme.colors.hairline
+    val ring = AstrionTheme.blush
     Box(Modifier.size(112.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val w = 4.dp.toPx()
             val inset = w / 2
             val arcSize = Size(size.width - w, size.height - w)
             drawArc(
-                color = Color(0x22FFFFFF), startAngle = 0f, sweepAngle = 360f, useCenter = false,
+                color = track, startAngle = 0f, sweepAngle = 360f, useCenter = false,
                 topLeft = Offset(inset, inset), size = arcSize, style = Stroke(width = w),
             )
             drawArc(
-                color = AstrionTheme.blush, startAngle = -90f, sweepAngle = 360f * frac, useCenter = false,
+                color = ring, startAngle = -90f, sweepAngle = 360f * frac, useCenter = false,
                 topLeft = Offset(inset, inset), size = arcSize, style = Stroke(width = w, cap = StrokeCap.Round),
             )
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("%d:%02d".format(secs / 60, secs % 60), color = Ink, fontFamily = AstrionTheme.headingFont, fontSize = 28.sp, fontWeight = FontWeight.Light)
-            Text("BACK IN", color = InkFaint, fontSize = 10.sp, letterSpacing = 2.sp)
+            Text("%d:%02d".format(secs / 60, secs % 60), color = Ink, fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.displayMd, fontWeight = FontWeight.Light)
+            Text("BACK IN", color = InkFaint, fontSize = AstrionTheme.size.tiny, letterSpacing = 2.sp)
         }
     }
 }
@@ -388,7 +391,7 @@ private fun PillButton(
     ) {
         Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(10.dp))
-        Text(label, color = ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = ink, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -454,12 +457,12 @@ private fun HoldToStop(onDismiss: () -> Unit) {
             ) {
                 Icon(Icons.Filled.AlarmOff, contentDescription = null, tint = AstrionTheme.danger, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("Hold to stop", color = AstrionTheme.danger, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                Text("Hold to stop", color = AstrionTheme.danger, fontSize = AstrionTheme.size.heading, fontWeight = FontWeight.SemiBold)
             }
         }
         // Fixed-height slot so the hint appearing never shifts the buttons.
         Box(Modifier.height(24.dp), contentAlignment = Alignment.Center) {
-            if (hint) Text("Keep holding — stops alarms for today", color = AstrionTheme.danger, fontSize = 12.sp)
+            if (hint) Text("Keep holding — stops alarms for today", color = AstrionTheme.danger, fontSize = AstrionTheme.size.label)
         }
     }
 }

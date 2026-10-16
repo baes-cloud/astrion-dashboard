@@ -95,16 +95,17 @@ class SceneGridCard : CardRenderer {
         }
         fun nameOf(scene: Map<String, Any?>, entityId: String) =
             scene["name"] as? String ?: ctx.entities[entityId]?.friendlyName ?: entityId
+        val defaultFace = AstrionTheme.colors.raised
         fun colorOf(scene: Map<String, Any?>): Color =
-            parseHexColor(scene["color"] as? String) ?: Color(0xFF34454F)
+            parseHexColor(scene["color"] as? String) ?: defaultFace
         fun iconOf(scene: Map<String, Any?>): ImageVector? = sceneIcon(scene["icon"] as? String)
 
         if (title != null) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     title,
-                    color = Color(0xFFA9BAB6),
-                    fontSize = 12.sp,
+                    color = AstrionTheme.colors.onSurfaceMuted,
+                    fontSize = AstrionTheme.size.label,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.sp,
                 )
@@ -135,7 +136,7 @@ class SceneGridCard : CardRenderer {
         ) {
             scenes.forEach { scene ->
                 val entityId = scene["entity_id"] as? String ?: return@forEach
-                val color = parseHexColor(scene["color"] as? String) ?: Color(0xFFA9D2CB)
+                val color = parseHexColor(scene["color"] as? String) ?: AstrionTheme.colors.accentBright
                 val name = scene["name"] as? String ?: ctx.entities[entityId]?.friendlyName ?: entityId
                 val isActive = entityId == active
                 val haptics = LocalHapticFeedback.current
@@ -149,7 +150,7 @@ class SceneGridCard : CardRenderer {
                         .background(if (isActive) AstrionTheme.controlSunken else AstrionTheme.cardBg)
                         .then(if (isActive) Modifier.background(color.copy(alpha = 0.10f)) else Modifier)
                         .then(
-                            if (isActive) Modifier.border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(13.dp))
+                            if (isActive) Modifier.border(1.dp, AstrionTheme.colors.hairline, RoundedCornerShape(13.dp))
                             else Modifier
                         )
                         .clickable {
@@ -179,7 +180,7 @@ class SceneGridCard : CardRenderer {
                     Text(
                         name,
                         color = if (isActive) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
-                        fontSize = 13.sp,
+                        fontSize = AstrionTheme.size.small,
                         fontWeight = FontWeight.Medium,
                         letterSpacing = 0.3.sp,
                         maxLines = 1,
@@ -191,7 +192,7 @@ class SceneGridCard : CardRenderer {
                             "ON",
                             modifier = Modifier.padding(start = 2.dp),
                             color = AstrionTheme.accent,
-                            fontSize = 8.sp,
+                            fontSize = AstrionTheme.size.micro,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.16.em,
                             maxLines = 1,
@@ -319,7 +320,7 @@ class SceneGridCard : CardRenderer {
         onClick: () -> Unit,
     ) {
         // Dark text/icon on light tiles (e.g. the white scene), light otherwise.
-        val fg = if (luminance(color) > 0.75f) Color(0xFF141414) else Color(0xFFEEF2EF)
+        val fg = if (luminance(color) > 0.75f) AstrionTheme.colors.textInverse else AstrionTheme.colors.onSurface
         // Semi-transparent face (darker/faded over the band) plus a darker,
         // faded "lip" the raised face sits on — its thickness. Pressing sinks
         // the face onto the lip (a 3D press-in).
@@ -361,9 +362,9 @@ class SceneGridCard : CardRenderer {
                     name,
                     color = fg,
                     fontSize = when {
-                        name.length > 10 -> 12.sp
-                        name.length > 7 -> 13.sp
-                        else -> 15.sp
+                        name.length > 10 -> AstrionTheme.size.label
+                        name.length > 7 -> AstrionTheme.size.small
+                        else -> AstrionTheme.size.bodyLarge
                     },
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,

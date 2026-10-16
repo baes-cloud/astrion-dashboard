@@ -36,7 +36,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -111,7 +110,7 @@ class CoverCard : CardRenderer {
                     tint = when {
                         unavailable -> AstrionTheme.unavailable
                         open -> AstrionTheme.blush
-                        else -> Color(0xFFC3D0CD)
+                        else -> AstrionTheme.colors.textSoft
                     },
                 )
             }
@@ -120,16 +119,16 @@ class CoverCard : CardRenderer {
                 Text(
                     name,
                     color = AstrionTheme.textPrimary,
-                    fontSize = 14.sp,
+                    fontSize = AstrionTheme.size.body,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     // Was maxLines=1 with no overflow, so a long name simply clipped.
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (unavailable) {
-                    UnavailableLabel(12.sp)
+                    UnavailableLabel(AstrionTheme.size.label)
                 } else {
-                    Text(stateLabel, color = AstrionTheme.textSecondary, fontSize = 12.sp)
+                    Text(stateLabel, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -232,7 +231,7 @@ class FanCard : CardRenderer {
                         tint = when {
                             unavailable -> AstrionTheme.unavailable
                             on -> AstrionTheme.accent
-                            else -> Color(0xFFC3D0CD)
+                            else -> AstrionTheme.colors.textSoft
                         },
                     )
                 }
@@ -240,7 +239,7 @@ class FanCard : CardRenderer {
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            name, color = AstrionTheme.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            name, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.SemiBold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                         )
                         // Says the name opens more.
@@ -250,10 +249,10 @@ class FanCard : CardRenderer {
                         )
                     }
                     if (unavailable) {
-                        UnavailableLabel(12.sp)
+                        UnavailableLabel(AstrionTheme.size.label)
                     } else {
                         Text(
-                            stateLine, color = AstrionTheme.textSecondary, fontSize = 12.sp,
+                            stateLine, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
@@ -307,7 +306,7 @@ class SwitchCard : CardRenderer {
         val live = !unavailable && ctx.connected
         val icon = switchIcon(config.string("icon"))
         // On-state background (e.g. a semi-transparent dark red for a heater).
-        val onColor = parseColor(config.options["on_color"]) ?: Color(0xFF2E5A46)
+        val onColor = parseColor(config.options["on_color"]) ?: AstrionTheme.colors.accentContainer
         // `compact`: one line (name, state as a dot of colour), for a row of
         // toggles that shouldn't take a card's worth of height each.
         val compact = config.bool("compact", false)
@@ -335,8 +334,8 @@ class SwitchCard : CardRenderer {
                     contentDescription = if (on) "$name, on" else "$name, off",
                     tint = when {
                         unavailable -> AstrionTheme.unavailable
-                        on -> Color(0xFFE79A9A)
-                        else -> Color(0xFFC3D0CD)
+                        on -> AstrionTheme.colors.blush
+                        else -> AstrionTheme.colors.textSoft
                     },
                     modifier = Modifier.size(if (compact) 17.dp else 24.dp),
                 )
@@ -344,16 +343,16 @@ class SwitchCard : CardRenderer {
             Spacer(Modifier.width(if (compact) 8.dp else 12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    name, color = AstrionTheme.textPrimary, fontSize = if (compact) 13.sp else 16.sp,
+                    name, color = AstrionTheme.textPrimary, fontSize = if (compact) AstrionTheme.size.small else AstrionTheme.size.emphasis,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 if (compact) {
                     // State is carried by the tile colour and the icon tint.
                 } else if (unavailable) {
-                    UnavailableLabel(13.sp)
+                    UnavailableLabel(AstrionTheme.size.small)
                 } else {
-                    Text(if (on) "On" else "Off", color = AstrionTheme.textSecondary, fontSize = 13.sp)
+                    Text(if (on) "On" else "Off", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small)
                 }
             }
         }

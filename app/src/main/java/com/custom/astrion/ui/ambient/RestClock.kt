@@ -16,7 +16,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,7 +44,7 @@ fun RestClock(is24: Boolean) {
 
     Box(
         Modifier.fillMaxSize().background(
-            Brush.radialGradient(listOf(Color(0xFF14181C), Color(0xFF070809))),
+            Brush.radialGradient(listOf(AstrionTheme.colors.surfacePrimary, AstrionTheme.colors.void)),
         ),
         contentAlignment = Alignment.Center,
     ) {
@@ -55,7 +54,7 @@ fun RestClock(is24: Boolean) {
                 color = AstrionTheme.nightInk,
                 fontFamily = AstrionTheme.headingFont,
                 fontWeight = FontWeight.Light,
-                fontSize = 92.sp,
+                fontSize = AstrionTheme.size.restClock,
                 letterSpacing = (-1.5).sp,
                 maxLines = 1,
             )
@@ -64,7 +63,7 @@ fun RestClock(is24: Boolean) {
                 dateFmt.format(Date(now)),
                 color = AstrionTheme.nightInk2,
                 fontFamily = AstrionTheme.bodyFont,
-                fontSize = 15.sp,
+                fontSize = AstrionTheme.size.bodyLarge,
                 maxLines = 1,
             )
         }

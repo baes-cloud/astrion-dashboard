@@ -1,8 +1,8 @@
 package com.custom.astrion.cards.impl
 
+import com.custom.astrion.ui.AstrionTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
@@ -24,8 +24,8 @@ class SectionCard : CardRenderer {
         val title = config.string("title") ?: return
         Text(
             title,
-            color = Color(0xFFAEBFBB),
-            fontSize = 12.sp,
+            color = AstrionTheme.colors.onSurfaceVariant,
+            fontSize = AstrionTheme.size.label,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.sp,
         )

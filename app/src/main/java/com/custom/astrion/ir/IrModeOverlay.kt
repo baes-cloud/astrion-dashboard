@@ -18,7 +18,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -145,7 +144,7 @@ fun IrModeOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xCC0B1015))
+            .background(AstrionTheme.colors.scrim)
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
@@ -158,7 +157,7 @@ fun IrModeOverlay(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF263443))
+                .background(AstrionTheme.colors.surfaceVariant)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -182,20 +181,20 @@ fun IrModeOverlay(
                 Column(Modifier.weight(1f)) {
                     Text(
                         "IR MODE",
-                        color = AstrionTheme.blush, fontSize = 19.sp,
+                        color = AstrionTheme.blush, fontSize = AstrionTheme.size.heading,
                         fontFamily = AstrionTheme.headingFont,
                         fontWeight = FontWeight.Bold, letterSpacing = 0.06.em,
                     )
                     Text(
                         "Hardware buttons blast to the TV",
-                        color = Color(0xFFAEBFBB), fontSize = 12.sp,
+                        color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.label,
                     )
                 }
             }
 
             // Capability line — makes a dead emitter obvious instead of silent.
             val statusColor = if (blaster.available) AstrionTheme.good else AstrionTheme.danger
-            Text(blaster.statusLine(), color = statusColor, fontSize = 11.sp)
+            Text(blaster.statusLine(), color = statusColor, fontSize = AstrionTheme.size.caption)
 
             Divider()
 
@@ -204,14 +203,14 @@ fun IrModeOverlay(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF182129))
+                    .background(AstrionTheme.colors.pinnedBottomBg)
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     toast ?: lastKeyLabel ?: "Press a hardware button…",
-                    color = if (toast != null) Color(0xFFFFC24B) else Color(0xFFD9E3E0),
-                    fontSize = 14.sp,
+                    color = if (toast != null) AstrionTheme.colors.accent else AstrionTheme.colors.textOnControl,
+                    fontSize = AstrionTheme.size.body,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -220,7 +219,7 @@ fun IrModeOverlay(
 
             Text(
                 "NETWORK CONTROLS",
-                color = Color(0xFFAEBFBB), fontSize = 11.sp,
+                color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.caption,
                 fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
             )
 
@@ -236,13 +235,13 @@ fun IrModeOverlay(
                                 .weight(1f)
                                 .height(48.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF3A4F57))
+                                .background(AstrionTheme.colors.controlBg)
                                 .tap { press(b) },
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
                                 b["name"] as? String ?: "?",
-                                color = Color(0xFFEEF2EF), fontSize = 13.sp,
+                                color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 textAlign = TextAlign.Center,
@@ -266,7 +265,7 @@ fun IrModeOverlay(
             ) {
                 Text(
                     "Exit IR Mode",
-                    color = AstrionTheme.danger, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                    color = AstrionTheme.danger, fontSize = AstrionTheme.size.bodyLarge, fontWeight = FontWeight.SemiBold,
                 )
             }
         }
@@ -279,7 +278,7 @@ private fun Divider() {
         modifier = Modifier
             .fillMaxWidth()
             .height(1.dp)
-            .background(Color(0x333A4F57)),
+            .background(AstrionTheme.colors.divider),
     )
 }
 

@@ -78,15 +78,15 @@ fun AstrionDesignSystemTheme(
             colorScheme = darkColorScheme(
                 primary = colors.accentStrong,
                 onPrimary = colors.onPrimary,
-                secondary = colors.accentSage,
+                secondary = colors.accent,
                 background = colors.background,
-                onBackground = colors.onBackground,
+                onBackground = colors.onSurface,
                 surface = colors.surface,
                 onSurface = colors.onSurface,
                 surfaceVariant = colors.controlBg,
                 onSurfaceVariant = colors.onSurfaceMuted,
                 surfaceContainer = colors.surfaceVariant,
-                outline = colors.outline,
+                outline = colors.controlBg,
                 error = colors.danger,
             ),
             typography = baseM3Typography.copy(
@@ -114,23 +114,3 @@ fun AstrionDesignSystemTheme(
         }
     }
 }
-
-@Composable
-fun AstrionTheme(
-    colors: AstrionColors = AstrionColors(),
-    typography: AstrionTypography = defaultAstrionTypography(),
-    elevation: AstrionElevation = AstrionElevation(),
-    surfaces: AstrionSurfaces = AstrionSurfaces(),
-    states: AstrionStates = AstrionStates(),
-    content: @Composable () -> Unit,
-) {
-    AstrionDesignSystemTheme(
-        colors = colors,
-        typography = typography,
-        elevation = elevation,
-        surfaces = surfaces,
-        states = states,
-        content = content,
-    )
-}
-

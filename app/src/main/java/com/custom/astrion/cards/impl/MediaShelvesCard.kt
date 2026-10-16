@@ -22,7 +22,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -193,7 +192,7 @@ class MediaShelvesCard : CardRenderer {
         Text(
             text,
             color = AstrionTheme.textPrimary,
-            fontSize = 16.sp,
+            fontSize = AstrionTheme.size.emphasis,
             fontWeight = FontWeight.SemiBold,
         )
     }
@@ -226,7 +225,7 @@ class MediaShelvesCard : CardRenderer {
                     Icon(
                         Icons.Filled.MusicNote,
                         contentDescription = null,
-                        tint = Color(0xFF718583),
+                        tint = AstrionTheme.colors.textMuted,
                         modifier = Modifier.size(26.dp),
                     )
                 }
@@ -236,7 +235,7 @@ class MediaShelvesCard : CardRenderer {
             Text(
                 item.title,
                 color = AstrionTheme.textSecondary,
-                fontSize = 11.sp,
+                fontSize = AstrionTheme.size.caption,
                 lineHeight = 13.sp,
                 minLines = 2,
                 maxLines = 2,

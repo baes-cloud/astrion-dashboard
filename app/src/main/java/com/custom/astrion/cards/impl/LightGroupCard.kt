@@ -15,7 +15,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -86,7 +85,7 @@ class LightGroupCard : CardRenderer {
 
     @Composable
     private fun SectionLabel(text: String) {
-        Text(text, color = Color(0xFFAEBFBB), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+        Text(text, color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
     }
 
     /** Packs entries two-per-row, padding the final odd row so widths stay equal. */
@@ -132,15 +131,15 @@ class LightGroupCard : CardRenderer {
         }
 
         // Uniform accent for every dimmable card — no per-light colour picking.
-        val fillColor = Color(0xFFFFC24B)
-        val iconBg = if (on) Color(0xFFFFC24B) else Color(0xFF3A4F57)
-        val iconTint = if (on) Color(0xFF241A00) else Color(0xFFAEBFBB)
+        val fillColor = AstrionTheme.colors.lightOn
+        val iconBg = if (on) AstrionTheme.colors.lightOn else AstrionTheme.colors.controlBg
+        val iconTint = if (on) AstrionTheme.colors.onLightOn else AstrionTheme.colors.onSurfaceVariant
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF263443))
+                .background(AstrionTheme.colors.surfaceVariant)
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -162,10 +161,10 @@ class LightGroupCard : CardRenderer {
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
-                        name, color = Color(0xFFF2F5F3), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
-                    Text(if (on) "${(dragLevel * 100).roundToInt()}%" else "Off", color = Color(0xFFAEBFBB), fontSize = 12.sp)
+                    Text(if (on) "${(dragLevel * 100).roundToInt()}%" else "Off", color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.label)
                 }
             }
             BoxWithConstraints(
@@ -190,7 +189,7 @@ class LightGroupCard : CardRenderer {
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(17.dp))
-                        .background(Color(0xFF3A4F57)),
+                        .background(AstrionTheme.colors.controlBg),
                 ) {
                     if (on) {
                         Box(
@@ -209,7 +208,7 @@ class LightGroupCard : CardRenderer {
                         .padding(start = thumbX)
                         .size(thumbSize)
                         .clip(CircleShape)
-                        .background(Color(0xFFF2F5F3)),
+                        .background(AstrionTheme.colors.onSurface),
                 )
             }
         }
@@ -230,7 +229,7 @@ class LightGroupCard : CardRenderer {
                 .fillMaxWidth()
                 .height(58.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF263443))
+                .background(AstrionTheme.colors.surfaceVariant)
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -239,20 +238,20 @@ class LightGroupCard : CardRenderer {
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(if (on) Color(0xFFFFC24B) else Color(0xFF3A4F57))
+                    .background(if (on) AstrionTheme.colors.lightOn else AstrionTheme.colors.controlBg)
                     .tap { ctx.client.toggle(entityId) },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Filled.Lightbulb, contentDescription = null,
-                    tint = if (on) Color(0xFF241A00) else Color(0xFFAEBFBB),
+                    tint = if (on) AstrionTheme.colors.onLightOn else AstrionTheme.colors.onSurfaceVariant,
                     modifier = Modifier.size(15.dp),
                 )
             }
             Column(Modifier.weight(1f)) {
-                Text(name, color = Color(0xFFF2F5F3), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(if (on) "On" else "Off", color = Color(0xFFAEBFBB), fontSize = 11.sp)
+                Text(if (on) "On" else "Off", color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.caption)
             }
             // Switch: matches the app's flat-toggle style used elsewhere.
             // Raised from 40×24dp — under 6mm tall at this density.
@@ -268,7 +267,7 @@ class LightGroupCard : CardRenderer {
                         .padding(start = if (on) 23.dp else 3.dp, top = 3.dp)
                         .size(24.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFF2F5F3)),
+                        .background(AstrionTheme.colors.onSurface),
                 )
             }
         }

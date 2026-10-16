@@ -1,5 +1,6 @@
 package com.custom.astrion.cards.impl
 
+import com.custom.astrion.ui.AstrionTheme
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import androidx.compose.foundation.Image
@@ -36,7 +37,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -79,7 +79,7 @@ class VacuumCard : CardRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF243140))
+                .background(AstrionTheme.colors.surface)
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -139,9 +139,9 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
     }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(name, color = Color(0xFFEEF2EF), fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+        Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.emphasis, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f))
-        Text(prettyVacuumLabel(state), color = Color(0xFFA9BAB6), fontSize = 13.sp)
+        Text(prettyVacuumLabel(state), color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.small)
     }
 
     // Map (includes the robot, rooms, path — rendered by the integration).
@@ -152,7 +152,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                 .fillMaxWidth()
                 .height(mapHeight.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF151D25)),
+                .background(AstrionTheme.colors.pinnedTopBg),
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -182,29 +182,29 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF283646))
+                    .background(AstrionTheme.colors.surfaceVariant)
                     .tap { fanExpanded = true }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Cleaning mode", color = Color(0xFFA9BAB6), fontSize = 11.sp)
-                    Text(fanSpeed?.let(::prettyVacuumLabel) ?: "—", color = Color(0xFFEEF2EF), fontSize = 15.sp)
+                    Text("Cleaning mode", color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.caption)
+                    Text(fanSpeed?.let(::prettyVacuumLabel) ?: "—", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.bodyLarge)
                 }
-                Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = Color(0xFFD9E3E0))
+                Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = AstrionTheme.colors.textOnControl)
             }
             DropdownMenu(
                 expanded = fanExpanded,
                 onDismissRequest = { fanExpanded = false },
-                modifier = Modifier.background(Color(0xFF283646)),
+                modifier = Modifier.background(AstrionTheme.colors.surfaceVariant),
             ) {
                 fanList.forEach { f ->
                     DropdownMenuItem(
                         text = {
                             Text(
                                 prettyVacuumLabel(f),
-                                color = if (f == fanSpeed) Color(0xFF8CBDB5) else Color(0xFFEEF2EF),
-                                fontSize = 14.sp,
+                                color = if (f == fanSpeed) AstrionTheme.colors.accent else AstrionTheme.colors.onSurface,
+                                fontSize = AstrionTheme.size.body,
                             )
                         },
                         onClick = {
@@ -234,11 +234,11 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                             .weight(1f)
                             .height(44.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF34454F))
+                            .background(AstrionTheme.colors.raised)
                             .tap(enabled = id != null) { id?.let { cleanSegment(it) } },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(label, color = Color(0xFFEEF2EF), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(label, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.Medium)
                     }
                 }
                 repeat(3 - chunk.size) { Spacer(Modifier.weight(1f)) }
@@ -253,7 +253,7 @@ private fun VacuumCtrlBtn(icon: ImageVector, accent: Boolean = false, onClick: (
         modifier = Modifier
             .size(52.dp)
             .clip(CircleShape)
-            .background(if (accent) Color(0xFF4F726D) else Color(0xFF3A4F57))
+            .background(if (accent) AstrionTheme.colors.accentStrong else AstrionTheme.colors.controlBg)
             .tap(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

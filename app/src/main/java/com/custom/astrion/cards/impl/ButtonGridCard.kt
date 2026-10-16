@@ -95,8 +95,8 @@ class ButtonGridCard : CardRenderer {
             if (title != null) {
                 Text(
                     title,
-                    color = Color(0xFFAEBFBB),
-                    fontSize = 12.sp,
+                    color = AstrionTheme.colors.onSurfaceVariant,
+                    fontSize = AstrionTheme.size.label,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.sp,
                 )
@@ -159,8 +159,8 @@ class ButtonGridCard : CardRenderer {
         val hasIcon = bitmap != null
         val tileColor = parseHexColor(b["color"] as? String)
         val inkColor = parseHexColor(b["text_color"] as? String)
-            ?: tileColor?.let { if (0.2126f * it.red + 0.7152f * it.green + 0.0722f * it.blue > 0.6f) Color(0xFF151B21) else Color.White }
-            ?: Color(0xFFEEF2EF)
+            ?: tileColor?.let { if (0.2126f * it.red + 0.7152f * it.green + 0.0722f * it.blue > 0.6f) AstrionTheme.colors.surfacePrimary else Color.White }
+            ?: AstrionTheme.colors.onSurface
 
         val height = tileHeight ?: if (hasIcon) 68.dp else 48.dp
         val glyph = iconSize ?: 32.dp
@@ -209,7 +209,7 @@ class ButtonGridCard : CardRenderer {
                         name,
                         style = if (labelLines > 1) tightTextStyle(13.sp) else LocalTextStyle.current,
                         color = inkColor,
-                        fontSize = if (hasIcon) (if (labelLines > 1) 11.sp else 12.sp) else if (name.length > 8) 13.sp else 15.sp,
+                        fontSize = if (hasIcon) (if (labelLines > 1) AstrionTheme.size.caption else AstrionTheme.size.label) else if (name.length > 8) AstrionTheme.size.small else AstrionTheme.size.bodyLarge,
                         fontWeight = if (tileColor != null && !hasIcon) FontWeight.Bold else FontWeight.Medium,
                         maxLines = labelLines,
                         overflow = TextOverflow.Ellipsis,

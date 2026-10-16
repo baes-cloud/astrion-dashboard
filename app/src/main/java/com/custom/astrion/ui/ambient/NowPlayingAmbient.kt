@@ -17,7 +17,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
@@ -47,7 +46,7 @@ fun NowPlayingAmbient(
     // Pause dims cover, backdrop and text to ~60% over 600 ms.
     val dim by animateFloatAsState(if (paused) 0.6f else 1f, tween(600), label = "ambientDim")
 
-    Box(modifier.fillMaxSize().background(Color(0xFF070809))) {
+    Box(modifier.fillMaxSize().background(AstrionTheme.colors.void)) {
         Image(
             bitmap = scene.backdrop,
             contentDescription = null,
@@ -77,7 +76,7 @@ fun NowPlayingAmbient(
                     statusLine,
                     color = scene.inkFaint,
                     fontFamily = AstrionTheme.bodyFont,
-                    fontSize = 13.sp,
+                    fontSize = AstrionTheme.size.small,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -87,7 +86,7 @@ fun NowPlayingAmbient(
                     color = scene.ink,
                     fontFamily = AstrionTheme.headingFont,
                     fontWeight = FontWeight.Normal,
-                    fontSize = if (title.length > 36) 26.sp else 32.sp,
+                    fontSize = if (title.length > 36) AstrionTheme.size.displaySm else AstrionTheme.size.displayLg,
                     lineHeight = if (title.length > 36) 30.sp else 36.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -99,7 +98,7 @@ fun NowPlayingAmbient(
                         color = scene.inkDim,
                         fontFamily = AstrionTheme.bodyFont,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 17.sp,
+                        fontSize = AstrionTheme.size.title,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -110,7 +109,7 @@ fun NowPlayingAmbient(
                         album,
                         color = scene.inkFaint,
                         fontFamily = AstrionTheme.bodyFont,
-                        fontSize = 13.sp,
+                        fontSize = AstrionTheme.size.small,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = TextStyle(fontFeatureSettings = "tnum"),

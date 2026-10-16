@@ -107,7 +107,7 @@ fun FanDetailDialog(entityId: String, name: String, config: CardConfig, ctx: Car
             modifier = Modifier
                 .width(300.dp)
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF243140))
+                .background(AstrionTheme.colors.surface)
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -115,16 +115,16 @@ fun FanDetailDialog(entityId: String, name: String, config: CardConfig, ctx: Car
                 Column(Modifier.weight(1f)) {
                     Text(
                         name, color = AstrionTheme.textPrimary, fontFamily = AstrionTheme.headingFont,
-                        fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        fontSize = AstrionTheme.size.headingLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         listOfNotNull(
                             if (level > 0) "Speed $level of $speeds" else "Off",
                             temperature?.let { "${it.roundToInt()}° here" },
                         ).joinToString(" · "),
-                        color = AstrionTheme.textSecondary, fontSize = 13.sp,
+                        color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small,
                     )
-                    if (fault) Text("The fan reports a fault", color = AstrionTheme.danger, fontSize = 12.sp)
+                    if (fault) Text("The fan reports a fault", color = AstrionTheme.danger, fontSize = AstrionTheme.size.label)
                 }
                 Box(
                     modifier = Modifier
@@ -137,7 +137,7 @@ fun FanDetailDialog(entityId: String, name: String, config: CardConfig, ctx: Car
                     Icon(
                         Icons.Filled.PowerSettingsNew,
                         contentDescription = if (on) "Turn $name off" else "Turn $name on",
-                        tint = if (on) Color(0xFF10201D) else AstrionTheme.textOnControl,
+                        tint = if (on) AstrionTheme.colors.accentContainer else AstrionTheme.textOnControl,
                     )
                 }
             }
@@ -240,10 +240,10 @@ private fun Section(title: String, trailing: String? = null, content: @Composabl
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
-                title.uppercase(), color = AstrionTheme.textSecondary, fontSize = 11.sp,
+                title.uppercase(), color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.caption,
                 fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
             )
-            if (trailing != null) Text(trailing, color = AstrionTheme.accent, fontSize = 11.sp)
+            if (trailing != null) Text(trailing, color = AstrionTheme.accent, fontSize = AstrionTheme.size.caption)
         }
         content()
     }
@@ -273,6 +273,6 @@ private fun Chip(
             Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
         }
-        Text(label, color = ink, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(label, color = ink, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }

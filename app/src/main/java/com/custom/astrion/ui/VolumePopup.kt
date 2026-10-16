@@ -47,7 +47,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -163,8 +162,8 @@ fun VolumePopup(
                     .height(54.dp)
                     .shadow(12.dp, RoundedCornerShape(20.dp))
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xF21C2630)) // High-opacity Yacht Race slate ground
-                    .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(20.dp))
+                    .background(AstrionTheme.colors.surfaceCard.copy(alpha = 0.95f)) // High-opacity Yacht Race slate ground
+                    .border(1.dp, AstrionTheme.colors.hairlineStrong, RoundedCornerShape(20.dp))
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -173,7 +172,7 @@ fun VolumePopup(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(if (liveMuted) Color(0x33E50914) else Color(0x1AFFFFFF))
+                        .background(if (liveMuted) AstrionTheme.colors.blush.copy(alpha = 0.2f) else AstrionTheme.colors.hairline)
                         .clickable {
                             hideEpoch = System.currentTimeMillis() + 2200L
                             client.callService(
@@ -193,7 +192,7 @@ fun VolumePopup(
                         effectiveVolume > 0f -> Icons.Filled.VolumeDown
                         else -> Icons.Filled.VolumeMute
                     }
-                    val iconTint = if (liveMuted) Color(0xFFFF6B6B) else AstrionTheme.accent
+                    val iconTint = if (liveMuted) AstrionTheme.colors.blush else AstrionTheme.accent
                     Icon(
                         imageVector = icon,
                         contentDescription = if (liveMuted) "Muted" else "Volume",
@@ -219,15 +218,15 @@ fun VolumePopup(
                             color = AstrionTheme.textPrimary,
                             fontFamily = AstrionTheme.headingFont,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
+                            fontSize = AstrionTheme.size.small,
                             maxLines = 1,
                         )
                         Text(
                             text = if (liveMuted) "MUTED" else "${(animatedVol * 100).roundToInt()}%",
-                            color = if (liveMuted) Color(0xFFFF8B8B) else AstrionTheme.textSecondary,
+                            color = if (liveMuted) AstrionTheme.colors.blush else AstrionTheme.textSecondary,
                             fontFamily = AstrionTheme.bodyFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
+                            fontSize = AstrionTheme.size.label,
                             letterSpacing = if (liveMuted) 0.5.sp else 0.sp,
                         )
                     }
@@ -240,7 +239,7 @@ fun VolumePopup(
                             .fillMaxWidth()
                             .height(6.dp)
                             .clip(RoundedCornerShape(3.dp))
-                            .background(Color(0x2EFFFFFF))
+                            .background(AstrionTheme.colors.hairlineStrong)
                             .pointerInput(targetEntityId) {
                                 detectTapGestures { offset ->
                                     val pct = (offset.x / size.width).coerceIn(0f, 1f)
@@ -294,7 +293,7 @@ fun VolumePopup(
                                 .fillMaxHeight()
                                 .fillMaxWidth(if (liveMuted) 0f else animatedVol.coerceIn(0f, 1f))
                                 .clip(RoundedCornerShape(3.dp))
-                                .background(if (liveMuted) Color(0x66FF8B8B) else AstrionTheme.accent),
+                                .background(if (liveMuted) AstrionTheme.colors.blush.copy(alpha = 0.4f) else AstrionTheme.accent),
                         )
                     }
                 }
