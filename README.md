@@ -27,7 +27,7 @@ The media dashboard features three dedicated tabs tailored for single-touch musi
 
 | Player (Now Playing) | Media (Shelves & Playlists) | Zones (BÆOLINK Multi-Room) |
 |---|---|---|
-| ![Sonos Player](screenshots/sonos-player.png) | ![Sonos Media](screenshots/sonos-media.png) | ![Sonos Zones](screenshots/sonos-group.png) |
+| ![Sonos Player](screenshots/media-page.png) | ![Sonos Media](screenshots/sonos-media.png) | ![Sonos Zones](screenshots/sonos-group.png) |
 
 * **Player:** Full-bleed album art, live progress, tactile haptic transport controls (prev / play / next), volume steppers, and one-touch genre preset shortcuts.
 * **Media:** Live Music Assistant shelves displaying dynamically fetched random album picks, favourite tracks, and playlists with cached artwork.
