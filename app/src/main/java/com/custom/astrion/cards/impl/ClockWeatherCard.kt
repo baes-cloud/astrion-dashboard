@@ -31,6 +31,8 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.LocalDashboardShowing
+import com.custom.astrion.ui.LocalPageVisible
 import com.custom.astrion.ui.weatherLabel
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
@@ -87,18 +89,27 @@ class ClockWeatherCard : CardRenderer {
         val now = LocalMinuteClock.current
         val timePattern = if (is24) "HH:mm" else "h:mm a"
 
-        // Fetch the forecast via the service; refresh every 30 min, or after a
-        // minute if it failed (e.g. HA was still connecting at startup).
-        // Seeded from the last fetch so the card doesn't grow when the page
-        // comes back into view (it used to arrive a moment later and push the
-        // floorplan down).
+        // Fetch the forecast via the service, only while the card can be
+        // seen: on each visit if the last one is over REFRESH_ON_VISIT_MS
+        // old, then every 30 min, or after a minute if it failed (e.g. HA
+        // was still connecting at startup). Seeded from the last fetch so the
+        // card doesn't grow when the page comes back into view (it used to
+        // arrive a moment later and push the floorplan down).
         var forecast by remember { mutableStateOf(lastForecast[entityId] ?: emptyList()) }
-        LaunchedEffect(entityId) {
+        val active = LocalPageVisible.current && LocalDashboardShowing.current
+        LaunchedEffect(entityId, active) {
+            if (!active) return@LaunchedEffect
+            val age = System.currentTimeMillis() - (lastFetchMs[entityId] ?: 0L)
+            if (forecast.isNotEmpty() && age < REFRESH_ON_VISIT_MS) delay(REFRESH_MS - age)
             while (true) {
                 val arr = ctx.client.getForecast(entityId)
                 val parsed = arr?.let { parseForecast(it) }.orEmpty()
-                if (parsed.isNotEmpty()) { forecast = parsed; lastForecast[entityId] = parsed }
-                delay(if (parsed.isNotEmpty()) 30 * 60 * 1000L else 60_000L)
+                if (parsed.isNotEmpty()) {
+                    forecast = parsed
+                    lastForecast[entityId] = parsed
+                    lastFetchMs[entityId] = System.currentTimeMillis()
+                }
+                delay(if (parsed.isNotEmpty()) REFRESH_MS else RETRY_MS)
             }
         }
 
@@ -472,6 +483,12 @@ class ClockWeatherCard : CardRenderer {
     private companion object {
         /** Last forecast per weather entity, kept across page visits. */
         val lastForecast = java.util.concurrent.ConcurrentHashMap<String, List<Forecast>>()
+        /** When each entity's forecast was last fetched. */
+        val lastFetchMs = java.util.concurrent.ConcurrentHashMap<String, Long>()
+        const val REFRESH_MS = 30 * 60 * 1000L
+        const val RETRY_MS = 60_000L
+        /** A visit refetches a forecast older than this. */
+        const val REFRESH_ON_VISIT_MS = 10 * 60 * 1000L
     }
 
     private data class Forecast(
