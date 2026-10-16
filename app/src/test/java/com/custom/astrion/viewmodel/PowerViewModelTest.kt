@@ -3,7 +3,6 @@ package com.custom.astrion.viewmodel
 import android.content.Context
 import android.content.Intent
 import android.os.BatteryManager
-import android.os.SystemClock
 import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
 import com.custom.astrion.config.AppConfig
@@ -16,9 +15,7 @@ import com.custom.astrion.test.MainDispatcherRule
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkStatic
 import io.mockk.slot
-import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -27,7 +24,6 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -50,7 +46,8 @@ class PowerViewModelTest {
     private val connectionFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
     private lateinit var configFlow: MutableStateFlow<DashboardLoader.Result>
 
-    private var currentRealtime = 10_000L
+    /** The VM's clock is the test scheduler's virtual time. */
+    private fun now() = 10_000L + mainDispatcherRule.testDispatcher.scheduler.currentTime
 
     private val baseConfig = AppConfig(
         pages = emptyList(),
@@ -74,9 +71,6 @@ class PowerViewModelTest {
 
     @Before
     fun setUp() {
-        mockkStatic(SystemClock::class)
-        every { SystemClock.elapsedRealtime() } answers { currentRealtime }
-
         configFlow = MutableStateFlow(DashboardLoader.Result(baseConfig, null))
         every { configRepo.configFlow } returns configFlow
         every { configRepo.getCurrentResult() } answers { configFlow.value }
@@ -84,12 +78,7 @@ class PowerViewModelTest {
         every { client.connection } returns connectionFlow
         every { client.snapshot() } returns emptyMap()
 
-        viewModel = PowerViewModel(context, client, motionWake, configRepo)
-    }
-
-    @After
-    fun tearDown() {
-        unmockkStatic(SystemClock::class)
+        viewModel = PowerViewModel(context, client, motionWake, configRepo, clock = ::now)
     }
 
     private fun runVmTest(block: suspend TestScope.() -> Unit) = runTest {
@@ -244,9 +233,8 @@ class PowerViewModelTest {
     fun screensaverTimeoutActivatesScreensaver() = runVmTest {
         assertFalse(viewModel.uiState.value.isScreensaverOn)
 
-        // Advance simulated realtime by 15s (idle_seconds = 10s)
-        currentRealtime += 15_000L
-        advanceTimeBy(1100L)
+        // idle_seconds = 10s
+        advanceTimeBy(10_001L)
         runCurrent()
 
         assertTrue(viewModel.uiState.value.isScreensaverOn)
@@ -271,7 +259,34 @@ class PowerViewModelTest {
 
         assertTrue(viewModel.uiState.value.isScreenOn)
         verify { motionWake.stop() }
-        verify { client.setEntityFilter(null) }
+    }
+
+    @Test
+    fun screenOffNarrowsAfterTheFilterDelayAndScreenOnRestores() = runVmTest {
+        viewModel.onIntent(PowerIntent.ScreenPowerChanged(isScreenOn = false))
+        advanceTimeBy(29_000L)
+        runCurrent()
+        verify(exactly = 0) { client.setEntityFilter(any()) }
+
+        advanceTimeBy(1_100L)
+        runCurrent()
+        verify(exactly = 1) { client.setEntityFilter(match { it != null }) }
+
+        viewModel.onIntent(PowerIntent.ScreenPowerChanged(isScreenOn = true))
+        runCurrent()
+        verify(exactly = 1) { client.setEntityFilter(null) }
+    }
+
+    @Test
+    fun holdScreenKeepsItOnOffTheDockUntilReleased() = runVmTest {
+        assertFalse(viewModel.uiState.value.keepScreenOn)
+        viewModel.onIntent(PowerIntent.HoldScreen(true))
+        assertTrue(viewModel.uiState.value.keepScreenOn)
+        advanceTimeBy(600_000L)
+        runCurrent()
+        assertTrue("an alarm holds the screen with no re-wake loop", viewModel.uiState.value.keepScreenOn)
+        viewModel.onIntent(PowerIntent.HoldScreen(false))
+        assertFalse(viewModel.uiState.value.keepScreenOn)
     }
 
     @Test
@@ -353,8 +368,7 @@ class PowerViewModelTest {
 
     @Test
     fun screenPowerOnPreservesActiveScreensaver() = runVmTest {
-        currentRealtime += 15_000L
-        advanceTimeBy(1100L)
+        advanceTimeBy(10_001L)
         runCurrent()
         assertTrue(viewModel.uiState.value.isScreensaverOn)
 
@@ -385,14 +399,11 @@ class PowerViewModelTest {
     fun dockedScreensaverNeverNarrowsTheSubscription() = runVmTest {
         val charging = mockBatteryIntent(level = 80)
         viewModel.onIntent(PowerIntent.BatteryChanged(charging))
-        advanceTimeBy(2500L)
-        currentRealtime += 15_000L
-        advanceTimeBy(1100L)
+        advanceTimeBy(10_001L)
         runCurrent()
         assertTrue(viewModel.uiState.value.isScreensaverOn)
 
         // Well past screen_off_filter_seconds, screen still on.
-        currentRealtime += 120_000L
         advanceTimeBy(120_000L)
         runCurrent()
         verify(exactly = 0) { client.setEntityFilter(match { it != null }) }

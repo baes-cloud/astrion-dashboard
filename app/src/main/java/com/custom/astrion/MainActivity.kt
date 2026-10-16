@@ -27,6 +27,8 @@ import com.custom.astrion.ui.DashboardScreen
 import com.custom.astrion.ui.SheetHost
 import com.custom.astrion.viewmodel.*
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -121,6 +123,12 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 launch {
+                    // A ringing alarm holds the screen on through the power state machine.
+                    dashboardVm.uiState.map { it.holdsScreen }.distinctUntilChanged().collect { hold ->
+                        powerVm.onIntent(PowerIntent.HoldScreen(hold))
+                    }
+                }
+                launch {
                     powerVm.events.collectLatest { event ->
                         when (event) {
                             PowerEvent.ReturnHome -> {
@@ -169,9 +177,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Turns the screen on once; whether it then stays on is [PowerViewModel]'s keepScreenOn. */
     private fun wakeScreenForAlarm() {
         @Suppress("DEPRECATION")
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+        window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
         val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
         if (pm != null && !pm.isInteractive) {
             @Suppress("DEPRECATION")

@@ -16,7 +16,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class DashboardUiState(
@@ -32,7 +31,16 @@ data class DashboardUiState(
     val hiddenAlertTokens: Set<String> = emptySet(),
     val toastMessage: ToastMessage? = null,
     val voiceState: VoiceState = VoiceState(),
-)
+) {
+    /**
+     * A ringing alarm, or an `alarm`-severity alert, is on screen: the power
+     * state machine keeps the screen on while this holds. A `warning` alert
+     * only wakes the screen; the normal timeout then applies.
+     */
+    val holdsScreen: Boolean
+        get() = (activeAlarm?.ringing == true && !isAlarmHidden) ||
+            activeAlerts.firstOrNull()?.spec?.severity == "alarm"
+}
 
 sealed interface DashboardIntent {
     data class NavigateToPage(val pageIndex: Int) : DashboardIntent
@@ -78,7 +86,6 @@ class DashboardViewModel(
     val effects: Flow<DashboardEffect> = _effects.receiveAsFlow()
 
     private var toastJob: Job? = null
-    private var alarmJob: Job? = null
     private var alertsJob: Job? = null
     @Volatile private var cachedAlertSpecs: List<AlertSpec> = emptyList()
     private var lastAlarmPhase: Int = 0
@@ -190,24 +197,6 @@ class DashboardViewModel(
                 _effects.trySend(DashboardEffect.WakeScreenForAlarm(isRinging = true))
                 _effects.trySend(DashboardEffect.BringActivityToFront)
             }
-        }
-
-        // While an alarm is actively ringing, keep waking the screen every 20s so
-        // the OS screen timeout cannot turn off the display mid-alarm.
-        if (phase == 1) {
-            if (alarmJob?.isActive != true) {
-                alarmJob = viewModelScope.launch {
-                    while (isActive && _uiState.value.activeAlarm?.ringing == true && !_uiState.value.isAlarmHidden) {
-                        delay(20_000L)
-                        if (_uiState.value.activeAlarm?.ringing == true && !_uiState.value.isAlarmHidden) {
-                            _effects.send(DashboardEffect.WakeScreenForAlarm(isRinging = true))
-                        }
-                    }
-                }
-            }
-        } else {
-            alarmJob?.cancel()
-            alarmJob = null
         }
 
         val top = filtered.firstOrNull()

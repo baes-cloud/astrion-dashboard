@@ -15,6 +15,15 @@ the app can't do for itself.
   the timeout, Android slept, and the remote dropped off the network while
   sitting on its dock (the 16 Oct outage). Now a bad dock keeps the screen on
   and tells you about it.
+- **One state machine decides.** Dock, screensaver, keep-on, backlight,
+  motion-wake and the HA filter all come from `power/PowerMachine.kt`, a pure
+  function of the inputs (plug and charge, screen, touches and keys, a
+  ringing alarm, time). Its behaviour is pinned down as a table in
+  `PowerMachineTest`: pogo bounce, bad dock, pick-up, alarm, screen off.
+- **A ringing alarm holds the screen on, nothing else does off the dock.**
+  A ringing alarm (or an alert with `severity: alarm`) keeps the screen on
+  until it stops or is hidden. A `warning` alert wakes the screen once and
+  the normal timeout then applies.
 - **Motion-wake is time-limited.** The accelerometer that wakes the screen
   when you pick the remote up listens for `motion_wake_minutes` after the
   screen goes off, and never on the dock. On the HA100 it is *not* a wake-up

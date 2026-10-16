@@ -13,6 +13,12 @@ import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.power.Battery
 import com.custom.astrion.power.MotionWakeController
+import com.custom.astrion.power.PowerEffect
+import com.custom.astrion.power.PowerInput
+import com.custom.astrion.power.PowerMachine
+import com.custom.astrion.power.PowerOutputs
+import com.custom.astrion.power.PowerSettings
+import com.custom.astrion.power.PowerState
 import com.custom.astrion.ui.AlertSpec
 import com.custom.astrion.ui.screensaverIsNight
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +26,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class PowerUiState(
@@ -44,6 +49,8 @@ sealed interface PowerIntent {
     data class ScreenPowerChanged(val isScreenOn: Boolean) : PowerIntent
     object UserActivity : PowerIntent
     object DismissScreensaver : PowerIntent
+    /** An alarm or alert that must keep the screen on is showing (or no longer). */
+    data class HoldScreen(val hold: Boolean) : PowerIntent
     data class SetSwallowKey(val keyCode: Int) : PowerIntent
     object ClearSwallowKey : PowerIntent
     data class SetSwallowTouch(val swallow: Boolean) : PowerIntent
@@ -56,11 +63,18 @@ sealed interface PowerEvent {
     object WakeScreen : PowerEvent
 }
 
+/**
+ * Runs [PowerMachine] against the real world: feeds it the broadcasts and
+ * the clock, applies its outputs (motion-wake, HA foreground and entity
+ * filter here; keep-on and backlight through [uiState] for MainActivity),
+ * and carries out its effects. All the deciding is in the machine.
+ */
 class PowerViewModel(
     private val context: Context,
     private val client: HaClient,
     private val motionWake: MotionWakeController,
     private val configRepo: AppConfigRepository,
+    private val clock: () -> Long = { SystemClock.elapsedRealtime() },
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PowerUiState())
@@ -69,32 +83,24 @@ class PowerViewModel(
     private val _events = Channel<PowerEvent>(Channel.BUFFERED)
     val events: Flow<PowerEvent> = _events.receiveAsFlow()
 
-    private var lastActivityMs = SystemClock.elapsedRealtime()
-    private var peakPct: Int? = null
-    private var dockConfirmJob: Job? = null
-    private var undockDebounceJob: Job? = null
-    private var screensaverJob: Job? = null
-    private var homeTimeoutJob: Job? = null
-    private var filterJob: Job? = null
+    private val lock = Any()
+    private var machine = PowerState(lastActivityMs = clock())
+    /** What has been applied to motion-wake and HA; null re-applies everything. */
+    private var applied: PowerOutputs? = null
+    private var tickJob: Job? = null
 
     private fun currentConfig(): AppConfig = configRepo.getCurrentResult().config
 
     init {
-        // Enforce screen timeout on launch
         enforceScreenTimeout()
 
-        // Start screensaver loop
-        startScreensaverLoop()
-
-        // Observe config changes to keep screen timeout & brightness in sync
         viewModelScope.launch {
             configRepo.configFlow.collect {
                 enforceScreenTimeout()
-                updateBrightness()
+                dispatch(PowerInput.Tick(clock()))
             }
         }
 
-        // Observe connection state to re-post battery telemetry and trigger time sync on reconnect
         viewModelScope.launch {
             client.connection.collect { conn ->
                 if (conn == ConnectionState.CONNECTED) {
@@ -104,180 +110,94 @@ class PowerViewModel(
             }
         }
 
-        // Arm motion wake initially if screen is off
-        updateMotionWake()
-        updateForegroundState()
+        dispatch(PowerInput.Tick(clock()))
     }
 
-    private fun updateForegroundState() {
-        val state = _uiState.value
-        client.setForeground(state.isScreenOn && !state.isScreensaverOn)
-    }
+    fun markUserActivity() = dispatch(PowerInput.Activity(clock()))
 
-    fun markUserActivity() {
-        lastActivityMs = SystemClock.elapsedRealtime()
-        // If undock was being debounced and the user physically interacted with the remote,
-        // complete undock immediately if still unplugged.
-        if (undockDebounceJob?.isActive == true && !_uiState.value.isPlugged) {
-            undockDebounceJob?.cancel()
-            undockDebounceJob = null
-            updateDocked(false)
-        }
-        val wasScreensaverOn = _uiState.value.isScreensaverOn
-        if (wasScreensaverOn) {
-            _uiState.update { it.copy(isScreensaverOn = false) }
-            updateForegroundState()
-            startScreensaverLoop()
-        }
-        val homeSec = currentConfig().features.power.homeAfterSeconds
-        homeTimeoutJob?.cancel()
-        if (homeSec > 0) {
-            homeTimeoutJob = viewModelScope.launch {
-                delay(homeSec * 1000L)
-                _events.send(PowerEvent.ReturnHome)
+    /** Folds [input] into the machine, then applies what changed. Safe from any thread. */
+    private fun dispatch(input: PowerInput) {
+        val effects = synchronized(lock) {
+            val cfg = PowerSettings.from(currentConfig())
+            val step = PowerMachine.reduce(machine, input, cfg)
+            val s = step.state
+            machine = s
+            val night = s.screensaver && screensaverIsNight(client.snapshot(), System.currentTimeMillis())
+            val out = PowerMachine.outputs(s, cfg, night)
+            _uiState.update {
+                it.copy(
+                    batteryPct = s.pct,
+                    isPlugged = s.plugged,
+                    isCharging = s.charging,
+                    batteryStatus = s.status,
+                    isDocked = s.docked,
+                    isDockFault = s.dockFault,
+                    isDockDraining = s.dockDraining,
+                    isScreensaverOn = s.screensaver,
+                    screenBrightness = out.brightness,
+                    keepScreenOn = out.keepScreenOn,
+                    isScreenOn = s.screenOn,
+                )
             }
+            apply(out)
+            scheduleTick(s, cfg, input.nowMs)
+            step.effects
         }
-        updateBrightness()
-    }
-
-    private fun startScreensaverLoop() {
-        screensaverJob?.cancel()
-        screensaverJob = viewModelScope.launch {
-            while (isActive) {
-                val screensaver = currentConfig().features.screensaver
-                val idleMs = if (_uiState.value.isDocked) screensaver.idleMs else screensaver.undockedIdleMs
-                val elapsedMs = SystemClock.elapsedRealtime() - lastActivityMs
-                if (screensaver.enabled && idleMs > 0 && elapsedMs >= idleMs && !_uiState.value.isScreensaverOn) {
-                    _uiState.update { it.copy(isScreensaverOn = true) }
-                    updateForegroundState()
-                    updateBrightness()
-                } else if (_uiState.value.isScreensaverOn) {
-                    updateBrightness()
-                }
-                delay(if (_uiState.value.isScreensaverOn) 30_000L else 1000L)
+        effects.forEach { effect ->
+            when (effect) {
+                PowerEffect.WakeScreen -> _events.trySend(PowerEvent.WakeScreen)
+                PowerEffect.ReturnHome -> _events.trySend(PowerEvent.ReturnHome)
+                PowerEffect.ReportBattery -> postBatteryTelemetry()
             }
         }
     }
 
-    private fun updateDocked(docked: Boolean) {
-        val changed = _uiState.value.isDocked != docked
-        _uiState.update { it.copy(isDocked = docked) }
-        if (docked) {
-            if (peakPct == null) peakPct = _uiState.value.batteryPct
-        } else {
-            peakPct = null
-        }
-        if (changed) {
-            if (docked) {
-                val screensaver = currentConfig().features.screensaver
-                val elapsedMs = SystemClock.elapsedRealtime() - lastActivityMs
-                if (screensaver.enabled && screensaver.idleMs > 0 && elapsedMs >= screensaver.idleMs && !_uiState.value.isScreensaverOn) {
-                    _uiState.update { it.copy(isScreensaverOn = true) }
-                }
-                if (!_uiState.value.isScreenOn && screensaver.enabled && screensaver.keepScreenOn) {
-                    _events.trySend(PowerEvent.WakeScreen)
-                }
+    private fun apply(out: PowerOutputs) {
+        val prev = applied
+        if (prev?.motionWake != out.motionWake) {
+            if (out.motionWake) {
+                motionWake.setTimeoutMinutes(currentConfig().features.power.motionWakeMinutes)
+                motionWake.start { dispatch(PowerInput.Motion(clock())) }
+            } else {
+                motionWake.stop()
             }
-            updateMotionWake()
-            updateForegroundState()
-            updateBrightness()
-            updateFaults()
-            // HA's docked / dock_fault attributes follow the debounced state.
-            postBatteryTelemetry()
         }
+        if (prev?.foreground != out.foreground) client.setForeground(out.foreground)
+        if (prev != null && prev.narrowed != out.narrowed) {
+            client.setEntityFilter(if (out.narrowed) screenOffEntities() else null)
+        }
+        applied = out
     }
 
-    private fun updateFaults() {
-        val pct = _uiState.value.batteryPct ?: 0
-        val plugged = _uiState.value.isPlugged
-        val status = _uiState.value.batteryStatus
-        val fault = Battery.dockFault(plugged, status, pct, peakPct)
-        val draining = Battery.draining(peakPct, pct)
-        _uiState.update { it.copy(isDockFault = fault, isDockDraining = draining) }
-    }
-
-    private fun updateBrightness() {
-        val screensaver = currentConfig().features.screensaver
-        val screensaverActive = _uiState.value.isScreensaverOn
-        val docked = _uiState.value.isDocked
-        val isNight = screensaverIsNight(client.snapshot(), System.currentTimeMillis())
-        val nightLevel = screensaver.nightBrightness
-        val b = when {
-            !screensaverActive -> -1.0f
-            isNight -> nightLevel
-            !docked -> screensaver.undockedBrightness
-            else -> screensaver.brightness
+    /** One timer, for whenever the machine next changes by itself. */
+    private fun scheduleTick(s: PowerState, cfg: PowerSettings, now: Long) {
+        tickJob?.cancel()
+        val due = PowerMachine.nextDeadline(s, cfg, now) ?: return
+        tickJob = viewModelScope.launch {
+            delay((due - clock()).coerceAtLeast(0L))
+            dispatch(PowerInput.Tick(maxOf(clock(), due)))
         }
-        val clamped = if (b < 0f) -1.0f else b.coerceIn(0.01f, 1.0f)
-        val keepAwake = docked && screensaver.enabled && screensaver.keepScreenOn
-        _uiState.update { it.copy(screenBrightness = clamped, keepScreenOn = keepAwake) }
     }
 
     private fun postBatteryTelemetry() {
-        val entity = currentConfig().features.power.reportEntity
-        val pct = _uiState.value.batteryPct
-        if (!entity.isNullOrBlank() && pct != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val status = Battery.statusName(_uiState.value.batteryStatus)
-                val attrs = mutableMapOf<String, Any?>(
-                    "unit_of_measurement" to "%",
-                    "device_class" to "battery",
-                    "state_class" to "measurement",
-                    "plugged" to _uiState.value.isPlugged,
-                    "charging" to _uiState.value.isCharging,
-                    "status" to status,
-                    "docked" to _uiState.value.isDocked,
-                    "dock_fault" to _uiState.value.isDockFault,
-                )
-                currentConfig().features.power.reportName?.let { attrs["friendly_name"] = it }
-                client.postState(entity, pct.toString(), attrs)
-            }
-        }
-    }
-
-    private fun updateMotionWake() {
-        if (!_uiState.value.isScreenOn && !_uiState.value.isDocked) {
-            motionWake.setTimeoutMinutes(currentConfig().features.power.motionWakeMinutes)
-            motionWake.start {
-                viewModelScope.launch {
-                    _events.send(PowerEvent.WakeScreen)
-                }
-            }
-        } else {
-            motionWake.stop()
-        }
-    }
-
-    private fun onScreenPowerChanged(isOn: Boolean) {
-        _uiState.update { it.copy(isScreenOn = isOn) }
-        updateMotionWake()
-        updateForegroundState()
-        filterJob?.cancel()
-        if (!isOn) {
-            screensaverJob?.cancel()
-            if (!_uiState.value.isDocked && !_uiState.value.isPlugged && _uiState.value.isScreensaverOn) {
-                _uiState.update { it.copy(isScreensaverOn = false) }
-                updateBrightness()
-            }
-            val delaySec = currentConfig().features.power.screenOffFilterSeconds.coerceAtLeast(1)
-            filterJob = viewModelScope.launch {
-                delay(delaySec * 1000L)
-                client.setEntityFilter(screenOffEntities())
-            }
-        } else {
-            val screensaver = currentConfig().features.screensaver
-            val elapsedMs = SystemClock.elapsedRealtime() - lastActivityMs
-            if (_uiState.value.isDocked && screensaver.enabled && screensaver.idleMs > 0 && elapsedMs >= screensaver.idleMs) {
-                _uiState.update { it.copy(isScreensaverOn = true) }
-                updateForegroundState()
-                updateBrightness()
-            } else if (!_uiState.value.isScreensaverOn) {
-                markUserActivity()
-            } else {
-                updateBrightness()
-            }
-            startScreensaverLoop()
-            client.setEntityFilter(null)
+        val power = currentConfig().features.power
+        val entity = power.reportEntity
+        val s = synchronized(lock) { machine }
+        val pct = s.pct
+        if (entity.isNullOrBlank() || pct == null) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val attrs = mutableMapOf<String, Any?>(
+                "unit_of_measurement" to "%",
+                "device_class" to "battery",
+                "state_class" to "measurement",
+                "plugged" to s.plugged,
+                "charging" to s.charging,
+                "status" to Battery.statusName(s.status),
+                "docked" to s.docked,
+                "dock_fault" to s.dockFault,
+            )
+            power.reportName?.let { attrs["friendly_name"] = it }
+            client.postState(entity, pct.toString(), attrs)
         }
     }
 
@@ -318,98 +238,31 @@ class PowerViewModel(
     fun onIntent(intent: PowerIntent) {
         when (intent) {
             is PowerIntent.BatteryChanged -> {
-                val bIntent = intent.intent
-                val level = bIntent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-                val scale = bIntent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-                val pct = if (level >= 0 && scale > 0) (level * 100) / scale else null
-                val plugged = bIntent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
-                val status = bIntent.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN)
-                val charging = status == BatteryManager.BATTERY_STATUS_CHARGING
-
-                if (pct != null && _uiState.value.isDocked) {
-                    val currentPeak = peakPct
-                    if (currentPeak == null || pct > currentPeak) {
-                        peakPct = pct
-                    }
-                }
-
-                val prevPct = _uiState.value.batteryPct
-                val prevPlugged = _uiState.value.isPlugged
-
-                _uiState.update {
-                    it.copy(
-                        batteryPct = pct,
-                        isPlugged = plugged,
-                        isCharging = charging,
-                        batteryStatus = status,
+                val b = intent.intent
+                val level = b.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = b.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                dispatch(
+                    PowerInput.Battery(
+                        pct = if (level >= 0 && scale > 0) (level * 100) / scale else null,
+                        plugged = b.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0,
+                        status = b.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN),
+                        nowMs = clock(),
                     )
-                }
-
-                // Dock / undock debounce. Docked means plugged in: a dock that
-                // isn't charging properly is still a dock (the screen stays on and
-                // shows the fault), and is reported separately as dock_fault.
-                val powerOpts = currentConfig().features.power
-                val dockDebounceSec = powerOpts.dockDebounceSeconds
-                val undockDebounceSec = powerOpts.undockDebounceSeconds
-                if (!plugged) {
-                    dockConfirmJob?.cancel()
-                    dockConfirmJob = null
-                    if (_uiState.value.isDocked) {
-                        if (undockDebounceSec <= 0) {
-                            undockDebounceJob?.cancel()
-                            undockDebounceJob = null
-                            updateDocked(false)
-                        } else if (undockDebounceJob?.isActive != true) {
-                            undockDebounceJob = viewModelScope.launch {
-                                delay(undockDebounceSec * 1000L)
-                                updateDocked(false)
-                            }
-                        }
-                    }
-                } else {
-                    undockDebounceJob?.cancel()
-                    undockDebounceJob = null
-                    if (!_uiState.value.isDocked) {
-                        dockConfirmJob?.cancel()
-                        dockConfirmJob = viewModelScope.launch {
-                            delay(dockDebounceSec * 1000L)
-                            updateDocked(true)
-                        }
-                    }
-                }
-
-                updateFaults()
-
-                if (pct != prevPct || plugged != prevPlugged) {
-                    postBatteryTelemetry()
-                }
+                )
             }
-            is PowerIntent.ScreenPowerChanged -> {
-                onScreenPowerChanged(intent.isScreenOn)
-            }
-            PowerIntent.UserActivity -> {
-                markUserActivity()
-            }
-            PowerIntent.DismissScreensaver -> {
-                markUserActivity()
-            }
-            is PowerIntent.SetSwallowKey -> {
-                _uiState.update { it.copy(swallowKey = intent.keyCode) }
-            }
-            PowerIntent.ClearSwallowKey -> {
-                _uiState.update { it.copy(swallowKey = -1) }
-            }
-            is PowerIntent.SetSwallowTouch -> {
-                _uiState.update { it.copy(swallowTouch = intent.swallow) }
-            }
+            is PowerIntent.ScreenPowerChanged -> dispatch(PowerInput.Screen(intent.isScreenOn, clock()))
+            PowerIntent.UserActivity, PowerIntent.DismissScreensaver -> markUserActivity()
+            is PowerIntent.HoldScreen -> dispatch(PowerInput.Hold(intent.hold, clock()))
+            is PowerIntent.SetSwallowKey -> _uiState.update { it.copy(swallowKey = intent.keyCode) }
+            PowerIntent.ClearSwallowKey -> _uiState.update { it.copy(swallowKey = -1) }
+            is PowerIntent.SetSwallowTouch -> _uiState.update { it.copy(swallowTouch = intent.swallow) }
             PowerIntent.Foreground -> {
                 enforceScreenTimeout()
-                updateMotionWake()
-                updateForegroundState()
+                // Re-apply motion-wake and HA foreground (marking them stale), keeping the filter.
+                synchronized(lock) { applied = applied?.let { it.copy(motionWake = !it.motionWake, foreground = !it.foreground) } }
+                dispatch(PowerInput.Tick(clock()))
             }
-            PowerIntent.Background -> {
-                // Background housekeeping
-            }
+            PowerIntent.Background -> Unit
         }
     }
 }
