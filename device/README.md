@@ -8,7 +8,7 @@ live on the device; they are kept here so the only copy isn't on the hardware.
 | `adbwifi.rc` | `/vendor/etc/init/adbwifi.rc` | Boot hook: sets adbd's TCP port (persisted, so wireless adb is up before boot completes), applies `adbfw.sh` as soon as netd starts and again at boot |
 | `adbfw.sh` | `/vendor/bin/adbfw.sh` | Restricts adbd (5555) to the admin workstation |
 | `adbfw-off.sh` | `/data/local/tmp/adbfw-off.sh` | Reopens adbd to the whole LAN (recovery) |
-| `timesync.rc` | `/vendor/etc/init/timesync.rc` | Init hook: triggers `timesync` on boot (`sys.boot_completed=1`), daemon loop (`timesync_d`), and on property `debug.astrion.timesync=1` |
+| `timesync.rc` | `/vendor/etc/init/timesync.rc` | Init hook: triggers `timesync` on boot (`sys.boot_completed=1`), daemon loop (`timesync_d`), and on property `debug.astrion.timesync=1` (root only: the app can't set it) |
 | `timesync.sh` | `/vendor/bin/timesync.sh` | Real-time clock & hardware RTC synchronizer against Home Assistant with NTP fallback |
 
 ## Why the firewall exists

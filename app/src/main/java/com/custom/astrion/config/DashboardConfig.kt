@@ -35,7 +35,8 @@ object DashboardConfig {
      */
     val screensaverDefaults: Map<String, Any?> = mapOf(
         "enabled" to true,
-        // "docked" = only while on the charger; "always" = whenever idle.
+        // "docked": off the dock, undocked_idle_seconds applies; "always":
+        // idle_seconds applies on and off the dock.
         "trigger" to "docked",
         "idle_seconds" to 45,
         // Backlight while showing, 0–1. Night = sun.sun below the horizon.

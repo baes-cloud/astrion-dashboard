@@ -291,3 +291,17 @@ class PowerMachineRulesTest {
         assertEquals(s, step.state)
     }
 }
+
+class PowerSettingsTest {
+    private fun cfg(trigger: String) = com.custom.astrion.config.AppConfig(
+        pages = emptyList(),
+        options = mapOf("screensaver" to mapOf("trigger" to trigger, "idle_seconds" to 45, "undocked_idle_seconds" to 90)),
+    )
+
+    @Test
+    fun alwaysTriggerUsesTheDockedIdleOffTheDockToo() {
+        assertEquals(45_000L, PowerSettings.from(cfg("always")).idleMs(docked = false))
+        assertEquals(90_000L, PowerSettings.from(cfg("docked")).idleMs(docked = false))
+        assertEquals(45_000L, PowerSettings.from(cfg("docked")).idleMs(docked = true))
+    }
+}

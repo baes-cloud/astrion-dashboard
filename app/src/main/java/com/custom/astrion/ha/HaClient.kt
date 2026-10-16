@@ -33,6 +33,7 @@ import okio.ByteString.Companion.toByteString
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import javax.net.ssl.HostnameVerifier
 
 /**
  * Minimal, dependency-light Home Assistant WebSocket client.
@@ -103,16 +104,19 @@ class HaClient(
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
 
+    /**
+     * Hosts whose TLS certificate is accepted without matching the name: a
+     * LAN server reached by IP whose certificate names something else (Plex
+     * by IP, with its *.plex.direct certificate). From dashboard.json's
+     * `trusted_tls_hosts`; everything else gets the normal check.
+     */
+    @Volatile var trustedTlsHosts: Set<String> = emptySet()
+
     // Separate, sanely-timed client for one-shot HTTP GETs (album art). Both
     // derive from Http.base, so they share its connection pool and threads.
     private val imageHttp = Http.base.newBuilder()
         .callTimeout(10, TimeUnit.SECONDS)
-        .hostnameVerifier { hostname, session ->
-            if (hostname.matches(Regex("""^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.0\.0\.1).*""")) ||
-                hostname.endsWith(".plex.direct")
-            ) true
-            else OkHttpClient().hostnameVerifier.verify(hostname, session)
-        }
+        .hostnameVerifier(trustingVerifier(Http.base.hostnameVerifier) { trustedTlsHosts })
         .build()
 
     @Volatile private var socket: WebSocket? = null
@@ -203,12 +207,7 @@ class HaClient(
      * outside it is a plain lookup. Iterating it takes a [snapshot].
      */
     val live: EntityMap = object : AbstractMap<String, EntityState>() {
-        override fun get(key: String): EntityState? =
-            try {
-                entityState(key).value
-            } catch (_: IllegalStateException) {
-                entityStore[key]
-            }
+        override fun get(key: String): EntityState? = entityState(key).value
         override fun containsKey(key: String): Boolean = get(key) != null
         override val entries: Set<Map.Entry<String, EntityState>>
             get() = snapshot().entries
@@ -328,7 +327,23 @@ class HaClient(
      * composable subscribes that scope to this entity alone.
      */
     fun entityState(entityId: String): State<EntityState?> =
-        entityStates.getOrPut(entityId) { mutableStateOf(entityStore[entityId]) }
+        entityStates[entityId] ?: entityStates.computeIfAbsent(entityId) { newEntityState(it) }
+
+    /**
+     * Made inside a snapshot of its own: Compose then also gives the state a
+     * record that predates every snapshot, so whichever snapshot reads it
+     * first (a composition already under way, a ViewModel on another thread)
+     * can read it, and the read is observed. Made in the global snapshot
+     * instead, a composition that started earlier can't read it at all.
+     */
+    private fun newEntityState(entityId: String): MutableState<EntityState?> {
+        val snap = Snapshot.takeSnapshot()
+        try {
+            return snap.enter { mutableStateOf(entityStore[entityId]) }
+        } finally {
+            snap.dispose()
+        }
+    }
 
     /**
      * Fire a HA service call, e.g. light.toggle on light.kitchen. Offline, it
@@ -983,3 +998,7 @@ class HaClient(
         return "$ws/api/websocket"
     }
 }
+
+/** [default], except that hosts in [trusted] pass without a name match. */
+internal fun trustingVerifier(default: HostnameVerifier, trusted: () -> Set<String>) =
+    HostnameVerifier { hostname, session -> hostname in trusted() || default.verify(hostname, session) }

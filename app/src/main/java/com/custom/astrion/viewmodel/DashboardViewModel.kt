@@ -103,6 +103,8 @@ class DashboardViewModel(
                     s.unlessEntity?.let { watched += it }
                 }
                 client.alertWatchIds = watched
+                client.trustedTlsHosts = (res.config.options["trusted_tls_hosts"] as? List<*>)
+                    ?.filterIsInstance<String>()?.toSet().orEmpty()
                 _uiState.update { current ->
                     current.copy(
                         config = res.config,

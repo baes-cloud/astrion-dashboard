@@ -225,7 +225,7 @@ data class PowerSettings(
                 undockDebounceMs = power.undockDebounceSeconds.coerceAtLeast(0) * 1000L,
                 screensaverEnabled = ss.enabled,
                 dockedIdleMs = ss.idleMs,
-                undockedIdleMs = ss.undockedIdleMs,
+                undockedIdleMs = if (ss.alwaysTrigger) ss.idleMs else ss.undockedIdleMs,
                 keepScreenOnDocked = ss.keepScreenOn,
                 brightness = ss.brightness,
                 nightBrightness = ss.nightBrightness,

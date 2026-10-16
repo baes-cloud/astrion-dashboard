@@ -37,7 +37,11 @@ private fun Map<String, Any?>.strings(key: String): List<String> =
 
 class ScreensaverOptions(val raw: Map<String, Any?>) {
     val enabled = raw.bool("enabled") ?: true
-    /** `"always"`: the docked idle time applies off the dock as well. */
+    /**
+     * `"always"`: off the dock the screensaver comes up after the docked
+     * `idle_seconds` too. `"docked"` (default): off the dock it waits
+     * `undocked_idle_seconds` instead.
+     */
     val alwaysTrigger = raw["trigger"] == "always"
     val idleMs = (raw.long("idle_seconds") ?: 45L) * 1000
     /** -1 when there is no screensaver off the dock. */
@@ -63,7 +67,7 @@ class ScreensaverOptions(val raw: Map<String, Any?>) {
          * up a dim screensaver, until the system timeout turns the screen
          * off. -1 = no screensaver off the dock.
          */
-        const val UNDOCKED_IDLE_S = 30
+        const val UNDOCKED_IDLE_S = 90
 
         /** `undocked_brightness` default: dimmer than docked, it's on battery. */
         const val UNDOCKED_BRIGHTNESS = 0.08f

@@ -103,10 +103,10 @@ class PowerViewModel(
 
         viewModelScope.launch {
             client.connection.collect { conn ->
-                if (conn == ConnectionState.CONNECTED) {
-                    postBatteryTelemetry()
-                    triggerTimeSync()
-                }
+                // The clock is synced by the timesync daemon on the remote
+                // (device/timesync.rc), not from here: an app can't set the
+                // debug.* property that would trigger it.
+                if (conn == ConnectionState.CONNECTED) postBatteryTelemetry()
             }
         }
 
@@ -198,14 +198,6 @@ class PowerViewModel(
             )
             power.reportName?.let { attrs["friendly_name"] = it }
             client.postState(entity, pct.toString(), attrs)
-        }
-    }
-
-    private fun triggerTimeSync() {
-        viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
-                Runtime.getRuntime().exec(arrayOf("setprop", "debug.astrion.timesync", "1")).waitFor()
-            }
         }
     }
 
