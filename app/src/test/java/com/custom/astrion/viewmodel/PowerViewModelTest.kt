@@ -408,4 +408,21 @@ class PowerViewModelTest {
         runCurrent()
         verify(exactly = 0) { client.setEntityFilter(match { it != null }) }
     }
+
+    @Test
+    fun startsWithTheScreenOffWhenItIsOff() {
+        val pm = mockk<android.os.PowerManager>()
+        every { pm.isInteractive } returns false
+        val ctx = mockk<Context>(relaxed = true)
+        every { ctx.getSystemService(Context.POWER_SERVICE) } returns pm
+        val vm = PowerViewModel(ctx, client, motionWake, configRepo, clock = ::now)
+        assertFalse(vm.uiState.value.isScreenOn)
+        verify { motionWake.start(any()) }
+        vm.viewModelScope.cancel()
+    }
+
+    @Test
+    fun watchesTheSystemScreenTimeout() {
+        verify { context.contentResolver.registerContentObserver(any(), false, any()) }
+    }
 }

@@ -2,7 +2,9 @@ package com.custom.astrion.viewmodel
 
 import android.content.Context
 import android.content.Intent
+import android.database.ContentObserver
 import android.os.BatteryManager
+import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
 import androidx.lifecycle.ViewModel
@@ -86,14 +88,32 @@ class PowerViewModel(
     val events: Flow<PowerEvent> = _events.receiveAsFlow()
 
     private val lock = Any()
-    private var machine = PowerState(lastActivityMs = clock())
+    // The screen may already be off (the app restarted in the background).
+    private var machine = PowerState(
+        lastActivityMs = clock(),
+        screenOn = (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true,
+    )
     /** What has been applied to motion-wake and HA; null re-applies everything. */
     private var applied: PowerOutputs? = null
     private var tickJob: Job? = null
 
     private fun currentConfig(): AppConfig = configRepo.getCurrentResult().config
 
+    /**
+     * Puts the timeout back whenever something else changes it: the stock
+     * HaRemote app writes "never", which kept an undocked remote lit until
+     * it ran flat.
+     */
+    private val timeoutObserver = object : ContentObserver(null) {
+        override fun onChange(selfChange: Boolean) = enforceScreenTimeout()
+    }
+
     init {
+        runCatching {
+            context.contentResolver.registerContentObserver(
+                Settings.System.getUriFor(Settings.System.SCREEN_OFF_TIMEOUT), false, timeoutObserver,
+            )
+        }
         enforceScreenTimeout()
 
         viewModelScope.launch {
@@ -216,18 +236,28 @@ class PowerViewModel(
         return ids
     }
 
+    /**
+     * Holds the system timeout at `power.screen_timeout_seconds` (-1: never,
+     * 0: leave it alone). Needs WRITE_SETTINGS, granted once over adb.
+     */
     private fun enforceScreenTimeout() {
         val seconds = currentConfig().features.power.screenTimeoutSeconds
-        if (seconds <= 0) return
+        if (seconds == 0 || seconds < -1) return
         val current = runCatching {
             Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT)
         }.getOrNull() ?: return
-        val target = seconds * 1000
+        val target = if (seconds == -1) Int.MAX_VALUE else seconds * 1000
         if (current != target && Settings.System.canWrite(context)) {
             runCatching {
                 Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, target)
             }
         }
+    }
+
+    override fun onCleared() {
+        runCatching { context.contentResolver.unregisterContentObserver(timeoutObserver) }
+        motionWake.stop()
+        super.onCleared()
     }
 
     fun onIntent(intent: PowerIntent) {
