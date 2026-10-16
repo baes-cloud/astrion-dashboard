@@ -25,8 +25,9 @@ class DeviceOverridesTest {
         val merged = DashboardLoader.withDeviceOverrides(shared, File("../device/config/device-113.json").readText())
         assertEquals("sensor.club_remote_113_battery", merged.features.power.reportEntity)
         assertEquals("Club remote 113", merged.features.power.reportName)
-        assertEquals(shared.features.power.screenTimeoutSeconds, merged.features.power.screenTimeoutSeconds)
+        // Keys device.json doesn't name keep dashboard.json's values.
         assertEquals(shared.features.power.undockDebounceSeconds, merged.features.power.undockDebounceSeconds)
+        assertEquals(shared.features.power.dockDebounceSeconds, merged.features.power.dockDebounceSeconds)
         assertEquals(shared.pages.size, merged.pages.size)
     }
 
