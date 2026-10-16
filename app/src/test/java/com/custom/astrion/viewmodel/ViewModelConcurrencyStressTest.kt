@@ -128,6 +128,7 @@ class ViewModelConcurrencyStressTest {
         every { client.outcomes } returns outcomesFlow
         every { client.entities } returns entitiesFlow
         every { client.snapshot() } returns emptyMap()
+        every { client.current } returns emptyMap()
         every { voice.state } returns voiceFlow
         every { configRepo.configFlow } returns configFlow
         every { configRepo.getCurrentResult() } returns DashboardLoader.Result(testConfig, null)
@@ -199,6 +200,7 @@ class ViewModelConcurrencyStressTest {
         every { client.outcomes } returns outcomesFlow
         every { client.entities } returns entitiesFlow
         every { client.snapshot() } answers { entitiesFlow.value }
+        every { client.current } answers { entitiesFlow.value }
         every { voice.state } returns MutableStateFlow(VoiceState())
         every { configRepo.configFlow } returns configFlow
         every { configRepo.getCurrentResult() } returns DashboardLoader.Result(testConfig, null)
@@ -278,6 +280,7 @@ class ViewModelConcurrencyStressTest {
         every { configRepo.getCurrentResult() } returns DashboardLoader.Result(baseConfig, null)
         every { client.connection } returns MutableStateFlow(ConnectionState.CONNECTED)
         every { client.snapshot() } returns emptyMap()
+        every { client.current } returns emptyMap()
 
         val vm = PowerViewModel(context, client, motionWake, configRepo)
 
@@ -343,6 +346,7 @@ class ViewModelConcurrencyStressTest {
         every { configRepo.getCurrentResult() } returns DashboardLoader.Result(baseConfig, null)
         every { client.connection } returns connectionFlow
         every { client.snapshot() } returns emptyMap()
+        every { client.current } returns emptyMap()
 
         val vm = PowerViewModel(context, client, motionWake, configRepo)
 
@@ -528,6 +532,7 @@ class ViewModelConcurrencyStressTest {
         every { client.outcomes } returns MutableSharedFlow()
         every { client.entities } returns MutableStateFlow(emptyMap())
         every { client.snapshot() } returns emptyMap()
+        every { client.current } returns emptyMap()
         every { voice.state } returns MutableStateFlow(VoiceState())
 
         val instances = 30

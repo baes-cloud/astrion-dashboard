@@ -77,6 +77,7 @@ class PowerViewModelTest {
 
         every { client.connection } returns connectionFlow
         every { client.snapshot() } returns emptyMap()
+        every { client.current } returns emptyMap()
 
         viewModel = PowerViewModel(context, client, motionWake, configRepo, clock = ::now)
     }

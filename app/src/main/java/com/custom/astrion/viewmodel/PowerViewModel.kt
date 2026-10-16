@@ -144,7 +144,7 @@ class PowerViewModel(
             val step = PowerMachine.reduce(machine, input, cfg)
             val s = step.state
             machine = s
-            val night = s.screensaver && screensaverIsNight(client.snapshot(), System.currentTimeMillis())
+            val night = s.screensaver && screensaverIsNight(client.current, System.currentTimeMillis())
             val out = PowerMachine.outputs(s, cfg, night)
             _uiState.update {
                 it.copy(

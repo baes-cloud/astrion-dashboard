@@ -227,7 +227,7 @@ class DashboardViewModel(
 
     private fun updateAlertsAndAlarms() {
         val now = System.currentTimeMillis()
-        val live = client.snapshot()
+        val live = client.current
         val alarmState = alarmUiState(uiState.value.config.features.alarm, live)
         val phase = alarmState?.let { if (it.ringing) 1 else 2 } ?: 0
 

@@ -202,6 +202,14 @@ class HaClient(
     }
 
     /**
+     * The working store as a read-only map: a lookup with no copy and no
+     * Compose observation. For code outside composition that reads a few
+     * known entities (sun.sun, the alarm's) and would otherwise pay for a
+     * whole [snapshot] each time.
+     */
+    val current: EntityMap get() = entityStore
+
+    /**
      * Live entities as a map. `live[id]` reads [entityState], so inside
      * Compose (or a `snapshotFlow`) it subscribes to that one entity only;
      * outside it is a plain lookup. Iterating it takes a [snapshot].
