@@ -68,6 +68,15 @@ adb -s <ip>:5555 shell appops set com.custom.astrion WRITE_SETTINGS allow   # le
 ```
 
 `config/dashboard.json` is a sanitised copy of the live config: the Plex host
-and calendar entity are placeholders. On the remotes, each one's
-`power.report_entity` names its own battery sensor (for example
-`sensor.club_remote_113_battery`), so HA can tell the remotes apart.
+and calendar entity are placeholders. It names no remote, so the same file can
+go to both. Each remote's identity (`power.report_entity` / `report_name`, so
+HA can tell the remotes apart) is in its own `config/device-<last octet>.json`,
+pushed as `/sdcard/astrion/device.json`:
+
+```sh
+adb -s 10.0.0.113:5555 push config/dashboard.json  /sdcard/astrion/dashboard.json
+adb -s 10.0.0.113:5555 push config/device-113.json /sdcard/astrion/device.json
+```
+
+The app picks both up within a second (it watches the folder). See
+`docs/POWER.md`, "Per-remote settings".

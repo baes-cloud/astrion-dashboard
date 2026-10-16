@@ -363,4 +363,38 @@ class PowerViewModelTest {
         runCurrent()
         assertTrue("Active screensaver must not be dismissed by ACTION_SCREEN_ON alone", viewModel.uiState.value.isScreensaverOn)
     }
+
+    @Test
+    fun badDockStillCountsAsDockedAndReportsFault() = runVmTest {
+        // Plugged in, but the pins barely touch: NOT_CHARGING at 60%.
+        val badDock = mockBatteryIntent(level = 60, status = BatteryManager.BATTERY_STATUS_NOT_CHARGING)
+        viewModel.onIntent(PowerIntent.BatteryChanged(badDock))
+        advanceTimeBy(2500L)
+        runCurrent()
+
+        val state = viewModel.uiState.value
+        assertTrue("plugged in is docked, charging or not", state.isDocked)
+        assertTrue(state.isDockFault)
+        assertTrue("a docked remote keeps its screen on", state.keepScreenOn)
+        coVerify(timeout = 2000L) {
+            client.postState("sensor.astrion_battery", "60", match { it["docked"] == true && it["dock_fault"] == true })
+        }
+    }
+
+    @Test
+    fun dockedScreensaverNeverNarrowsTheSubscription() = runVmTest {
+        val charging = mockBatteryIntent(level = 80)
+        viewModel.onIntent(PowerIntent.BatteryChanged(charging))
+        advanceTimeBy(2500L)
+        currentRealtime += 15_000L
+        advanceTimeBy(1100L)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isScreensaverOn)
+
+        // Well past screen_off_filter_seconds, screen still on.
+        currentRealtime += 120_000L
+        advanceTimeBy(120_000L)
+        runCurrent()
+        verify(exactly = 0) { client.setEntityFilter(match { it != null }) }
+    }
 }

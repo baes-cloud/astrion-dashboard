@@ -1,0 +1,6 @@
+{
+ "power": {
+  "report_entity": "sensor.club_remote_113_battery",
+  "report_name": "Club remote 113"
+ }
+}
