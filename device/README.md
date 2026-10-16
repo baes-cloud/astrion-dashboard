@@ -8,7 +8,7 @@ live on the device; they are kept here so the only copy isn't on the hardware.
 | `adbwifi.rc` | `/vendor/etc/init/adbwifi.rc` | Boot hook: sets adbd's TCP port (persisted, so wireless adb is up before boot completes), applies `adbfw.sh` as soon as netd starts and again at boot |
 | `adbfw.sh` | `/vendor/bin/adbfw.sh` | Restricts adbd (5555) to the admin workstation |
 | `adbfw-off.sh` | `/data/local/tmp/adbfw-off.sh` | Reopens adbd to the whole LAN (recovery) |
-| `timesync.rc` | `/vendor/etc/init/timesync.rc` | Init hook: triggers `timesync` on boot (`sys.boot_completed=1`), daemon loop (`timesync_d`), and on property `debug.astrion.timesync=1` |
+| `timesync.rc` | `/vendor/etc/init/timesync.rc` | Init hook: triggers `timesync` on boot (`sys.boot_completed=1`), daemon loop (`timesync_d`), and on property `debug.astrion.timesync=1` (root only: the app can't set it) |
 | `timesync.sh` | `/vendor/bin/timesync.sh` | Real-time clock & hardware RTC synchronizer against Home Assistant with NTP fallback |
 
 ## Why the firewall exists
@@ -26,15 +26,38 @@ everyone out of a device that can then only be recovered over USB.
 The design fails **open**: if the script can't run, adb is reachable exactly as
 it was before, rather than the device becoming unreachable.
 
-## Installing
+## Installing and checking
+
+`files.txt` lists every file above with where it goes and its mode. Two
+scripts work from it, so what's on a remote always comes from the repo:
 
 ```sh
-adb -s <ip>:5555 shell mount -o rw,remount /vendor
-adb -s <ip>:5555 push adbfw.sh   /vendor/bin/adbfw.sh
-adb -s <ip>:5555 push adbwifi.rc /vendor/etc/init/adbwifi.rc
-adb -s <ip>:5555 shell 'chmod 755 /vendor/bin/adbfw.sh; mount -o ro,remount /vendor'
-adb -s <ip>:5555 shell /vendor/bin/adbfw.sh
+device/install.sh -n 10.0.0.113        # dry run: print every adb command
+device/install.sh 10.0.0.113           # push files.txt, re-apply the firewall, push device-113.json
+device/install.sh --apk app/build/outputs/apk/release/app-release.apk --layout 10.0.0.113
+device/status.sh 10.0.0.113            # read-only
 ```
+
+The repo's `adbfw.sh` and `config/dashboard.json` are sanitised templates.
+The real ones (the admin allow-list, the Plex host, the calendar) live in
+`device/local/`, which is gitignored; both scripts use a file there in place
+of the template, and `install.sh` refuses to push a template that still has
+its placeholders. See `local/README.md`.
+
+`install.sh` needs a root adb shell (the userdebug build gives one), remounts
+`/vendor` read-write only while it copies, and leaves it read-only again. The
+`.rc` files take effect on the next reboot. `--apk` also AOT-compiles the app,
+grants it `WRITE_SETTINGS` and whitelists it from Doze; `--layout` pushes the
+shared `config/dashboard.json`.
+
+`status.sh` changes nothing. It prints each file on the remote as `ok`,
+`DIFFERS` (with the diff against the repo) or `MISSING`, then the kernel
+wakelocks (`/sys/power/wake_lock`), the screen timeout, whether the app is on
+the Doze whitelist, and which `report_entity` each config file names.
+
+Nothing here, and nothing in the app, releases the kernel's `suspend_blocker`
+wakelock. If `status.sh` shows it missing from `/sys/power/wake_lock`, it was
+released by hand; reboot the remote to get it back.
 
 ## Why wireless adb comes up early
 
@@ -68,6 +91,20 @@ adb -s <ip>:5555 shell appops set com.custom.astrion WRITE_SETTINGS allow   # le
 ```
 
 `config/dashboard.json` is a sanitised copy of the live config: the Plex host
-and calendar entity are placeholders. On the remotes, each one's
-`power.report_entity` names its own battery sensor (for example
-`sensor.club_remote_113_battery`), so HA can tell the remotes apart.
+and calendar entity are placeholders. It names no remote, so the same file can
+go to both. Each remote's identity (`power.report_entity` / `report_name`, so
+HA can tell the remotes apart) is in its own `config/device-<last octet>.json`,
+pushed as `/sdcard/astrion/device.json`:
+
+```sh
+adb -s 10.0.0.113:5555 push config/dashboard.json  /sdcard/astrion/dashboard.json
+adb -s 10.0.0.113:5555 push config/device-113.json /sdcard/astrion/device.json
+```
+
+The app picks both up within a second (it watches the folder). See
+`docs/POWER.md`, "Per-remote settings".
+
+Both device files also set `screen_timeout_seconds: -1` (never time out)
+for the first deployment of the new dock handling, so a remote that
+misjudges its dock stays reachable. Remove it once the remotes have proved
+themselves; the shared 120 s then applies off the dock.

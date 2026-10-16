@@ -28,7 +28,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.ui.InWindowDialog
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.HaClient
@@ -74,7 +73,7 @@ fun LightDetailDialog(
     val fillColor = if (rgb != null && rgb.size >= 3) {
         fun ch(i: Int) = (rgb[i] as? JsonPrimitive)?.content?.toIntOrNull()?.coerceIn(0, 255) ?: 255
         Color(ch(0), ch(1), ch(2))
-    } else Color(0xFFFFD9A0)
+    } else AstrionTheme.colors.lightWarmWhite
 
     fun commit(fraction: Float) {
         val pct = (fraction.coerceIn(0f, 1f) * 100).roundToInt()
@@ -102,18 +101,18 @@ fun LightDetailDialog(
         Column(
             modifier = Modifier
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF243140))
+                .background(AstrionTheme.colors.surface)
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
                 "${(dragLevel * 100).roundToInt()}%",
-                color = Color(0xFFEEF2EF),
-                fontFamily = AstrionTheme.headingFont, fontSize = 26.sp,
+                color = AstrionTheme.colors.onSurface,
+                fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.displaySm,
                 fontWeight = FontWeight.Bold,
             )
-            Text(name, color = Color(0xFFA9BAB6), fontSize = 13.sp)
+            Text(name, color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.small)
 
             // Vertical brightness pill: drag or tap to set; fill rises from the bottom.
             Box(
@@ -121,7 +120,7 @@ fun LightDetailDialog(
                     .width(120.dp)
                     .height(230.dp)
                     .clip(RoundedCornerShape(30.dp))
-                    .background(Color(0xFF1C2630))
+                    .background(AstrionTheme.colors.surfaceCard)
                     .pointerInput(entityId) {
                         detectVerticalDragGestures(
                             onDragEnd = { commit(dragLevel) },
@@ -151,14 +150,14 @@ fun LightDetailDialog(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(if (on) Color(0xFFFFC24B) else Color(0xFF3A4F57))
+                    .background(if (on) AstrionTheme.colors.lightOn else AstrionTheme.colors.controlBg)
                     .tap { client.toggle(entityId) },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Filled.PowerSettingsNew,
                     contentDescription = "Toggle",
-                    tint = if (on) Color(0xFF241A00) else Color(0xFFD9E3E0),
+                    tint = if (on) AstrionTheme.colors.onLightOn else AstrionTheme.colors.textOnControl,
                 )
             }
 
@@ -199,11 +198,11 @@ fun LightDetailDialog(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF2C3B45))
+                                .background(AstrionTheme.colors.controlSunken)
                                 .tap { setKelvin(k) }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                         ) {
-                            Text(label, color = Color(0xFFD9E3E0), fontSize = 12.sp)
+                            Text(label, color = AstrionTheme.colors.textOnControl, fontSize = AstrionTheme.size.label)
                         }
                     }
                 }

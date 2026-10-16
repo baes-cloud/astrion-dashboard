@@ -154,8 +154,11 @@ class MotionWake(
     companion object {
         /** Accel magnitude delta (m/s²) that counts as "moved". */
         const val MOTION_THRESHOLD = 0.9f
-        const val DEFAULT_LISTEN_WINDOW_MS = 1_500L
-        const val DEFAULT_SLEEP_WINDOW_MS = 1_500L
+        // 1 s listening in every 5. The accelerometer isn't a wake-up sensor
+        // on the HA100 (docs/POWER.md), so a longer window can't catch more
+        // pick-ups while the SoC sleeps; it only costs more while awake.
+        const val DEFAULT_LISTEN_WINDOW_MS = 1_000L
+        const val DEFAULT_SLEEP_WINDOW_MS = 4_000L
 
         fun calculateMagnitude(x: Float, y: Float, z: Float): Float =
             sqrt(x * x + y * y + z * z)

@@ -1,5 +1,7 @@
 package com.custom.astrion.cards.impl
 
+import com.custom.astrion.ui.HitTarget
+import com.custom.astrion.ui.AstrionTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,11 +24,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.ui.InWindowDialog
 import com.custom.astrion.ha.HaClient
 import kotlinx.serialization.json.JsonArray
@@ -78,7 +78,7 @@ fun MediaBrowser(entityId: String, client: HaClient, onClose: () -> Unit) {
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f)
                 .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF243140))
+                .background(AstrionTheme.colors.surface)
                 .padding(12.dp),
         ) {
             // Header: back (when nested), title, close.
@@ -89,8 +89,8 @@ fun MediaBrowser(entityId: String, client: HaClient, onClose: () -> Unit) {
                 }
                 Text(
                     title,
-                    color = Color(0xFFEEF2EF),
-                    fontSize = 17.sp,
+                    color = AstrionTheme.colors.onSurface,
+                    fontSize = AstrionTheme.size.title,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -102,13 +102,13 @@ fun MediaBrowser(entityId: String, client: HaClient, onClose: () -> Unit) {
 
             when {
                 items == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFF8CBDB5))
+                    CircularProgressIndicator(color = AstrionTheme.colors.accent)
                 }
                 error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(error!!, color = Color(0xFFE0A0A0), fontSize = 14.sp)
+                    Text(error!!, color = AstrionTheme.colors.danger, fontSize = AstrionTheme.size.body)
                 }
                 items!!.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Nothing here", color = Color(0xFFA9BAB6), fontSize = 14.sp)
+                    Text("Nothing here", color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.body)
                 }
                 else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     items(items!!) { item ->
@@ -140,29 +140,24 @@ private fun MediaRow(item: MediaItem, onClick: () -> Unit) {
     ) {
         Text(
             item.title,
-            color = Color(0xFFEEF2EF),
-            fontSize = 15.sp,
+            color = AstrionTheme.colors.onSurface,
+            fontSize = AstrionTheme.size.bodyLarge,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
         if (item.canExpand) {
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color(0xFFA9BAB6))
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = AstrionTheme.colors.onSurfaceMuted)
         } else if (item.canPlay) {
-            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color(0xFF8CBDB5))
+            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = AstrionTheme.colors.accent)
         }
     }
 }
 
 @Composable
 private fun IconBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .tap(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, contentDescription = null, tint = Color(0xFFD9E3E0))
+    HitTarget(visual = 40.dp, onClick = onClick) {
+        Icon(icon, contentDescription = null, tint = AstrionTheme.colors.textOnControl)
     }
 }
 

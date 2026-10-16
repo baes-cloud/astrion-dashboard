@@ -1,5 +1,6 @@
 package com.custom.astrion.ha
 
+import androidx.compose.runtime.snapshots.Snapshot
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -22,6 +23,30 @@ class HaClientEntitiesTest {
                               "c": "01DEF", "lc": 1727600000.0, "lu": 1727600060.0}
             }}
         """))
+    }
+
+    /**
+     * A card's first read of an entity can come while another snapshot is
+     * open (composition on the UI thread, a ViewModel off it). The state
+     * must be readable there and the read observed, or that card never
+     * updates for the entity.
+     */
+    @Test fun entityStateCreatedWhileASnapshotIsOpenIsReadAndObserved() {
+        val c = client()
+        val reads = mutableListOf<Any>()
+        val snap = Snapshot.takeSnapshot(readObserver = { reads += it })
+        try {
+            c.entityState("light.kitchen")
+            val seen = snap.enter { c.live["light.kitchen"] }
+            assertEquals("off", seen?.state)
+            assertTrue("the read is observed", reads.isNotEmpty())
+            // And one first created inside it.
+            val inside = snap.enter { c.live["sensor.temp"] }
+            assertEquals("21.5", inside?.state)
+        } finally {
+            snap.dispose()
+        }
+        assertEquals("21.5", c.live["sensor.temp"]?.state)
     }
 
     @Test fun seedGivesFullStates() {

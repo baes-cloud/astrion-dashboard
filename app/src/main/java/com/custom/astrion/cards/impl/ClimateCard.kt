@@ -22,7 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.custom.astrion.ui.HitTarget
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -143,19 +143,17 @@ class ClimateCard : CardRenderer {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(name, color = Color(0xFFEEF2EF), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(if (isOff) AstrionTheme.dangerBg else AstrionTheme.controlBg)
-                        .tap(enabled = live) { turnOff() },
-                    contentAlignment = Alignment.Center,
+                Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.SemiBold)
+                HitTarget(
+                    visual = 36.dp,
+                    onClick = { turnOff() },
+                    enabled = live,
+                    face = Modifier.clip(CircleShape).background(if (isOff) AstrionTheme.dangerBg else AstrionTheme.controlBg),
                 ) {
                     Icon(
                         Icons.Filled.PowerSettingsNew,
                         contentDescription = "Off",
-                        tint = if (isOff) Color(0xFFE06767) else Color(0xFFD9E3E0),
+                        tint = if (isOff) AstrionTheme.colors.dangerSoft else AstrionTheme.colors.textOnControl,
                     )
                 }
             }
@@ -176,19 +174,19 @@ class ClimateCard : CardRenderer {
                         color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
                         // Syne's bold cut is very wide and odd in numerals;
                         // the lighter cut matches the weather temperature.
-                        fontFamily = AstrionTheme.headingFont, fontSize = 40.sp,
+                        fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.readout,
                         fontWeight = FontWeight.Light,
                     )
                     // The steppers silently no-op when there is no target, so
                     // an unreachable aircon used to look like a working one
                     // showing a dash. Say so instead.
                     if (unavailable) {
-                        UnavailableLabel(13.sp)
+                        UnavailableLabel(AstrionTheme.size.small)
                     } else {
                         Text(
                             current?.let { "Now ${trim(it)}°" } ?: "",
                             color = AstrionTheme.textSecondary,
-                            fontSize = 13.sp,
+                            fontSize = AstrionTheme.size.small,
                         )
                     }
                 }
@@ -279,7 +277,7 @@ class ClimateCard : CardRenderer {
             Text(
                 label,
                 color = if (selected) Color.White else AstrionTheme.textSecondary,
-                fontSize = 13.sp,
+                fontSize = AstrionTheme.size.small,
                 fontWeight = FontWeight.Medium,
             )
         }

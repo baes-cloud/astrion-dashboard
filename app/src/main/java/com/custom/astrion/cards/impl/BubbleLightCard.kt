@@ -22,7 +22,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -57,7 +56,8 @@ import kotlin.math.roundToInt
 class BubbleLightCard : CardRenderer {
     override val type = "bubble_light"
 
-    // Fixed quick-preset colours shown on any colour-capable light.
+    // Fixed quick-preset colours shown on any colour-capable light. These are
+    // colours sent to the bulb, not theme colours, so they stay literal.
     private val presets = listOf(
         Color(0xFF9B59B6), // purple
         Color(0xFF4F726D), // blue
@@ -135,16 +135,16 @@ class BubbleLightCard : CardRenderer {
             if (r != null && g != null && b != null) Color(r, g, b) else null
         } else null
 
-        val fillColor = lightColor ?: Color(0xFF7FA9A2) // neutral blue fallback
+        val fillColor = lightColor ?: AstrionTheme.colors.accent // neutral blue fallback
         val iconBg = when {
-            unavailable -> Color(0xFF323F4C)
+            unavailable -> AstrionTheme.colors.raised
             on -> AstrionTheme.on
-            else -> Color(0xFF42565E)
+            else -> AstrionTheme.colors.controlRaised
         }
         val iconTint = when {
             unavailable -> AstrionTheme.unavailable
             on -> AstrionTheme.onBg
-            else -> Color(0xFFC3D0CD)
+            else -> AstrionTheme.colors.textSoft
         }
 
         // The pill IS the slider: brightness fills it left-to-right and you
@@ -241,7 +241,7 @@ class BubbleLightCard : CardRenderer {
                     Text(
                         name,
                         color = AstrionTheme.textPrimary,
-                        fontSize = 16.sp,
+                        fontSize = AstrionTheme.size.emphasis,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

@@ -1,5 +1,6 @@
 package com.custom.astrion.cards.impl
 
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -131,7 +132,7 @@ class SwipeStackCard : CardRenderer {
                             Text(
                                 titles[i],
                                 color = if (current) AstrionTheme.textPrimary else AstrionTheme.textMuted,
-                                fontSize = 13.sp,
+                                fontSize = AstrionTheme.size.small,
                                 fontWeight = FontWeight.SemiBold,
                                 style = TextStyle(
                                     shadow = if (current) {
@@ -174,7 +175,7 @@ class SwipeStackCard : CardRenderer {
                 Text(
                     titles.getOrNull(pagerState.currentPage).orEmpty(),
                     color = AstrionTheme.textSecondary,
-                    fontSize = 12.sp,
+                    fontSize = AstrionTheme.size.label,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.sp,
                 )
@@ -239,7 +240,7 @@ class SwipeStackCard : CardRenderer {
 }
 
 /** The current tab: a shade darker than the track it sits in. */
-private val TabSelectedBg = Color(0xFF131A21)
+private val TabSelectedBg: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.pinnedTopBg
 
 /** Hailstorm pushed brighter for the tab's neon rule. */
-private val TabNeon = Color(0xFFA6E3D9)
+private val TabNeon: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.accentBright

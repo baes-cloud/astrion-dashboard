@@ -83,12 +83,12 @@ Astrion is built for the resource-constrained MediaTek MT6580 SoC (4× ARM Corte
 
 * **Architecture:** Modernized **MVI (Model-View-Intent)** with Kotlin Coroutines, `StateFlow`, and `SharedFlow`. ViewModels (`DashboardViewModel`, `PowerViewModel`, `InputViewModel`) decouple state cleanly from the view layer.
 * **Dependency Injection:** Lightweight **Koin** DI (`ViewModelModule`, `RepositoryModule`, `NetworkModule`, `HardwareModule`).
-* **Design System (Bæo Design System v2.0):** Centralized semantic design tokens grounded in Porter's Paints architectural swatches (`Yacht Race`, `Gunmetal Grey`, `Hailstorm`, `Baby Doll`). Monotonic luminance ramp (`surfacePrimary`, `surfaceCard`, `surfaceElevated`, `controlActiveBg`) with WCAG 2.1 AAA contrast compliance.
+* **Design System (Bæo Design System v2.0):** One theme API, `AstrionTheme`, backed by the design system's CompositionLocals. Tokens are grounded in Porter's Paints swatches: Yacht Race for the surfaces, Hailstorm and Gunmetal Grey for accents and selected state, Baby Doll for attention (warnings, the next alarm, mute). Red is for errors only, and warm amber for lights that are on. Every colour and font size is a token (`ui/theme/`); `ThemeLiteralsTest` fails on a literal in the cards, and `AstrionDesignSystemTest` checks there are no duplicate tokens and that text and accents meet WCAG AA (4.5:1).
 * **Fast TV App Launches:** Colored hardware keys (`CUSTOM_1` – `CUSTOM_3`) trigger native non-blocking `media_player.select_source` intents, launching Netflix, Plex, and ABC iview in under 150ms without blocking Home Assistant's ADB connection.
 * **Selective WebSocket State Publishing:** `HaClient` updates its internal store in-place for all entities while filtering Compose snapshot writes and `StateFlow` emissions to observed UI, screensaver, and alarm/alert entities—eliminating main-thread recomposition and GC churn from chatty background sensors.
 * **Dock & Off-Dock Power Management:** Asymmetric dock/undock debounce (`dock_debounce_seconds: 2`, `undock_debounce_seconds: 15`) absorbs pogo-pin contact drops on the dock while allowing the display, `rmm/stream` radar subscription, and entity filter to sleep cleanly when undocked.
 * **Boot Persistence & Launcher Recovery:** Configured with `RECEIVE_BOOT_COMPLETED`, automatic `BootReceiver` relaunch, and `.HomeAlias` default launcher locking so the remote always boots straight into Astrion even after low-battery shutdowns.
-* **RTC Drift Prevention:** Root `astrion_timesync` init daemon synchronizes the system clock and hardware RTC from the local Home Assistant HTTP `Date:` header on boot, on WebSocket reconnect (`debug.astrion.timesync=1`), and every 10 minutes without requiring external internet NTP access.
+* **RTC Drift Prevention:** Root `astrion_timesync` init daemon synchronizes the system clock and hardware RTC from the local Home Assistant HTTP `Date:` header on boot and every 15 minutes (or on demand as root: `setprop debug.astrion.timesync 1`) without requiring external internet NTP access.
 
 ---
 
@@ -136,12 +136,15 @@ Layout, buttons, and entities are managed via `/sdcard/astrion/dashboard.json`:
 |---|---|
 | `/sdcard/astrion/dashboard.json` | Live configuration on the remote |
 | `device/config/dashboard.json` | Bundled default configuration inside the APK |
+| `/sdcard/astrion/device.json` | This remote's own settings (battery sensor name), laid over dashboard.json; see `docs/POWER.md` |
 | `/sdcard/astrion/floorplan.png` | Apartment floorplan image |
 
-Push new configurations over ADB:
+Push new configurations over ADB (or `device/install.sh --layout <ip>`); the app reloads within a second:
 ```bash
 adb push device/config/dashboard.json /sdcard/astrion/dashboard.json
 ```
+
+`trusted_tls_hosts` (top level, optional) lists LAN hosts whose HTTPS certificate is accepted without a name match, for album art from a server reached by IP whose certificate names something else (Plex by IP). Every other host gets the normal check.
 
 ---
 

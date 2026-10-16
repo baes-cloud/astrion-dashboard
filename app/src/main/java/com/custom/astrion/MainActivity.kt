@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
@@ -25,8 +27,11 @@ import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.ui.AstrionMaterialTheme
 import com.custom.astrion.ui.DashboardScreen
 import com.custom.astrion.ui.SheetHost
+import com.custom.astrion.ui.ambient.ambientTransportCall
 import com.custom.astrion.viewmodel.*
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -121,6 +126,22 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 launch {
+                    // A ringing alarm holds the screen on through the power state machine.
+                    dashboardVm.uiState.map { it.holdsScreen }.distinctUntilChanged().collect { hold ->
+                        powerVm.onIntent(PowerIntent.HoldScreen(hold))
+                    }
+                }
+                launch {
+                    // The wake word follows the dock (power state machine) ...
+                    powerVm.uiState.map { it.wakeWordWanted }.distinctUntilChanged().collect { wanted ->
+                        dashboardVm.onIntent(DashboardIntent.SetWakeWordWanted(wanted))
+                    }
+                }
+                launch {
+                    // ... and while armed, the CPU must keep feeding the mic.
+                    dashboardVm.uiState.map { it.voiceState.armed }.distinctUntilChanged().collect(::holdWakeWordLock)
+                }
+                launch {
                     powerVm.events.collectLatest { event ->
                         when (event) {
                             PowerEvent.ReturnHome -> {
@@ -139,6 +160,7 @@ class MainActivity : ComponentActivity() {
                             is DashboardEffect.WakeScreenForAlarm -> wakeScreenForAlarm()
                             is DashboardEffect.BringActivityToFront -> bringToFront()
                             is DashboardEffect.RequestRecordAudioPermission -> micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                            is DashboardEffect.WakeWordHeard -> onWakeWordHeard()
                         }
                     }
                 }
@@ -169,15 +191,47 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Turns the screen on once; whether it then stays on is [PowerViewModel]'s keepScreenOn. */
     private fun wakeScreenForAlarm() {
         @Suppress("DEPRECATION")
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+        window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
         val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
         if (pm != null && !pm.isInteractive) {
             @Suppress("DEPRECATION")
             pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE, "astrion:alarm").acquire(10_000)
         }
         bringToFront()
+    }
+
+    /** Partial wake lock held while the wake word is armed. */
+    private var wakeWordLock: PowerManager.WakeLock? = null
+
+    /** Created on the first wake word, so installs that never use it never open one. */
+    private var chime: ToneGenerator? = null
+
+    // Held for as long as the wake word is armed, by design: no timeout fits,
+    // and it is released on disarm and in onDestroy.
+    @SuppressLint("WakelockTimeout", "Wakelock")
+    private fun holdWakeWordLock(on: Boolean) {
+        if (on && wakeWordLock?.isHeld != true) {
+            val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+            wakeWordLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "astrion:wakeword").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        } else if (!on) {
+            wakeWordLock?.let { if (it.isHeld) it.release() }
+            wakeWordLock = null
+        }
+    }
+
+    /** Wake word heard: light the screen at full backlight, come to the front, short chime. */
+    private fun onWakeWordHeard() {
+        wakeScreen()
+        powerVm.onIntent(PowerIntent.UserActivity)
+        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) bringToFront()
+        if (chime == null) chime = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 60) }.getOrNull()
+        chime?.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
     }
 
     private fun bringToFront() {
@@ -213,8 +267,31 @@ class MainActivity : ComponentActivity() {
         super.onPause()
     }
 
+    /** The ambient transport key whose UP must be eaten too, so it never leaks. */
+    private var ambientSwallowKey = -1
+
+    /**
+     * On the ambient now-playing screen, volume, mute and left/right act on
+     * the player shown and the screen stays up; true if [event] was one.
+     */
+    private fun handleAmbientKey(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_UP && event.keyCode == ambientSwallowKey) {
+            ambientSwallowKey = -1
+            return true
+        }
+        val ambient = dashboardVm.uiState.value.config.features.ambient
+        if (!ambient.enabled || !powerVm.uiState.value.isScreensaverOn || event.action != KeyEvent.ACTION_DOWN) return false
+        val call = ambientTransportCall(
+            HardwareKey.fromKeyCode(event.keyCode), dashboardVm.client.snapshot(), ambient.mediaPlayers, System.currentTimeMillis(),
+        ) ?: return false
+        dashboardVm.client.callService(call)
+        ambientSwallowKey = event.keyCode
+        return true
+    }
+
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (handleAmbientKey(event)) return true
         val pState = powerVm.uiState.value
         val wasScreensaver = pState.isScreensaverOn
         powerVm.onIntent(PowerIntent.UserActivity)
@@ -262,6 +339,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        holdWakeWordLock(false)
+        chime?.release()
         runCatching { unregisterReceiver(batteryReceiver) }
         runCatching { unregisterReceiver(screenReceiver) }
         if (isFinishing) stopService(Intent(this, KeepAliveService::class.java))

@@ -6,119 +6,105 @@ import android.os.Vibrator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-
-import com.custom.astrion.ui.theme.AstrionDesignSystem
-import com.custom.astrion.ui.theme.AstrionDesignSystemTheme
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.TextUnit
 import com.custom.astrion.ui.theme.AstrionColors
-import com.custom.astrion.ui.theme.AstrionTypography
-import com.custom.astrion.ui.theme.AstrionElevation
+import com.custom.astrion.ui.theme.AstrionDesignSystemTheme
 import com.custom.astrion.ui.theme.AstrionSurfaces
-import com.custom.astrion.ui.theme.AstrionStates
+import com.custom.astrion.ui.theme.AstrionTypeSizes
+import com.custom.astrion.ui.theme.AstrionTypography
+import com.custom.astrion.ui.theme.LocalAstrionColors
+import com.custom.astrion.ui.theme.LocalAstrionSurfaces
+import com.custom.astrion.ui.theme.LocalAstrionTypography
 
 /**
- * The single source of colour and type for the dashboard.
+ * The one theme API. Every colour, font and size reads the design system's
+ * CompositionLocals ([AstrionDesignSystemTheme] provides them at the root),
+ * so a different palette (a night theme, say) only needs providing, and
+ * nothing reads a static copy. Hence the getters are composable: read them
+ * in composition, or capture them there for a draw lambda.
  *
- * Cards still carry some one-off literals of their own; those were remapped
- * onto this palette when it changed (2026-09), so they stay in the same family.
- * Delegated to AstrionDesignSystem for centralized token management.
+ * The values live in [AstrionColors] and [AstrionTypography]; the names here
+ * are the ones the cards use.
  */
 object AstrionTheme {
 
-    // Palette: Porter's Paints, 2026-09 — Baby Doll #E6BCB6, Hailstorm #6E9E97,
-    // Gunmetal Grey #4F726D, Yacht Race #2F3E4C. Yacht Race is the base the
-    // surfaces are built from (darkened for the page, stepped up for cards and
-    // controls); Hailstorm and Gunmetal carry accents and selected state, Baby
-    // Doll is the warm accent (attention states, the next alarm, mute badge).
+    val colors: AstrionColors
+        @Composable @ReadOnlyComposable get() = LocalAstrionColors.current
+    val typography: AstrionTypography
+        @Composable @ReadOnlyComposable get() = LocalAstrionTypography.current
+    /** Font sizes: `fontSize = AstrionTheme.size.small`. */
+    val size: AstrionTypeSizes
+        @Composable @ReadOnlyComposable get() = LocalAstrionTypography.current.sizes
+    val surfaces: AstrionSurfaces
+        @Composable @ReadOnlyComposable get() = LocalAstrionSurfaces.current
 
     // ---- surfaces -----------------------------------------------------------
-    val pageBg get() = AstrionDesignSystem.defaultColors.background
-    val pinnedTopBg get() = AstrionDesignSystem.defaultColors.pinnedTopBg
-    val pinnedBottomBg get() = AstrionDesignSystem.defaultColors.pinnedBottomBg
-
+    val pageBg: Color @Composable @ReadOnlyComposable get() = colors.background
+    val pinnedTopBg: Color @Composable @ReadOnlyComposable get() = colors.pinnedTopBg
+    val pinnedBottomBg: Color @Composable @ReadOnlyComposable get() = colors.pinnedBottomBg
     /** Default card fill. */
-    val cardBg get() = AstrionDesignSystem.defaultColors.surfaceElevated
-    /** Secondary card fill — cover/switch tiles used this historically. */
-    val cardBgAlt get() = AstrionDesignSystem.defaultColors.surfaceVariant
+    val cardBg: Color @Composable @ReadOnlyComposable get() = colors.surface
+    /** Secondary card fill: cover/switch tiles, the floorplan canvas. */
+    val cardBgAlt: Color @Composable @ReadOnlyComposable get() = colors.surfaceVariant
     /** Raised element inside a card (grid buttons, scene tile faces). */
-    val raised get() = AstrionDesignSystem.defaultColors.raised
+    val raised: Color @Composable @ReadOnlyComposable get() = colors.raised
     /** Control chrome: small round buttons, chips. */
-    val controlBg get() = AstrionDesignSystem.defaultColors.controlBg
+    val controlBg: Color @Composable @ReadOnlyComposable get() = colors.controlBg
     /** Recessed control, e.g. the lip under a scene tile. */
-    val controlSunken get() = AstrionDesignSystem.defaultColors.controlSunken
+    val controlSunken: Color @Composable @ReadOnlyComposable get() = colors.controlSunken
     /** Slider / progress track. */
-    val trackBg get() = AstrionDesignSystem.defaultColors.trackBg
+    val trackBg: Color @Composable @ReadOnlyComposable get() = colors.surfaceCard
 
     // ---- text ---------------------------------------------------------------
-    val textPrimary get() = AstrionDesignSystem.defaultColors.onSurface
-    val textSecondary get() = AstrionDesignSystem.defaultColors.onSurfaceMuted
-    val textOnControl get() = AstrionDesignSystem.defaultColors.textOnControl
-    val textMuted get() = AstrionDesignSystem.defaultColors.textMuted
+    val textPrimary: Color @Composable @ReadOnlyComposable get() = colors.onSurface
+    val textSecondary: Color @Composable @ReadOnlyComposable get() = colors.onSurfaceMuted
+    val textOnControl: Color @Composable @ReadOnlyComposable get() = colors.textOnControl
+    val textMuted: Color @Composable @ReadOnlyComposable get() = colors.textMuted
 
     // ---- state --------------------------------------------------------------
     /** Hailstorm, lifted to read as text/icons on the dark cards. */
-    val accent get() = AstrionDesignSystem.defaultColors.accentSage
+    val accent: Color @Composable @ReadOnlyComposable get() = colors.accent
     /** Gunmetal Grey: selected chips and filled buttons under white text. */
-    val accentStrong get() = AstrionDesignSystem.defaultColors.accentStrong
-    /** "On" amber — lights stay warm; the palette has no warm colour. */
-    val on get() = AstrionDesignSystem.defaultColors.accent
-    val onBg get() = AstrionDesignSystem.defaultColors.onWarm
-    /** Baby Doll: the warm accent — "needs attention" (unlocked, open) and
-     *  the next alarm. Text/icons on it use [onBlush]. */
-    val blush get() = AstrionDesignSystem.defaultColors.blush
-    val onBlush get() = AstrionDesignSystem.defaultColors.onBlush
-    val danger get() = AstrionDesignSystem.defaultColors.danger
-    val dangerBg get() = AstrionDesignSystem.defaultColors.dangerBg
-    val good get() = AstrionDesignSystem.defaultColors.successSoft
+    val accentStrong: Color @Composable @ReadOnlyComposable get() = colors.accentStrong
+    /** Warm amber, for lights that are on and nothing else. */
+    val on: Color @Composable @ReadOnlyComposable get() = colors.lightOn
+    val onBg: Color @Composable @ReadOnlyComposable get() = colors.onLightOn
+    /** Baby Doll: "needs attention" (unlocked, open, warnings, mute) and the
+     *  next alarm. Text/icons on it use [onBlush]. */
+    val blush: Color @Composable @ReadOnlyComposable get() = colors.blush
+    val onBlush: Color @Composable @ReadOnlyComposable get() = colors.onBlush
+    val danger: Color @Composable @ReadOnlyComposable get() = colors.danger
+    val dangerBg: Color @Composable @ReadOnlyComposable get() = colors.dangerBg
+    val good: Color @Composable @ReadOnlyComposable get() = colors.accent
 
     // ---- night (docked screensaver) -----------------------------------------
-    // BæoRemote rebrand, 2026-10: the night face moved from amber to a dimmed
-    // Baby Doll rose.
     /** Clock and title on the night face (≈7.5:1 on [nightFace]). */
-    val nightInk get() = AstrionDesignSystem.defaultColors.nightInk
+    val nightInk: Color @Composable @ReadOnlyComposable get() = colors.nightInk
     /** Date, artist, meta, progress and the BÆOREMOTE name (≈4.8:1). */
-    val nightInk2 get() = AstrionDesignSystem.defaultColors.nightInk2
-    /** Night face ground. */
-    val nightFace get() = AstrionDesignSystem.defaultColors.nightFace
+    val nightInk2: Color @Composable @ReadOnlyComposable get() = colors.nightInk2
+    val nightFace: Color @Composable @ReadOnlyComposable get() = colors.nightFace
 
     /**
      * Unavailable / unknown. Deliberately a desaturated slate that is NOT the
-     * same as "off" — always pair it with the literal word (see
+     * same as "off": always pair it with the literal word (see
      * [com.custom.astrion.ui.UnavailableLabel]).
      */
-    val unavailable get() = AstrionDesignSystem.defaultColors.unavailable
+    val unavailable: Color @Composable @ReadOnlyComposable get() = colors.unavailable
 
     // ---- fonts --------------------------------------------------------------
     /** Manrope: everything by default (provided as the root text style). */
-    val bodyFont get() = AstrionDesignSystem.defaultTypography.bodyFont
+    val bodyFont: FontFamily @Composable @ReadOnlyComposable get() = typography.bodyFont
     /** Syne: big numerals and headings (clock, temperatures, titles). */
-    val headingFont get() = AstrionDesignSystem.defaultTypography.headingFont
+    val headingFont: FontFamily @Composable @ReadOnlyComposable get() = typography.headingFont
 
-    // ---- type ---------------------------------------------------------------
-    // Sixteen distinct sizes were in use, eight of them clustered in 11–18sp
-    // doing broadly two jobs. These four roles cover essentially everything.
-    val display get() = AstrionDesignSystem.defaultTypography.displaySize
-    val title get() = AstrionDesignSystem.defaultTypography.titleSize
-    val body get() = AstrionDesignSystem.defaultTypography.bodySize
-    val label get() = AstrionDesignSystem.defaultTypography.labelSize
-
-    @Composable
-    operator fun invoke(
-        colors: AstrionColors = AstrionDesignSystem.defaultColors,
-        typography: AstrionTypography = AstrionDesignSystem.defaultTypography,
-        elevation: AstrionElevation = AstrionDesignSystem.defaultElevation,
-        surfaces: AstrionSurfaces = AstrionDesignSystem.defaultSurfaces,
-        states: AstrionStates = AstrionDesignSystem.defaultStates,
-        content: @Composable () -> Unit,
-    ) {
-        AstrionDesignSystemTheme(
-            colors = colors,
-            typography = typography,
-            elevation = elevation,
-            surfaces = surfaces,
-            states = states,
-            content = content,
-        )
-    }
+    // ---- type roles ---------------------------------------------------------
+    val display: TextUnit @Composable @ReadOnlyComposable get() = typography.displaySize
+    val title: TextUnit @Composable @ReadOnlyComposable get() = typography.titleSize
+    val body: TextUnit @Composable @ReadOnlyComposable get() = typography.bodySize
+    val label: TextUnit @Composable @ReadOnlyComposable get() = typography.labelSize
 }
 
 /**

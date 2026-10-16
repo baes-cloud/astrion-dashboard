@@ -122,7 +122,7 @@ class SpeakerGroupCard : CardRenderer {
                 Text(
                     title,
                     color = AstrionTheme.textSecondary,
-                    fontSize = 13.sp,
+                    fontSize = AstrionTheme.size.small,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.sp,
                 )
@@ -187,7 +187,7 @@ class SpeakerGroupCard : CardRenderer {
                     config.string("name") ?: m?.friendlyName ?: master,
                     color = AstrionTheme.textPrimary,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 17.sp,
+                    fontSize = AstrionTheme.size.title,
                 )
                 Text(
                     when {
@@ -196,7 +196,7 @@ class SpeakerGroupCard : CardRenderer {
                         else -> "—"
                     },
                     color = if (mUnavailable) AstrionTheme.unavailable else AstrionTheme.textSecondary,
-                    fontSize = 14.sp,
+                    fontSize = AstrionTheme.size.body,
                     modifier = Modifier.weight(1f),
                 )
                 toggles.forEach { t ->
@@ -245,7 +245,7 @@ class SpeakerGroupCard : CardRenderer {
                     color = if (on) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
                     fontFamily = AstrionTheme.headingFont,
                     fontWeight = FontWeight.Normal,
-                    fontSize = 12.sp,
+                    fontSize = AstrionTheme.size.label,
                     letterSpacing = WordmarkTracking,
                     maxLines = 1,
                 )
@@ -260,7 +260,7 @@ class SpeakerGroupCard : CardRenderer {
             Text(
                 label,
                 color = if (on) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
-                fontSize = 14.sp,
+                fontSize = AstrionTheme.size.body,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
             )
@@ -327,7 +327,7 @@ class SpeakerGroupCard : CardRenderer {
                 Text(
                     label,
                     color = AstrionTheme.textPrimary,
-                    fontSize = 16.sp,
+                    fontSize = AstrionTheme.size.emphasis,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -340,7 +340,7 @@ class SpeakerGroupCard : CardRenderer {
                         else -> "—"
                     },
                     color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textSecondary,
-                    fontSize = 14.sp,
+                    fontSize = AstrionTheme.size.body,
                     maxLines = 1,
                 )
                 Row(
@@ -362,7 +362,7 @@ class SpeakerGroupCard : CardRenderer {
                     Text(
                         if (grouped) "Linked" else "Join",
                         color = if (grouped) AstrionTheme.textPrimary else AstrionTheme.textMuted,
-                        fontSize = 13.sp,
+                        fontSize = AstrionTheme.size.small,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
@@ -520,7 +520,7 @@ class SpeakerGroupCard : CardRenderer {
                     Text(
                         label,
                         color = AstrionTheme.textPrimary,
-                        fontSize = 15.sp,
+                        fontSize = AstrionTheme.size.bodyLarge,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -536,7 +536,7 @@ class SpeakerGroupCard : CardRenderer {
                         },
                         color = when {
                             unavailable -> AstrionTheme.unavailable
-                            muted -> Color(0xFFE79A9A)
+                            muted -> AstrionTheme.colors.blush
                             else -> AstrionTheme.textSecondary
                         },
                         fontSize = AstrionTheme.label,
@@ -593,7 +593,7 @@ class SpeakerGroupCard : CardRenderer {
             Text(
                 if (grouped) "Leave" else "Join",
                 color = if (grouped) AstrionTheme.accent else AstrionTheme.textMuted,
-                fontSize = 13.sp,
+                fontSize = AstrionTheme.size.small,
                 fontWeight = FontWeight.SemiBold,
             )
         }
@@ -620,7 +620,7 @@ class SpeakerGroupCard : CardRenderer {
             Text(
                 "Master",
                 color = AstrionTheme.textMuted,
-                fontSize = 13.sp,
+                fontSize = AstrionTheme.size.small,
                 fontWeight = FontWeight.SemiBold,
             )
         }
@@ -647,7 +647,7 @@ class SpeakerGroupCard : CardRenderer {
                     modifier = Modifier
                         .fillMaxWidth(level.coerceIn(0f, 1f).coerceAtLeast(0.02f))
                         .fillMaxHeight()
-                        .background(if (muted) Color(0xFF718583) else AstrionTheme.good),
+                        .background(if (muted) AstrionTheme.colors.textMuted else AstrionTheme.good),
                 )
             }
         }

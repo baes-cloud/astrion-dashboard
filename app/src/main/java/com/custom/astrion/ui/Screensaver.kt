@@ -1,5 +1,6 @@
 package com.custom.astrion.ui
 
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -70,7 +71,6 @@ import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
-import java.util.Calendar
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -209,7 +209,7 @@ fun Screensaver(
                     // Faded through the colour, not Modifier.alpha: no extra
                     // layer. The rose night ink is already dim at full alpha.
                     color = if (night) clockInk else clockInk.copy(alpha = 0.62f),
-                    fontFamily = AstrionTheme.bodyFont, fontSize = 81.sp,
+                    fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.clock,
                     fontWeight = FontWeight.Medium,
                     letterSpacing = (-1.5).sp,
                     lineHeight = 81.sp,
@@ -221,7 +221,7 @@ fun Screensaver(
                     Text(
                         Time.format(now, "a").lowercase(Locale.getDefault()),
                         color = faint,
-                        fontFamily = AstrionTheme.bodyFont, fontSize = 19.sp,
+                        fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.heading,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(start = 5.dp).alignByBaseline(),
                     )
@@ -231,26 +231,26 @@ fun Screensaver(
             // Date · weather · the remote's own charge. The battery lives here,
             // not at the bottom, to keep the name's clear field empty.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(Time.format(now, "EEEE d MMMM"), color = ink, fontSize = 15.sp, maxLines = 1)
+                Text(Time.format(now, "EEEE d MMMM"), color = ink, fontSize = AstrionTheme.size.bodyLarge, maxLines = 1)
                 if (weather != null && !weather.isUnavailable) {
                     val temp = weather.attrDouble("temperature")
-                    Text("  ·  ", color = faint, fontSize = 15.sp)
+                    Text("  ·  ", color = faint, fontSize = AstrionTheme.size.bodyLarge)
                     Text(
                         weatherEmoji(weather.state),
-                        fontSize = 15.sp,
+                        fontSize = AstrionTheme.size.bodyLarge,
                         // Emoji ignore the text colour; fade them instead so a
                         // bright sun doesn't glare out of a dark room.
                         modifier = Modifier.alpha(if (night) 0.45f else 0.7f),
                     )
                     if (temp != null) {
                         Spacer(Modifier.width(5.dp))
-                        Text("${Math.round(temp)}°", color = ink, fontSize = 15.sp)
+                        Text("${Math.round(temp)}°", color = ink, fontSize = AstrionTheme.size.bodyLarge)
                     }
                 }
                 if (batteryPct != null) {
                     val batteryWarn = dockFault || (!charging && batteryPct <= 20)
                     val batteryColor = if (batteryWarn) accent else ink
-                    Text("  ·  ", color = faint, fontSize = 15.sp)
+                    Text("  ·  ", color = faint, fontSize = AstrionTheme.size.bodyLarge)
                     Icon(
                         when {
                             dockFault -> Icons.Filled.Warning
@@ -262,7 +262,7 @@ fun Screensaver(
                         modifier = Modifier.size(14.dp),
                     )
                     Spacer(Modifier.width(2.dp))
-                    Text("$batteryPct%", color = batteryColor, fontSize = 15.sp, maxLines = 1)
+                    Text("$batteryPct%", color = batteryColor, fontSize = AstrionTheme.size.bodyLarge, maxLines = 1)
                 }
             }
 
@@ -330,7 +330,7 @@ private fun ScreensaverName(now: Long, night: Boolean) {
                 color = if (night) AstrionTheme.nightInk2 else DayName,
                 fontFamily = AstrionTheme.headingFont,
                 fontWeight = FontWeight.Normal,
-                fontSize = 18.sp,
+                fontSize = AstrionTheme.size.titleLarge,
                 letterSpacing = WordmarkTracking,
                 maxLines = 1,
             )
@@ -353,20 +353,20 @@ private fun ScreensaverName(now: Long, night: Boolean) {
 // blue-ish light is the one that keeps people awake, and warm reads softer in
 // the dark. Clock and title in nightInk; date, artist, meta and progress in
 // nightInk2.
-private val DayClock = Color(0xFFDDE7E3)
-private val DayInk = Color(0xFFA9BAB6)
-private val DayFaint = Color(0xFF718583)
-private val DayAccent = Color(0xFFE8B25A)
+private val DayClock: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.dayClock
+private val DayInk: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.onSurfaceMuted
+private val DayFaint: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.textMuted
+private val DayAccent: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.blush
 /** `device-ink` at 70% is applied by [ScreensaverName]'s alpha. */
-private val DayName = Color(0xFFE9EDF2)
-private val NightClock = AstrionTheme.nightInk
-private val NightInk = AstrionTheme.nightInk2
-private val NightFaint = AstrionTheme.nightInk2
-private val NightAccent = AstrionTheme.nightInk
+private val DayName: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.onSurface
+private val NightClock: Color @Composable @ReadOnlyComposable get() = AstrionTheme.nightInk
+private val NightInk: Color @Composable @ReadOnlyComposable get() = AstrionTheme.nightInk2
+private val NightFaint: Color @Composable @ReadOnlyComposable get() = AstrionTheme.nightInk2
+private val NightAccent: Color @Composable @ReadOnlyComposable get() = AstrionTheme.nightInk
 /** Night face: [AstrionTheme.nightFace] at the centre, darkening outwards. */
-private val NightFaceBrush = Brush.radialGradient(listOf(AstrionTheme.nightFace, Color(0xFF050607)))
+private val NightFaceBrush: Brush @Composable @ReadOnlyComposable get() = Brush.radialGradient(listOf(AstrionTheme.nightFace, AstrionTheme.colors.void))
 /** Night progress track. */
-private val NightTrack = Color(0xFF1A1D21)
+private val NightTrack: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.nightTrack
 
 private const val NAME_FADE_MS = 1200
 private const val NAME_DIM_AFTER_MS = 5 * 60_000L
@@ -457,16 +457,16 @@ private fun FactRow(f: Fact, tint: Color, faint: Color, charging: Boolean = true
         Icon(f.icon, contentDescription = null, tint = tint, modifier = Modifier.size(17.dp))
         Spacer(Modifier.width(7.dp))
         Text(
-            f.text, color = tint, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            f.text, color = tint, fontSize = AstrionTheme.size.emphasis, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false),
         )
         if (f.countdownTo != null) {
             Spacer(Modifier.width(7.dp))
             val now = rememberSecondTick(enabled = charging)
-            Text(formatCountdown((f.countdownTo - now).coerceAtLeast(0)), color = faint, fontSize = 15.sp, maxLines = 1)
+            Text(formatCountdown((f.countdownTo - now).coerceAtLeast(0)), color = faint, fontSize = AstrionTheme.size.bodyLarge, maxLines = 1)
         } else if (f.detail != null) {
             Spacer(Modifier.width(7.dp))
-            Text(f.detail, color = faint, fontSize = 15.sp, maxLines = 1)
+            Text(f.detail, color = faint, fontSize = AstrionTheme.size.bodyLarge, maxLines = 1)
         }
     }
 }
@@ -637,7 +637,7 @@ private fun NowPlaying(
                     modifier = Modifier
                         .size(76.dp)
                         .clip(RoundedCornerShape(7.dp))
-                        .background(if (isPlaying) Color(0xFF1B242D) else Color(0xFF12181E)),
+                        .background(if (isPlaying) AstrionTheme.colors.background else AstrionTheme.colors.surfacePrimary),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -653,7 +653,7 @@ private fun NowPlaying(
                 Text(
                     title,
                     color = currentTitleInk,
-                    fontSize = 18.sp,
+                    fontSize = AstrionTheme.size.titleLarge,
                     fontWeight = if (isPlaying) FontWeight.Medium else FontWeight.Normal,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -662,7 +662,7 @@ private fun NowPlaying(
                     Text(
                         subtitle,
                         color = currentSubtitleInk,
-                        fontSize = 15.sp,
+                        fontSize = AstrionTheme.size.bodyLarge,
                         fontWeight = if (isPlaying) FontWeight.Normal else FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -671,7 +671,7 @@ private fun NowPlaying(
                 Text(
                     listOfNotNull(album, e.friendlyName).joinToString(" · "),
                     color = currentMetaInk,
-                    fontSize = 12.sp,
+                    fontSize = AstrionTheme.size.label,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -711,7 +711,7 @@ private fun MediaProgress(
     val frac = (pos / duration).toFloat().coerceIn(0f, 1f)
     Spacer(Modifier.height(10.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(formatMediaTime(pos), color = faint, fontSize = 11.sp, textAlign = TextAlign.End, modifier = Modifier.width(40.dp))
+        Text(formatMediaTime(pos), color = faint, fontSize = AstrionTheme.size.label, textAlign = TextAlign.End, modifier = Modifier.width(40.dp))
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -728,7 +728,7 @@ private fun MediaProgress(
                     .background(fill),
             )
         }
-        Text(formatMediaTime(duration), color = faint, fontSize = 11.sp, modifier = Modifier.width(40.dp))
+        Text(formatMediaTime(duration), color = faint, fontSize = AstrionTheme.size.label, modifier = Modifier.width(40.dp))
     }
 }
 

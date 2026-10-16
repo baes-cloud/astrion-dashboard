@@ -14,28 +14,29 @@ data class StateVisuals(
     val alpha: Float = 1.0f,
 )
 
+private val palette = AstrionColors()
+
+/** Control states, built from [AstrionColors] so they can't drift from it. */
 @Immutable
 data class AstrionStates(
     val active: StateVisuals = StateVisuals(
-        backgroundColor = Color(0xFF2C3B45),
-        contentColor = Color(0xFFFFC24B),
-        borderColor = Color(0x1AFFFFFF),
+        backgroundColor = palette.controlSunken,
+        contentColor = palette.accent,
+        borderColor = palette.hairline,
         borderStroke = 1.dp,
-        alpha = 1.0f,
     ),
     val inactive: StateVisuals = StateVisuals(
-        backgroundColor = Color(0xFF243140),
-        contentColor = Color(0xFFA9BAB6),
-        alpha = 1.0f,
+        backgroundColor = palette.surface,
+        contentColor = palette.onSurfaceMuted,
     ),
     val pressed: StateVisuals = StateVisuals(
-        backgroundColor = Color(0xFF151D25),
-        contentColor = Color(0xFFEEF2EF),
+        backgroundColor = palette.pinnedTopBg,
+        contentColor = palette.onSurface,
         alpha = 0.95f,
     ),
     val disabled: StateVisuals = StateVisuals(
-        backgroundColor = Color(0xFF1C2630),
-        contentColor = Color(0xFF7B8C96),
-        alpha = 0.4f,
+        backgroundColor = palette.surfaceCard,
+        contentColor = palette.unavailable,
+        alpha = palette.unavailableAlpha,
     ),
 )

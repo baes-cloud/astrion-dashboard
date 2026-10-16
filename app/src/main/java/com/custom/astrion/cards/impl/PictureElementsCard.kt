@@ -58,7 +58,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.ui.InWindowDialog
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
@@ -128,7 +127,7 @@ class PictureElementsCard : CardRenderer {
                 .then(if (config.bool("flush")) Modifier else Modifier.clip(RoundedCornerShape(18.dp)))
                 // Flush inside a stack, any letterbox margin shows the card's
                 // own fill, so it reads as spacing rather than black bars.
-                .then(if (config.bool("flush")) Modifier else Modifier.background(Color(0xFF12181E))),
+                .then(if (config.bool("flush")) Modifier else Modifier.background(AstrionTheme.colors.surfacePrimary)),
             contentAlignment = Alignment.Center,
         ) {
             // Where the plan is actually drawn — every icon, radar dot and the
@@ -238,16 +237,16 @@ class PictureElementsCard : CardRenderer {
                 // icon matches the glow around it.
                 val glowColor = if (on && litRooms != null) entity?.let { lightColor(it) } else null
                 val bg = when {
-                    elUnavailable -> Color(0x44803030)
+                    elUnavailable -> AstrionTheme.colors.danger.copy(alpha = 0.27f)
                     glowColor != null -> glowColor.copy(alpha = 0.42f)
-                    on -> Color(0x66FFC24B)
-                    else -> Color(0x33000000)
+                    on -> AstrionTheme.colors.lightOn.copy(alpha = 0.4f)
+                    else -> Color.Black.copy(alpha = 0.2f)
                 }
                 val tint = when {
-                    elUnavailable -> Color(0xFFC98A8A)
+                    elUnavailable -> AstrionTheme.colors.danger
                     glowColor != null -> lerp(glowColor, Color.White, 0.65f)
-                    on -> Color(0xFFFFD37A)
-                    else -> Color(0xFFEEF2EF)
+                    on -> AstrionTheme.colors.lightOnBright
+                    else -> AstrionTheme.colors.onSurface
                 }
                 val icon = when {
                     isPower -> Icons.Filled.PowerSettingsNew
@@ -277,7 +276,7 @@ class PictureElementsCard : CardRenderer {
                         .clip(CircleShape)
                         .background(bg)
                         .then(
-                            if (sent) Modifier.border(2.dp, AstrionTheme.on.copy(alpha = 0.85f), CircleShape)
+                            if (sent) Modifier.border(2.dp, AstrionTheme.accent.copy(alpha = 0.85f), CircleShape)
                             else Modifier
                         )
                         .pointerInput(entityId, service) {
@@ -361,7 +360,7 @@ class PictureElementsCard : CardRenderer {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xFF243140))
+                            .background(AstrionTheme.colors.surface)
                             .padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
@@ -430,8 +429,8 @@ class PictureElementsCard : CardRenderer {
             modifier = modifier
                 .height(40.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color(0xD9141C24))
-                .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(14.dp)),
+                .background(AstrionTheme.colors.pinnedTopBg.copy(alpha = 0.85f))
+                .border(1.dp, AstrionTheme.colors.hairline, RoundedCornerShape(14.dp)),
             contentAlignment = Alignment.Center,
         ) {
             val opts = ((card["options"] as? Map<String, Any?>) ?: emptyMap()) + ("flush" to true)
@@ -441,8 +440,8 @@ class PictureElementsCard : CardRenderer {
 
     @Composable
     private fun RoboVacIcon(vac: Dp, docked: Boolean, moving: Boolean) {
-        val body = Color(0xFF3A4B55)
-        val bump = Color(0xFF7B8C96)
+        val body = AstrionTheme.colors.controlBg
+        val bump = AstrionTheme.colors.unavailable
 
         if (docked) {
             Box(modifier = Modifier.size(width = vac, height = vac * 1.35f)) {
@@ -452,7 +451,7 @@ class PictureElementsCard : CardRenderer {
                         .fillMaxWidth()
                         .height(vac * 0.5f)
                         .clip(RoundedCornerShape(5.dp))
-                        .background(Color(0xFF1E2830)),
+                        .background(AstrionTheme.colors.surfaceCard),
                 )
                 VacBody(vac * 0.92f, body, bump, Modifier.align(Alignment.BottomCenter))
             }
@@ -522,8 +521,8 @@ class PictureElementsCard : CardRenderer {
         val divisor = (radar["units_per_metre"] as? Number)?.toFloat()
             ?: if ((radar["unit"] as? String)?.lowercase() == "mm") 1000f else 1f
         // Per-sensor dot colours so you can tell which radar a dot came from.
-        val fill = parseHexColor(radar["color"] as? String) ?: Color(0xD94F726D)
-        val accent = parseHexColor(radar["accent_color"] as? String) ?: Color(0xFF8CBDB5)
+        val fill = parseHexColor(radar["color"] as? String) ?: AstrionTheme.colors.accentStrong.copy(alpha = 0.85f)
+        val accent = parseHexColor(radar["accent_color"] as? String) ?: AstrionTheme.colors.accent
         val label = radar["label"] as? String ?: ""
 
         // Loop handles layout of children, but child states are read ONLY inside child scopes!
@@ -573,8 +572,8 @@ class PictureElementsCard : CardRenderer {
         val showHibernating = opts["show_hibernating"] as? Boolean ?: false
         val src = (opts["source_size"] as? List<*>)?.filterIsInstance<Number>()?.map { it.toFloat() }
         val crop = (opts["crop"] as? List<*>)?.filterIsInstance<Number>()?.map { it.toFloat() }
-        val fill = parseHexColor(opts["color"] as? String) ?: Color(0xD92CAA9C)
-        val accent = parseHexColor(opts["accent_color"] as? String) ?: Color(0xFF8CE0D4)
+        val fill = parseHexColor(opts["color"] as? String) ?: AstrionTheme.colors.accentStrong.copy(alpha = 0.85f)
+        val accent = parseHexColor(opts["accent_color"] as? String) ?: AstrionTheme.colors.accentBright
 
         var targets by remember { mutableStateOf<List<RmmTarget>>(emptyList()) }
         // Only while the floorplan is actually on screen. The stream sends two
@@ -630,7 +629,7 @@ class PictureElementsCard : CardRenderer {
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("${i + 1}", color = Color(0xFFE0EEE8), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("${i + 1}", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -696,7 +695,7 @@ class PictureElementsCard : CardRenderer {
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Text("$label$id", color = Color(0xFFE0EEE8), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("$label$id", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.Bold)
         }
     }
 

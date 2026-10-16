@@ -22,12 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRegistry
@@ -363,10 +361,10 @@ private fun ConnectionBanner(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xCC243140))
+                    .background(AstrionTheme.colors.surface.copy(alpha = 0.8f))
                     .padding(horizontal = 10.dp, vertical = 3.dp),
             ) {
-                Text("Connecting…", color = AstrionTheme.textSecondary, fontSize = 11.sp)
+                Text("Connecting…", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
             }
         }
         return
@@ -387,7 +385,7 @@ private fun ConnectionBanner(
     ) {
         Text(
             "$label  (tap to retry)",
-            color = Color(0xFF241012),
+            color = AstrionTheme.colors.onDanger,
             fontSize = AstrionTheme.body,
             fontWeight = FontWeight.Bold,
         )
@@ -407,11 +405,11 @@ private fun ConfigNoticeBanner(text: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF4A3B1E))
+            .background(AstrionTheme.colors.blushContainer)
             .tap { shown = false }
             .padding(10.dp),
     ) {
-        Text("$text  (tap to dismiss)", color = Color(0xFFE8C77B), fontSize = AstrionTheme.label)
+        Text("$text  (tap to dismiss)", color = AstrionTheme.colors.blush, fontSize = AstrionTheme.label)
     }
 }
 
@@ -421,12 +419,12 @@ private fun UnknownCard(type: String) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF2A2030))
+            .background(AstrionTheme.colors.dangerBg)
             .padding(14.dp),
     ) {
         Text(
             "Unknown card type: $type",
-            color = Color(0xFFE0A0A0),
+            color = AstrionTheme.colors.danger,
             fontSize = AstrionTheme.label,
         )
     }

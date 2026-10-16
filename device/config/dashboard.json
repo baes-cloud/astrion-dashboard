@@ -987,11 +987,9 @@
   }
  ],
  "power": {
-  "screen_timeout_seconds": 60,
+  "screen_timeout_seconds": 120,
   "dock_debounce_seconds": 2,
-  "undock_debounce_seconds": 15,
-  "report_entity": "sensor.club_remote_battery",
-  "report_name": "Club remote"
+  "undock_debounce_seconds": 15
  },
  "screensaver": {
   "keys_pass_through": [
@@ -1007,7 +1005,7 @@
    "VOICE"
   ],
   "idle_seconds": 45,
-  "undocked_idle_seconds": 30,
+  "undocked_idle_seconds": 90,
   "night_brightness": 0.12,
   "undocked_brightness": 0.15,
   "weather_entity": "weather.forecast_home"

@@ -1,5 +1,6 @@
 package com.custom.astrion.ui
 
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -71,7 +72,7 @@ class SheetHost {
 
     private companion object {
         /** Same scrim as the IR and alert overlays. */
-        val SCRIM = Color(0xCC0B1015)
+        val SCRIM: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.scrim
     }
 }
 

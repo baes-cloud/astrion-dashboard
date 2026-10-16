@@ -36,7 +36,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -294,7 +293,7 @@ class NextUpCard : CardRenderer {
                     if (label != null) withStyle(SpanStyle(color = AstrionTheme.textSecondary)) { append("$label ") }
                     withStyle(SpanStyle(color = tint, fontWeight = FontWeight.Medium)) { append(value) }
                 },
-                fontSize = 12.sp,
+                fontSize = AstrionTheme.size.label,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

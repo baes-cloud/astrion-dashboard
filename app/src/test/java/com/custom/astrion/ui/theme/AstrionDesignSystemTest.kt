@@ -3,7 +3,6 @@ package com.custom.astrion.ui.theme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.custom.astrion.ui.AstrionTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,9 +19,9 @@ class AstrionDesignSystemTest {
     fun surfaceTokensMatchModelOracle() {
         assertEquals(Color(0xFF151B21), colors.surfacePrimary)
         assertEquals(Color(0xFF1C2630), colors.surfaceCard)
-        assertEquals(Color(0xFF243140), colors.surfaceElevated)
+        assertEquals(Color(0xFF243140), colors.surface)
         assertEquals(Color(0xFF0F1318), colors.surfaceSunken)
-        assertEquals(Color(0xFFFFC24B), colors.accent)
+        assertEquals(Color(0xFF8CBDB5), colors.accent)
         assertEquals(Color(0xFFEEF2EF), colors.onSurface)
         assertEquals(Color(0xFFA9BAB6), colors.onSurfaceMuted)
         assertEquals(0.4f, colors.unavailableAlpha, 0.001f)
@@ -63,26 +62,57 @@ class AstrionDesignSystemTest {
     @Test
     fun statesVisualsVerification() {
         assertEquals(Color(0xFF2C3B45), states.active.backgroundColor)
-        assertEquals(Color(0xFFFFC24B), states.active.contentColor)
+        assertEquals(colors.accent, states.active.contentColor)
         assertEquals(Color(0xFF243140), states.inactive.backgroundColor)
         assertEquals(Color(0xFFA9BAB6), states.inactive.contentColor)
         assertEquals(0.4f, states.disabled.alpha, 0.001f)
     }
 
+    /** One token per value: two names for one colour is how the sprawl started. */
     @Test
-    fun themeBridgeBackwardCompatibility() {
-        assertEquals(colors.background, AstrionTheme.pageBg)
-        assertEquals(colors.pinnedTopBg, AstrionTheme.pinnedTopBg)
-        assertEquals(colors.surfaceElevated, AstrionTheme.cardBg)
-        assertEquals(colors.onSurface, AstrionTheme.textPrimary)
-        assertEquals(colors.onSurfaceMuted, AstrionTheme.textSecondary)
-        assertEquals(colors.accentSage, AstrionTheme.accent)
-        assertEquals(colors.accent, AstrionTheme.on)
-        assertEquals(colors.onWarm, AstrionTheme.onBg)
-        assertEquals(typography.displaySize, AstrionTheme.display)
-        assertEquals(typography.titleSize, AstrionTheme.title)
-        assertEquals(typography.bodySize, AstrionTheme.body)
-        assertEquals(typography.labelSize, AstrionTheme.label)
+    fun noTwoColourTokensShareAValue() {
+        val tokens = AstrionColors::class.java.declaredFields
+            .filter { it.type == Long::class.javaPrimitiveType && !it.isSynthetic }
+            .onEach { it.isAccessible = true }
+            .associate { it.name to it.getLong(colors) }
+        assertTrue("expected the colour tokens, found ${tokens.size}", tokens.size > 40)
+        val dupes = tokens.entries.groupBy({ it.value }, { it.key }).values.filter { it.size > 1 }
+        assertTrue("tokens with the same value: $dupes", dupes.isEmpty())
+    }
+
+    /** Porter's Paints: Baby Doll carries attention, Hailstorm the accents. */
+    @Test
+    fun paletteRoles() {
+        assertEquals(Color(0xFFE6BCB6), colors.blush)
+        assertEquals(Color(0xFF4F726D), colors.accentStrong)
+        assertEquals(Color(0xFF2F3E4C), colors.alarmTop)
+        // Lights that are on stay warm amber, the one colour off the card.
+        assertEquals(Color(0xFFFFC24B), colors.lightOn)
+    }
+
+    @Test
+    fun typeSizesAscend() {
+        val s = typography.sizes
+        val scale = listOf(
+            s.micro, s.label, s.small, s.body, s.bodyLarge, s.emphasis, s.title,
+            s.titleLarge, s.heading, s.headingLarge, s.displayXs, s.displaySm, s.displayMd, s.displayLg,
+            s.displayXl, s.readout, s.clock, s.alarmClock, s.restClock,
+        ).map { it.value }
+        assertEquals(scale.sorted(), scale)
+        assertEquals(scale.distinct(), scale)
+    }
+
+    /** 12 sp floor: only the two-letter "ON" badge goes below it. */
+    @Test
+    fun noTextBelowTheFloor() {
+        val s = typography.sizes
+        val readable = listOf(s.label, s.small, s.body, s.bodyLarge, s.emphasis, s.title)
+        readable.forEach { assertTrue("$it below the floor", it.value >= MIN_TEXT.value) }
+        val styles = listOf(
+            typography.label, typography.body, typography.title, typography.bodySmall,
+            typography.labelLarge, typography.labelMedium, typography.labelSmall,
+        )
+        styles.forEach { assertTrue("${it.fontSize} below the floor", it.fontSize.value >= MIN_TEXT.value) }
     }
 
     @Test
@@ -111,5 +141,11 @@ class AstrionDesignSystemTest {
 
         val accentRatio = contrastRatio(colors.accent, colors.surfacePrimary)
         assertTrue("accent contrast $accentRatio should be >= 4.5", accentRatio >= 4.5)
+
+        val blushRatio = contrastRatio(colors.blush, colors.surface)
+        assertTrue("blush contrast $blushRatio should be >= 4.5", blushRatio >= 4.5)
+
+        val onBlushRatio = contrastRatio(colors.onBlush, colors.blush)
+        assertTrue("onBlush contrast $onBlushRatio should be >= 4.5", onBlushRatio >= 4.5)
     }
 }

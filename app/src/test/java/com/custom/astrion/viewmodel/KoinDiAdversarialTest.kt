@@ -14,7 +14,6 @@ import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.input.KeyDispatcher
 import com.custom.astrion.ir.IrBlaster
 import com.custom.astrion.power.MotionWakeController
-import com.custom.astrion.sync.SyncRepository
 import com.custom.astrion.test.MainDispatcherRule
 import com.custom.astrion.ui.StrongHaptics
 import com.custom.astrion.voice.VoiceSession
@@ -96,13 +95,8 @@ class KoinDiAdversarialTest : KoinTest {
         }
 
         val config = get<AppConfigRepository>()
-        val sync = get<SyncRepository>()
-
         assertNotNull(config)
-        assertNotNull(sync)
-
         assertSame(config, get<AppConfigRepository>())
-        assertSame(sync, get<SyncRepository>())
     }
 
     @Test
@@ -180,7 +174,6 @@ class KoinDiAdversarialTest : KoinTest {
 
         // Repository module singletons
         assertSame(get<AppConfigRepository>(), get<AppConfigRepository>())
-        assertSame(get<SyncRepository>(), get<SyncRepository>())
     }
 
     @Test

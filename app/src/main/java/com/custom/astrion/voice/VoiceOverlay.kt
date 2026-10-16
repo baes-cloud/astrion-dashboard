@@ -1,5 +1,7 @@
 package com.custom.astrion.voice
 
+import androidx.compose.runtime.ReadOnlyComposable
+import com.custom.astrion.ui.AstrionTheme
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -23,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -63,7 +64,7 @@ fun VoiceOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xCC0B1015))
+            .background(AstrionTheme.colors.scrim)
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
@@ -76,7 +77,7 @@ fun VoiceOverlay(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF182129))
+                .background(AstrionTheme.colors.pinnedBottomBg)
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -113,7 +114,7 @@ fun VoiceOverlay(
                     ) {
                         Icon(
                             Icons.Filled.Mic, contentDescription = null,
-                            tint = Color(0xFF161F28), modifier = Modifier.size(40.dp),
+                            tint = AstrionTheme.colors.pinnedTopBg, modifier = Modifier.size(40.dp),
                         )
                     }
                 }
@@ -122,7 +123,7 @@ fun VoiceOverlay(
             Text(
                 phaseLabel(state.phase),
                 color = accentColor(state.phase),
-                fontSize = 15.sp,
+                fontSize = AstrionTheme.size.bodyLarge,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp,
             )
@@ -130,21 +131,21 @@ fun VoiceOverlay(
             if (state.transcript.isNotBlank()) {
                 Text(
                     "“${state.transcript}”",
-                    color = Color(0xFFF2F5F3), fontSize = 16.sp,
+                    color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.emphasis,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                 )
             }
             if (state.reply.isNotBlank()) {
                 Text(
                     state.reply,
-                    color = Color(0xFFAEBFBB), fontSize = 14.sp,
+                    color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.body,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                 )
             }
             state.error?.let {
                 Text(
                     it,
-                    color = Color(0xFFE06767), fontSize = 13.sp,
+                    color = AstrionTheme.colors.dangerSoft, fontSize = AstrionTheme.size.small,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -154,13 +155,13 @@ fun VoiceOverlay(
                     .fillMaxWidth()
                     .height(44.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF3A4F57))
+                    .background(AstrionTheme.colors.controlBg)
                     .tap(onClick = onDismiss),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     if (state.phase == VoicePhase.LISTENING) "Stop" else "Close",
-                    color = Color(0xFFEEF2EF), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.SemiBold,
                 )
             }
         }
@@ -195,14 +196,18 @@ private fun phaseLabel(p: VoicePhase) = when (p) {
     VoicePhase.IDLE -> ""
 }
 
+@Composable
+@ReadOnlyComposable
 private fun accentColor(p: VoicePhase) = when (p) {
-    VoicePhase.LISTENING -> Color(0xFFFFC24B)
-    VoicePhase.PROCESSING -> Color(0xFF8CBDB5)
-    VoicePhase.SPEAKING -> Color(0xFF5FD3A0)
-    VoicePhase.ERROR -> Color(0xFFE06767)
-    else -> Color(0xFFAEBFBB)
+    VoicePhase.LISTENING -> AstrionTheme.colors.blush
+    VoicePhase.PROCESSING -> AstrionTheme.colors.accent
+    VoicePhase.SPEAKING -> AstrionTheme.colors.accentBright
+    VoicePhase.ERROR -> AstrionTheme.colors.dangerSoft
+    else -> AstrionTheme.colors.onSurfaceVariant
 }
 
+@Composable
+@ReadOnlyComposable
 private fun haloColor(p: VoicePhase) = accentColor(p).copy(alpha = 0.14f)
 
 /** `<dir>/<phase>.png`, falling back to `<dir>/idle.png`, else null. */

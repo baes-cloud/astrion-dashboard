@@ -8,6 +8,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+private val palette = AstrionColors()
+
 @Immutable
 data class AstrionSurfaces(
     // ---- Alpha & Glassmorphism ----------------------------------------------
@@ -16,9 +18,9 @@ data class AstrionSurfaces(
     val unavailableAlpha: Float = 0.4f,
     val scrimAlpha: Float = 0.80f,
     val acrylicBorderStroke: Dp = 1.dp,
-    val acrylicBorderColor: Color = Color(0x1AFFFFFF),        // 10% white subtle acrylic border
-    val acrylicBorderStrongColor: Color = Color(0x33FFFFFF),  // 20% white border for active buttons
-    val acrylicOverlayBg: Color = Color(0x14FFFFFF),          // 8% white glassmorphism surface fill
+    val acrylicBorderColor: Color = palette.hairline,        // 10% white subtle acrylic border
+    val acrylicBorderStrongColor: Color = palette.hairlineStrong,  // 20% white border for active buttons
+    val acrylicOverlayBg: Color = palette.glass,          // 8% white glassmorphism surface fill
 
     // ---- Corner Radii -------------------------------------------------------
     val cardCornerRadius: Dp = 18.dp,                         // Standard card container

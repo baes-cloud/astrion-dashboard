@@ -8,3 +8,7 @@ secrets.properties
 recordings/
 .agents/
 /test
+
+# Real per-house values for device/install.sh; only the README is tracked.
+device/local/*
+!device/local/README.md

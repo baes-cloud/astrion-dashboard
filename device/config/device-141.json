@@ -1,0 +1,7 @@
+{
+ "power": {
+  "report_entity": "sensor.club_remote_141_battery",
+  "report_name": "Club remote 141",
+  "screen_timeout_seconds": -1
+ }
+}

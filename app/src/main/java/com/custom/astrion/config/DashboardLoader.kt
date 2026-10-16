@@ -43,8 +43,19 @@ import java.io.File
 object DashboardLoader {
     private const val TAG = "DashboardLoader"
 
+    val configDir: File
+        get() = File(Environment.getExternalStorageDirectory(), "astrion")
+
     val configFile: File
-        get() = File(Environment.getExternalStorageDirectory(), "astrion/dashboard.json")
+        get() = File(configDir, CONFIG_NAME)
+
+    /**
+     * Per-remote settings laid over dashboard.json (see [withDeviceOverrides]):
+     * which battery sensor this remote reports to, its name. Keeping them out
+     * of dashboard.json lets the same layout be pushed to every remote.
+     */
+    val deviceFile: File
+        get() = File(configDir, DEVICE_NAME)
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -68,10 +79,22 @@ object DashboardLoader {
     }
 
     fun load(): Result {
+        val base = loadLayout()
+        val device = deviceFile
+        if (!device.exists()) return base
+        return try {
+            Result(withDeviceOverrides(base.config, device.readText()), base.notice)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load ${device.path}", e)
+            Result(base.config, base.notice ?: "device.json invalid (${e.message?.take(80)}), ignored")
+        }
+    }
+
+    private fun loadLayout(): Result {
         val file = configFile
         if (!file.exists()) {
             return if (writeDefaults()) {
-                Result(default, "Wrote defaults to ${file.path} — edit it, then reopen the app")
+                Result(default, "Wrote defaults to ${file.path} — edit it and it reloads")
             } else {
                 Result(default, "Can't access ${file.path} (storage permission?) — using built-in defaults")
             }
@@ -82,6 +105,29 @@ object DashboardLoader {
             Log.e(TAG, "Failed to load ${file.path}", e)
             Result(default, "dashboard.json invalid (${e.message?.take(80)}) — using built-in defaults")
         }
+    }
+
+    /**
+     * Lays device.json's top-level blocks over [config]'s options, one level
+     * deep: `{ "power": { "report_entity": "…" } }` replaces just that key and
+     * keeps the rest of dashboard.json's `power` block. Applied over the
+     * bundled layout too, so a remote keeps its identity when dashboard.json
+     * is missing or broken.
+     */
+    internal fun withDeviceOverrides(config: AppConfig, text: String): AppConfig {
+        val root = json.parseToJsonElement(text) as? JsonObject ?: error("top level must be an object")
+        val options = config.options.toMutableMap()
+        root.forEach { (key, value) ->
+            val override = JsonPlain.toPlain(value)
+            val current = options[key]
+            @Suppress("UNCHECKED_CAST")
+            options[key] = if (current is Map<*, *> && override is Map<*, *>) {
+                (current as Map<String, Any?>) + (override as Map<String, Any?>)
+            } else {
+                override
+            }
+        }
+        return config.copy(options = options)
     }
 
     // ---- parse --------------------------------------------------------------
@@ -169,4 +215,6 @@ object DashboardLoader {
     }
 
     private const val BUNDLED_ASSET = "dashboard.json"
+    const val CONFIG_NAME = "dashboard.json"
+    const val DEVICE_NAME = "device.json"
 }

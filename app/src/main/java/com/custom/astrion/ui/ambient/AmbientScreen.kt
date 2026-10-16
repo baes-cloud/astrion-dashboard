@@ -1,5 +1,6 @@
 package com.custom.astrion.ui.ambient
 
+import com.custom.astrion.ui.AstrionTheme
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -14,7 +15,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import com.custom.astrion.config.AmbientOptions
 import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.EntityState
@@ -111,7 +111,7 @@ fun AmbientScreen(
         scene = SceneBuilder.build(key, art)
     }
 
-    Box(Modifier.fillMaxSize().background(Color(0xFF070809))) {
+    Box(Modifier.fillMaxSize().background(AstrionTheme.colors.void)) {
         // One crossfade target: the now-playing track key, "rest", or "off".
         val target: String = when (ui) {
             is AmbientUi.NowPlaying -> displayedKey ?: "np"
@@ -152,7 +152,7 @@ fun AmbientScreen(
                         )
                     } else {
                         // Scene still baking: hold the dark ground, no flash of content.
-                        Box(Modifier.fillMaxSize().background(Color(0xFF070809)))
+                        Box(Modifier.fillMaxSize().background(AstrionTheme.colors.void))
                     }
                 }
             }

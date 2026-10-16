@@ -6,12 +6,30 @@ the app can't do for itself.
 
 ## What the app does
 
-- **Docked means charging.** The remote counts as docked only when it's
-  plugged in *and* the battery is actually charging (or full) and has stayed
-  that way for `dock_debounce_seconds`. A remote seated badly on its dock used
-  to count as docked: screen held on, wake word streaming, every flicker of
-  contact restarting the 10-minute undocked wake word window. It drained
-  faster than the dock could fill it.
+- **Docked means plugged in.** The remote counts as docked once it has been
+  plugged in for `dock_debounce_seconds`, and stays docked through contact
+  drops shorter than `undock_debounce_seconds`. Whether the dock is actually
+  charging it is tracked separately as **`dock_fault`** (see below) and shown
+  on the screensaver. Docked used to also require charging, so a remote on a
+  dirty or badly seated dock counted as undocked: its screen went off after
+  the timeout, Android slept, and the remote dropped off the network while
+  sitting on its dock (the 16 Oct outage). Now a bad dock keeps the screen on
+  and tells you about it.
+- **One state machine decides.** Dock, screensaver, keep-on, backlight,
+  motion-wake and the HA filter all come from `power/PowerMachine.kt`, a pure
+  function of the inputs (plug and charge, screen, touches and keys, a
+  ringing alarm, time). Its behaviour is pinned down as a table in
+  `PowerMachineTest`: pogo bounce, bad dock, pick-up, alarm, screen off.
+- **A ringing alarm holds the screen on, nothing else does off the dock.**
+  A ringing alarm (or an alert with `severity: alarm`) keeps the screen on
+  until it stops or is hidden. A `warning` alert wakes the screen once and
+  the normal timeout then applies.
+- **The wake word follows the dock.** `voice.wake_word` is `"docked"`
+  (default: listening on the dock and for `wake_word_undocked_minutes`, 10,
+  after it leaves; a pogo bounce doesn't count as leaving), `"always"`, or
+  anything else for off. It also needs the mic permission and HA connected.
+  While it listens the app holds a partial wake lock, since the CPU has to
+  keep streaming the mic to HA.
 - **Motion-wake is time-limited.** The accelerometer that wakes the screen
   when you pick the remote up listens for `motion_wake_minutes` after the
   screen goes off, and never on the dock. On the HA100 it is *not* a wake-up
@@ -31,6 +49,9 @@ the app can't do for itself.
   the screen then goes off at the timeout. Docked, it is as before.
 - **Quiet HA connection with the screen off.** After `screen_off_filter_seconds`
   dark, the HA subscription narrows to the alarm's and the alerts' entities.
+  Only with the screen off: the docked screensaver keeps the full
+  subscription, so touching it brings the dashboard back without
+  re-downloading every entity.
   Otherwise every change in HA (the floorplan's radar sensors alone send
   several a second) wakes the Wi-Fi radio and the CPU all night. Waking the
   screen re-subscribes to everything; the snapshot that brings refreshes
@@ -63,10 +84,32 @@ All keys are optional.
 | `motion_wake_minutes` | 5 | How long after the screen goes off a pick-up still wakes it. `0` turns motion-wake off; `-1` keeps it on as long as the screen is off (the old behaviour, and the old drain). |
 | `screen_off_filter_seconds` | 30 | How long the screen must be off before the HA subscription narrows. `-1` never narrows. |
 | `screen_off_entities` | – | Extra entities to keep live with the screen off, on top of the alarm's and alerts'. |
-| `dock_debounce_seconds` | 5 | How long it must be charging before it counts as docked. Lifting it off counts at once. |
+| `dock_debounce_seconds` | 5 | How long it must be plugged in before it counts as docked. |
+| `undock_debounce_seconds` | 0 | How long it must be unplugged before it counts as undocked, so pogo-pin bounce doesn't undock it. A key press or touch while unplugged undocks it at once (it's been picked up). |
 | `screen_timeout_seconds` | 120 | The system screen timeout, enforced (see above). Docked, the screen stays on regardless. `0` leaves the setting alone; `-1` never times out, so an undocked remote stays on its screensaver all night (about 6% an hour). |
-| `report_entity` | – | Publish this remote's battery to HA under this id (see below). Give each remote its own. |
+| `report_entity` | – | Publish this remote's battery to HA under this id (see below). Give each remote its own, in `device.json`. |
 | `report_name` | – | Friendly name for that entity. |
+
+### Per-remote settings: device.json
+
+`dashboard.json` is the shared layout, and the same file can be pushed to
+every remote. Anything that differs per remote goes in
+`/sdcard/astrion/device.json`, whose top-level blocks are laid over
+dashboard.json's one level deep (a key in device.json's `power` block
+replaces that key only). It applies over the bundled layout too, so a remote
+keeps its identity even if its dashboard.json is missing or broken.
+
+```json
+{ "power": { "report_entity": "sensor.club_remote_113_battery", "report_name": "Club remote 113" } }
+```
+
+The repo keeps one per remote: `device/config/device-113.json` and
+`device-141.json`. Push with
+`adb push device/config/device-113.json /sdcard/astrion/device.json`.
+
+The app reads both files at start-up, before anything else runs, and watches
+the folder: saving or pushing either file applies it within a second, no
+restart needed.
 
 ### Battery in Home Assistant
 
@@ -74,7 +117,7 @@ With `report_entity` set, the remote posts its battery to HA (`POST
 /api/states`) whenever it changes and on every reconnect. The state is the
 percentage, and the attributes are `plugged`, `charging`, `status`
 (`charging` / `full` / `discharging` / `not_charging`), `docked` and
-**`dock_fault`**. `dock_fault` is true when the remote is plugged in but not
+**`dock_fault`**. It is posted again whenever `docked` changes. `dock_fault` is true when the remote is plugged in but not
 charging, or "charging" while its level has fallen 3 points since it was
 docked (`dock_draining`), i.e. sitting on the dock wrong or with dirty or
 worn pins: the second case is what 141 did on 4 Oct, 68% down to 42% while

@@ -84,6 +84,7 @@ class DashboardViewModelTest {
         every { client.outcomes } returns outcomesFlow
         every { client.entities } returns entitiesFlow
         every { client.snapshot() } answers { entitiesFlow.value }
+        every { client.current } answers { entitiesFlow.value }
         every { client.live } answers { entitiesFlow.value }
 
         every { voice.state } returns voiceStateFlow
@@ -378,5 +379,40 @@ class DashboardViewModelTest {
     fun foregroundIntentReconnectsClientWhenDisconnected() {
         viewModel.onIntent(DashboardIntent.Foreground)
         verify(atLeast = 2) { client.connect() }
+    }
+
+    @Test
+    fun wakeWordArmsOnlyWhenWantedConnectedAndPermitted() = runTest {
+        every { voice.hasPermission } returns true
+        every { voice.lastWakeFailureAt } returns 0L
+        runCurrent()
+        verify(exactly = 0) { voice.armWakeWord(any()) }
+
+        viewModel.onIntent(DashboardIntent.SetWakeWordWanted(true))
+        runCurrent()
+        verify(exactly = 0) { voice.armWakeWord(any()) } // offline
+
+        connectionFlow.value = ConnectionState.CONNECTED
+        runCurrent()
+        verify(exactly = 1) { voice.armWakeWord(any()) }
+
+        voiceStateFlow.value = VoiceState(armed = true)
+        runCurrent()
+        viewModel.onIntent(DashboardIntent.SetWakeWordWanted(false))
+        runCurrent()
+        verify { voice.disarm() }
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun wakeWordHeardBecomesAnEffect() = runTest {
+        val hook = io.mockk.slot<(() -> Unit)?>()
+        verify { voice.onWakeWord = captureNullable(hook) }
+        viewModel.effects.test {
+            hook.captured!!.invoke()
+            assertEquals(DashboardEffect.WakeWordHeard, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        viewModel.viewModelScope.cancel()
     }
 }

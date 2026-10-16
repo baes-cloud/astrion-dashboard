@@ -33,9 +33,12 @@ data class AstrionTypography(
     val bodySmall: TextStyle,                          // 13sp (Secondary captions, pills)
     val labelLarge: TextStyle,                         // 13sp Bold, 1sp tracking (Status header)
     val labelMedium: TextStyle,                        // 12sp SemiBold, 1sp tracking (Section headers)
-    val labelSmall: TextStyle,                         // 11sp Medium, 0.5sp tracking (Connection pill)
+    val labelSmall: TextStyle,                         // 12sp Medium, 0.5sp tracking (Connection pill)
     val labelMicro: TextStyle,                         // 8sp Bold, 0.16em tracking ("ON" badge)
     val wordmark: TextStyle,                           // 16sp Bold, 0.318em tracking (BÆOREMOTE footer)
+
+    /** The font sizes in use, for text that sets its own weight and family. */
+    val sizes: AstrionTypeSizes = AstrionTypeSizes(),
 ) {
     // Backwards-compatible TextUnit accessors
     val displaySize: TextUnit get() = display.fontSize
@@ -77,8 +80,46 @@ fun defaultAstrionTypography(): AstrionTypography {
         bodySmall = TextStyle(fontFamily = bodyFont, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal),
         labelLarge = TextStyle(fontFamily = bodyFont, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
         labelMedium = TextStyle(fontFamily = bodyFont, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp),
-        labelSmall = TextStyle(fontFamily = bodyFont, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp),
+        labelSmall = TextStyle(fontFamily = bodyFont, fontSize = 12.sp, lineHeight = 15.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp),
         labelMicro = TextStyle(fontFamily = bodyFont, fontSize = 8.sp, lineHeight = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.16.em),
         wordmark = TextStyle(fontFamily = headingFont, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.318.em),
     )
 }
+
+/**
+ * Every font size the app uses, smallest to largest. A `fontSize` comes from
+ * here, never a literal, so the scale can be read (and changed) in one place.
+ * Nothing is read below [MIN_TEXT] (12 sp, at arm's length on a 349 dp
+ * panel); [micro] is the one exception, the "ON" badge's capitals.
+ */
+@Immutable
+data class AstrionTypeSizes(
+    /** The "ON" badge on a scene tile: two capitals, not something to read. */
+    val micro: TextUnit = 8.sp,
+    /** The smallest text: time stamps, captions, small labels. */
+    val label: TextUnit = MIN_TEXT,
+    val small: TextUnit = 13.sp,
+    val body: TextUnit = 14.sp,
+    val bodyLarge: TextUnit = 15.sp,
+    val emphasis: TextUnit = 16.sp,
+    val title: TextUnit = 17.sp,
+    val titleLarge: TextUnit = 18.sp,
+    val heading: TextUnit = 19.sp,
+    val headingLarge: TextUnit = 20.sp,
+    val displayXs: TextUnit = 22.sp,
+    val displaySm: TextUnit = 26.sp,
+    val displayMd: TextUnit = 28.sp,
+    val displayLg: TextUnit = 32.sp,
+    val displayXl: TextUnit = 34.sp,
+    /** Climate's set temperature. */
+    val readout: TextUnit = 40.sp,
+    /** The screensaver clock. */
+    val clock: TextUnit = 81.sp,
+    /** The ringing alarm's clock. */
+    val alarmClock: TextUnit = 88.sp,
+    /** The ambient rest clock. */
+    val restClock: TextUnit = 92.sp,
+)
+
+/** The smallest text size anything is set in (see [AstrionTypeSizes]). */
+val MIN_TEXT: TextUnit = 12.sp

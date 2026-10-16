@@ -18,7 +18,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -140,13 +139,13 @@ class LockCard : CardRenderer {
                 Text(
                     name,
                     color = AstrionTheme.textPrimary,
-                    fontSize = 14.sp,
+                    fontSize = AstrionTheme.size.body,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (unavailable) {
-                    UnavailableLabel(12.sp)
+                    UnavailableLabel(AstrionTheme.size.label)
                 } else {
                     Text(
                         // When the door is being held unlocked that outranks
@@ -160,7 +159,7 @@ class LockCard : CardRenderer {
                             if (keepUnlocked) "held open" else age,
                         ).joinToString(" · "),
                         color = AstrionTheme.textSecondary,
-                        fontSize = 12.sp,
+                        fontSize = AstrionTheme.size.label,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -209,7 +208,7 @@ class LockCard : CardRenderer {
                     else -> "Unlocked"
                 },
                 color = tint,
-                fontSize = 13.sp,
+                fontSize = AstrionTheme.size.small,
                 fontWeight = FontWeight.SemiBold,
             )
         }

@@ -261,7 +261,7 @@ class MediaPlayerCard : CardRenderer {
                 modifier = Modifier.size(SQUARE_ART).clip(shape).background(AstrionTheme.raised),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Movie, contentDescription = null, tint = Color(0xFF506763), modifier = Modifier.size(40.dp))
+                Icon(Icons.Filled.Movie, contentDescription = null, tint = AstrionTheme.colors.accentMuted, modifier = Modifier.size(40.dp))
             }
         }
     }
@@ -277,19 +277,19 @@ class MediaPlayerCard : CardRenderer {
         Column(modifier) {
             Text(
                 s.title, color = AstrionTheme.textPrimary, fontFamily = AstrionTheme.headingFont,
-                fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                fontSize = AstrionTheme.size.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 style = tightTextStyle(21.sp),
             )
             s.subtitle?.let {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    it, color = AstrionTheme.textPrimary.copy(alpha = 0.85f), fontSize = 14.sp,
+                    it, color = AstrionTheme.textPrimary.copy(alpha = 0.85f), fontSize = AstrionTheme.size.body,
                     maxLines = 2, overflow = TextOverflow.Ellipsis, style = tightTextStyle(17.sp),
                 )
             }
             s.meta?.let {
                 Spacer(Modifier.height(3.dp))
-                Text(it, color = AstrionTheme.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(it, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (status != null) {
                 Spacer(Modifier.height(10.dp))
@@ -298,13 +298,13 @@ class MediaPlayerCard : CardRenderer {
                         Modifier.size(7.dp).clip(CircleShape).background(
                             when (s.state) {
                                 TvState.PLAYING -> AstrionTheme.good
-                                TvState.PAUSED -> AstrionTheme.on
+                                TvState.PAUSED -> AstrionTheme.blush
                                 else -> AstrionTheme.good.copy(alpha = 0.5f)
                             }
                         )
                     )
                     Spacer(Modifier.width(6.dp))
-                    Text(status, color = Color(0xFFCFDBD6), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(status, color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.size.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             s.progressEntity?.let { SessionProgress(ctx, it) }
@@ -338,7 +338,7 @@ class MediaPlayerCard : CardRenderer {
                 .fillMaxWidth()
                 .height(3.dp)
                 .clip(RoundedCornerShape(2.dp))
-                .background(Color(0x33FFFFFF)),
+                .background(AstrionTheme.colors.hairlineStrong),
         ) {
             Box(
                 Modifier
@@ -349,8 +349,8 @@ class MediaPlayerCard : CardRenderer {
         }
         Spacer(Modifier.height(4.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(formatMediaTime(pos), color = AstrionTheme.textSecondary, fontSize = 11.sp)
-            Text(formatMediaTime(duration), color = AstrionTheme.textSecondary, fontSize = 11.sp)
+            Text(formatMediaTime(pos), color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
+            Text(formatMediaTime(duration), color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
         }
     }
 
@@ -361,7 +361,7 @@ class MediaPlayerCard : CardRenderer {
     @Composable
     private fun AppTile(a: Map<String, Any?>, modifier: Modifier, enabled: Boolean, inFront: Boolean, onClick: () -> Unit) {
         val name = a["name"] as? String ?: ""
-        val color = parseHexColor(a["color"] as? String) ?: Color(0xFF98B5B0)
+        val color = parseHexColor(a["color"] as? String) ?: AstrionTheme.colors.onSurfaceMuted
         val dim = a["dim"] as? Boolean ?: false
         val badge = a["badge"] as? String
         val hasIcon = a["icon"] is String
@@ -370,7 +370,7 @@ class MediaPlayerCard : CardRenderer {
             modifier = modifier
                 .height(if (hasIcon) 44.dp else 76.dp)
                 .clip(shape)
-                .background(if (inFront) Color(0x80283646) else Color(0x55161F28))
+                .background(if (inFront) AstrionTheme.colors.surfaceVariant.copy(alpha = 0.5f) else AstrionTheme.colors.pinnedTopBg.copy(alpha = 0.33f))
                 .then(if (inFront) Modifier.border(1.5.dp, AstrionTheme.accent.copy(alpha = 0.75f), shape) else Modifier)
                 .tap(enabled = enabled, onClick = onClick)
                 .padding(if (hasIcon) 3.dp else 6.dp),
@@ -393,15 +393,15 @@ class MediaPlayerCard : CardRenderer {
                         .background(color.copy(alpha = 0.22f * alpha)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(badge, color = color.copy(alpha = alpha), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(badge, color = color.copy(alpha = alpha), fontSize = AstrionTheme.size.emphasis, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    name.uppercase(), color = Color(0xFFA6B8B1).copy(alpha = alpha), fontSize = 11.sp,
+                    name.uppercase(), color = AstrionTheme.colors.onSurfaceMuted.copy(alpha = alpha), fontSize = AstrionTheme.size.label,
                     fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, maxLines = 1,
                 )
             } else {
-                Text(name, color = color.copy(alpha = alpha), fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(name, color = color.copy(alpha = alpha), fontSize = AstrionTheme.size.heading, fontWeight = FontWeight.Bold, maxLines = 1)
             }
         }
     }
@@ -445,12 +445,12 @@ class MediaPlayerCard : CardRenderer {
             if (art != null) {
                 Image(art, null, modifier = artMod, contentScale = ContentScale.Crop)
             } else {
-                Box(artMod.background(Color(0xFF3A2E5A)))
+                Box(artMod.background(AstrionTheme.colors.surfaceVariant))
             }
             Column(Modifier.weight(1f)) {
-                Text(title, color = Color(0xFFEEF2EF), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                Text(title, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.bodyLarge, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(artist, color = Color(0xFFBCC6C1), fontSize = AstrionTheme.label,
+                Text(artist, color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.label,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             CircleControl(
@@ -507,14 +507,14 @@ class MediaPlayerCard : CardRenderer {
                                 .weight(1f)
                                 .height(44.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0x663A4F57)) // semi-transparent
+                                .background(AstrionTheme.colors.controlBg.copy(alpha = 0.4f)) // semi-transparent
                                 .tap(enabled = enabled) { fireService(ctx, b) },
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
                                 b["name"] as? String ?: "",
-                                color = Color(0xFFEEF2EF),
-                                fontSize = 15.sp,
+                                color = AstrionTheme.colors.onSurface,
+                                fontSize = AstrionTheme.size.bodyLarge,
                                 fontWeight = FontWeight.Medium,
                             )
                         }
@@ -535,7 +535,7 @@ class MediaPlayerCard : CardRenderer {
                     Icon(
                         Icons.Filled.Movie,
                         contentDescription = "Nothing playing",
-                        tint = Color(0xFF506763),
+                        tint = AstrionTheme.colors.accentMuted,
                         modifier = Modifier.size(56.dp),
                     )
                 }
@@ -545,10 +545,10 @@ class MediaPlayerCard : CardRenderer {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(title, color = Color(0xFFEEF2EF), fontFamily = AstrionTheme.headingFont, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                Text(title, color = AstrionTheme.colors.onSurface, fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.headingLarge, fontWeight = FontWeight.Bold,
                     maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth())
-                Text(artist, color = Color(0xFFBCC6C1), fontSize = 14.sp,
+                Text(artist, color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.size.body,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth())
             }
@@ -602,15 +602,15 @@ class MediaPlayerCard : CardRenderer {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0x663A4F57))
+                    .background(AstrionTheme.colors.controlBg.copy(alpha = 0.4f))
                     .tap(enabled = sources.isNotEmpty()) { expanded = true }
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     current ?: if (sources.isEmpty()) "No sources" else "Select source…",
-                    color = Color(0xFFEEF2EF),
-                    fontSize = 13.sp,
+                    color = AstrionTheme.colors.onSurface,
+                    fontSize = AstrionTheme.size.small,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
@@ -618,22 +618,22 @@ class MediaPlayerCard : CardRenderer {
                 Icon(
                     Icons.Filled.ArrowDropDown,
                     contentDescription = null,
-                    tint = if (sources.isEmpty()) Color(0xFF718583) else Color(0xFFD9E3E0),
+                    tint = if (sources.isEmpty()) AstrionTheme.colors.textMuted else AstrionTheme.colors.textOnControl,
                     modifier = Modifier.size(18.dp),
                 )
             }
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                modifier = Modifier.background(Color(0xFF283646)).widthIn(max = 400.dp),
+                modifier = Modifier.background(AstrionTheme.colors.surfaceVariant).widthIn(max = 400.dp),
             ) {
                 sources.forEach { s ->
                     DropdownMenuItem(
                         text = {
                             Text(
                                 s,
-                                color = if (s == current) Color(0xFF8CBDB5) else Color(0xFFEEF2EF),
-                                fontSize = 14.sp,
+                                color = if (s == current) AstrionTheme.colors.accent else AstrionTheme.colors.onSurface,
+                                fontSize = AstrionTheme.size.body,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -663,7 +663,7 @@ class MediaPlayerCard : CardRenderer {
             modifier = Modifier
                 .size(size)
                 .clip(CircleShape)
-                .background(if (accent) AstrionTheme.accentStrong else Color(0x553A4F57))
+                .background(if (accent) AstrionTheme.accentStrong else AstrionTheme.colors.controlBg.copy(alpha = 0.33f))
                 .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
@@ -794,11 +794,11 @@ private fun ArtBackdrop(art: ImageBitmap?, washPx: Int = 32, content: @Composabl
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF243140)),
+            .background(AstrionTheme.colors.surface),
     ) {
         blurred?.let { bg ->
             Image(bitmap = bg, contentDescription = null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-            Box(modifier = Modifier.matchParentSize().background(Color(0xB3151D25)))
+            Box(modifier = Modifier.matchParentSize().background(AstrionTheme.colors.pinnedTopBg.copy(alpha = 0.7f)))
         }
         content()
     }

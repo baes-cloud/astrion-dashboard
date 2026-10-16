@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ir.IrModeOverlay
+import com.custom.astrion.ui.ambient.AmbientScreen
 import com.custom.astrion.viewmodel.*
 import com.custom.astrion.voice.VoiceOverlay
 import com.custom.astrion.voice.VoicePhase
@@ -49,15 +50,31 @@ fun DashboardScreen(
             }
 
             if (powerState.isScreensaverOn) {
-                Screensaver(
-                    options = dashboardState.config.features.screensaver.raw,
-                    entities = { dashboardVm.client.snapshot() },
-                    client = dashboardVm.client,
-                    connected = dashboardState.connectionState == ConnectionState.CONNECTED,
-                    batteryPct = powerState.batteryPct,
-                    charging = powerState.isCharging || powerState.isDocked,
-                    dockFault = powerState.isDockFault || powerState.isDockDraining,
-                )
+                val features = dashboardState.config.features
+                val connected = dashboardState.connectionState == ConnectionState.CONNECTED
+                val charging = powerState.isCharging || powerState.isDocked
+                if (features.ambient.enabled) {
+                    AmbientScreen(
+                        cfg = features.ambient,
+                        screensaverOptions = features.screensaver.raw,
+                        entities = { dashboardVm.client.snapshot() },
+                        client = dashboardVm.client,
+                        connected = connected,
+                        batteryPct = powerState.batteryPct,
+                        charging = charging,
+                        is24 = (features.screensaver.raw["time_format"] as? Number)?.toInt() == 24,
+                    )
+                } else {
+                    Screensaver(
+                        options = features.screensaver.raw,
+                        entities = { dashboardVm.client.snapshot() },
+                        client = dashboardVm.client,
+                        connected = connected,
+                        batteryPct = powerState.batteryPct,
+                        charging = charging,
+                        dockFault = powerState.isDockFault || powerState.isDockDraining,
+                    )
+                }
             }
 
             if (inputState.isIrMode) {

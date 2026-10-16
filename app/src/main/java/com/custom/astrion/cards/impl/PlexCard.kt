@@ -1,5 +1,8 @@
 package com.custom.astrion.cards.impl
 
+import kotlinx.serialization.builtins.ListSerializer
+import com.custom.astrion.ui.DiskJson
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -17,7 +20,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,12 +42,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
@@ -101,17 +101,6 @@ import java.util.concurrent.TimeUnit
 class PlexCard : CardRenderer {
     override val type = "plex"
 
-    private data class PlexItem(
-        val ratingKey: String,
-        val type: String,
-        val title: String,
-        val subtitle: String,
-        val thumb: String?,
-        val resume: Boolean,
-    )
-
-    private data class Shelf(val title: String, val items: List<PlexItem>)
-
     private companion object {
         val http: OkHttpClient = com.custom.astrion.ha.Http.base.newBuilder()
             .callTimeout(12, TimeUnit.SECONDS)
@@ -121,11 +110,25 @@ class PlexCard : CardRenderer {
         // Last shelves per host: the page is recomposed from scratch every
         // time you navigate to it, and a cold load of five rows took ~10 s on
         // this SoC — so show the previous result at once and refresh behind it.
-        val shelfCache = java.util.concurrent.ConcurrentHashMap<String, List<Shelf>>()
+        // Kept on disk too (DiskJson), so a cold start shows them at once.
+        val shelfCache = java.util.concurrent.ConcurrentHashMap<String, List<PlexShelf>>()
+        val shelvesSerializer = ListSerializer(PlexShelf.serializer())
 
         // ~3.5 tiles across a 480px/220dpi panel.
         val TILE_W = 84.dp
         val POSTER_H = 120.dp
+
+        const val PLEX_APP = "com.plexapp.android"
+        /** How long to wait for the TV to show Plex after the intent. */
+        const val OPEN_TIMEOUT_MS = 10_000L
+
+        /** Posters per row fetched ahead of being scrolled into view. */
+        const val PREFETCH = 6
+
+        fun storedShelves(host: String): List<PlexShelf>? = shelfCache[host]
+            ?: DiskJson.read("plex:$host")
+                ?.let { runCatching { json.decodeFromString(shelvesSerializer, it) }.getOrNull() }
+                ?.also { shelfCache[host] = it }
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -144,28 +147,51 @@ class PlexCard : CardRenderer {
         // from the server rather than pinning it in config.
         val machineId by produceState<String?>(initialValue = config.string("machine_id"), host, token) {
             if (value == null) {
-                value = get(url(host, token, "/identity"))?.mc()?.str("machineIdentifier")
+                value = get(plexUrl(host, token, "/identity")).json?.mc()?.str("machineIdentifier")
             }
         }
 
         // Refreshed on every visit to the page (it stays composed otherwise).
         val visits = rememberPageVisits()
-        val shelves by produceState<List<Shelf>?>(initialValue = shelfCache[host], host, token, limit, visits) {
+        var loadError by remember { mutableStateOf<String?>(null) }
+        val shelves by produceState(initialValue = storedShelves(host), host, token, limit, visits) {
             // All rows at once rather than one after another.
-            val fresh = kotlinx.coroutines.coroutineScope {
+            val results = kotlinx.coroutines.coroutineScope {
                 rowSpecs.map { spec ->
                     async {
                         val title = spec["title"] as? String ?: return@async null
                         val path = spec["path"] as? String ?: return@async null
-                        val items = fetchItems(host, token, path, limit)
-                        if (items.isNullOrEmpty()) null else Shelf(title, items)
+                        val sep = if ('?' in path) "&" else "?"
+                        val got = get(plexUrl(host, token, "$path${sep}X-Plex-Container-Start=0&X-Plex-Container-Size=$limit"))
+                        val items = got.json?.let(::parsePlexItems)
+                        RowResult(title, items, if (items == null) got.error ?: "no items" else null)
                     }
                 }.awaitAll().filterNotNull()
             }
+            val fresh = results.mapNotNull { r -> r.items?.takeIf { it.isNotEmpty() }?.let { PlexShelf(r.title, it) } }
+            loadError = results.firstNotNullOfOrNull { it.error }
             // A failed refresh keeps what was already on screen.
             if (fresh.isNotEmpty() || value == null) {
                 value = fresh
                 shelfCache[host] = fresh
+                if (fresh.isNotEmpty()) {
+                    withContext(Dispatchers.IO) { DiskJson.write("plex:$host", json.encodeToString(shelvesSerializer, fresh)) }
+                }
+            }
+        }
+
+        // Posters at the tile's real pixel size (smaller than the old 200x300).
+        val density = LocalDensity.current
+        val posterW = with(density) { TILE_W.roundToPx() }
+        val posterH = with(density) { POSTER_H.roundToPx() }
+
+        // The first few posters of every row, so the row is filled before
+        // it's scrolled to and the first swipe along it doesn't wait.
+        LaunchedEffect(shelves, posterW) {
+            shelves?.forEach { shelf ->
+                shelf.items.take(PREFETCH).forEach { item ->
+                    item.thumb?.let { t -> launch { loadPoster(plexThumbUrl(host, token, t, posterW, posterH)) } }
+                }
             }
         }
 
@@ -214,12 +240,25 @@ class PlexCard : CardRenderer {
                     }
                 }
                 status = "Opening Plex…"
+                // confirm: a failed ADB call shows as a toast, not silence.
                 ctx.client.callService(
                     ServiceCall.of(
                         "androidtv", "adb_command", adbEntity,
-                        "command" to deepLink(mid, item.ratingKey),
-                    )
+                        "command" to plexDeepLink(mid, item.ratingKey),
+                    ),
+                    confirm = true,
                 )
+                // The ADB entity reports the foreground app: wait for Plex.
+                val opened = withTimeoutOrNull(OPEN_TIMEOUT_MS) {
+                    while (ctx.entity(adbEntity)?.attrString("app_id") != PLEX_APP) delay(500)
+                    true
+                }
+                val app = ctx.entity(adbEntity)?.attrString("app_id")
+                status = when {
+                    opened == true -> "Playing on the TV"
+                    app != null -> "Plex didn't open on the TV (showing $app) — try again"
+                    else -> null
+                }
                 delay(4000)
                 status = null
             }
@@ -229,13 +268,13 @@ class PlexCard : CardRenderer {
             status?.let { ShelfLabel(it) }
             when {
                 shelves == null -> ShelfLabel("Plex — loading…")
-                shelves!!.isEmpty() -> ShelfLabel("Plex — nothing to show")
+                shelves!!.isEmpty() -> ShelfLabel(plexEmptyMessage(host, loadError))
                 else -> shelves!!.forEach { shelf ->
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         ShelfLabel(shelf.title)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(shelf.items) { item ->
-                                PosterTile(host, token, item) { play(item) }
+                            items(shelf.items, key = { it.ratingKey }) { item ->
+                                PosterTile(item.thumb?.let { plexThumbUrl(host, token, it, posterW, posterH) }, item) { play(item) }
                             }
                         }
                     }
@@ -248,30 +287,20 @@ class PlexCard : CardRenderer {
     private fun ShelfLabel(text: String) {
         Text(
             text,
-            color = Color(0xFFAEBFBB),
-            fontSize = 12.sp,
+            color = AstrionTheme.colors.onSurfaceVariant,
+            fontSize = AstrionTheme.size.label,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.sp,
         )
     }
 
     @Composable
-    private fun PosterTile(host: String, token: String, item: PlexItem, onClick: () -> Unit) {
-        val posterUrl = item.thumb?.let { thumbUrl(host, token, it) }
+    private fun PosterTile(posterUrl: String?, item: PlexItem, onClick: () -> Unit) {
         // Posters come from ArtCache (memory, then disk), so swiping back
         // and forth, or restarting, doesn't refetch them from the server.
         var bmp by remember(posterUrl) { mutableStateOf(posterUrl?.let { ArtCache.peek(it) }) }
         LaunchedEffect(posterUrl) {
-            if (bmp == null && posterUrl != null) {
-                // Already server-scaled to 200x300 by thumbUrl, so no downsampling.
-                ArtCache.load(posterUrl) {
-                    runCatching {
-                        http.newCall(Request.Builder().url(posterUrl).build()).execute().use { r ->
-                            if (r.isSuccessful) r.body?.bytes() else null
-                        }
-                    }.getOrNull()
-                }?.let { bmp = it }
-            }
+            if (bmp == null && posterUrl != null) loadPoster(posterUrl)?.let { bmp = it }
         }
 
         Column(
@@ -294,7 +323,7 @@ class PlexCard : CardRenderer {
                 item.title,
                 style = tightTextStyle(13.sp),
                 color = AstrionTheme.textPrimary,
-                fontSize = 11.sp,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -304,7 +333,7 @@ class PlexCard : CardRenderer {
                     item.subtitle,
                     style = tightTextStyle(12.sp),
                     color = AstrionTheme.textSecondary,
-                    fontSize = 10.sp,
+                    fontSize = AstrionTheme.size.label,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -314,70 +343,34 @@ class PlexCard : CardRenderer {
 
     // ---- Plex HTTP ----------------------------------------------------------
 
-    private fun url(host: String, token: String, path: String): String {
-        val sep = if ('?' in path) "&" else "?"
-        return host + path + if (token.isBlank()) "" else "${sep}X-Plex-Token=$token"
-    }
+    /** A Plex response, or why there isn't one ("HTTP 401", "unreachable", "not JSON"). */
+    private class Got(val json: JsonObject?, val error: String?)
 
-    /** Server-side scaled poster — keeps the decode tiny on a 1GB device. */
-    private fun thumbUrl(host: String, token: String, thumb: String): String {
-        val inner = URLEncoder.encode(thumb, "UTF-8")
-        val q = "/photo/:/transcode?width=200&height=300&minSize=1&upscale=1&url=$inner"
-        return url(host, token, q)
-    }
+    /** One configured row's result: its items, or why it has none. */
+    private class RowResult(val title: String, val items: List<PlexItem>?, val error: String?)
 
-    private suspend fun get(u: String): JsonObject? = withContext(Dispatchers.IO) {
-        runCatching {
+    private suspend fun get(u: String): Got = withContext(Dispatchers.IO) {
+        try {
             http.newCall(Request.Builder().url(u).header("Accept", "application/json").build())
                 .execute().use { r ->
-                    if (!r.isSuccessful) null
-                    else json.parseToJsonElement(r.body?.string() ?: return@use null) as? JsonObject
+                    if (!r.isSuccessful) return@use Got(null, "HTTP ${r.code}")
+                    val body = r.body?.string() ?: return@use Got(null, "empty reply")
+                    val obj = runCatching { json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+                    if (obj == null) Got(null, "not JSON") else Got(obj, null)
                 }
-        }.getOrNull()
-    }
-
-    private suspend fun fetchItems(host: String, token: String, path: String, limit: Int): List<PlexItem>? {
-        val sep = if ('?' in path) "&" else "?"
-        val p = "$path${sep}X-Plex-Container-Start=0&X-Plex-Container-Size=$limit"
-        val meta = get(url(host, token, p))?.mc()?.get("Metadata") as? JsonArray ?: return null
-        return meta.mapNotNull { el ->
-            val o = el as? JsonObject ?: return@mapNotNull null
-            val key = o.str("ratingKey") ?: return@mapNotNull null
-            val kind = o.str("type") ?: "video"
-            val resume = (o.str("viewOffset")?.toLongOrNull() ?: 0L) > 0L
-            if (kind == "episode") {
-                val show = o.str("grandparentTitle") ?: o.str("title") ?: "?"
-                val s = o.str("parentIndex")
-                val ep = o.str("index")
-                PlexItem(
-                    ratingKey = key, type = kind, title = show,
-                    subtitle = listOfNotNull(s?.let { "S$it" }, ep?.let { "E$it" })
-                        .joinToString("")
-                        .ifBlank { o.str("title").orEmpty() },
-                    thumb = o.str("grandparentThumb") ?: o.str("thumb"),
-                    resume = resume,
-                )
-            } else {
-                PlexItem(
-                    ratingKey = key, type = kind,
-                    title = o.str("title") ?: "?",
-                    subtitle = o.str("year") ?: kind.replaceFirstChar { it.uppercase() },
-                    thumb = o.str("thumb"),
-                    resume = resume,
-                )
-            }
+        } catch (e: java.io.IOException) {
+            Got(null, "unreachable")
         }
     }
 
-    /**
-     * The Plex Android/Android-TV app's VIEW intent. `server://` (two slashes
-     * after the scheme, then the machine identifier) is the app's own
-     * addressing for "this item, on this server" — it opens Plex, jumps
-     * straight to the item and starts it at its stored resume point.
-     */
-    private fun deepLink(machineId: String, ratingKey: String): String =
-        "am start -a android.intent.action.VIEW " +
-            "-d 'plex://server://$machineId/com.plexapp.plugins.library/library/metadata/$ratingKey'"
+    /** Already server-scaled to the tile by [plexThumbUrl], so no downsampling. */
+    private suspend fun loadPoster(url: String) = ArtCache.load(url) {
+        runCatching {
+            http.newCall(Request.Builder().url(url).build()).execute().use { r ->
+                if (r.isSuccessful) r.body?.bytes() else null
+            }
+        }.getOrNull()
+    }
 
     /** ADB entity states that mean "no shell to talk to". */
     private fun isAsleep(state: String?): Boolean =

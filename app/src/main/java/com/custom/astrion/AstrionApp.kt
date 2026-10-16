@@ -33,10 +33,16 @@ import com.custom.astrion.cards.impl.SwipeStackCard
 import com.custom.astrion.cards.impl.SwitchCard
 import com.custom.astrion.cards.impl.TvRemoteCard
 import com.custom.astrion.cards.impl.VacuumCard
+import com.custom.astrion.config.AppConfigRepository
 import com.custom.astrion.config.DashboardLoader
+import com.custom.astrion.config.DefaultAppConfigRepository
 import com.custom.astrion.di.appModules
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ui.ArtCache
+import com.custom.astrion.ui.DiskJson
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import org.koin.android.ext.android.get
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
@@ -62,6 +68,9 @@ class AstrionApp : Application() {
      */
     val client: HaClient get() = get()
 
+    /** Process-lifetime work that isn't tied to a screen: the config file watcher. */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     override fun onCreate() {
         super.onCreate()
         startKoin {
@@ -70,7 +79,15 @@ class AstrionApp : Application() {
             modules(appModules)
         }
         ArtCache.init(cacheDir)
+        DiskJson.init(cacheDir)
         DashboardLoader.init(assets)
+        // Read /sdcard/astrion before any ViewModel exists, so none of them
+        // starts on the bundled layout (whose report_entity and screen timeout
+        // aren't this remote's), then follow edits to it.
+        (get<AppConfigRepository>() as? DefaultAppConfigRepository)?.apply {
+            loadNow()
+            startWatching(appScope)
+        }
         CardRegistry.register(
             LightCard(),
             LightGroupCard(),

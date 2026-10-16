@@ -15,7 +15,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,8 +65,8 @@ class LightZonesCard : CardRenderer {
                     ) {
                         Text(
                             title?.uppercase() ?: "",
-                            color = Color(0xFFAEBFBB),
-                            fontSize = 12.sp,
+                            color = AstrionTheme.colors.onSurfaceVariant,
+                            fontSize = AstrionTheme.size.label,
                             fontWeight = FontWeight.SemiBold,
                             letterSpacing = 1.sp,
                         )
@@ -107,7 +106,7 @@ class LightZonesCard : CardRenderer {
                     .padding(start = if (on) 24.dp else 3.dp, top = 3.dp)
                     .size(26.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFF2F5F3)),
+                    .background(AstrionTheme.colors.onSurface),
             )
         }
     }

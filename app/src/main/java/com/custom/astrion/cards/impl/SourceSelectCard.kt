@@ -1,5 +1,6 @@
 package com.custom.astrion.cards.impl
 
+import com.custom.astrion.ui.AstrionTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,10 +18,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -59,17 +58,17 @@ class SourceSelectCard : CardRenderer {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF283646))
+                    .background(AstrionTheme.colors.surfaceVariant)
                     .tap(enabled = sources.isNotEmpty()) { expanded = true }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(name, color = Color(0xFFA9BAB6), fontSize = 11.sp)
+                    Text(name, color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.label)
                     Text(
                         current ?: if (sources.isEmpty()) "No sources (device off?)" else "Select source…",
-                        color = Color(0xFFEEF2EF),
-                        fontSize = 15.sp,
+                        color = AstrionTheme.colors.onSurface,
+                        fontSize = AstrionTheme.size.bodyLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -77,7 +76,7 @@ class SourceSelectCard : CardRenderer {
                 Icon(
                     Icons.Filled.ArrowDropDown,
                     contentDescription = null,
-                    tint = if (sources.isEmpty()) Color(0xFF718583) else Color(0xFFD9E3E0),
+                    tint = if (sources.isEmpty()) AstrionTheme.colors.textMuted else AstrionTheme.colors.textOnControl,
                 )
             }
 
@@ -85,7 +84,7 @@ class SourceSelectCard : CardRenderer {
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
                 modifier = Modifier
-                    .background(Color(0xFF283646))
+                    .background(AstrionTheme.colors.surfaceVariant)
                     .widthIn(max = 400.dp),
             ) {
                 sources.forEach { s ->
@@ -93,8 +92,8 @@ class SourceSelectCard : CardRenderer {
                         text = {
                             Text(
                                 s,
-                                color = if (s == current) Color(0xFF8CBDB5) else Color(0xFFEEF2EF),
-                                fontSize = 14.sp,
+                                color = if (s == current) AstrionTheme.colors.accent else AstrionTheme.colors.onSurface,
+                                fontSize = AstrionTheme.size.body,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )

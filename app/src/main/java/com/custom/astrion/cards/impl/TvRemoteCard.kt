@@ -1,5 +1,6 @@
 package com.custom.astrion.cards.impl
 
+import com.custom.astrion.ui.AstrionTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -16,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -98,7 +98,7 @@ class TvRemoteCard : CardRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF243140))
+                .background(AstrionTheme.colors.surface)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -108,8 +108,8 @@ class TvRemoteCard : CardRenderer {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(name, color = Color(0xFFEEF2EF), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                RoundIconButton(Icons.Filled.PowerSettingsNew, tint = Color(0xFFE06767)) {
+                Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.titleLarge, fontWeight = FontWeight.SemiBold)
+                RoundIconButton(Icons.Filled.PowerSettingsNew, tint = AstrionTheme.colors.dangerSoft) {
                     send(c("power", "POWER"))
                 }
             }
@@ -157,11 +157,11 @@ class TvRemoteCard : CardRenderer {
             modifier = modifier
                 .height(48.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF3A4F57))
+                .background(AstrionTheme.colors.controlBg)
                 .tap(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Text(label, color = Color(0xFFEEF2EF), fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(label, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.bodyLarge, fontWeight = FontWeight.Medium)
         }
     }
 
@@ -187,7 +187,7 @@ class TvRemoteCard : CardRenderer {
                 .fillMaxWidth()
                 .height(180.dp)
                 .clip(RoundedCornerShape(90.dp))
-                .background(Color(0xFF2C3B45)),
+                .background(AstrionTheme.colors.controlSunken),
             contentAlignment = Alignment.Center,
         ) {
             // Up
@@ -211,11 +211,11 @@ class TvRemoteCard : CardRenderer {
                 modifier = Modifier
                     .size(64.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF42565E))
+                    .background(AstrionTheme.colors.controlRaised)
                     .tap(onClick = onCenter),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("OK", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("OK", color = Color.White, fontWeight = FontWeight.Bold, fontSize = AstrionTheme.size.emphasis)
             }
         }
     }
@@ -223,14 +223,14 @@ class TvRemoteCard : CardRenderer {
     @Composable
     private fun RoundIconButton(
         icon: ImageVector,
-        tint: Color = Color(0xFFD9E3E0),
+        tint: Color = AstrionTheme.colors.textOnControl,
         onClick: () -> Unit,
     ) {
         Box(
             modifier = Modifier
                 .size(52.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF3A4F57))
+                .background(AstrionTheme.colors.controlBg)
                 .tap(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
