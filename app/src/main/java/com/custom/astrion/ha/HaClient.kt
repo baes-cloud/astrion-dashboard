@@ -74,6 +74,21 @@ class HaClient(
         private const val QUEUE_MAX_AGE_MS = 30_000L
         private const val QUEUE_MAX = 20
         private val PLAYHEAD_ATTRS = setOf("media_position", "media_position_updated_at")
+
+        /**
+         * High-frequency BLE trilateration, mmWave radar coordinate sensors, and
+         * bulky non-UI domains that bloat disk snapshot storage.
+         */
+        internal fun isNoisyTelemetryEntity(entityId: String): Boolean =
+            entityId.startsWith("sensor.bermuda_") ||
+                entityId.startsWith("device_tracker.bermuda_") ||
+                entityId.startsWith("sensor.club_apollo_") ||
+                entityId == "sensor.daily_news" ||
+                entityId.startsWith("update.") ||
+                entityId.startsWith("automation.") ||
+                entityId.startsWith("stt.") ||
+                entityId.startsWith("tts.") ||
+                entityId.startsWith("event.")
     }
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -909,7 +924,7 @@ class HaClient(
             publish(forceFlowUpdate = true)
             if (subscribedFilter == null) {
                 scope.launch {
-                    cache?.saveSnapshot(snapshot())
+                    cache?.saveSnapshot(snapshot().filterKeys { !isNoisyTelemetryEntity(it) })
                 }
             }
         } else if (meaningful) schedulePublish()

@@ -126,6 +126,10 @@ class PowerViewModel(
         val wasScreensaverOn = _uiState.value.isScreensaverOn
         if (wasScreensaverOn) {
             _uiState.update { it.copy(isScreensaverOn = false) }
+            filterJob?.cancel()
+            if (_uiState.value.isScreenOn) {
+                client.setEntityFilter(null)
+            }
             updateForegroundState()
             startScreensaverLoop()
         }
@@ -151,10 +155,26 @@ class PowerViewModel(
                     _uiState.update { it.copy(isScreensaverOn = true) }
                     updateForegroundState()
                     updateBrightness()
+                    scheduleScreensaverFilter()
                 } else if (_uiState.value.isScreensaverOn) {
                     updateBrightness()
                 }
                 delay(if (_uiState.value.isScreensaverOn) 30_000L else 1000L)
+            }
+        }
+    }
+
+    private fun scheduleScreensaverFilter() {
+        filterJob?.cancel()
+        val delaySec = currentConfig().features.power.screenOffFilterSeconds
+        if (delaySec <= 0) return
+        filterJob = viewModelScope.launch {
+            delay(delaySec * 1000L)
+            if (_uiState.value.isScreenOn && _uiState.value.isScreensaverOn) {
+                val allowed = screensaverEntities()
+                if (allowed.isNotEmpty()) {
+                    client.setEntityFilter(allowed)
+                }
             }
         }
     }
@@ -173,6 +193,7 @@ class PowerViewModel(
                 val elapsedMs = SystemClock.elapsedRealtime() - lastActivityMs
                 if (screensaver.enabled && screensaver.idleMs > 0 && elapsedMs >= screensaver.idleMs && !_uiState.value.isScreensaverOn) {
                     _uiState.update { it.copy(isScreensaverOn = true) }
+                    scheduleScreensaverFilter()
                 }
                 if (!_uiState.value.isScreenOn && screensaver.enabled && screensaver.keepScreenOn) {
                     _events.trySend(PowerEvent.WakeScreen)
@@ -235,6 +256,7 @@ class PowerViewModel(
 
     private fun updateMotionWake() {
         if (!_uiState.value.isScreenOn && !_uiState.value.isDocked) {
+            motionWake.setTimeoutMinutes(currentConfig().features.power.motionWakeMinutes)
             motionWake.start {
                 viewModelScope.launch {
                     _events.send(PowerEvent.WakeScreen)
@@ -256,8 +278,9 @@ class PowerViewModel(
                 _uiState.update { it.copy(isScreensaverOn = false) }
                 updateBrightness()
             }
+            val delaySec = currentConfig().features.power.screenOffFilterSeconds.coerceAtLeast(1)
             filterJob = viewModelScope.launch {
-                delay(30_000L)
+                delay(delaySec * 1000L)
                 client.setEntityFilter(screenOffEntities())
             }
         } else {
@@ -274,6 +297,9 @@ class PowerViewModel(
             }
             startScreensaverLoop()
             client.setEntityFilter(null)
+            if (_uiState.value.isScreensaverOn) {
+                scheduleScreensaverFilter()
+            }
         }
     }
 
@@ -294,6 +320,34 @@ class PowerViewModel(
             spec.unlessEntity?.let { ids += it }
         }
         ids += config.features.power.screenOffEntities
+        return ids
+    }
+
+    /**
+     * Entities to keep subscribed while the screensaver is active: everything
+     * needed by the screensaver, alarms, and alerts (weather, media players,
+     * timers, calendars, sun, alarms, and alert triggers).
+     */
+    private fun screensaverEntities(): Set<String> {
+        val ids = screenOffEntities().toMutableSet()
+        ids += "sun.sun"
+        val raw = currentConfig().features.screensaver.raw
+        (raw["weather_entity"] as? String)?.let { ids += it }
+        (raw["calendar_entity"] as? String)?.let { ids += it }
+        (raw["enabled_entity"] as? String)?.let { ids += it }
+        (raw["off_today_entity"] as? String)?.let { ids += it }
+        (raw["alarm_entities"] as? List<*>)?.filterIsInstance<String>()?.let { ids += it }
+        (raw["always_entities"] as? List<*>)?.filterIsInstance<String>()?.let { ids += it }
+        (raw["media_entities"] as? List<*>)?.filterIsInstance<String>()?.let { ids += it }
+        (raw["alerts"] as? List<*>)?.forEach { item ->
+            ((item as? Map<*, *>)?.get("entity_id") as? String)?.let { ids += it }
+        }
+        client.snapshot().keys.forEach { entityId ->
+            val domain = entityId.substringBefore('.')
+            if (domain == "weather" || domain == "media_player" || domain == "timer" || domain == "calendar") {
+                ids += entityId
+            }
+        }
         return ids
     }
 
@@ -386,8 +440,6 @@ class PowerViewModel(
                 markUserActivity()
             }
             PowerIntent.DismissScreensaver -> {
-                _uiState.update { it.copy(isScreensaverOn = false) }
-                updateForegroundState()
                 markUserActivity()
             }
             is PowerIntent.SetSwallowKey -> {

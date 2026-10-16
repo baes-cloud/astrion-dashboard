@@ -125,6 +125,7 @@ fun Screensaver(
     connected: Boolean,
     batteryPct: Int?,
     charging: Boolean,
+    dockFault: Boolean = false,
 ) {
     // The face redraws on the minute, not every second. It shows h:mm, and a
     // whole-face pass costs ~36ms of UI thread on this SoC: once a second
@@ -247,15 +248,21 @@ fun Screensaver(
                     }
                 }
                 if (batteryPct != null) {
+                    val batteryWarn = dockFault || (!charging && batteryPct <= 20)
+                    val batteryColor = if (batteryWarn) accent else ink
                     Text("  ·  ", color = faint, fontSize = 15.sp)
                     Icon(
-                        if (charging) Icons.Filled.BatteryChargingFull else Icons.Filled.BatteryStd,
+                        when {
+                            dockFault -> Icons.Filled.Warning
+                            charging -> Icons.Filled.BatteryChargingFull
+                            else -> Icons.Filled.BatteryStd
+                        },
                         contentDescription = null,
-                        tint = ink,
+                        tint = batteryColor,
                         modifier = Modifier.size(14.dp),
                     )
                     Spacer(Modifier.width(2.dp))
-                    Text("$batteryPct%", color = ink, fontSize = 15.sp, maxLines = 1)
+                    Text("$batteryPct%", color = batteryColor, fontSize = 15.sp, maxLines = 1)
                 }
             }
 

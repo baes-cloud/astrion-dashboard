@@ -56,6 +56,7 @@ fun DashboardScreen(
                     connected = dashboardState.connectionState == ConnectionState.CONNECTED,
                     batteryPct = powerState.batteryPct,
                     charging = powerState.isCharging || powerState.isDocked,
+                    dockFault = powerState.isDockFault || powerState.isDockDraining,
                 )
             }
 

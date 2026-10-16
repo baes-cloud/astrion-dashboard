@@ -23,6 +23,7 @@ import kotlin.math.sqrt
  */
 interface MotionWakeController {
     fun start(onWake: () -> Unit)
+    fun setTimeoutMinutes(minutes: Int) {}
     fun stop()
     fun isHardwareInterruptSupported(): Boolean
 }
@@ -61,6 +62,7 @@ class MotionWake(
     private var activeJob: Job? = null
     private var hwTriggerActive = false
     private var lastMagnitude = 0f
+    @Volatile private var timeoutMinutes: Int = 5
 
     private val triggerListener = object : TriggerEventListener() {
         override fun onTrigger(event: TriggerEvent?) {
@@ -84,8 +86,12 @@ class MotionWake(
 
     override fun isHardwareInterruptSupported(): Boolean = sigMotion != null
 
+    override fun setTimeoutMinutes(minutes: Int) {
+        timeoutMinutes = minutes
+    }
+
     override fun start(onWake: () -> Unit) {
-        start(minutes = 5, onWake = onWake)
+        start(minutes = timeoutMinutes, onWake = onWake)
     }
 
     /**
@@ -148,8 +154,8 @@ class MotionWake(
     companion object {
         /** Accel magnitude delta (m/s²) that counts as "moved". */
         const val MOTION_THRESHOLD = 0.9f
-        const val DEFAULT_LISTEN_WINDOW_MS = 1_000L
-        const val DEFAULT_SLEEP_WINDOW_MS = 4_000L
+        const val DEFAULT_LISTEN_WINDOW_MS = 1_500L
+        const val DEFAULT_SLEEP_WINDOW_MS = 1_500L
 
         fun calculateMagnitude(x: Float, y: Float, z: Float): Float =
             sqrt(x * x + y * y + z * z)

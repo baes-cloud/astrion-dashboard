@@ -91,13 +91,12 @@ fun rememberPageVisits(): Int {
 }
 
 /**
- * Measured but not placed when [hidden], so nothing inside is drawn while its
- * composition (and with it page and scroll state) stays alive.
+ * Unmeasured and unplaced when [hidden], so nothing inside is measured or drawn
+ * while its composition (and with it page and scroll state) stays alive.
  */
 fun Modifier.unplacedWhen(hidden: Boolean): Modifier =
-    if (!hidden) this else layout { measurable, constraints ->
-        val placeable = measurable.measure(constraints)
-        layout(placeable.width, placeable.height) {}
+    if (!hidden) this else layout { _, constraints ->
+        layout(constraints.maxWidth, constraints.maxHeight) {}
     }
 
 /**
