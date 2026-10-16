@@ -97,3 +97,8 @@ adb -s 10.0.0.113:5555 push config/device-113.json /sdcard/astrion/device.json
 
 The app picks both up within a second (it watches the folder). See
 `docs/POWER.md`, "Per-remote settings".
+
+Both device files also set `screen_timeout_seconds: -1` (never time out)
+for the first deployment of the new dock handling, so a remote that
+misjudges its dock stays reachable. Remove it once the remotes have proved
+themselves; the shared 120 s then applies off the dock.
