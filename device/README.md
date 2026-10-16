@@ -38,6 +38,12 @@ device/install.sh --apk app/build/outputs/apk/release/app-release.apk --layout 1
 device/status.sh 10.0.0.113            # read-only
 ```
 
+The repo's `adbfw.sh` and `config/dashboard.json` are sanitised templates.
+The real ones (the admin allow-list, the Plex host, the calendar) live in
+`device/local/`, which is gitignored; both scripts use a file there in place
+of the template, and `install.sh` refuses to push a template that still has
+its placeholders. See `local/README.md`.
+
 `install.sh` needs a root adb shell (the userdebug build gives one), remounts
 `/vendor` read-write only while it copies, and leaves it read-only again. The
 `.rc` files take effect on the next reboot. `--apk` also AOT-compiles the app,

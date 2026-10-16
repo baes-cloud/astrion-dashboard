@@ -11,11 +11,14 @@ case $1 in *:*) TARGET=$1 ;; *) TARGET=$1:5555 ;; esac
 PKG=com.custom.astrion
 
 adb connect "$TARGET" >/dev/null
+# device/local/<name> (the real file, gitignored) over the repo template.
+pick() { if [ -f "local/$(basename "$1")" ]; then echo "local/$(basename "$1")"; else echo "$1"; fi; }
 sh_() { adb -s "$TARGET" shell "$@" </dev/null | tr -d '\r'; }
 
 echo "== Device files ($TARGET vs repo)"
 grep -v '^#' files.txt | while read -r src dest _; do
   [ -n "$src" ] || continue
+  src=$(pick "$src")
   want=$(md5sum "$src" | cut -d' ' -f1)
   got=$(sh_ "md5sum $dest 2>/dev/null" | cut -d' ' -f1) || true
   if [ -z "$got" ]; then state=MISSING
