@@ -1,6 +1,10 @@
 package com.custom.astrion.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -19,6 +23,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -64,6 +71,52 @@ fun Modifier.tap(
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         onClick()
     }
+}
+
+/** The smallest touch area a control gets, whatever it's drawn at. */
+val MIN_TOUCH: Dp = 48.dp
+
+/**
+ * A round-ish control drawn at [visual] size with a touch area of at least
+ * [MIN_TOUCH]. Its parent lays it out at [visual], so nothing around it
+ * moves; the extra area overhangs it evenly, and the press ripple stays on
+ * the drawn [face] (its clip and background).
+ */
+@Composable
+fun HitTarget(
+    visual: Dp,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    haptic: Boolean = true,
+    face: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val haptics = LocalHapticFeedback.current
+    Box(
+        modifier
+            .overhang(visual, maxOf(visual, MIN_TOUCH))
+            .clickable(interaction, indication = null, enabled = enabled) {
+                if (haptic) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick()
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier.size(visual).then(face).indication(interaction, LocalIndication.current),
+            contentAlignment = Alignment.Center,
+            content = content,
+        )
+    }
+}
+
+/** Laid out at [visual] but [hit] big, centred: the difference overhangs. */
+private fun Modifier.overhang(visual: Dp, hit: Dp) = layout { measurable, _ ->
+    val v = visual.roundToPx()
+    val h = hit.roundToPx()
+    val placeable = measurable.measure(Constraints.fixed(h, h))
+    layout(v, v) { placeable.place((v - h) / 2, (v - h) / 2) }
 }
 
 /**

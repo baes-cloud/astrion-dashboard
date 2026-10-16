@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.custom.astrion.ui.HitTarget
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -262,13 +263,11 @@ class FanCard : CardRenderer {
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 CircleBtn(Icons.Filled.Remove, "$name slower", live && shownSpeed != null, size = 38.dp) { nudge(-1) }
                 CircleBtn(Icons.Filled.Add, "$name faster", live, size = 38.dp) { nudge(1) }
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(if (on) AstrionTheme.accentStrong else AstrionTheme.controlBg)
-                        .tap(enabled = live) { ctx.client.toggle(entityId) },
-                    contentAlignment = Alignment.Center,
+                HitTarget(
+                    visual = 38.dp,
+                    onClick = { ctx.client.toggle(entityId) },
+                    enabled = live,
+                    face = Modifier.clip(CircleShape).background(if (on) AstrionTheme.accentStrong else AstrionTheme.controlBg),
                 ) {
                     Icon(
                         Icons.Filled.PowerSettingsNew,
@@ -385,13 +384,11 @@ private fun CircleBtn(
     size: Dp = 44.dp,
     onClick: () -> Unit,
 ) {
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(AstrionTheme.controlBg)
-            .tap(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
+    HitTarget(
+        visual = size,
+        onClick = onClick,
+        enabled = enabled,
+        face = Modifier.clip(CircleShape).background(AstrionTheme.controlBg),
     ) {
         Icon(icon, contentDescription = description, tint = AstrionTheme.textOnControl)
     }

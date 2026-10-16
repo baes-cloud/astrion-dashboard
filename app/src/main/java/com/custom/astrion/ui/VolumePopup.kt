@@ -11,7 +11,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -168,23 +167,23 @@ fun VolumePopup(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Mute/speaker icon button
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
+                HitTarget(
+                    visual = 36.dp,
+                    haptic = false,
+                    face = Modifier
                         .clip(CircleShape)
-                        .background(if (liveMuted) AstrionTheme.colors.blush.copy(alpha = 0.2f) else AstrionTheme.colors.hairline)
-                        .clickable {
-                            hideEpoch = System.currentTimeMillis() + 2200L
-                            client.callService(
-                                ServiceCall.of(
-                                    "media_player",
-                                    "volume_mute",
-                                    targetEntityId,
-                                    "is_volume_muted" to !liveMuted,
-                                )
+                        .background(if (liveMuted) AstrionTheme.colors.blush.copy(alpha = 0.2f) else AstrionTheme.colors.hairline),
+                    onClick = {
+                        hideEpoch = System.currentTimeMillis() + 2200L
+                        client.callService(
+                            ServiceCall.of(
+                                "media_player",
+                                "volume_mute",
+                                targetEntityId,
+                                "is_volume_muted" to !liveMuted,
                             )
-                        },
-                    contentAlignment = Alignment.Center,
+                        )
+                    },
                 ) {
                     val icon = when {
                         liveMuted -> Icons.Filled.VolumeOff

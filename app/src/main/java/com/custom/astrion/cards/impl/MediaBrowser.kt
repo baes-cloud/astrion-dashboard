@@ -1,5 +1,6 @@
 package com.custom.astrion.cards.impl
 
+import com.custom.astrion.ui.HitTarget
 import com.custom.astrion.ui.AstrionTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -155,12 +156,7 @@ private fun MediaRow(item: MediaItem, onClick: () -> Unit) {
 
 @Composable
 private fun IconBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .tap(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
+    HitTarget(visual = 40.dp, onClick = onClick) {
         Icon(icon, contentDescription = null, tint = AstrionTheme.colors.textOnControl)
     }
 }

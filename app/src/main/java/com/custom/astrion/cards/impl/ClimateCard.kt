@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.custom.astrion.ui.HitTarget
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -143,13 +144,11 @@ class ClimateCard : CardRenderer {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.SemiBold)
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(if (isOff) AstrionTheme.dangerBg else AstrionTheme.controlBg)
-                        .tap(enabled = live) { turnOff() },
-                    contentAlignment = Alignment.Center,
+                HitTarget(
+                    visual = 36.dp,
+                    onClick = { turnOff() },
+                    enabled = live,
+                    face = Modifier.clip(CircleShape).background(if (isOff) AstrionTheme.dangerBg else AstrionTheme.controlBg),
                 ) {
                     Icon(
                         Icons.Filled.PowerSettingsNew,
