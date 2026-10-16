@@ -27,6 +27,7 @@ import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.ui.AstrionMaterialTheme
 import com.custom.astrion.ui.DashboardScreen
 import com.custom.astrion.ui.SheetHost
+import com.custom.astrion.ui.ambient.ambientTransportCall
 import com.custom.astrion.viewmodel.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -263,8 +264,31 @@ class MainActivity : ComponentActivity() {
         super.onPause()
     }
 
+    /** The ambient transport key whose UP must be eaten too, so it never leaks. */
+    private var ambientSwallowKey = -1
+
+    /**
+     * On the ambient now-playing screen, volume, mute and left/right act on
+     * the player shown and the screen stays up; true if [event] was one.
+     */
+    private fun handleAmbientKey(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_UP && event.keyCode == ambientSwallowKey) {
+            ambientSwallowKey = -1
+            return true
+        }
+        val ambient = dashboardVm.uiState.value.config.features.ambient
+        if (!ambient.enabled || !powerVm.uiState.value.isScreensaverOn || event.action != KeyEvent.ACTION_DOWN) return false
+        val call = ambientTransportCall(
+            HardwareKey.fromKeyCode(event.keyCode), dashboardVm.client.snapshot(), ambient.mediaPlayers, System.currentTimeMillis(),
+        ) ?: return false
+        dashboardVm.client.callService(call)
+        ambientSwallowKey = event.keyCode
+        return true
+    }
+
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (handleAmbientKey(event)) return true
         val pState = powerVm.uiState.value
         val wasScreensaver = pState.isScreensaverOn
         powerVm.onIntent(PowerIntent.UserActivity)
