@@ -347,7 +347,7 @@ private fun SnoozeRing(endsMs: Long, totalMs: Long, nowMs: Long) {
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("%d:%02d".format(secs / 60, secs % 60), color = Ink, fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.displayMd, fontWeight = FontWeight.Light)
-            Text("BACK IN", color = InkFaint, fontSize = AstrionTheme.size.tiny, letterSpacing = 2.sp)
+            Text("BACK IN", color = InkFaint, fontSize = AstrionTheme.size.label, letterSpacing = 2.sp)
         }
     }
 }

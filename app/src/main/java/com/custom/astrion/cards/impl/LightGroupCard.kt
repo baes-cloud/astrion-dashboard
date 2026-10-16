@@ -251,7 +251,7 @@ class LightGroupCard : CardRenderer {
             Column(Modifier.weight(1f)) {
                 Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(if (on) "On" else "Off", color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.caption)
+                Text(if (on) "On" else "Off", color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.label)
             }
             // Switch: matches the app's flat-toggle style used elsewhere.
             // Raised from 40×24dp — under 6mm tall at this density.

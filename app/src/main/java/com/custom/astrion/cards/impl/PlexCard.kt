@@ -293,7 +293,7 @@ class PlexCard : CardRenderer {
                 item.title,
                 style = tightTextStyle(13.sp),
                 color = AstrionTheme.textPrimary,
-                fontSize = AstrionTheme.size.caption,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -303,7 +303,7 @@ class PlexCard : CardRenderer {
                     item.subtitle,
                     style = tightTextStyle(12.sp),
                     color = AstrionTheme.textSecondary,
-                    fontSize = AstrionTheme.size.tiny,
+                    fontSize = AstrionTheme.size.label,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

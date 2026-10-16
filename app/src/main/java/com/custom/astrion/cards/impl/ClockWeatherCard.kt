@@ -371,7 +371,7 @@ class ClockWeatherCard : CardRenderer {
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
-                            Text(f.day, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.caption, maxLines = 1)
+                            Text(f.day, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, maxLines = 1)
                             Text(emojiFor(f.condition), fontSize = AstrionTheme.size.emphasis)
                             Text(
                                 buildAnnotatedString {

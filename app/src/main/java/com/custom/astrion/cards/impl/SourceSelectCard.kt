@@ -64,7 +64,7 @@ class SourceSelectCard : CardRenderer {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(name, color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.caption)
+                    Text(name, color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.label)
                     Text(
                         current ?: if (sources.isEmpty()) "No sources (device off?)" else "Select source…",
                         color = AstrionTheme.colors.onSurface,

@@ -349,8 +349,8 @@ class MediaPlayerCard : CardRenderer {
         }
         Spacer(Modifier.height(4.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(formatMediaTime(pos), color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.caption)
-            Text(formatMediaTime(duration), color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.caption)
+            Text(formatMediaTime(pos), color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
+            Text(formatMediaTime(duration), color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
         }
     }
 
@@ -397,7 +397,7 @@ class MediaPlayerCard : CardRenderer {
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    name.uppercase(), color = AstrionTheme.colors.onSurfaceMuted.copy(alpha = alpha), fontSize = AstrionTheme.size.caption,
+                    name.uppercase(), color = AstrionTheme.colors.onSurfaceMuted.copy(alpha = alpha), fontSize = AstrionTheme.size.label,
                     fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, maxLines = 1,
                 )
             } else {

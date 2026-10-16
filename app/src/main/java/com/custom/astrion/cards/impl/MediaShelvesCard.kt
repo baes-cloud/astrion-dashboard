@@ -235,7 +235,7 @@ class MediaShelvesCard : CardRenderer {
             Text(
                 item.title,
                 color = AstrionTheme.textSecondary,
-                fontSize = AstrionTheme.size.caption,
+                fontSize = AstrionTheme.size.label,
                 lineHeight = 13.sp,
                 minLines = 2,
                 maxLines = 2,

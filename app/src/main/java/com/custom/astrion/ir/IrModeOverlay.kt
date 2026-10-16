@@ -194,7 +194,7 @@ fun IrModeOverlay(
 
             // Capability line — makes a dead emitter obvious instead of silent.
             val statusColor = if (blaster.available) AstrionTheme.good else AstrionTheme.danger
-            Text(blaster.statusLine(), color = statusColor, fontSize = AstrionTheme.size.caption)
+            Text(blaster.statusLine(), color = statusColor, fontSize = AstrionTheme.size.label)
 
             Divider()
 
@@ -219,7 +219,7 @@ fun IrModeOverlay(
 
             Text(
                 "NETWORK CONTROLS",
-                color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.caption,
+                color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
             )
 

@@ -364,7 +364,7 @@ private fun ConnectionBanner(
                     .background(AstrionTheme.colors.surface.copy(alpha = 0.8f))
                     .padding(horizontal = 10.dp, vertical = 3.dp),
             ) {
-                Text("Connecting…", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.caption)
+                Text("Connecting…", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
             }
         }
         return

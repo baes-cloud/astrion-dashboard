@@ -61,7 +61,7 @@ fun AmbientProgress(
 
     val shownSec = (frac.value * durationSec)
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text(time(shownSec), color = ink, fontSize = AstrionTheme.size.caption, fontFamily = AstrionTheme.bodyFont, maxLines = 1)
+        Text(time(shownSec), color = ink, fontSize = AstrionTheme.size.label, fontFamily = AstrionTheme.bodyFont, maxLines = 1)
         Box(
             Modifier
                 .weight(1f)
@@ -72,7 +72,7 @@ fun AmbientProgress(
         ) {
             Box(Modifier.fillMaxWidth(frac.value).height(4.dp).clip(RoundedCornerShape(2.dp)).background(fill))
         }
-        Text(time(durationSec), color = ink, fontSize = AstrionTheme.size.caption, fontFamily = AstrionTheme.bodyFont, maxLines = 1, textAlign = TextAlign.End)
+        Text(time(durationSec), color = ink, fontSize = AstrionTheme.size.label, fontFamily = AstrionTheme.bodyFont, maxLines = 1, textAlign = TextAlign.End)
     }
 }
 

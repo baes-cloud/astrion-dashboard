@@ -240,10 +240,10 @@ private fun Section(title: String, trailing: String? = null, content: @Composabl
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
-                title.uppercase(), color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.caption,
+                title.uppercase(), color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
             )
-            if (trailing != null) Text(trailing, color = AstrionTheme.accent, fontSize = AstrionTheme.size.caption)
+            if (trailing != null) Text(trailing, color = AstrionTheme.accent, fontSize = AstrionTheme.size.label)
         }
         content()
     }

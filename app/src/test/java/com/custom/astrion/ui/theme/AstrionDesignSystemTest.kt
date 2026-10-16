@@ -94,12 +94,25 @@ class AstrionDesignSystemTest {
     fun typeSizesAscend() {
         val s = typography.sizes
         val scale = listOf(
-            s.micro, s.tiny, s.caption, s.label, s.small, s.body, s.bodyLarge, s.emphasis, s.title,
+            s.micro, s.label, s.small, s.body, s.bodyLarge, s.emphasis, s.title,
             s.titleLarge, s.heading, s.headingLarge, s.displayXs, s.displaySm, s.displayMd, s.displayLg,
             s.displayXl, s.readout, s.clock, s.alarmClock, s.restClock,
         ).map { it.value }
         assertEquals(scale.sorted(), scale)
         assertEquals(scale.distinct(), scale)
+    }
+
+    /** 12 sp floor: only the two-letter "ON" badge goes below it. */
+    @Test
+    fun noTextBelowTheFloor() {
+        val s = typography.sizes
+        val readable = listOf(s.label, s.small, s.body, s.bodyLarge, s.emphasis, s.title)
+        readable.forEach { assertTrue("$it below the floor", it.value >= MIN_TEXT.value) }
+        val styles = listOf(
+            typography.label, typography.body, typography.title, typography.bodySmall,
+            typography.labelLarge, typography.labelMedium, typography.labelSmall,
+        )
+        styles.forEach { assertTrue("${it.fontSize} below the floor", it.fontSize.value >= MIN_TEXT.value) }
     }
 
     @Test

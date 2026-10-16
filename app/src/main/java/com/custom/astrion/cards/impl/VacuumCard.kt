@@ -188,7 +188,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Cleaning mode", color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.caption)
+                    Text("Cleaning mode", color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.label)
                     Text(fanSpeed?.let(::prettyVacuumLabel) ?: "—", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.bodyLarge)
                 }
                 Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = AstrionTheme.colors.textOnControl)

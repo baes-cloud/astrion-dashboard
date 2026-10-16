@@ -711,7 +711,7 @@ private fun MediaProgress(
     val frac = (pos / duration).toFloat().coerceIn(0f, 1f)
     Spacer(Modifier.height(10.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(formatMediaTime(pos), color = faint, fontSize = AstrionTheme.size.caption, textAlign = TextAlign.End, modifier = Modifier.width(40.dp))
+        Text(formatMediaTime(pos), color = faint, fontSize = AstrionTheme.size.label, textAlign = TextAlign.End, modifier = Modifier.width(40.dp))
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -728,7 +728,7 @@ private fun MediaProgress(
                     .background(fill),
             )
         }
-        Text(formatMediaTime(duration), color = faint, fontSize = AstrionTheme.size.caption, modifier = Modifier.width(40.dp))
+        Text(formatMediaTime(duration), color = faint, fontSize = AstrionTheme.size.label, modifier = Modifier.width(40.dp))
     }
 }
 

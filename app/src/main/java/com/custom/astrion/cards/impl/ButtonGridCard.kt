@@ -209,7 +209,7 @@ class ButtonGridCard : CardRenderer {
                         name,
                         style = if (labelLines > 1) tightTextStyle(13.sp) else LocalTextStyle.current,
                         color = inkColor,
-                        fontSize = if (hasIcon) (if (labelLines > 1) AstrionTheme.size.caption else AstrionTheme.size.label) else if (name.length > 8) AstrionTheme.size.small else AstrionTheme.size.bodyLarge,
+                        fontSize = if (hasIcon) (if (labelLines > 1) AstrionTheme.size.label else AstrionTheme.size.label) else if (name.length > 8) AstrionTheme.size.small else AstrionTheme.size.bodyLarge,
                         fontWeight = if (tileColor != null && !hasIcon) FontWeight.Bold else FontWeight.Medium,
                         maxLines = labelLines,
                         overflow = TextOverflow.Ellipsis,
