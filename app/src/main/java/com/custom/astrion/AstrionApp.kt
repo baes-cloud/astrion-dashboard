@@ -39,6 +39,7 @@ import com.custom.astrion.config.DefaultAppConfigRepository
 import com.custom.astrion.di.appModules
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ui.ArtCache
+import com.custom.astrion.ui.DiskJson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -78,6 +79,7 @@ class AstrionApp : Application() {
             modules(appModules)
         }
         ArtCache.init(cacheDir)
+        DiskJson.init(cacheDir)
         DashboardLoader.init(assets)
         // Read /sdcard/astrion before any ViewModel exists, so none of them
         // starts on the bundled layout (whose report_entity and screen timeout
