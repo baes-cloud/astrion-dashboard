@@ -309,4 +309,58 @@ class PowerViewModelTest {
         viewModel.onIntent(PowerIntent.SetSwallowTouch(false))
         assertFalse(viewModel.uiState.value.swallowTouch)
     }
+
+    @Test
+    fun undockDebounceAbsorbsBriefDockPinFlicker() = runVmTest {
+        val configWithUndockDebounce = baseConfig.copy(
+            options = baseConfig.options + (
+                "power" to mapOf(
+                    "report_entity" to "sensor.astrion_battery",
+                    "dock_debounce_seconds" to 2,
+                    "undock_debounce_seconds" to 15,
+                    "home_after_seconds" to 5,
+                )
+            )
+        )
+        configFlow.value = DashboardLoader.Result(configWithUndockDebounce, null)
+        runCurrent()
+
+        val chargingIntent = mockBatteryIntent(level = 80, plugged = BatteryManager.BATTERY_PLUGGED_AC, status = BatteryManager.BATTERY_STATUS_CHARGING)
+        viewModel.onIntent(PowerIntent.BatteryChanged(chargingIntent))
+        advanceTimeBy(2500L)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isDocked)
+
+        // Brief 5-second dock pin drop
+        val unpluggedIntent = mockBatteryIntent(level = 80, plugged = 0, status = BatteryManager.BATTERY_STATUS_DISCHARGING)
+        viewModel.onIntent(PowerIntent.BatteryChanged(unpluggedIntent))
+        advanceTimeBy(5000L)
+        runCurrent()
+        assertTrue("Should remain docked during 5s pin bounce", viewModel.uiState.value.isDocked)
+
+        // Pin reconnects before 15s debounce expires
+        viewModel.onIntent(PowerIntent.BatteryChanged(chargingIntent))
+        advanceTimeBy(12_000L)
+        runCurrent()
+        assertTrue("Should still be docked after pin reconnects", viewModel.uiState.value.isDocked)
+
+        // Now unplug for > 15s
+        viewModel.onIntent(PowerIntent.BatteryChanged(unpluggedIntent))
+        advanceTimeBy(16_000L)
+        runCurrent()
+        assertFalse("Should undock after full 15s debounce", viewModel.uiState.value.isDocked)
+    }
+
+    @Test
+    fun screenPowerOnPreservesActiveScreensaver() = runVmTest {
+        currentRealtime += 15_000L
+        advanceTimeBy(1100L)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isScreensaverOn)
+
+        // Simulate OS waking screen on AC plug-in bounce
+        viewModel.onIntent(PowerIntent.ScreenPowerChanged(isScreenOn = true))
+        runCurrent()
+        assertTrue("Active screensaver must not be dismissed by ACTION_SCREEN_ON alone", viewModel.uiState.value.isScreensaverOn)
+    }
 }

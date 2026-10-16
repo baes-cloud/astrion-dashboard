@@ -22,6 +22,12 @@ fun DashboardScreen(
     val powerState by powerVm.uiState.collectAsState()
     val inputState by inputVm.uiState.collectAsState()
 
+    LaunchedEffect(powerState.isScreensaverOn) {
+        if (powerState.isScreensaverOn && !inputState.isIrMode) {
+            sheetHost.dismissAll()
+        }
+    }
+
     CompositionLocalProvider(LocalSheetHost provides sheetHost) {
         Box(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxSize().unplacedWhen(powerState.isScreensaverOn)) {
@@ -31,7 +37,7 @@ fun DashboardScreen(
                     MinuteClock {
                         Dashboard(
                             client = dashboardVm.client,
-                            connectionState = remember { derivedStateOf { dashboardState.connectionState } },
+                            connectionState = rememberUpdatedState(dashboardState.connectionState),
                             config = dashboardState.config,
                             configNotice = dashboardState.configNotice,
                             navTarget = dashboardState.navTarget,
@@ -49,7 +55,7 @@ fun DashboardScreen(
                     client = dashboardVm.client,
                     connected = dashboardState.connectionState == ConnectionState.CONNECTED,
                     batteryPct = powerState.batteryPct,
-                    charging = powerState.isCharging,
+                    charging = powerState.isCharging || powerState.isDocked,
                 )
             }
 

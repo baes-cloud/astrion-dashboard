@@ -71,7 +71,7 @@ class CardContext(
     val entities: EntityMap get() = client.live
 
     /** Single-entity read; same as `entities[id]`. */
-    fun entity(id: String): EntityState? = client.entityState(id).value
+    fun entity(id: String): EntityState? = client.live[id]
 
     /**
      * False when the websocket is down. A dead socket is just "everything is

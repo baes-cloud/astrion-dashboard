@@ -132,6 +132,8 @@ class PowerOptions(raw: Map<String, Any?>) {
     val screenOffFilterSeconds = raw.int("screen_off_filter_seconds") ?: 30
     /** Charging this long before it counts as docked. */
     val dockDebounceSeconds = raw.int("dock_debounce_seconds") ?: 5
+    /** Grace period before brief dock contact loss counts as undocked. */
+    val undockDebounceSeconds = raw.int("undock_debounce_seconds") ?: 0
     val reportEntity = raw.str("report_entity")
     val reportName = raw.str("report_name")
     val screenOffEntities = raw.strings("screen_off_entities")

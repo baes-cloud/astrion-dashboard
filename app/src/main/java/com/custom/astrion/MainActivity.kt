@@ -21,8 +21,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.ui.AstrionMaterialTheme
 import com.custom.astrion.ui.DashboardScreen
+import com.custom.astrion.ui.SheetHost
 import com.custom.astrion.viewmodel.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -38,6 +40,7 @@ class MainActivity : ComponentActivity() {
     private val dashboardVm: DashboardViewModel by viewModel()
     private val powerVm: PowerViewModel by viewModel()
     private val inputVm: InputViewModel by viewModel()
+    private val sheetHost = SheetHost()
 
     private val storagePermission = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -63,7 +66,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         configureKioskWindow()
         checkPermissions()
-        startForegroundService(Intent(this, KeepAliveService::class.java))
+        runCatching { startService(Intent(this, KeepAliveService::class.java)) }
+            .onFailure { runCatching { startForegroundService(Intent(this, KeepAliveService::class.java)) } }
         requestBatteryExemptionOnce()
 
         registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
@@ -80,6 +84,7 @@ class MainActivity : ComponentActivity() {
                     dashboardVm = dashboardVm,
                     powerVm = powerVm,
                     inputVm = inputVm,
+                    sheetHost = sheetHost,
                     onRequestMicPermission = { micPermission.launch(Manifest.permission.RECORD_AUDIO) },
                 )
             }
@@ -119,7 +124,10 @@ class MainActivity : ComponentActivity() {
                     powerVm.events.collectLatest { event ->
                         when (event) {
                             PowerEvent.ReturnHome -> {
-                                dashboardVm.onIntent(DashboardIntent.NavigateToPage(dashboardVm.uiState.value.config.startPage))
+                                if (!inputVm.uiState.value.isIrMode) {
+                                    sheetHost.dismissAll()
+                                    dashboardVm.onIntent(DashboardIntent.NavigateToPage(dashboardVm.uiState.value.config.startPage))
+                                }
                             }
                             PowerEvent.WakeScreen -> wakeScreen()
                         }
@@ -138,10 +146,11 @@ class MainActivity : ComponentActivity() {
                     inputVm.effects.collectLatest { effect ->
                         when (effect) {
                             is InputEffect.NavigateToPage -> dashboardVm.onIntent(DashboardIntent.NavigateToPageByName(effect.pageName))
+                            is InputEffect.DismissTopSheet -> sheetHost.dismissAll()
+                            is InputEffect.ShowToast -> android.widget.Toast.makeText(this@MainActivity, effect.message, android.widget.Toast.LENGTH_SHORT).show()
                             is InputEffect.LaunchPackage -> launchExternalPackage(effect.packageName)
                             is InputEffect.OpenSystemSettings -> startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                             is InputEffect.TriggerVoiceKey -> dashboardVm.onIntent(DashboardIntent.ToggleVoice)
-                            else -> {}
                         }
                     }
                 }
@@ -206,15 +215,48 @@ class MainActivity : ComponentActivity() {
 
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val wasScreensaver = powerVm.uiState.value.isScreensaverOn
+        val pState = powerVm.uiState.value
+        val wasScreensaver = pState.isScreensaverOn
         powerVm.onIntent(PowerIntent.UserActivity)
+        if (pState.swallowKey == event.keyCode) {
+            if (event.action == KeyEvent.ACTION_UP) powerVm.onIntent(PowerIntent.ClearSwallowKey)
+            return true
+        }
+        if (wasScreensaver) {
+            val key = HardwareKey.fromKeyCode(event.keyCode)
+            if (!dashboardVm.uiState.value.config.features.screensaver.passesThrough(key.name)) {
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    powerVm.onIntent(PowerIntent.SetSwallowKey(event.keyCode))
+                }
+                return true
+            }
+        }
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && !inputVm.uiState.value.isIrMode && sheetHost.isShowing) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                sheetHost.dismissTop()
+            }
+            return true
+        }
         if (inputVm.handleKeyEvent(event, wasScreensaver)) return true
         return super.dispatchKeyEvent(event)
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        val wasScreensaver = powerVm.uiState.value.isScreensaverOn
+        val pState = powerVm.uiState.value
+        val wasScreensaver = pState.isScreensaverOn
         powerVm.onIntent(PowerIntent.UserActivity)
+        val dState = dashboardVm.uiState.value
+        val alertOrAlarmShowing = dState.activeAlerts.isNotEmpty() || (dState.activeAlarm != null && !dState.isAlarmHidden)
+        if (wasScreensaver && ev.actionMasked == MotionEvent.ACTION_DOWN && !alertOrAlarmShowing) {
+            powerVm.onIntent(PowerIntent.SetSwallowTouch(true))
+            return true
+        }
+        if (pState.swallowTouch) {
+            if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+                powerVm.onIntent(PowerIntent.SetSwallowTouch(false))
+            }
+            return true
+        }
         if (inputVm.handleTouchEvent(ev, wasScreensaver)) return true
         return super.dispatchTouchEvent(ev)
     }

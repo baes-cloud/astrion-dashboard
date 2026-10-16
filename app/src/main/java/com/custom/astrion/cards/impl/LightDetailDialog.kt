@@ -214,7 +214,7 @@ fun LightDetailDialog(
     memberDetail?.let { id ->
         LightDetailDialog(
             entityId = id,
-            e = client.entityState(id).value,
+            e = client.live[id],
             client = client,
             onClose = { memberDetail = null },
         )
@@ -234,7 +234,7 @@ private fun GroupMembers(members: List<String>, client: HaClient, onOpen: (Strin
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         members.forEach { id ->
-            val m = client.entityState(id).value
+            val m = client.live[id]
             val on = m?.isOn == true
             val unavailable = m == null || m.isUnavailable
             Row(

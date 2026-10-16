@@ -3,7 +3,6 @@ package com.custom.astrion.ha
 import android.util.Log
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.Snapshot
 import kotlinx.coroutines.CompletableDeferred
@@ -150,11 +149,18 @@ class HaClient(
     val connection: StateFlow<ConnectionState> = _connection.asStateFlow()
 
     /**
-     * Bumped once per publish. Reading it (via [live]'s iteration) is what
-     * makes a whole-map reader recompose on any change; per-entity readers
-     * never touch it.
+     * Bumped whenever [entityStore] changes, so [snapshot] only copies the
+     * map when needed without triggering global Compose snapshot writes on
+     * every background sensor tick.
      */
-    private val version = mutableLongStateOf(0L)
+    private val version = java.util.concurrent.atomic.AtomicLong(0L)
+
+    /**
+     * Entities watched by DashboardViewModel for alarms and alerts.
+     * Null means unfiltered (e.g. in unit tests); non-null filters [_entitiesFlow]
+     * emissions to only fire when a watched entity changes or on initial seed.
+     */
+    @Volatile var alertWatchIds: Set<String>? = null
 
     /** The copy [snapshot] last made, and the [version] it was made at. */
     @Volatile private var snap: EntityMap = emptyMap()
@@ -168,7 +174,7 @@ class HaClient(
      * iterate every entity pay for it, and only when they ask.
      */
     fun snapshot(): EntityMap {
-        val v = Snapshot.withoutReadObservation { version.longValue }
+        val v = version.get()
         if (v != snapVersion) {
             snap = HashMap(entityStore)
             snapVersion = v
@@ -179,17 +185,18 @@ class HaClient(
     /**
      * Live entities as a map. `live[id]` reads [entityState], so inside
      * Compose (or a `snapshotFlow`) it subscribes to that one entity only;
-     * outside it is a plain lookup. Iterating it takes a [snapshot] and
-     * subscribes to every change.
+     * outside it is a plain lookup. Iterating it takes a [snapshot].
      */
     val live: EntityMap = object : AbstractMap<String, EntityState>() {
-        override fun get(key: String): EntityState? = entityState(key).value
+        override fun get(key: String): EntityState? =
+            try {
+                entityState(key).value
+            } catch (_: IllegalStateException) {
+                entityStore[key]
+            }
         override fun containsKey(key: String): Boolean = get(key) != null
         override val entries: Set<Map.Entry<String, EntityState>>
-            get() {
-                version.longValue // subscribe to every publish
-                return snapshot().entries
-            }
+            get() = snapshot().entries
     }
 
     // Working store updated on every event; published to the UI at most once
@@ -217,11 +224,9 @@ class HaClient(
             cache?.loadInitialSnapshot()?.let { cached ->
                 if (cached.isNotEmpty()) {
                     entityStore.putAll(cached)
-                    _entitiesFlow.value = cached
-                    cached.forEach { (id, state) ->
-                        entityStates.getOrPut(id) { mutableStateOf(state) }.value = state
-                    }
-                    version.longValue += 1
+                    version.incrementAndGet()
+                    changedIds.addAll(cached.keys.filter { entityStates.containsKey(it) })
+                    publish(forceFlowUpdate = true)
                 }
             }
         }
@@ -778,18 +783,22 @@ class HaClient(
      * overlapping snapshots writing the same state would conflict.
      */
     @Synchronized
-    private fun publish() {
+    private fun publish(forceFlowUpdate: Boolean = false) {
         val ids = changedIds.toList()
         changedIds.removeAll(ids.toSet())
         // One snapshot, so a batch of changes lands in a single frame.
-        Snapshot.withMutableSnapshot {
-            for (id in ids) entityStates[id]?.let { st ->
-                val now = entityStore[id]
-                if (st.value != now) st.value = now
+        if (ids.isNotEmpty()) {
+            Snapshot.withMutableSnapshot {
+                for (id in ids) entityStates[id]?.let { st ->
+                    val now = entityStore[id]
+                    if (st.value != now) st.value = now
+                }
             }
-            version.longValue += 1
         }
-        _entitiesFlow.value = snapshot()
+        val watched = alertWatchIds
+        if (forceFlowUpdate || watched == null || ids.any { it in watched }) {
+            _entitiesFlow.value = snapshot()
+        }
     }
 
     private fun onEvent(obj: JsonObject) {
@@ -812,19 +821,32 @@ class HaClient(
      */
     @androidx.annotation.VisibleForTesting
     internal fun onEntitiesEvent(event: JsonObject) {
-        // Set by anything other than playhead noise; see isPlayheadNoise.
+        // Set by anything other than playhead noise on an observed entity.
         var meaningful = false
+        var storeMutated = false
+        val watched = alertWatchIds
+        fun isObserved(entityId: String): Boolean =
+            entityStates.containsKey(entityId) ||
+            watched == null ||
+            entityId in watched ||
+            entityId.startsWith("media_player.") ||
+            entityId.startsWith("timer.") ||
+            entityId.startsWith("weather.") ||
+            entityId.startsWith("calendar.") ||
+            entityId == "sun.sun"
+
         val added = event["a"] as? JsonObject
         val seeded = awaitingSeed && added != null
         if (seeded) {
             awaitingSeed = false
+            storeMutated = true
             // An unfiltered seed is the complete set: drop anything deleted
             // from HA while we were disconnected. A filtered one only covers
             // its own entities, so everything else is kept (stale) for the
             // full snapshot that comes back with the screen.
-            if (subscribedFilter == null) for (gone in entityStore.keys - added!!.keys) {
+            if (subscribedFilter == null) for (gone in entityStore.keys - added.keys) {
                 entityStore.remove(gone)
-                changedIds += gone
+                if (isObserved(gone)) changedIds += gone
             }
         }
         added?.forEach { (entityId, el) ->
@@ -837,8 +859,11 @@ class HaClient(
                 lastChangedMs = lc,
                 lastUpdatedMs = epochMs(c["lu"]) ?: lc,
             )
-            changedIds += entityId
-            meaningful = true
+            if (seeded || isObserved(entityId)) {
+                storeMutated = true
+                changedIds += entityId
+                meaningful = true
+            }
         }
         (event["c"] as? JsonObject)?.forEach { (entityId, el) ->
             val diff = el as? JsonObject ?: return@forEach
@@ -861,18 +886,27 @@ class HaClient(
             // Kept in the store, but nothing redraws for it; it goes out with
             // the next real change.
             if (isPlayheadNoise(plus, minusAttrs, updated.state)) return@forEach
-            changedIds += entityId
-            meaningful = true
+            if (isObserved(entityId)) {
+                storeMutated = true
+                changedIds += entityId
+                meaningful = true
+            }
         }
         (event["r"] as? JsonArray)?.forEach { el ->
             val entityId = el.jsonPrimitive.contentOrNull ?: return@forEach
             entityStore.remove(entityId)
-            changedIds += entityId
+            if (isObserved(entityId)) {
+                storeMutated = true
+                changedIds += entityId
+                meaningful = true
+            }
         }
-        (event["r"] as? JsonArray)?.let { if (it.isNotEmpty()) meaningful = true }
+        if (storeMutated) {
+            version.incrementAndGet()
+        }
         // The seed is important — publish at once so the first frame has data.
         if (seeded) {
-            publish()
+            publish(forceFlowUpdate = true)
             if (subscribedFilter == null) {
                 scope.launch {
                     cache?.saveSnapshot(snapshot())

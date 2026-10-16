@@ -81,12 +81,21 @@ class DashboardViewModel(
     private var alarmJob: Job? = null
     private var alertsJob: Job? = null
     @Volatile private var cachedAlertSpecs: List<AlertSpec> = emptyList()
+    private var lastAlarmPhase: Int = 0
+    private var lastAlertToken: String? = null
 
     init {
         // Observe config updates
         viewModelScope.launch {
             configRepo.configFlow.collect { res ->
-                cachedAlertSpecs = AlertSpec.parse(res.config.options["alerts"])
+                val specs = AlertSpec.parse(res.config.options["alerts"])
+                cachedAlertSpecs = specs
+                val watched = res.config.features.alarm.entities.toMutableSet()
+                specs.forEach { s ->
+                    watched += s.entity
+                    s.unlessEntity?.let { watched += it }
+                }
+                client.alertWatchIds = watched
                 _uiState.update { current ->
                     current.copy(
                         config = res.config,
@@ -136,9 +145,6 @@ class DashboardViewModel(
                 updateAlertsAndAlarms()
             }
         }
-
-        // Start alarms and alerts watchers
-        startWatchers()
     }
 
     private fun callLabel(call: ServiceCall): String {
@@ -155,66 +161,77 @@ class DashboardViewModel(
     }
 
     private fun startWatchers() {
-        startAlarmWatcher()
-        startAlertsWatcher()
-    }
-
-    private fun startAlarmWatcher() {
-        alarmJob?.cancel()
-        alarmJob = viewModelScope.launch {
-            var lastPhase = 0
-            while (isActive) {
-                val alarmState = alarmUiState(uiState.value.config.features.alarm, client.live)
-                val phase = alarmState?.let { if (it.ringing) 1 else 2 } ?: 0
-                _uiState.update { it.copy(activeAlarm = alarmState) }
-                if (phase != lastPhase) {
-                    if (phase == 1) {
-                        _uiState.update { it.copy(isAlarmHidden = false) }
-                        _effects.send(DashboardEffect.WakeScreenForAlarm(isRinging = true))
-                        _effects.send(DashboardEffect.BringActivityToFront)
-                    }
-                    lastPhase = phase
-                }
-                delay(1000L)
-            }
-        }
-    }
-
-    private fun startAlertsWatcher() {
-        alertsJob?.cancel()
-        alertsJob = viewModelScope.launch {
-            var lastToken: String? = null
-            while (isActive) {
-                val now = System.currentTimeMillis()
-                val specs = cachedAlertSpecs
-                val active = activeAlerts(specs, client.live, now)
-                val hidden = uiState.value.hiddenAlertTokens
-                val filtered = active.filter { it.token !in hidden }
-                _uiState.update { it.copy(activeAlerts = filtered) }
-
-                val top = filtered.firstOrNull()
-                if (top?.token != lastToken) {
-                    if (top?.spec?.severity == "alarm" || top?.spec?.severity == "warning") {
-                        _effects.send(DashboardEffect.WakeScreenForAlarm(isRinging = top.spec.severity == "alarm"))
-                        if (top.spec.severity == "alarm") {
-                            _effects.send(DashboardEffect.BringActivityToFront)
-                        }
-                    }
-                    lastToken = top?.token
-                }
-                delay(1000L)
-            }
-        }
+        updateAlertsAndAlarms()
     }
 
     private fun updateAlertsAndAlarms() {
         val now = System.currentTimeMillis()
-        val alarmState = alarmUiState(uiState.value.config.features.alarm, client.live)
+        val live = client.snapshot()
+        val alarmState = alarmUiState(uiState.value.config.features.alarm, live)
+        val phase = alarmState?.let { if (it.ringing) 1 else 2 } ?: 0
+
         val specs = cachedAlertSpecs
-        val active = activeAlerts(specs, client.live, now)
+        val active = activeAlerts(specs, live, now)
         val hidden = uiState.value.hiddenAlertTokens
         val filtered = active.filter { it.token !in hidden }
-        _uiState.update { it.copy(activeAlarm = alarmState, activeAlerts = filtered) }
+
+        val unhideAlarm = phase != lastAlarmPhase && phase == 1
+        _uiState.update {
+            it.copy(
+                activeAlarm = alarmState,
+                isAlarmHidden = if (unhideAlarm) false else it.isAlarmHidden,
+                activeAlerts = filtered,
+            )
+        }
+
+        if (phase != lastAlarmPhase) {
+            lastAlarmPhase = phase
+            if (phase == 1) {
+                _effects.trySend(DashboardEffect.WakeScreenForAlarm(isRinging = true))
+                _effects.trySend(DashboardEffect.BringActivityToFront)
+            }
+        }
+
+        // While an alarm is actively ringing, keep waking the screen every 20s so
+        // the OS screen timeout cannot turn off the display mid-alarm.
+        if (phase == 1) {
+            if (alarmJob?.isActive != true) {
+                alarmJob = viewModelScope.launch {
+                    while (isActive && _uiState.value.activeAlarm?.ringing == true && !_uiState.value.isAlarmHidden) {
+                        delay(20_000L)
+                        if (_uiState.value.activeAlarm?.ringing == true && !_uiState.value.isAlarmHidden) {
+                            _effects.send(DashboardEffect.WakeScreenForAlarm(isRinging = true))
+                        }
+                    }
+                }
+            }
+        } else {
+            alarmJob?.cancel()
+            alarmJob = null
+        }
+
+        val top = filtered.firstOrNull()
+        if (top?.token != lastAlertToken) {
+            lastAlertToken = top?.token
+            if (top?.spec?.severity == "alarm" || top?.spec?.severity == "warning") {
+                _effects.trySend(DashboardEffect.WakeScreenForAlarm(isRinging = top.spec.severity == "alarm"))
+                if (top.spec.severity == "alarm") {
+                    _effects.trySend(DashboardEffect.BringActivityToFront)
+                }
+            }
+        }
+
+        // Schedule a one-shot timer only if a `for_seconds` alert is currently pending.
+        alertsJob?.cancel()
+        val dueMs = nextAlertDueMs(specs, live, now)
+        alertsJob = if (dueMs != null) {
+            viewModelScope.launch {
+                delay((dueMs - System.currentTimeMillis()).coerceAtLeast(50L))
+                updateAlertsAndAlarms()
+            }
+        } else {
+            null
+        }
     }
 
     fun onIntent(intent: DashboardIntent) {

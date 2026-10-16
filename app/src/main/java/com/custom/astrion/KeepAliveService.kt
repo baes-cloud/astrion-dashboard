@@ -29,7 +29,17 @@ class KeepAliveService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        promoteToForeground()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        promoteToForeground()
+        return START_NOT_STICKY
+    }
+
+    private fun promoteToForeground() {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL, "Home Assistant connection", NotificationManager.IMPORTANCE_LOW)
@@ -47,6 +57,5 @@ class KeepAliveService : Service() {
             .setOngoing(true)
             .build()
         startForeground(NOTIFICATION_ID, notification)
-        return START_NOT_STICKY
     }
 }

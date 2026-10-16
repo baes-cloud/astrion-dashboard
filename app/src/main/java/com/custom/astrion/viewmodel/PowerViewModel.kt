@@ -72,6 +72,7 @@ class PowerViewModel(
     private var lastActivityMs = SystemClock.elapsedRealtime()
     private var peakPct: Int? = null
     private var dockConfirmJob: Job? = null
+    private var undockDebounceJob: Job? = null
     private var screensaverJob: Job? = null
     private var homeTimeoutJob: Job? = null
     private var filterJob: Job? = null
@@ -105,12 +106,28 @@ class PowerViewModel(
 
         // Arm motion wake initially if screen is off
         updateMotionWake()
+        updateForegroundState()
+    }
+
+    private fun updateForegroundState() {
+        val state = _uiState.value
+        client.setForeground(state.isScreenOn && !state.isScreensaverOn)
     }
 
     fun markUserActivity() {
         lastActivityMs = SystemClock.elapsedRealtime()
-        if (_uiState.value.isScreensaverOn) {
+        // If undock was being debounced and the user physically interacted with the remote,
+        // complete undock immediately if still unplugged.
+        if (undockDebounceJob?.isActive == true && !_uiState.value.isPlugged) {
+            undockDebounceJob?.cancel()
+            undockDebounceJob = null
+            updateDocked(false)
+        }
+        val wasScreensaverOn = _uiState.value.isScreensaverOn
+        if (wasScreensaverOn) {
             _uiState.update { it.copy(isScreensaverOn = false) }
+            updateForegroundState()
+            startScreensaverLoop()
         }
         val homeSec = currentConfig().features.power.homeAfterSeconds
         homeTimeoutJob?.cancel()
@@ -132,9 +149,12 @@ class PowerViewModel(
                 val elapsedMs = SystemClock.elapsedRealtime() - lastActivityMs
                 if (screensaver.enabled && idleMs > 0 && elapsedMs >= idleMs && !_uiState.value.isScreensaverOn) {
                     _uiState.update { it.copy(isScreensaverOn = true) }
+                    updateForegroundState()
+                    updateBrightness()
+                } else if (_uiState.value.isScreensaverOn) {
                     updateBrightness()
                 }
-                delay(1000L)
+                delay(if (_uiState.value.isScreensaverOn) 30_000L else 1000L)
             }
         }
     }
@@ -148,6 +168,18 @@ class PowerViewModel(
             peakPct = null
         }
         if (changed) {
+            if (docked) {
+                val screensaver = currentConfig().features.screensaver
+                val elapsedMs = SystemClock.elapsedRealtime() - lastActivityMs
+                if (screensaver.enabled && screensaver.idleMs > 0 && elapsedMs >= screensaver.idleMs && !_uiState.value.isScreensaverOn) {
+                    _uiState.update { it.copy(isScreensaverOn = true) }
+                }
+                if (!_uiState.value.isScreenOn && screensaver.enabled && screensaver.keepScreenOn) {
+                    _events.trySend(PowerEvent.WakeScreen)
+                }
+            }
+            updateMotionWake()
+            updateForegroundState()
             updateBrightness()
             updateFaults()
         }
@@ -166,13 +198,12 @@ class PowerViewModel(
         val screensaver = currentConfig().features.screensaver
         val screensaverActive = _uiState.value.isScreensaverOn
         val docked = _uiState.value.isDocked
-        val isNight = screensaverIsNight(client.live, System.currentTimeMillis())
+        val isNight = screensaverIsNight(client.snapshot(), System.currentTimeMillis())
         val nightLevel = screensaver.nightBrightness
         val b = when {
-            screensaverActive && isNight -> nightLevel
-            screensaverActive -> if (!docked) screensaver.undockedBrightness else screensaver.brightness
-            !docked -> minOf(screensaver.undockedBrightness, if (isNight) nightLevel else 1f)
+            !screensaverActive -> -1.0f
             isNight -> nightLevel
+            !docked -> screensaver.undockedBrightness
             else -> screensaver.brightness
         }
         val clamped = if (b < 0f) -1.0f else b.coerceIn(0.01f, 1.0f)
@@ -203,7 +234,7 @@ class PowerViewModel(
     }
 
     private fun updateMotionWake() {
-        if (!_uiState.value.isScreenOn) {
+        if (!_uiState.value.isScreenOn && !_uiState.value.isDocked) {
             motionWake.start {
                 viewModelScope.launch {
                     _events.send(PowerEvent.WakeScreen)
@@ -217,17 +248,32 @@ class PowerViewModel(
     private fun onScreenPowerChanged(isOn: Boolean) {
         _uiState.update { it.copy(isScreenOn = isOn) }
         updateMotionWake()
+        updateForegroundState()
         filterJob?.cancel()
         if (!isOn) {
             screensaverJob?.cancel()
+            if (!_uiState.value.isDocked && !_uiState.value.isPlugged && _uiState.value.isScreensaverOn) {
+                _uiState.update { it.copy(isScreensaverOn = false) }
+                updateBrightness()
+            }
             filterJob = viewModelScope.launch {
                 delay(30_000L)
                 client.setEntityFilter(screenOffEntities())
             }
         } else {
+            val screensaver = currentConfig().features.screensaver
+            val elapsedMs = SystemClock.elapsedRealtime() - lastActivityMs
+            if (_uiState.value.isDocked && screensaver.enabled && screensaver.idleMs > 0 && elapsedMs >= screensaver.idleMs) {
+                _uiState.update { it.copy(isScreensaverOn = true) }
+                updateForegroundState()
+                updateBrightness()
+            } else if (!_uiState.value.isScreensaverOn) {
+                markUserActivity()
+            } else {
+                updateBrightness()
+            }
             startScreensaverLoop()
             client.setEntityFilter(null)
-            markUserActivity()
         }
     }
 
@@ -295,16 +341,35 @@ class PowerViewModel(
                     )
                 }
 
-                // Dock debounce state machine
+                // Dock / undock debounce state machine
                 val takingCharge = Battery.takingCharge(plugged, status, pct)
-                val debounceSec = currentConfig().features.power.dockDebounceSeconds
-                dockConfirmJob?.cancel()
+                val powerOpts = currentConfig().features.power
+                val dockDebounceSec = powerOpts.dockDebounceSeconds
+                val undockDebounceSec = powerOpts.undockDebounceSeconds
                 if (!takingCharge) {
-                    updateDocked(false)
-                } else if (!_uiState.value.isDocked) {
-                    dockConfirmJob = viewModelScope.launch {
-                        delay(debounceSec * 1000L)
-                        updateDocked(true)
+                    dockConfirmJob?.cancel()
+                    dockConfirmJob = null
+                    if (_uiState.value.isDocked) {
+                        if (undockDebounceSec <= 0) {
+                            undockDebounceJob?.cancel()
+                            undockDebounceJob = null
+                            updateDocked(false)
+                        } else if (undockDebounceJob?.isActive != true) {
+                            undockDebounceJob = viewModelScope.launch {
+                                delay(undockDebounceSec * 1000L)
+                                updateDocked(false)
+                            }
+                        }
+                    }
+                } else {
+                    undockDebounceJob?.cancel()
+                    undockDebounceJob = null
+                    if (!_uiState.value.isDocked) {
+                        dockConfirmJob?.cancel()
+                        dockConfirmJob = viewModelScope.launch {
+                            delay(dockDebounceSec * 1000L)
+                            updateDocked(true)
+                        }
                     }
                 }
 
@@ -322,6 +387,7 @@ class PowerViewModel(
             }
             PowerIntent.DismissScreensaver -> {
                 _uiState.update { it.copy(isScreensaverOn = false) }
+                updateForegroundState()
                 markUserActivity()
             }
             is PowerIntent.SetSwallowKey -> {
@@ -336,6 +402,7 @@ class PowerViewModel(
             PowerIntent.Foreground -> {
                 enforceScreenTimeout()
                 updateMotionWake()
+                updateForegroundState()
             }
             PowerIntent.Background -> {
                 // Background housekeeping

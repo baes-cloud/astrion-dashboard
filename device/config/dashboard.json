@@ -988,6 +988,8 @@
  ],
  "power": {
   "screen_timeout_seconds": 60,
+  "dock_debounce_seconds": 2,
+  "undock_debounce_seconds": 15,
   "report_entity": "sensor.club_remote_battery",
   "report_name": "Club remote"
  },
