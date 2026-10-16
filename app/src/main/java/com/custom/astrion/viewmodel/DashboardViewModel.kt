@@ -59,12 +59,16 @@ sealed interface DashboardIntent {
     object Foreground : DashboardIntent
     object Background : DashboardIntent
     object RetryConnection : DashboardIntent
+    /** From the power state machine: docked, in the undocked grace, or "always". */
+    data class SetWakeWordWanted(val wanted: Boolean) : DashboardIntent
 }
 
 sealed interface DashboardEffect {
     object RequestRecordAudioPermission : DashboardEffect
     data class WakeScreenForAlarm(val isRinging: Boolean) : DashboardEffect
     object BringActivityToFront : DashboardEffect
+    /** The wake word was heard: light the screen, come to the front, chime. */
+    object WakeWordHeard : DashboardEffect
 }
 
 class DashboardViewModel(
@@ -90,6 +94,7 @@ class DashboardViewModel(
     @Volatile private var cachedAlertSpecs: List<AlertSpec> = emptyList()
     private var lastAlarmPhase: Int = 0
     private var lastAlertToken: String? = null
+    private val wakeWordWanted = MutableStateFlow(false)
 
     init {
         // Observe config updates
@@ -154,6 +159,53 @@ class DashboardViewModel(
                 updateAlertsAndAlarms()
             }
         }
+
+        voice.onWakeWord = { _effects.trySend(DashboardEffect.WakeWordHeard) }
+        watchWakeWord()
+    }
+
+    /**
+     * Arms the wake word while the power state wants it and it can work
+     * (mic permission, HA connected, no voice run in progress), disarms it
+     * otherwise. Re-checked whenever one of those changes, and when a failed
+     * run's backoff ends or permission might have been granted in Settings.
+     */
+    private fun watchWakeWord() {
+        viewModelScope.launch {
+            combine(
+                wakeWordWanted,
+                client.connection,
+                voice.state.map { it.armed to it.phase }.distinctUntilChanged(),
+            ) { _, _, _ -> }.collectLatest {
+                while (true) {
+                    val wait = updateWakeWord() ?: break
+                    delay(wait)
+                }
+            }
+        }
+    }
+
+    /** Arm or disarm to match; returns when to look again, or null if only an event can change it. */
+    private fun updateWakeWord(): Long? {
+        val wanted = wakeWordWanted.value
+        val can = voice.hasPermission && client.connection.value == ConnectionState.CONNECTED
+        val s = voice.state.value
+        val backoffLeft = voice.lastWakeFailureAt + WAKE_WORD_BACKOFF_MS - System.currentTimeMillis()
+        if (wanted && can && !s.armed && s.phase == VoicePhase.IDLE && backoffLeft <= 0) {
+            voice.armWakeWord(uiState.value.config.features.voice.pipeline)
+        } else if (!(wanted && can) && s.armed) {
+            voice.disarm()
+        }
+        return listOfNotNull(
+            backoffLeft.takeIf { wanted && can && it > 0 },
+            WAKE_WORD_RECHECK_MS.takeIf { wanted && !can },
+        ).minOrNull()?.coerceAtLeast(250L)
+    }
+
+    override fun onCleared() {
+        voice.onWakeWord = null
+        voice.disarm()
+        super.onCleared()
     }
 
     private fun callLabel(call: ServiceCall): String {
@@ -308,6 +360,12 @@ class DashboardViewModel(
             DashboardIntent.RetryConnection -> {
                 client.connect()
             }
+            is DashboardIntent.SetWakeWordWanted -> wakeWordWanted.value = intent.wanted
         }
     }
 }
+
+/** After a failed wake word run, wait this long before arming again. */
+private const val WAKE_WORD_BACKOFF_MS = 15_000L
+/** Wanted but not possible (no mic permission, offline): look again this often. */
+private const val WAKE_WORD_RECHECK_MS = 60_000L

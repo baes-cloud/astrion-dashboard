@@ -74,6 +74,7 @@ object PowerMachine {
         // Handled while unplugged: it has been picked up, not bounced on its pins.
         docked = s.docked && s.plugged,
         peakPct = if (s.docked && !s.plugged) null else s.peakPct,
+        undockedAtMs = if (s.docked && !s.plugged) now else s.undockedAtMs,
     )
 
     /** Everything that happens by itself once enough time has passed. */
@@ -83,7 +84,10 @@ object PowerMachine {
             s = s.copy(docked = true, peakPct = s.pct)
             if (!s.screenOn && cfg.screensaverEnabled && cfg.keepScreenOnDocked) effects += PowerEffect.WakeScreen
         }
-        if (undockDue(s, cfg, now)) s = s.copy(docked = false, peakPct = null)
+        if (undockDue(s, cfg, now)) s = s.copy(docked = false, peakPct = null, undockedAtMs = now)
+        if (s.docked) s = s.copy(undockedAtMs = null)
+        val undockedAt = s.undockedAtMs
+        if (undockedAt != null && now - undockedAt >= cfg.wakeWordUndockedMs) s = s.copy(undockedAtMs = null)
         val pct = s.pct
         if (s.docked && pct != null && pct > (s.peakPct ?: -1)) s = s.copy(peakPct = pct)
         if (screensaverDue(s, cfg, now)) s = s.copy(screensaver = true)
@@ -119,6 +123,7 @@ object PowerMachine {
         },
         (s.screenOffAtMs + cfg.screenOffFilterMs).takeIf { !s.screenOn && !s.narrowed && cfg.screenOffFilterMs >= 0 },
         s.homeDueMs,
+        s.undockedAtMs?.let { it + cfg.wakeWordUndockedMs },
         (now + NIGHT_RECHECK_MS).takeIf { s.screensaver && s.screenOn },
     ).minOrNull()
 
@@ -135,6 +140,11 @@ object PowerMachine {
             foreground = s.screenOn && !s.screensaver,
             motionWake = !s.screenOn && !s.docked,
             narrowed = s.narrowed,
+            wakeWord = when (cfg.wakeWordMode) {
+                "always" -> true
+                "docked" -> s.docked || s.undockedAtMs != null
+                else -> false
+            },
         )
     }
 }
@@ -158,6 +168,8 @@ data class PowerState(
     /** An alarm or alert is showing that must keep the screen on. */
     val holdScreen: Boolean = false,
     val homeDueMs: Long? = null,
+    /** When it last left the dock, while the undocked wake word grace runs. */
+    val undockedAtMs: Long? = null,
 ) {
     val charging: Boolean get() = status == BatteryManager.BATTERY_STATUS_CHARGING
     val dockDraining: Boolean get() = docked && pct != null && Battery.draining(peakPct, pct)
@@ -195,6 +207,8 @@ data class PowerOutputs(
     val foreground: Boolean,
     val motionWake: Boolean,
     val narrowed: Boolean,
+    /** Listen for the wake word (`voice.wake_word`): docked, the grace after, or always. */
+    val wakeWord: Boolean = false,
 )
 
 /** The `power` and `screensaver` settings the machine reads, in milliseconds. */
@@ -213,6 +227,10 @@ data class PowerSettings(
     val homeAfterMs: Long = 300_000,
     /** -1: never narrow. */
     val screenOffFilterMs: Long = 30_000,
+    /** `voice.wake_word`: "docked", "always", anything else is off. */
+    val wakeWordMode: String = "docked",
+    /** How long the wake word keeps listening after it leaves the dock. */
+    val wakeWordUndockedMs: Long = 600_000,
 ) {
     fun idleMs(docked: Boolean): Long = if (docked) dockedIdleMs else undockedIdleMs
 
@@ -232,6 +250,8 @@ data class PowerSettings(
                 undockedBrightness = ss.undockedBrightness,
                 homeAfterMs = power.homeAfterSeconds.coerceAtLeast(0) * 1000L,
                 screenOffFilterMs = power.screenOffFilterSeconds.let { if (it < 0) -1L else it * 1000L },
+                wakeWordMode = config.features.voice.wakeWord,
+                wakeWordUndockedMs = config.features.voice.wakeWordUndockedMs,
             )
         }
     }

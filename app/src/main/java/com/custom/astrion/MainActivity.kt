@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
@@ -129,6 +131,16 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 launch {
+                    // The wake word follows the dock (power state machine) ...
+                    powerVm.uiState.map { it.wakeWordWanted }.distinctUntilChanged().collect { wanted ->
+                        dashboardVm.onIntent(DashboardIntent.SetWakeWordWanted(wanted))
+                    }
+                }
+                launch {
+                    // ... and while armed, the CPU must keep feeding the mic.
+                    dashboardVm.uiState.map { it.voiceState.armed }.distinctUntilChanged().collect(::holdWakeWordLock)
+                }
+                launch {
                     powerVm.events.collectLatest { event ->
                         when (event) {
                             PowerEvent.ReturnHome -> {
@@ -147,6 +159,7 @@ class MainActivity : ComponentActivity() {
                             is DashboardEffect.WakeScreenForAlarm -> wakeScreenForAlarm()
                             is DashboardEffect.BringActivityToFront -> bringToFront()
                             is DashboardEffect.RequestRecordAudioPermission -> micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                            is DashboardEffect.WakeWordHeard -> onWakeWordHeard()
                         }
                     }
                 }
@@ -187,6 +200,34 @@ class MainActivity : ComponentActivity() {
             pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE, "astrion:alarm").acquire(10_000)
         }
         bringToFront()
+    }
+
+    /** Partial wake lock held while the wake word is armed. */
+    private var wakeWordLock: PowerManager.WakeLock? = null
+
+    /** Created on the first wake word, so installs that never use it never open one. */
+    private var chime: ToneGenerator? = null
+
+    private fun holdWakeWordLock(on: Boolean) {
+        if (on && wakeWordLock?.isHeld != true) {
+            val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+            wakeWordLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "astrion:wakeword").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        } else if (!on) {
+            wakeWordLock?.let { if (it.isHeld) it.release() }
+            wakeWordLock = null
+        }
+    }
+
+    /** Wake word heard: light the screen at full backlight, come to the front, short chime. */
+    private fun onWakeWordHeard() {
+        wakeScreen()
+        powerVm.onIntent(PowerIntent.UserActivity)
+        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) bringToFront()
+        if (chime == null) chime = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 60) }.getOrNull()
+        chime?.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
     }
 
     private fun bringToFront() {
@@ -271,6 +312,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        holdWakeWordLock(false)
+        chime?.release()
         runCatching { unregisterReceiver(batteryReceiver) }
         runCatching { unregisterReceiver(screenReceiver) }
         if (isFinishing) stopService(Intent(this, KeepAliveService::class.java))

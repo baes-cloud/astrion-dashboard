@@ -42,6 +42,8 @@ data class PowerUiState(
     val isScreenOn: Boolean = true,
     val swallowTouch: Boolean = false,
     val swallowKey: Int = -1,
+    /** The power state wants the wake word armed (DashboardViewModel decides if it can be). */
+    val wakeWordWanted: Boolean = false,
 )
 
 sealed interface PowerIntent {
@@ -137,6 +139,7 @@ class PowerViewModel(
                     screenBrightness = out.brightness,
                     keepScreenOn = out.keepScreenOn,
                     isScreenOn = s.screenOn,
+                    wakeWordWanted = out.wakeWord,
                 )
             }
             apply(out)

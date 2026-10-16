@@ -166,6 +166,35 @@ class PowerMachineTest(private val case: Case) {
                 expect(350_000, screensaver = true)
                 expect(500_000)
             },
+            Case("wake word: on while docked, for the grace after leaving, then off") {
+                expect(1_000, wakeWord = false)
+                battery(2_000, 80, plugged = true)
+                expect(4_000, docked = true, wakeWord = true)
+                battery(10_000, 80, plugged = false, status = BATTERY_STATUS_DISCHARGING)
+                expect(25_000, docked = false, wakeWord = true)
+                expect(624_999, wakeWord = true)
+                expect(625_000, wakeWord = false)
+            },
+            Case("wake word: picking it up starts the grace at once") {
+                battery(0, 80, plugged = true)
+                battery(10_000, 80, plugged = false, status = BATTERY_STATUS_DISCHARGING)
+                touch(11_000)
+                expect(610_999, docked = false, wakeWord = true)
+                expect(611_000, wakeWord = false)
+            },
+            Case("wake word: a pogo bounce doesn't restart the grace") {
+                battery(0, 80, plugged = true)
+                battery(10_000, 80, plugged = false, status = BATTERY_STATUS_DISCHARGING)
+                battery(12_000, 80, plugged = true)
+                expect(700_000, docked = true, wakeWord = true)
+            },
+            Case("wake word \"always\" listens off the dock", cfg = CFG.copy(wakeWordMode = "always")) {
+                expect(3_600_000, docked = false, wakeWord = true)
+            },
+            Case("wake word \"off\" never listens", cfg = CFG.copy(wakeWordMode = "off")) {
+                battery(0, 80, plugged = true)
+                expect(10_000, docked = true, wakeWord = false)
+            },
             Case("home_after_seconds 0 never returns home", cfg = CFG.copy(homeAfterMs = 0), homes = emptyList()) {
                 touch(0)
                 expect(3_600_000)
@@ -207,7 +236,7 @@ class PowerMachineTest(private val case: Case) {
         class Expect(
             at: Long,
             val docked: Boolean?, val keepOn: Boolean?, val screensaver: Boolean?, val fault: Boolean?,
-            val narrowed: Boolean?, val motionWake: Boolean?, val brightness: Float?,
+            val narrowed: Boolean?, val motionWake: Boolean?, val brightness: Float?, val wakeWord: Boolean?,
         ) : Item(at) {
             fun check(s: PowerState, o: PowerOutputs): String? = listOfNotNull(
                 mismatch("docked", docked, s.docked),
@@ -217,6 +246,7 @@ class PowerMachineTest(private val case: Case) {
                 mismatch("narrowed", narrowed, o.narrowed),
                 mismatch("motionWake", motionWake, o.motionWake),
                 mismatch("brightness", brightness, o.brightness),
+                mismatch("wakeWord", wakeWord, o.wakeWord),
             ).takeIf { it.isNotEmpty() }?.joinToString()
 
             private fun mismatch(what: String, want: Any?, got: Any?) =
@@ -236,7 +266,8 @@ class PowerMachineTest(private val case: Case) {
         fun expect(
             t: Long, docked: Boolean? = null, keepOn: Boolean? = null, screensaver: Boolean? = null,
             fault: Boolean? = null, narrowed: Boolean? = null, motionWake: Boolean? = null, brightness: Float? = null,
-        ) { items += Item.Expect(t, docked, keepOn, screensaver, fault, narrowed, motionWake, brightness) }
+            wakeWord: Boolean? = null,
+        ) { items += Item.Expect(t, docked, keepOn, screensaver, fault, narrowed, motionWake, brightness, wakeWord) }
     }
 
     class Case(

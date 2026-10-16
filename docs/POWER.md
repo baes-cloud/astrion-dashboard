@@ -24,6 +24,12 @@ the app can't do for itself.
   A ringing alarm (or an alert with `severity: alarm`) keeps the screen on
   until it stops or is hidden. A `warning` alert wakes the screen once and
   the normal timeout then applies.
+- **The wake word follows the dock.** `voice.wake_word` is `"docked"`
+  (default: listening on the dock and for `wake_word_undocked_minutes`, 10,
+  after it leaves; a pogo bounce doesn't count as leaving), `"always"`, or
+  anything else for off. It also needs the mic permission and HA connected.
+  While it listens the app holds a partial wake lock, since the CPU has to
+  keep streaming the mic to HA.
 - **Motion-wake is time-limited.** The accelerometer that wakes the screen
   when you pick the remote up listens for `motion_wake_minutes` after the
   screen goes off, and never on the dock. On the HA100 it is *not* a wake-up
