@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.3.1 — 2026-10-16
+
+Fixes from the v1.3 review, after both remotes dropped off the network:
+- **Docked means plugged in.** A remote on a dirty or badly seated dock keeps its screen on and reports `dock_fault` to HA, instead of sleeping and losing Wi-Fi.
+- **Power state machine.** Dock, screensaver, keep-on, backlight, motion-wake and the HA filter come from one pure, table-tested state machine (`power/PowerMachine.kt`). A ringing alarm holds the screen through it.
+- **Per-remote `device.json`.** Each remote's battery sensor lives in `/sdcard/astrion/device.json`, so one `dashboard.json` serves both. Config loads before the app starts and reloads when edited.
+- **Device scripts.** `device/install.sh` and `device/status.sh`; real per-house values stay in the gitignored `device/local/`.
+- **Theme.** One `AstrionTheme` API on the design system's CompositionLocals; every colour and font size is a token, corrected onto the Porter's Paints palette (amber only for lights that are on). 12 sp text floor, 48 dp touch areas.
+- **Back again:** the wake word, the ambient now-playing face, the screen timeout watcher.
+- **Plex:** says why shelves are empty, keeps them on disk for a cold start, and fetches posters at the tile's size.
+- Smaller: entity states readable from any snapshot, a TLS allow-list instead of trusting every private IP, forecasts fetched only while visible, single-entity reads without copying the whole HA state.
+
 ## v1.3.0 — 2026-10-14
 
 Architectural modernization, system-level performance, and tactile interaction pass for the HA100's MT6580 SoC:
