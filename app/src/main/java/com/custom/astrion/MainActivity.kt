@@ -209,6 +209,9 @@ class MainActivity : ComponentActivity() {
     /** Created on the first wake word, so installs that never use it never open one. */
     private var chime: ToneGenerator? = null
 
+    // Held for as long as the wake word is armed, by design: no timeout fits,
+    // and it is released on disarm and in onDestroy.
+    @SuppressLint("WakelockTimeout", "Wakelock")
     private fun holdWakeWordLock(on: Boolean) {
         if (on && wakeWordLock?.isHeld != true) {
             val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
