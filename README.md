@@ -85,8 +85,10 @@ Astrion is built for the resource-constrained MediaTek MT6580 SoC (4× ARM Corte
 * **Dependency Injection:** Lightweight **Koin** DI (`ViewModelModule`, `RepositoryModule`, `NetworkModule`, `HardwareModule`).
 * **Design System (Bæo Design System v2.0):** Centralized semantic design tokens grounded in Porter's Paints architectural swatches (`Yacht Race`, `Gunmetal Grey`, `Hailstorm`, `Baby Doll`). Monotonic luminance ramp (`surfacePrimary`, `surfaceCard`, `surfaceElevated`, `controlActiveBg`) with WCAG 2.1 AAA contrast compliance.
 * **Fast TV App Launches:** Colored hardware keys (`CUSTOM_1` – `CUSTOM_3`) trigger native non-blocking `media_player.select_source` intents, launching Netflix, Plex, and ABC iview in under 150ms without blocking Home Assistant's ADB connection.
+* **Selective WebSocket State Publishing:** `HaClient` updates its internal store in-place for all entities while filtering Compose snapshot writes and `StateFlow` emissions to observed UI, screensaver, and alarm/alert entities—eliminating main-thread recomposition and GC churn from chatty background sensors.
+* **Dock & Off-Dock Power Management:** Asymmetric dock/undock debounce (`dock_debounce_seconds: 2`, `undock_debounce_seconds: 15`) absorbs pogo-pin contact drops on the dock while allowing the display, `rmm/stream` radar subscription, and entity filter to sleep cleanly when undocked.
 * **Boot Persistence & Launcher Recovery:** Configured with `RECEIVE_BOOT_COMPLETED`, automatic `BootReceiver` relaunch, and `.HomeAlias` default launcher locking so the remote always boots straight into Astrion even after low-battery shutdowns.
-* **RTC Drift Prevention:** Aggressive NTP polling (30 minutes) counteracts MediaTek hardware crystal oscillator drift.
+* **RTC Drift Prevention:** Root `astrion_timesync` init daemon synchronizes the system clock and hardware RTC from the local Home Assistant HTTP `Date:` header on boot, on WebSocket reconnect (`debug.astrion.timesync=1`), and every 10 minutes without requiring external internet NTP access.
 
 ---
 
