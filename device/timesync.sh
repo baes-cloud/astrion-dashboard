@@ -23,6 +23,9 @@ log_warn() {
     printf "[%s] [WARN] %s\n" "$TAG" "$*" >&2
 }
 
+# The RTC is kept in UTC (-u), which is what the kernel reads it as at boot.
+# Written in local time it put the clock 11 h ahead (AEDT) after every reboot
+# until Home Assistant could be reached.
 sync_against_ha() {
     # Send HTTP HEAD request to HA server with 3-second timeout
     date_line=$(printf "HEAD / HTTP/1.1\r\nHost: %s:%s\r\nConnection: close\r\n\r\n" "$HA_HOST" "$HA_PORT" | toybox nc -w 3 "$HA_HOST" "$HA_PORT" 2>/dev/null | grep -i "^Date:" | tr -d "\r")
@@ -49,11 +52,11 @@ sync_against_ha() {
     if [ "$abs_diff" -ge 2 ]; then
         log_info "Drift of ${abs_diff}s detected (sys: $current, ha: $epoch). Setting clock..."
         toybox date -u @"$epoch"
-        toybox hwclock -w 2>/dev/null
+        toybox hwclock -u -w 2>/dev/null
         log_info "Clock synchronized to $(toybox date)"
     else
         log_info "Clock within tolerance (${abs_diff}s drift). Syncing RTC."
-        toybox hwclock -w 2>/dev/null
+        toybox hwclock -u -w 2>/dev/null
     fi
     return 0
 }
