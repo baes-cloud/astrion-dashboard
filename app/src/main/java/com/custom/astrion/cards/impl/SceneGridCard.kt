@@ -2,6 +2,7 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.animation.core.animateDpAsState
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.tightTextStyle
 import com.custom.astrion.ui.parseHexColor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
@@ -121,22 +123,31 @@ class SceneGridCard : CardRenderer {
 
     @Composable
     private fun SceneCaption(text: String) {
+        // Tight: the text's own line box only, and it gives back most of the
+        // page's 5dp gaps above and below, so the floorplan keeps the room.
         Row(
-            Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            Modifier
+                .fillMaxWidth()
+                .layout { measurable, constraints ->
+                    val p = measurable.measure(constraints)
+                    val give = 9.dp.roundToPx()
+                    layout(p.width, (p.height - give).coerceAtLeast(0)) { p.place(0, -give / 2) }
+                },
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val line = AstrionTheme.textMuted.copy(alpha = 0.35f)
-            Box(Modifier.width(44.dp).height(1.dp).background(line))
+            val line = AstrionTheme.textMuted.copy(alpha = 0.3f)
+            Box(Modifier.width(32.dp).height(1.dp).background(line))
             Text(
                 text.uppercase(),
                 color = AstrionTheme.textMuted,
                 fontSize = AstrionTheme.size.label,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.28.em,
-                modifier = Modifier.padding(horizontal = 10.dp),
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.18.em,
+                style = tightTextStyle(12.sp),
+                modifier = Modifier.padding(horizontal = 8.dp),
             )
-            Box(Modifier.width(44.dp).height(1.dp).background(line))
+            Box(Modifier.width(32.dp).height(1.dp).background(line))
         }
     }
 
