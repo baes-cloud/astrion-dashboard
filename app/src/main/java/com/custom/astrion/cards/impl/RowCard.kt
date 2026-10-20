@@ -14,7 +14,7 @@ import com.custom.astrion.cards.CardRenderer
 
 /**
  * Generic horizontal container: lays out child cards side by side with equal
- * weight. Lets the file config build rows (e.g. two cover buttons) without a
+ * weight (or a child's own `"weight"`, e.g. 1.25 to make it wider). Lets the file config build rows (e.g. two cover buttons) without a
  * dedicated card type per combination.
  *
  * Config shape:
@@ -38,7 +38,8 @@ class RowCard : CardRenderer {
                 val childType = child["type"] as? String ?: return@forEach
                 val childOptions = (child["options"] as? Map<String, Any?>) ?: emptyMap()
                 val renderer = CardRegistry.get(childType) ?: return@forEach
-                Box(modifier = Modifier.weight(1f)) {
+                val weight = (child["weight"] as? Number)?.toFloat()?.takeIf { it > 0f } ?: 1f
+                Box(modifier = Modifier.weight(weight)) {
                     renderer.Render(CardConfig(childType, childOptions), ctx)
                 }
             }

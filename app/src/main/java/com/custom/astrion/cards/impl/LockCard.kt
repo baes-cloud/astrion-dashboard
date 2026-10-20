@@ -99,7 +99,7 @@ class LockCard : CardRenderer {
                 )
                 // Shaped like the blind rows: icon tile, name over state,
                 // the button on the right. The scene pills gave up 4dp for it.
-                .padding(horizontal = if (compact) 10.dp else 12.dp, vertical = 8.dp),
+                .padding(horizontal = if (compact) 8.dp else 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -139,7 +139,7 @@ class LockCard : CardRenderer {
                     },
                 )
             }
-            Spacer(Modifier.width(if (compact) 8.dp else 10.dp))
+            Spacer(Modifier.width(if (compact) 6.dp else 10.dp))
             // Name over state and age, as the blind rows.
             Column(Modifier.weight(1f)) {
                 Text(
@@ -176,7 +176,7 @@ class LockCard : CardRenderer {
             // One button that shows the state and flips it (owner's call:
             // the two-chip segmented control was more than the door needs).
             // Inert while the bolt is moving or the lock is unreachable.
-            Spacer(Modifier.width(if (compact) 6.dp else 8.dp))
+            Spacer(Modifier.width(if (compact) 4.dp else 8.dp))
             StateButton(
                 state = state,
                 locked = locked,

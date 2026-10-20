@@ -138,15 +138,6 @@
      "options": {
       "cards": [
        {
-        "type": "lock",
-        "options": {
-         "entity_id": "lock.lock_pro_0fa0",
-         "name": "Door",
-         "hold_entity": "input_boolean.front_door_keep_unlocked",
-         "compact": true
-        }
-       },
-       {
         "type": "switch",
         "options": {
          "entity_id": "input_boolean.light_automations",
@@ -157,6 +148,16 @@
          "on_label": "On",
          "off_label": "Paused",
          "off_attention": true
+        },
+        "weight": 1.25
+       },
+       {
+        "type": "lock",
+        "options": {
+         "entity_id": "lock.lock_pro_0fa0",
+         "name": "Door",
+         "hold_entity": "input_boolean.front_door_keep_unlocked",
+         "compact": true
         }
        }
       ]
@@ -294,8 +295,8 @@
           },
           {
            "entity_id": "light.bathroom_downlights",
-           "left": 57,
-           "top": 90
+           "left": 56.5,
+           "top": 82
           },
           {
            "entity_id": "light.bedroom_lights",
@@ -343,7 +344,7 @@
            "Bathroom": [57, 90],
            "Office": [88, 82]
           },
-          "dock_position": [6, 63]
+          "dock_position": [5, 60]
          },
          "stretch": true,
          "lit_rooms": {
