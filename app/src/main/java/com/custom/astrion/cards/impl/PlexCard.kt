@@ -102,10 +102,7 @@ class PlexCard : CardRenderer {
     override val type = "plex"
 
     private companion object {
-        val http: OkHttpClient = com.custom.astrion.ha.Http.base.newBuilder()
-            .callTimeout(12, TimeUnit.SECONDS)
-            .build()
-        val json = Json { ignoreUnknownKeys = true }
+        val json get() = PlexNet.json
 
         // Last shelves per host: the page is recomposed from scratch every
         // time you navigate to it, and a cold load of five rows took ~10 s on
@@ -115,12 +112,9 @@ class PlexCard : CardRenderer {
         val shelvesSerializer = ListSerializer(PlexShelf.serializer())
 
         // ~3.5 tiles across a 480px/220dpi panel.
-        val TILE_W = 84.dp
-        val POSTER_H = 120.dp
-
-        const val PLEX_APP = "com.plexapp.android"
-        /** How long to wait for the TV to show Plex after the intent. */
-        const val OPEN_TIMEOUT_MS = 10_000L
+        // Four and a bit across, so the fifth peeking in says "swipe for more".
+        val TILE_W = 66.dp
+        val POSTER_H = 95.dp
 
         /** Posters per row fetched ahead of being scrolled into view. */
         const val PREFETCH = 6
@@ -134,21 +128,16 @@ class PlexCard : CardRenderer {
     @Suppress("UNCHECKED_CAST")
     @Composable
     override fun Render(config: CardConfig, ctx: CardContext) {
-        val host = config.string("host")?.trimEnd('/') ?: return
-        val token = config.string("token").orEmpty()
-        val playEntity = config.string("play_entity") ?: return
-        val adbEntity = config.string("adb_entity")
-        val tvEntity = config.string("tv_entity")
-        val wakeTimeoutMs = config.int("wake_timeout", 25).coerceIn(5, 60) * 1000L
+        val target = remember(config) { PlexTarget.from(config) } ?: return
+        val host = target.host
+        val token = target.token
         val limit = config.int("limit", 10).coerceIn(1, 30)
         val rowSpecs = (config.options["rows"] as? List<Map<String, Any?>>) ?: emptyList()
 
         // machineIdentifier is needed to build the plex:// play id. Read it
         // from the server rather than pinning it in config.
         val machineId by produceState<String?>(initialValue = config.string("machine_id"), host, token) {
-            if (value == null) {
-                value = get(plexUrl(host, token, "/identity")).json?.mc()?.str("machineIdentifier")
-            }
+            if (value == null) value = target.machineId()
         }
 
         // Refreshed on every visit to the page (it stays composed otherwise).
@@ -162,7 +151,7 @@ class PlexCard : CardRenderer {
                         val title = spec["title"] as? String ?: return@async null
                         val path = spec["path"] as? String ?: return@async null
                         val sep = if ('?' in path) "&" else "?"
-                        val got = get(plexUrl(host, token, "$path${sep}X-Plex-Container-Start=0&X-Plex-Container-Size=$limit"))
+                        val got = PlexNet.get(plexUrl(host, token, "$path${sep}X-Plex-Container-Start=0&X-Plex-Container-Size=$limit"))
                         val items = got.json?.let(::parsePlexItems)
                         RowResult(title, items, if (items == null) got.error ?: "no items" else null)
                     }
@@ -190,7 +179,7 @@ class PlexCard : CardRenderer {
         LaunchedEffect(shelves, posterW) {
             shelves?.forEach { shelf ->
                 shelf.items.take(PREFETCH).forEach { item ->
-                    item.thumb?.let { t -> launch { loadPoster(plexThumbUrl(host, token, t, posterW, posterH)) } }
+                    item.thumb?.let { t -> launch { PlexNet.poster(plexThumbUrl(host, token, t, posterW, posterH)) } }
                 }
             }
         }
@@ -202,75 +191,20 @@ class PlexCard : CardRenderer {
         val scope = rememberCoroutineScope()
 
         fun play(item: PlexItem) {
-            val mid = machineId ?: run {
-                status = "Plex server unreachable"
-                return
-            }
-            if (adbEntity == null) {
-                // No ADB bridge configured: the old session-only path.
-                val id = "plex://$mid/${item.ratingKey}" + if (item.resume) "?resume=1" else ""
-                ctx.client.callService(
-                    ServiceCall.of(
-                        "media_player", "play_media", playEntity,
-                        "media_content_type" to item.type,
-                        "media_content_id" to id,
-                    )
-                )
-                return
-            }
             scope.launch {
-                status = "Starting ${item.title}…"
-                // ADB can't reach a sleeping TV, so wake it over the
-                // androidtv_remote protocol first and wait for the bridge.
-                if (isAsleep(ctx.entity(adbEntity)?.state)) {
-                    if (tvEntity != null) {
-                        ctx.client.callService(
-                            ServiceCall(domain = "media_player", service = "turn_on", entityId = tvEntity)
-                        )
-                        status = "Waking the TV…"
-                    }
-                    val awake = withTimeoutOrNull(wakeTimeoutMs) {
-                        while (isAsleep(ctx.entity(adbEntity)?.state)) delay(500)
-                        true
-                    }
-                    if (awake == null) {
-                        status = "TV didn't wake — try again"
-                        delay(4000); status = null
-                        return@launch
-                    }
-                }
-                status = "Opening Plex…"
-                // confirm: a failed ADB call shows as a toast, not silence.
-                ctx.client.callService(
-                    ServiceCall.of(
-                        "androidtv", "adb_command", adbEntity,
-                        "command" to plexDeepLink(mid, item.ratingKey),
-                    ),
-                    confirm = true,
-                )
-                // The ADB entity reports the foreground app: wait for Plex.
-                val opened = withTimeoutOrNull(OPEN_TIMEOUT_MS) {
-                    while (ctx.entity(adbEntity)?.attrString("app_id") != PLEX_APP) delay(500)
-                    true
-                }
-                val app = ctx.entity(adbEntity)?.attrString("app_id")
-                status = when {
-                    opened == true -> "Playing on the TV"
-                    app != null -> "Plex didn't open on the TV (showing $app) — try again"
-                    else -> null
-                }
+                target.play(ctx, machineId, item) { status = it }
                 delay(4000)
                 status = null
             }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            status?.let { ShelfLabel(it) }
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            status?.let { ShelfStatus(it) }
             when {
-                shelves == null -> ShelfLabel("Plex — loading…")
-                shelves!!.isEmpty() -> ShelfLabel(plexEmptyMessage(host, loadError))
+                shelves == null -> ShelfStatus("Loading Plex…")
+                shelves!!.isEmpty() -> ShelfStatus(plexEmptyMessage(host, loadError))
                 else -> shelves!!.forEach { shelf ->
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         ShelfLabel(shelf.title)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(shelf.items, key = { it.ratingKey }) { item ->
@@ -283,14 +217,28 @@ class PlexCard : CardRenderer {
         }
     }
 
+    /** A shelf's name: the remote's small uppercase section label. */
     @Composable
     private fun ShelfLabel(text: String) {
         Text(
-            text,
+            text.uppercase(),
             color = AstrionTheme.colors.onSurfaceVariant,
             fontSize = AstrionTheme.size.label,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+
+    /** A status or problem line (starting on the TV, can't reach Plex): sentence case. */
+    @Composable
+    private fun ShelfStatus(text: String) {
+        Text(
+            text,
+            color = AstrionTheme.textSecondary,
+            fontSize = AstrionTheme.size.small,
+            fontWeight = FontWeight.Medium,
         )
     }
 
@@ -300,7 +248,7 @@ class PlexCard : CardRenderer {
         // and forth, or restarting, doesn't refetch them from the server.
         var bmp by remember(posterUrl) { mutableStateOf(posterUrl?.let { ArtCache.peek(it) }) }
         LaunchedEffect(posterUrl) {
-            if (bmp == null && posterUrl != null) loadPoster(posterUrl)?.let { bmp = it }
+            if (bmp == null && posterUrl != null) PlexNet.poster(posterUrl)?.let { bmp = it }
         }
 
         Column(
@@ -341,40 +289,8 @@ class PlexCard : CardRenderer {
         }
     }
 
-    // ---- Plex HTTP ----------------------------------------------------------
-
-    /** A Plex response, or why there isn't one ("HTTP 401", "unreachable", "not JSON"). */
-    private class Got(val json: JsonObject?, val error: String?)
-
     /** One configured row's result: its items, or why it has none. */
     private class RowResult(val title: String, val items: List<PlexItem>?, val error: String?)
-
-    private suspend fun get(u: String): Got = withContext(Dispatchers.IO) {
-        try {
-            http.newCall(Request.Builder().url(u).header("Accept", "application/json").build())
-                .execute().use { r ->
-                    if (!r.isSuccessful) return@use Got(null, "HTTP ${r.code}")
-                    val body = r.body?.string() ?: return@use Got(null, "empty reply")
-                    val obj = runCatching { json.parseToJsonElement(body) as? JsonObject }.getOrNull()
-                    if (obj == null) Got(null, "not JSON") else Got(obj, null)
-                }
-        } catch (e: java.io.IOException) {
-            Got(null, "unreachable")
-        }
-    }
-
-    /** Already server-scaled to the tile by [plexThumbUrl], so no downsampling. */
-    private suspend fun loadPoster(url: String) = ArtCache.load(url) {
-        runCatching {
-            http.newCall(Request.Builder().url(url).build()).execute().use { r ->
-                if (r.isSuccessful) r.body?.bytes() else null
-            }
-        }.getOrNull()
-    }
-
-    /** ADB entity states that mean "no shell to talk to". */
-    private fun isAsleep(state: String?): Boolean =
-        state == null || state == "off" || state == "unavailable" || state == "unknown"
 
     private fun JsonObject.mc(): JsonObject? = this["MediaContainer"] as? JsonObject
     private fun JsonObject.str(k: String): String? = (this[k] as? JsonPrimitive)?.content

@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.4.0 (2026-10-21)
+
+Help, search and Plex:
+- **Help guide (hold ☰).** "How do I…" answers, a walkthrough on the real buttons (nothing is sent while it's open), every button's press and hold read live from the config (hotkeys take an optional `label`), real button glyphs, an example floorplan. `guide.on_open` / `on_close` hooks put a one-page version on the TV and restore it after.
+- **Search.** `music_search` searches everything in Music Assistant (library and Spotify) and plays on the Club; `plex_browse` searches Plex and opens whole libraries as poster grids, shows down to their episodes.
+- **Plex plays where you can see it.** Every Plex play wakes the Streamer and sends CEC One Touch Play before the deep link, so the TV switches to it (it used to start Plex behind another input).
+- **Main.** Compact Door lock beside an Auto lights switch (pauses the motion and presence light automations in HA); a small "Scenes" caption above the scene pills.
+- **TV card.** Plex tiles drawn inside it (`footer`), a TV-sound corner button (`corner_button`), taps on the card no longer fall through to posters behind it, a page scroll bar, narrower posters with a fifth peeking in.
+- **Media.** Album art shown whole over the blurred wash; flat mix tiles (`"style": "flat"`), the button grid no longer clips its tiles; GAYFM replaces Trance; Glitterbox plays from the current NAS; random albums skip Spotify (`exclude_spotify`).
+- **Security.** Artwork from other hosts (Spotify's CDN via Music Assistant) no longer receives the HA token; it's only sent to HA.
+- **Screensaver.** The now-playing fallback skips Music Assistant's mirror players, which kept showing a stale track.
+
 ## v1.3.1 — 2026-10-16
 
 Fixes from the v1.3 review, after both remotes dropped off the network:

@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import com.custom.astrion.guide.GuideCatalog
+import com.custom.astrion.guide.GuideOverlay
 import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ir.IrModeOverlay
 import com.custom.astrion.ui.ambient.AmbientScreen
@@ -27,6 +29,9 @@ fun DashboardScreen(
         if (powerState.isScreensaverOn && !inputState.isIrMode) {
             sheetHost.dismissAll()
         }
+        // The guide is for someone at the remote; idle long enough for the
+        // screensaver and they've wandered off.
+        if (powerState.isScreensaverOn && inputState.isGuideOpen) inputVm.onIntent(InputIntent.CloseGuide)
     }
 
     CompositionLocalProvider(LocalSheetHost provides sheetHost) {
@@ -84,6 +89,19 @@ fun DashboardScreen(
                     blaster = inputVm.irBlaster,
                     lastKeyLabel = inputState.irLastKey,
                     onClose = { inputVm.onIntent(InputIntent.CloseIrMode) },
+                )
+            }
+
+            if (inputState.isGuideOpen) {
+                val config = dashboardState.config
+                val catalog = remember(config) {
+                    GuideCatalog.from(config) { id -> dashboardVm.client.live[id]?.friendlyName }
+                }
+                GuideOverlay(
+                    catalog = catalog,
+                    pageNames = config.pages.map { it.name },
+                    press = inputState.guidePress,
+                    onClose = { inputVm.onIntent(InputIntent.CloseGuide) },
                 )
             }
 

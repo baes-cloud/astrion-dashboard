@@ -122,6 +122,57 @@ class InputViewModelTest {
     }
 
     @Test
+    fun guideCatchesKeysInsteadOfRunningThem() = runVmTest {
+        viewModel.onIntent(InputIntent.OpenGuide)
+        assertTrue(viewModel.uiState.value.isGuideOpen)
+
+        // CUSTOM_1 is bound to astrion.open_settings; in the guide it must only be reported.
+        viewModel.effects.test {
+            viewModel.handleKeyEvent(mockKeyEvent(138, KeyEvent.ACTION_DOWN), isScreensaverOn = false)
+            viewModel.handleKeyEvent(mockKeyEvent(138, KeyEvent.ACTION_UP), isScreensaverOn = false)
+            runCurrent()
+            expectNoEvents()
+        }
+        val press = viewModel.uiState.value.guidePress
+        assertEquals(HardwareKey.CUSTOM_1, press?.key)
+        assertEquals(com.custom.astrion.guide.PressKind.TAP, press?.kind)
+
+        viewModel.onIntent(InputIntent.CloseGuide)
+        assertFalse(viewModel.uiState.value.isGuideOpen)
+        assertNull(viewModel.uiState.value.guidePress)
+    }
+
+    @Test
+    fun guideHooksRunOnceOnOpenAndOnClose() = runVmTest {
+        configFlow.value = DashboardLoader.Result(
+            baseConfig.copy(options = baseConfig.options + ("guide" to mapOf(
+                "on_open" to mapOf("service" to "script.turn_on", "entity_id" to "script.tv_guide_show"),
+                "on_close" to mapOf("service" to "script.turn_on", "entity_id" to "script.tv_guide_hide"),
+            ))),
+            null,
+        )
+        viewModel.openGuide()
+        viewModel.openGuide() // already open: no second TV call
+        verify(exactly = 1) { client.callService(match { it.entityId == "script.tv_guide_show" }, any()) }
+        viewModel.closeGuide()
+        viewModel.closeGuide()
+        verify(exactly = 1) { client.callService(match { it.entityId == "script.tv_guide_hide" }, any()) }
+    }
+
+    @Test
+    fun openGuideHotkeyOpensTheGuideAndClosesIrMode() = runVmTest {
+        viewModel.bindHotkeys(testHotkeys, listOf(HotkeyConfig(key = "CUSTOM_3", service = "astrion.open_guide")))
+        viewModel.onIntent(InputIntent.ToggleIrMode)
+        assertTrue(viewModel.uiState.value.isIrMode)
+        // CUSTOM_3 = keycode 140, held past the long-press threshold.
+        viewModel.handleKeyEvent(mockKeyEvent(140, KeyEvent.ACTION_DOWN), isScreensaverOn = false)
+        testScheduler.advanceTimeBy(com.custom.astrion.input.KeyDispatcher.LONG_PRESS_MS + 10)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isGuideOpen)
+        assertFalse(viewModel.uiState.value.isIrMode)
+    }
+
+    @Test
     fun initialInputState() {
         val state = viewModel.uiState.value
         assertFalse(state.isIrMode)

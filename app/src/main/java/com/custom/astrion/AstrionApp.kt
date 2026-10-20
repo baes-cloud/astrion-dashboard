@@ -7,6 +7,8 @@ import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.cards.impl.BubbleLightCard
 import com.custom.astrion.cards.impl.ButtonGridCard
 import com.custom.astrion.cards.impl.ClimateCard
+import com.custom.astrion.cards.impl.MusicSearchCard
+import com.custom.astrion.cards.impl.PlexBrowseCard
 import com.custom.astrion.cards.impl.CalendarLineCard
 import com.custom.astrion.cards.impl.ClockWeatherCard
 import com.custom.astrion.cards.impl.CoverCard
@@ -96,6 +98,8 @@ class AstrionApp : Application() {
             BubbleLightCard(),
             TvRemoteCard(),
             MediaPlayerCard(),
+            MusicSearchCard(),
+            PlexBrowseCard(),
             ClimateCard(),
             CoverCard(),
             LockCard(),

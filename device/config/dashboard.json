@@ -12,57 +12,50 @@
       "variant": "tv",
       "pin": "top",
       "placeholder": "/sdcard/astrion/serif_tv.png",
-      "apps": [
-       {
-        "name": "iview",
-        "color": "#2BC4B6",
-        "service": "media_player.select_source",
-        "entity_id": "media_player.club_android_tv_10_0_0_248_club_tv",
-        "data": {
-         "source": "au.net.abc.iview"
-        },
-        "wordmark": true,
-        "icon": "/sdcard/astrion/icons/logo_iview.png"
-       },
-       {
-        "name": "Plex",
-        "color": "#E5A00D",
-        "service": "media_player.select_source",
-        "entity_id": "media_player.club_android_tv_10_0_0_248_club_tv",
-        "data": {
-         "source": "com.plexapp.android"
-        },
-        "badge": ">",
-        "icon": "/sdcard/astrion/icons/logo_plex.png"
-       },
-       {
-        "name": "Jellyfin",
-        "color": "#A77BF3",
-        "service": "media_player.select_source",
-        "entity_id": "media_player.club_android_tv_10_0_0_248_club_tv",
-        "data": {
-         "source": "org.jellyfin.androidtv"
-        },
-        "badge": "J",
-        "icon": "/sdcard/astrion/icons/logo_jellyfin.png"
-       },
-       {
-        "name": "Netflix",
-        "color": "#E50914",
-        "service": "media_player.select_source",
-        "entity_id": "media_player.club_android_tv_10_0_0_248_club_tv",
-        "data": {
-         "source": "com.netflix.ninja"
-        },
-        "badge": "N",
-        "dim": true,
-        "icon": "/sdcard/astrion/icons/logo_netflix.png"
-       }
-      ],
       "art_entities": [
        "media_player.plex_plex_for_android_tv_tv",
        "media_player.the_club_tv"
-      ]
+      ],
+      "footer": {
+       "type": "plex_browse",
+       "options": {
+        "host": "http://YOUR_PLEX_IP:32400",
+        "play_entity": "media_player.plex_plex_for_android_tv_tv",
+        "tv_entity": "media_player.the_club_tvv",
+        "adb_entity": "media_player.club_android_tv_10_0_0_248_club_tv",
+        "wake_timeout": 25,
+        "buttons": [
+         {
+          "name": "Search",
+          "kind": "search"
+         },
+         {
+          "name": "Movies",
+          "section": "1",
+          "icon": "movie"
+         },
+         {
+          "name": "TV",
+          "section": "2",
+          "icon": "tv"
+         },
+         {
+          "name": "MTV",
+          "section": "4",
+          "icon": "music_video"
+         }
+        ]
+       }
+      },
+      "corner_button": {
+       "icon": "speaker",
+       "label": "TV sound on the speakers",
+       "service": "script.long_music",
+       "unjoin_others": "media_player.club",
+       "lit_entity": "media_player.club",
+       "lit_attribute": "source",
+       "lit_when": "TV"
+      }
      }
     },
     {
@@ -141,11 +134,32 @@
      }
     },
     {
-     "type": "lock",
+     "type": "row",
      "options": {
-      "entity_id": "lock.lock_pro_0fa0",
-      "name": "Front Door",
-      "hold_entity": "input_boolean.front_door_keep_unlocked"
+      "cards": [
+       {
+        "type": "lock",
+        "options": {
+         "entity_id": "lock.lock_pro_0fa0",
+         "name": "Door",
+         "hold_entity": "input_boolean.front_door_keep_unlocked",
+         "compact": true
+        }
+       },
+       {
+        "type": "switch",
+        "options": {
+         "entity_id": "input_boolean.light_automations",
+         "name": "Auto lights",
+         "style": "row",
+         "icon": "motion",
+         "icon_off": "paused",
+         "on_label": "On",
+         "off_label": "Paused",
+         "off_attention": true
+        }
+       }
+      ]
      }
     },
     {
@@ -193,7 +207,8 @@
         "name": "Snow capped",
         "color": "#BAE6FD"
        }
-      ]
+      ],
+      "label": "Scenes"
      }
     },
     {
@@ -322,31 +337,13 @@
           ],
           "room_entity": "sensor.roborock_qrevo_master_current_room",
           "room_positions": {
-           "Club": [
-            42,
-            44
-           ],
-           "Kitchen": [
-            69,
-            57
-           ],
-           "Bedroom": [
-            29,
-            90
-           ],
-           "Bathroom": [
-            57,
-            90
-           ],
-           "Office": [
-            88,
-            82
-           ]
+           "Club": [42, 44],
+           "Kitchen": [69, 57],
+           "Bedroom": [29, 90],
+           "Bathroom": [57, 90],
+           "Office": [88, 82]
           },
-          "dock_position": [
-           6,
-           63
-          ]
+          "dock_position": [6, 63]
          },
          "stretch": true,
          "lit_rooms": {
@@ -355,42 +352,55 @@
            {
             "name": "Club and kitchen",
             "shape": [[1, 1], [99, 1], [99, 53], [89, 53], [89, 64], [58, 64], [58, 50], [1, 50]],
-            "lights": ["light.hue_play", "light.tv_art_lights", "light.couch", "light.club_led_group", "light.art_group", "light.bar_spotlights", "light.downlights", "light.kitchen_console_candles", "light.kitchen_group"]
+            "lights": [
+             "light.hue_play",
+             "light.tv_art_lights",
+             "light.couch",
+             "light.club_led_group",
+             "light.art_group",
+             "light.bar_spotlights",
+             "light.downlights",
+             "light.kitchen_console_candles",
+             "light.kitchen_group"
+            ]
            },
            {
             "name": "Hall",
             "shape": [[44, 50], [58, 50], [58, 64], [44, 64]],
-            "lights": ["light.bedroom_cupboard_light"]
+            "lights": [
+             "light.bedroom_cupboard_light"
+            ]
            },
            {
             "name": "Bedroom",
             "shape": [[0, 51], [43, 51], [43, 100], [0, 100]],
-            "lights": ["light.send_nudes", "light.bedroom_lights", "light.bedlamps"]
+            "lights": [
+             "light.send_nudes",
+             "light.bedroom_lights",
+             "light.bedlamps"
+            ]
            },
            {
             "name": "Bathroom",
             "shape": [[44, 65], [69, 65], [69, 100], [44, 100]],
-            "lights": ["light.bathroom_downlights"]
+            "lights": [
+             "light.bathroom_downlights"
+            ]
            },
            {
             "name": "Office",
             "shape": [[70, 65], [89, 65], [89, 54], [100, 54], [100, 100], [70, 100]],
-            "lights": ["light.office_lights", "light.wardrobes"]
+            "lights": [
+             "light.office_lights",
+             "light.wardrobes"
+            ]
            }
           ]
          },
          "rmm": {
           "map_group": "default",
-          "source_size": [
-           1179,
-           1179
-          ],
-          "crop": [
-           16,
-           12,
-           1089,
-           1047
-          ],
+          "source_size": [1179, 1179],
+          "crop": [16, 12, 1089, 1047],
           "show_hibernating": false,
           "color": "#D92CAA9C",
           "accent_color": "#FF8CE0D4"
@@ -434,33 +444,34 @@
              "media_player.the_club_tv"
             ],
             "variant": "full",
-            "art_aspect": 1.45
+            "art_aspect": 1.9
            }
           },
           {
            "type": "button_grid",
            "options": {
             "columns": 4,
-            "tile_height": 62,
+            "tile_height": 60,
             "icon_size": 22,
             "spacing": 8,
             "buttons": [
              {
-              "name": "Trance",
-              "icon": "/sdcard/astrion/icons/trap.png",
+              "name": "GAYFM",
+              "icon": "/sdcard/astrion/icons/gayfm.png",
               "service": "media_player.select_source",
               "entity_id": "media_player.club",
               "data": {
-               "source": "2025 Epic Vocal Trance and Techno DJ Mix  - Feel the Energy"
+               "source": "Gay FM"
               }
              },
              {
               "name": "Glitterbox",
               "icon": "/sdcard/astrion/icons/disco.png",
-              "service": "media_player.select_source",
+              "service": "media_player.play_media",
               "entity_id": "media_player.club",
               "data": {
-               "source": "Defected ITH 2017 Glitterbox - A Disco Hi #2"
+               "media_content_type": "music",
+               "media_content_id": "x-file-cifs://10.0.0.10/music/Defected/Defected%202017%20Glitterbox%20-%20A%20Disco%20Hi%202.mp3"
               }
              },
              {
@@ -474,7 +485,17 @@
               "service": "script.play_dfp"
              }
             ],
-            "label_lines": 2
+            "label_lines": 2,
+            "style": "flat"
+           }
+          },
+          {
+           "type": "music_search",
+           "options": {
+            "config_entry_id": "01KVF3KES1KSZ0JYSXJ405AKVA",
+            "player": "media_player.club_2",
+            "placeholder": "Search music",
+            "limit": 8
            }
           }
          ]
@@ -483,8 +504,8 @@
        {
         "type": "media_shelves",
         "options": {
-          "row_spacing": 17,
-          "top_padding": 6,
+         "row_spacing": 17,
+         "top_padding": 6,
          "entity_id": "media_player.club",
          "limit": 10,
          "rows": [
@@ -495,7 +516,8 @@
            "player": "media_player.club_2",
            "media_type": "album",
            "order_by": "random",
-           "limit": 12
+           "limit": 12,
+           "exclude_spotify": true
           },
           {
            "title": "Favourite Songs",
@@ -681,7 +703,8 @@
    "entityId": "remote.the_club_tvv",
    "data": {
     "command": "POWER"
-   }
+   },
+   "label": "TV on or off"
   },
   {
    "key": "MUTE",
@@ -691,38 +714,46 @@
   {
    "key": "VOLUME_UP",
    "service": "media_player.volume_up",
-   "entityId": "media_player.club"
+   "entityId": "media_player.club",
+   "label": "Speakers louder, from any page"
   },
   {
    "key": "VOLUME_DOWN",
    "service": "media_player.volume_down",
-   "entityId": "media_player.club"
+   "entityId": "media_player.club",
+   "label": "Speakers quieter, from any page"
   },
   {
    "key": "PAGE_UP",
    "service": "script.turn_on",
-   "entityId": "script.increase_club_brightness_on_lights_only"
+   "entityId": "script.increase_club_brightness_on_lights_only",
+   "label": "Lights that are on get brighter"
   },
   {
    "key": "PAGE_DOWN",
    "service": "script.turn_on",
-   "entityId": "script.decrease_club_brightness_on_lights_only"
+   "entityId": "script.decrease_club_brightness_on_lights_only",
+   "label": "Lights that are on get dimmer"
   },
   {
    "key": "LIGHT",
-   "page": "Main"
+   "page": "Main",
+   "label": "Main page: lights, scenes, the door"
   },
   {
    "key": "CURTAIN",
-   "page": "TV"
+   "page": "TV",
+   "label": "TV page: Plex search and the TV"
   },
   {
    "key": "SCENE",
-   "page": "Media"
+   "page": "Media",
+   "label": "Music page: mixes and search"
   },
   {
    "key": "AC",
-   "page": "Climate"
+   "page": "Climate",
+   "label": "Aircon, fan and blinds"
   },
   {
    "key": "CUSTOM_1",
@@ -751,7 +782,8 @@
   {
    "key": "CUSTOM_4",
    "service": "script.turn_on",
-   "entityId": "script.tv_ambient_show"
+   "entityId": "script.tv_ambient_show",
+   "label": "Ambient screen on the TV"
   }
  ],
  "longHotkeys": [
@@ -762,20 +794,24 @@
   },
   {
    "key": "PAGE_UP",
-   "service": "script.open_blinds"
+   "service": "script.open_blinds",
+   "label": "Opens the blinds"
   },
   {
    "key": "PAGE_DOWN",
-   "service": "script.close_blinds"
+   "service": "script.close_blinds",
+   "label": "Closes the blinds"
   },
   {
    "key": "LIGHT",
-   "service": "script.long_lights"
+   "service": "script.long_lights",
+   "label": "All lights off"
   },
   {
    "key": "CURTAIN",
    "service": "script.turn_on",
-   "entityId": "script.club_blinds_all"
+   "entityId": "script.club_blinds_all",
+   "label": "Opens or closes the club blinds"
   },
   {
    "key": "SCENE",
@@ -785,31 +821,42 @@
      "service": "astrion.unjoin_others",
      "entityId": "media_player.club"
     }
-   ]
+   ],
+   "label": "Speakers play the TV's sound"
   },
   {
    "key": "AC",
-   "service": "script.long_aircon"
+   "service": "script.long_aircon",
+   "label": "Aircon on or off"
   },
   {
    "key": "CUSTOM_1",
-   "service": "script.long_red"
+   "service": "script.long_red",
+   "label": "Bae lighting scene"
   },
   {
    "key": "CUSTOM_2",
-   "service": "script.long_green"
+   "service": "script.long_green",
+   "label": "Green lighting scene"
   },
   {
    "key": "CUSTOM_3",
-   "service": "script.long_blue"
+   "service": "script.long_blue",
+   "label": "Night lights"
   },
   {
    "key": "CUSTOM_4",
-   "service": "script.long_yellow"
+   "service": "script.long_yellow",
+   "label": "Day lights"
   },
   {
    "key": "MUTE",
-   "service": "astrion.open_settings"
+   "service": "astrion.open_settings",
+   "label": "Android settings"
+  },
+  {
+   "key": "MENU",
+   "service": "astrion.open_guide"
   }
  ],
  "doubleHotkeys": [
@@ -844,14 +891,16 @@
    "entityId": "media_player.55_the_serif_3",
    "data": {
     "source": "hdmi2"
-   }
+   },
+   "label": "TV to the PC (HDMI 2)"
   },
   {
    "key": "MUTE",
    "service": "astrion.launch",
    "data": {
     "package": "com.aiks.HaRemote"
-   }
+   },
+   "label": "Opens the original remote app"
   }
  ],
  "ir_mode": {
@@ -1009,5 +1058,146 @@
   "night_brightness": 0.12,
   "undocked_brightness": 0.15,
   "weather_entity": "weather.forecast_home"
+ },
+ "guide": {
+  "on_open": {
+   "service": "script.turn_on",
+   "entity_id": "script.tv_remote_guide_show"
+  },
+  "on_close": {
+   "service": "script.turn_on",
+   "entity_id": "script.tv_remote_guide_hide"
+  },
+  "names": {
+   "SCENE": "Media",
+   "AC": "Climate",
+   "CURTAIN": "TV/Plex (curtain)",
+   "PAGE_UP": "Page ▲",
+   "PAGE_DOWN": "Page ▼",
+   "UP": "Arrows"
+  },
+  "hide": [
+   "MUTE"
+  ],
+  "voice": {
+   "wake_word": "Hey Pikachu",
+   "examples": [
+    "Turn on the kitchen light",
+    "Goodnight",
+    "Dim the lights",
+    "Watch TV",
+    "Set the aircon to 22",
+    "Is the front door locked?"
+   ]
+  },
+  "tips": [
+   {
+    "title": "Turn a light on or off",
+    "icon": "light",
+    "steps": [
+     "Press Light. The map shows the flat from above.",
+     "Tap a bulb to switch it. Hold it for brightness and colour.",
+     "Tap a scene (Tokyo, Soho…) to set the whole room at once.",
+     "Hold Light to turn everything off."
+    ]
+   },
+   {
+    "title": "Play music",
+    "icon": "music",
+    "steps": [
+     "Press Media.",
+     "Tap a mix, like GAYFM or Glitterbox.",
+     "Hold OK to pause or play. Volume + and − work from any page."
+    ]
+   },
+   {
+    "title": "Find a song",
+    "icon": "search",
+    "steps": [
+     "Press Media and tap Search music, under the four mixes.",
+     "Type an artist, song, album or radio station.",
+     "Tap a result to play it in the Club. Tap + to add it to the queue instead."
+    ]
+   },
+   {
+    "title": "Watch TV or a film",
+    "icon": "tv",
+    "steps": [
+     "Press TV/Plex (curtain).",
+     "In the TV card, tap Search to find a film or show, or Movies, TV or MTV to browse.",
+     "Tap one and it plays on the TV.",
+     "Red, green and blue open Netflix, Plex and iview. Arrows, OK, Home and Back work like the TV's own remote."
+    ]
+   },
+   {
+    "title": "Talk to it",
+    "icon": "voice",
+    "steps": [
+     "On the dock, say “Hey Pikachu”. It beeps, then just talk.",
+     "Off the dock, press the mic button first.",
+     "Plain sentences and questions are fine."
+    ]
+   },
+   {
+    "title": "Read the map",
+    "icon": "plan",
+    "steps": [
+     "The map on Main is the flat from above, live. Every bulb is a real light, where it really is.",
+     "Here's an example (this one isn't live):"
+    ]
+   },
+   {
+    "title": "Lights that switch themselves",
+    "icon": "auto",
+    "steps": [
+     "Radar sensors (not cameras) feel movement. Each person is a teal dot on the map.",
+     "Walk into a room and its light comes on. Leave, and it goes off a few minutes later.",
+     "Want them left alone? Tap Auto lights on Main. Tap it again to go back to normal."
+    ]
+   },
+   {
+    "title": "Aircon and blinds",
+    "icon": "climate",
+    "steps": [
+     "Press Climate for the aircon, fan and blinds.",
+     "Hold Climate to turn the aircon on or off from any page.",
+     "Hold Page ▲ or Page ▼ to open or close the blinds."
+    ]
+   },
+   {
+    "title": "Music in other rooms",
+    "icon": "speakers",
+    "steps": [
+     "Press Media and swipe to Zones.",
+     "Tap a room's link button to play the Club's music there too. Tap again to drop it.",
+     "BÆOLINK on: the music follows you from room to room."
+    ]
+   },
+   {
+    "title": "Lock or unlock the door",
+    "icon": "door",
+    "steps": [
+     "On Main, tap the padlock beside Door.",
+     "Hold the padlock tile to keep the door unlocked (it turns red). Hold again to let it lock itself."
+    ]
+   },
+   {
+    "title": "The TV won't respond",
+    "icon": "remote",
+    "steps": [
+     "Press Menu ☰ once. The remote now works the Samsung TV directly, like its own remote.",
+     "The screen adds TV, HDMI, Source and Menu buttons.",
+     "Press Menu ☰ again to go back to normal."
+    ]
+   },
+   {
+    "title": "Stuck?",
+    "icon": "help",
+    "steps": [
+     "Back closes whatever is open.",
+     "Hold Menu ☰ to get this guide back."
+    ]
+   }
+  ]
  }
 }

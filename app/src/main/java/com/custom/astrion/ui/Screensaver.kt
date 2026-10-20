@@ -578,8 +578,14 @@ private fun EntityState.playingTitle(): String? =
 private fun pickPlayingMedia(entities: EntityMap, options: Map<String, Any?>): EntityState? {
     val preferred = (options["media_entities"] as? List<*>)?.filterIsInstance<String>().orEmpty()
     val any = options["media_any"] as? Boolean ?: true
+    // Music Assistant's players (media_player.club_2) mirror a real speaker
+    // and keep saying "playing" with a stale track after the speaker moves
+    // on, so the fallback skips them: the speaker itself is the truth.
     val pool = preferred.mapNotNull { entities[it] } +
-        if (any) entities.values.filter { it.domain == "media_player" }.sortedBy { it.entityId } else emptyList()
+        if (any) entities.values
+            .filter { it.domain == "media_player" && it.attrString("mass_player_type") == null }
+            .sortedBy { it.entityId }
+        else emptyList()
     return pool.firstOrNull { it.state == "playing" && it.playingTitle() != null }
 }
 

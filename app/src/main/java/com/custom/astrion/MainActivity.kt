@@ -145,7 +145,7 @@ class MainActivity : ComponentActivity() {
                     powerVm.events.collectLatest { event ->
                         when (event) {
                             PowerEvent.ReturnHome -> {
-                                if (!inputVm.uiState.value.isIrMode) {
+                                if (!inputVm.uiState.value.isIrMode && !inputVm.uiState.value.isGuideOpen) {
                                     sheetHost.dismissAll()
                                     dashboardVm.onIntent(DashboardIntent.NavigateToPage(dashboardVm.uiState.value.config.startPage))
                                 }
@@ -308,7 +308,8 @@ class MainActivity : ComponentActivity() {
                 return true
             }
         }
-        if (event.keyCode == KeyEvent.KEYCODE_BACK && !inputVm.uiState.value.isIrMode && sheetHost.isShowing) {
+        val input = inputVm.uiState.value
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && !input.isIrMode && !input.isGuideOpen && sheetHost.isShowing) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 sheetHost.dismissTop()
             }

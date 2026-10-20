@@ -14,9 +14,9 @@ It talks directly to Home Assistant over the standard WebSocket API, renders cus
 
 The app is built around four primary pages, reachable with dedicated physical shortcut buttons (`CURTAIN`, `LIGHT`, `SCENE`, `AC`) and anchored by the signature fixed-width **BÆO** wordmark footer:
 
-1. **BÆOVISION (`TV`):** Instant TV state, playback controls, fast native app launchers (Netflix, Plex, ABC iview, Jellyfin), and Plex shelves (*On Deck* and *Recently Released*) where a single tap deep-links into the exact media episode or movie.
-2. **BÆOREMOTE (`Main`):** Five-day weather forecast, front door lock/unlock status, scene presets with illuminated active badges, and a live, interactive apartment floorplan with tappable lights and mmWave radar presence tracking.
-3. **BÆOSOUND (`Media`):** Club Sonos multi-room audio with high-precision volume slider, playback controls, Music Assistant media shelves, and grouped zone selection.
+1. **BÆOVISION (`TV`):** What's on the TV, with **Search, Movies, TV and MTV** tiles inside the card that open your Plex server (search as you type, or full poster libraries with sort and watched ticks), a corner button that puts the TV's sound on the Sonos, and Plex shelves (*On Deck*, *Recently Released*…) where one tap wakes the TV, switches it to the Google TV and starts that exact episode or film.
+2. **BÆOREMOTE (`Main`):** Weather, next alarm and event, the **Door** lock beside an **Auto lights** switch (pauses every motion and presence light automation so lights are manual only), labelled scene pills, and a live floorplan with tappable lights, the robot vacuum and radar presence dots.
+3. **BÆOSOUND (`Media`):** The Club Sonos with uncropped album art over a blurred wash, four mix shortcuts (GAYFM, Glitterbox…), a **Search music** bar across everything in Music Assistant (library and Spotify), Music Assistant shelves, and the Zones tab for joining rooms and BÆOLINK.
 4. **BÆOLIVING (`Climate`):** Air conditioning temperature steppers with target readouts, HVAC/fan modes, and motorized blind controls.
 
 ---
@@ -29,9 +29,33 @@ The media dashboard features three dedicated tabs tailored for single-touch musi
 |---|---|---|
 | ![Sonos Player](screenshots/media-page.png) | ![Sonos Media](screenshots/sonos-media.png) | ![Sonos Zones](screenshots/sonos-group.png) |
 
-* **Player:** Full-bleed album art, live progress, tactile haptic transport controls (prev / play / next), volume steppers, and one-touch genre preset shortcuts.
-* **Media:** Live Music Assistant shelves displaying dynamically fetched random album picks, favourite tracks, and playlists with cached artwork.
-* **Zones:** Real-time multi-room speaker grouping with individual room volume sliders and join/link toggles.
+* **Player:** The whole cover (never cropped) over a blurred wash, transport controls, volume steppers, four one-touch mixes, and the Search music bar.
+* **Media:** Music Assistant shelves: random albums from the local collection (Spotify's saved albums are kept out), favourite songs and playlists.
+* **Zones:** Join or drop each room's speaker with its own volume; the **BÆOLINK** switch makes the music follow you from room to room.
+
+### Search: music and Plex
+
+| Music search | Plex search | Plex library | A show |
+|---|---|---|---|
+| ![Music search](screenshots/music-search.png) | ![Plex search](screenshots/plex-search.png) | ![Plex library](screenshots/plex-library.png) | ![Plex show](screenshots/plex-show.png) |
+
+* **Music:** `music_search` card. Type an artist, album, song, playlist or station; results come from `music_assistant.search`, so every provider Music Assistant has is included. Tap to play now, **+** to queue.
+* **Plex:** `plex_browse` card (here drawn inside the TV card as its `footer`). Search as you type, or open a whole library as a poster grid (A–Z, recently added, unwatched). Films play with one tap; a show opens to its seasons and episodes. Playback uses the same wake-the-TV + One Touch Play + Plex deep-link route as the shelves.
+
+---
+
+### Help guide (hold ☰)
+
+| Guide | How do I… | On the TV |
+|---|---|---|
+| ![Guide home](screenshots/guide-home.png) | ![How do I](screenshots/guide-howto.png) | ![TV guide](screenshots/guide-tv.png) |
+
+Holding **Menu ☰** opens a guide for anyone picking the remote up for the first time:
+
+* **How do I…:** short answers that fold open, most-asked first (lights, music, finding a song, watching a film, talking to it, the floorplan, motion lights, other rooms, the door, a TV that won't respond).
+* **Walkthrough:** asks for real presses on the real buttons, shows the button to find, and says what each one would have done. Nothing is sent to Home Assistant while the guide is open.
+* **Every button:** what press and hold do for each button, read live from `dashboard.json` (a hotkey's optional `label` wins), with the real button glyphs.
+* **On the TV:** the guide's `on_open` / `on_close` hooks put a one-page version on the Serif (via the Bæovision kiosk) and put the TV back afterwards.
 
 ---
 
@@ -159,12 +183,12 @@ The HA100 physical button matrix:
 | `SCENE` | 136 | Navigate to **BÆOSOUND** (Media Page) |
 | `AC` | 137 | Navigate to **BÆOLIVING** (Climate Page) |
 | `CUSTOM_1` (Red) | 138 | Launch Netflix (`com.netflix.ninja`) |
-| `CUSTOM_2` (Yellow) | 139 | Launch Plex (`com.plexapp.android`) |
-| `CUSTOM_3` (Cyan) | 140 | Launch ABC iview (`au.net.abc.iview`) |
-| `CUSTOM_4` (Blue) | 141 | Run TV Ambient Show script |
+| `CUSTOM_2` (Green) | 139 | Launch Plex (`com.plexapp.android`) |
+| `CUSTOM_3` (Blue) | 140 | Launch ABC iview (`au.net.abc.iview`) |
+| `CUSTOM_4` (Yellow) | 141 | Run TV Ambient Show script |
 | `VOLUME_UP` / `DOWN` | 24 / 25 | Adjust volume + trigger floating Volume OSD |
 | `MUTE` | 91 / 164 | Toggle mute + trigger floating Volume OSD |
-| `MENU` (☰) | 82 | Toggle IR Blaster Mode (Samsung TV control) |
+| `MENU` (☰) | 82 | Press: IR Mode (Samsung TV by infrared). **Hold: help guide** |
 | `VOICE` (🎤) | 133 | Trigger Home Assistant Assist satellite session |
 | `D-PAD` & `CENTER` | 19–23 | TV navigation & select commands |
 

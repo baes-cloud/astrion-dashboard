@@ -72,6 +72,13 @@ data class AstrionColors(
     /** Dark rose ground for warning banners and alerts. */
     val blushContainer: Color = Color(0xFF3E2F30),
 
+    // ---- the remote's four coloured buttons, as the guide draws them --------
+    // Off the card on purpose: they name physical buttons, not app state.
+    val keyRed: Color = Color(0xFFE0564F),
+    val keyGreen: Color = Color(0xFF52B26B),
+    val keyBlue: Color = Color(0xFF4F86D9),
+    val keyYellow: Color = Color(0xFFE8C34A),
+
     // ---- lights that are on (the one warm colour, by design) ----------------
     val lightOn: Color = Color(0xFFFFC24B),
     val onLightOn: Color = Color(0xFF241A00),

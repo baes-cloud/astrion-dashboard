@@ -49,8 +49,13 @@ import com.custom.astrion.ui.tap
  *       "entity_id": "lock.front_door",
  *       "name": "Front Door",
  *       "show_age": true,
- *       "hold_entity": "input_boolean.front_door_keep_unlocked"
+ *       "hold_entity": "input_boolean.front_door_keep_unlocked",
+ *       "compact": false
  *   } }
+ *
+ * `compact` is for half a row (e.g. beside a switch card in a `row`): the
+ * age goes, the second line is just the state, and the button shrinks to a
+ * square padlock. Same height as the full card, so the pair lines up.
  */
 class LockCard : CardRenderer {
     override val type = "lock"
@@ -62,7 +67,8 @@ class LockCard : CardRenderer {
         val name = config.string("name") ?: e?.friendlyName ?: entityId
         val unavailable = e == null || e.isUnavailable
         val live = !unavailable && ctx.connected
-        val showAge = config.bool("show_age", true)
+        val compact = config.bool("compact", false)
+        val showAge = config.bool("show_age", true) && !compact
 
         val state = e?.state.orEmpty()
         val locked = state == "locked"
@@ -93,7 +99,7 @@ class LockCard : CardRenderer {
                 )
                 // Shaped like the blind rows: icon tile, name over state,
                 // the button on the right. The scene pills gave up 4dp for it.
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = if (compact) 10.dp else 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -133,7 +139,7 @@ class LockCard : CardRenderer {
                     },
                 )
             }
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(if (compact) 8.dp else 10.dp))
             // Name over state and age, as the blind rows.
             Column(Modifier.weight(1f)) {
                 Text(
@@ -151,7 +157,9 @@ class LockCard : CardRenderer {
                         // When the door is being held unlocked that outranks
                         // how long ago the bolt last moved, so it takes the
                         // age's place rather than overflowing the line.
-                        listOfNotNull(
+                        if (compact) {
+                            if (keepUnlocked) "Held open" else state.humanise()
+                        } else listOfNotNull(
                             if (keepUnlocked || age == null) state.humanise() else null,
                             // "keep unlocked" spelled out pushes the line past
                             // the ~23 characters this column fits once the
@@ -168,22 +176,50 @@ class LockCard : CardRenderer {
             // One button that shows the state and flips it (owner's call:
             // the two-chip segmented control was more than the door needs).
             // Inert while the bolt is moving or the lock is unreachable.
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(if (compact) 6.dp else 8.dp))
             StateButton(
                 state = state,
                 locked = locked,
                 moving = moving,
                 live = live && !moving,
+                iconOnly = compact,
             ) { call(if (locked) "unlock" else "lock") }
         }
     }
 
     @Composable
-    private fun StateButton(state: String, locked: Boolean, moving: Boolean, live: Boolean, onClick: () -> Unit) {
+    private fun StateButton(
+        state: String,
+        locked: Boolean,
+        moving: Boolean,
+        live: Boolean,
+        iconOnly: Boolean = false,
+        onClick: () -> Unit,
+    ) {
         val tint = when {
             moving -> AstrionTheme.textSecondary
             locked -> AstrionTheme.good
             else -> AstrionTheme.blush
+        }
+        if (iconOnly) {
+            // Compact card: the state is already spelled out beside it, so
+            // the button is just the padlock. Still 36dp, still the same tint.
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(tint.copy(alpha = 0.16f))
+                    .tap(enabled = live, onClick = onClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (locked) Icons.Filled.Lock else Icons.Filled.LockOpen,
+                    contentDescription = if (locked) "Unlock" else "Lock",
+                    tint = tint,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            return
         }
         Row(
             modifier = Modifier

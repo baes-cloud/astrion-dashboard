@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -279,25 +281,36 @@ private fun FloatingTopPage(
     SubcomposeLayout(modifier = modifier.fillMaxWidth()) { constraints ->
         // Step 1: Subcompose and measure the floating pinned header
         val headerPlaceables = subcompose("pinned_header") {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            0f to AstrionTheme.pageBg,
-                            0.82f to AstrionTheme.pageBg,
-                            1f to AstrionTheme.pageBg.copy(alpha = 0f),
-                        )
-                    )
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                pinnedTop.forEach { RenderCard(it, ctx) }
+            // Solid behind the cards, then a short fade strip under them, so
+            // shelf labels slide away softly instead of being cut at the card edge.
+            Column(Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // Makes the floating cards a hit target of their own: a tap
+                        // on a blank part of the TV card used to fall through to
+                        // the poster scrolled underneath it and start that title.
+                        .pointerInput(Unit) {}
+                        .background(AstrionTheme.pageBg)
+                        .padding(start = 10.dp, end = 10.dp, top = 5.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    pinnedTop.forEach { RenderCard(it, ctx) }
+                }
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(FLOAT_FADE)
+                        .background(Brush.verticalGradient(listOf(AstrionTheme.pageBg, AstrionTheme.pageBg.copy(alpha = 0f)))),
+                )
             }
         }.map { it.measure(constraints.copy(minHeight = 0)) }
 
         val headerHeight = headerPlaceables.maxOfOrNull { it.height } ?: 0
         val headerDp = headerHeight.toDp()
+        // Where the cards end (the fade strip is see-through for its lower part).
+        val fadePx = FLOAT_FADE.roundToPx()
+        val cardsBottom = (headerHeight - fadePx).coerceAtLeast(0)
 
         // Step 2: Subcompose and measure scrolling middle content with exact dynamic top padding
         val contentPlaceables = subcompose("scrolling_content") {
@@ -306,7 +319,7 @@ private fun FloatingTopPage(
                     .fillMaxSize()
                     .padding(bottom = 4.dp)
                     .verticalScroll(scrollState)
-                    .padding(start = 10.dp, end = 10.dp, top = headerDp + 10.dp),
+                    .padding(start = 10.dp, end = 10.dp, top = headerDp - FLOAT_FADE + 15.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 middle.forEach { RenderCard(it, ctx) }
@@ -316,12 +329,41 @@ private fun FloatingTopPage(
         val layoutWidth = constraints.maxWidth
         val layoutHeight = constraints.maxHeight
 
+        // Step 3: a thin scroll bar down the right, from under the header, so
+        // it's clear there's more below (the Plex rows run off the screen).
+        val barW = 4.dp.roundToPx()
+        val trackH = (layoutHeight - cardsBottom - 17.dp.roundToPx()).coerceAtLeast(0)
+        val barPlaceables = subcompose("scroll_bar") { PageScrollBar(scrollState) }
+            .map { it.measure(Constraints.fixed(barW, trackH)) }
+
         layout(layoutWidth, layoutHeight) {
             // Place content first (underneath)
             contentPlaceables.forEach { it.place(0, 0) }
             // Place header floating on top
             headerPlaceables.forEach { it.place(0, 0) }
+            barPlaceables.forEach { it.place(layoutWidth - barW - 2.dp.roundToPx(), cardsBottom + 11.dp.roundToPx()) }
         }
+    }
+}
+
+/** Height of the soft fade under a floating header. */
+private val FLOAT_FADE = 14.dp
+
+/** A slim scroll thumb sized to how much of the page is on screen; hidden when nothing scrolls. */
+@Composable
+private fun PageScrollBar(state: androidx.compose.foundation.ScrollState) {
+    val thumb = AstrionTheme.textMuted.copy(alpha = 0.7f)
+    val track = AstrionTheme.textMuted.copy(alpha = 0.15f)
+    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+        val max = state.maxValue
+        if (max <= 0 || max == Int.MAX_VALUE) return@Canvas
+        val viewport = state.viewportSize.toFloat().coerceAtLeast(1f)
+        val thumbH = (size.height * viewport / (viewport + max)).coerceAtLeast(28.dp.toPx())
+        val top = (size.height - thumbH) * state.value / max
+        val r = androidx.compose.ui.geometry.CornerRadius(size.width / 2)
+        drawRoundRect(track, cornerRadius = r)
+        drawRoundRect(thumb, topLeft = androidx.compose.ui.geometry.Offset(0f, top),
+            size = androidx.compose.ui.geometry.Size(size.width, thumbH), cornerRadius = r)
     }
 }
 
