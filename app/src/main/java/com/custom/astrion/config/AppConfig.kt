@@ -77,4 +77,9 @@ data class HotkeyConfig(
      * Same shape as a hotkey minus the key/page.
      */
     val then: List<HotkeyConfig> = emptyList(),
+    /**
+     * What the press does, in words, for the button guide (hold ☰). Without
+     * one the guide describes the action itself ("Opens the Media page").
+     */
+    val label: String? = null,
 )

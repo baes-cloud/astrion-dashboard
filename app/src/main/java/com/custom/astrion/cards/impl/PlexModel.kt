@@ -75,17 +75,24 @@ internal fun parsePlexItems(response: JsonObject): List<PlexItem>? {
  * empty library. [error] is the first failed request's reason, if any.
  */
 internal fun plexEmptyMessage(host: String, error: String?): String = when {
-    "YOUR_" in host || host.isBlank() -> "Plex — set plex.host in dashboard.json"
-    error != null -> "Plex — can't load from ${host.substringAfter("://")} ($error)"
-    else -> "Plex — nothing to show"
+    "YOUR_" in host || host.isBlank() -> "Plex: set plex.host in dashboard.json"
+    error != null -> "Plex: can't load from ${host.substringAfter("://")} ($error)"
+    else -> "Plex: nothing to show yet"
 }
 
 /**
  * The Plex Android TV app's VIEW intent: opens Plex over whatever is on
  * screen, jumps to the item on this server and starts it at its resume point.
+ *
+ * Prefixed with a wake and CEC One Touch Play, so the TV also switches to the
+ * Streamer's input. Without it Plex happily started on the Streamer while the
+ * TV stayed on another input (the PC), which looked like nothing happened.
+ * One Touch Play times out while the Streamer is asleep, hence the wake and
+ * the pause before it (same as the remote's Home button).
  */
 internal fun plexDeepLink(machineId: String, ratingKey: String): String =
-    "am start -a android.intent.action.VIEW " +
+    "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay; " +
+        "am start -a android.intent.action.VIEW " +
         "-d 'plex://server://$machineId/com.plexapp.plugins.library/library/metadata/$ratingKey'"
 
 private fun JsonObject.str(k: String): String? = (this[k] as? JsonPrimitive)?.content

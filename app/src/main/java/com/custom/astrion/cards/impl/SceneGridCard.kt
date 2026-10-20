@@ -84,6 +84,9 @@ class SceneGridCard : CardRenderer {
         val title = config.string("title")
 
         if (config.string("style") == "pill") {
+            // `"label": "Scenes"`: a small centred caption between two short
+            // hairlines above the pills, so the row reads as its own thing.
+            config.string("label")?.let { SceneCaption(it) }
             PillRow(scenes, ctx)
             return
         }
@@ -113,6 +116,27 @@ class SceneGridCard : CardRenderer {
             }
         } else {
             SceneGridBody(row, columns, scenes, ::nameOf, ::colorOf, ::iconOf, ::activate)
+        }
+    }
+
+    @Composable
+    private fun SceneCaption(text: String) {
+        Row(
+            Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val line = AstrionTheme.textMuted.copy(alpha = 0.35f)
+            Box(Modifier.width(44.dp).height(1.dp).background(line))
+            Text(
+                text.uppercase(),
+                color = AstrionTheme.textMuted,
+                fontSize = AstrionTheme.size.label,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.28.em,
+                modifier = Modifier.padding(horizontal = 10.dp),
+            )
+            Box(Modifier.width(44.dp).height(1.dp).background(line))
         }
     }
 
@@ -192,7 +216,7 @@ class SceneGridCard : CardRenderer {
                             "ON",
                             modifier = Modifier.padding(start = 2.dp),
                             color = AstrionTheme.accent,
-                            fontSize = AstrionTheme.size.micro,
+                            fontSize = AstrionTheme.size.label,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.16.em,
                             maxLines = 1,

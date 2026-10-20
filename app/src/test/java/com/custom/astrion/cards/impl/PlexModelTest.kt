@@ -60,9 +60,9 @@ class PlexModelTest {
     }
 
     @Test fun emptyShelvesSayWhy() {
-        assertEquals("Plex — set plex.host in dashboard.json", plexEmptyMessage("http://YOUR_PLEX_IP:32400", "unreachable"))
-        assertEquals("Plex — can't load from 10.0.0.10:32400 (HTTP 401)", plexEmptyMessage("http://10.0.0.10:32400", "HTTP 401"))
-        assertEquals("Plex — nothing to show", plexEmptyMessage("http://10.0.0.10:32400", null))
+        assertEquals("Plex: set plex.host in dashboard.json", plexEmptyMessage("http://YOUR_PLEX_IP:32400", "unreachable"))
+        assertEquals("Plex: can't load from 10.0.0.10:32400 (HTTP 401)", plexEmptyMessage("http://10.0.0.10:32400", "HTTP 401"))
+        assertEquals("Plex: nothing to show yet", plexEmptyMessage("http://10.0.0.10:32400", null))
     }
 
     @Test fun shelvesRoundTripForTheDiskCache() {
@@ -73,7 +73,7 @@ class PlexModelTest {
 
     @Test fun deepLinkAddressesTheItemOnThisServer() {
         assertEquals(
-            "am start -a android.intent.action.VIEW -d 'plex://server://abc/com.plexapp.plugins.library/library/metadata/17482'",
+            "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay; am start -a android.intent.action.VIEW -d 'plex://server://abc/com.plexapp.plugins.library/library/metadata/17482'",
             plexDeepLink("abc", "17482"),
         )
     }

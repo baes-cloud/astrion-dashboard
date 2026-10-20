@@ -69,6 +69,9 @@ import com.custom.astrion.ui.tightTextStyle
  * ink, whichever reads on `color`).
  *   } }
  */
+/** The darker band under each tile that the face sinks into when pressed. */
+private val LIP = 5.dp
+
 class ButtonGridCard : CardRenderer {
     override val type = "button_grid"
 
@@ -82,6 +85,9 @@ class ButtonGridCard : CardRenderer {
         val iconSize = config.int("icon_size", 0).takeIf { it > 0 }?.dp
         val labelLines = config.int("label_lines", 1).coerceIn(1, 2)
         val spacing = config.int("spacing", 10).coerceIn(2, 24).dp
+        // `"style": "flat"`: plain tiles on the card surface, no raised lip.
+        val flat = config.string("style") == "flat"
+        val lip = if (flat) 0.dp else LIP
 
         if (buttons.isEmpty()) return
 
@@ -89,7 +95,9 @@ class ButtonGridCard : CardRenderer {
         val effectiveTileHeight = configuredTileHeight ?: if (hasAnyIcon) 68.dp else 48.dp
 
         val rowCount = (buttons.size + columns - 1) / columns
-        val totalGridHeight = (effectiveTileHeight * rowCount) + (spacing * (rowCount - 1).coerceAtLeast(0))
+        // Each tile is its face plus the lip under it; leaving the lip out
+        // here clipped every tile's bottom edge and corners flat.
+        val totalGridHeight = ((effectiveTileHeight + lip) * rowCount) + (spacing * (rowCount - 1).coerceAtLeast(0))
 
         Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
             if (title != null) {
@@ -128,6 +136,7 @@ class ButtonGridCard : CardRenderer {
                         tileHeight = effectiveTileHeight,
                         iconSize = iconSize,
                         labelLines = labelLines,
+                        flat = flat,
                     ) { fire(ctx, b) }
                 }
             }
@@ -148,6 +157,7 @@ class ButtonGridCard : CardRenderer {
         tileHeight: Dp?,
         iconSize: Dp?,
         labelLines: Int,
+        flat: Boolean = false,
         onClick: () -> Unit,
     ) {
         val name = b["name"] as? String
@@ -165,22 +175,24 @@ class ButtonGridCard : CardRenderer {
         val height = tileHeight ?: if (hasIcon) 68.dp else 48.dp
         val glyph = iconSize ?: 32.dp
 
-        val lip = 5.dp
+        val lip = if (flat) 0.dp else LIP
         val baseColor = tileColor?.let {
             Color(it.red * 0.5f, it.green * 0.5f, it.blue * 0.5f, 0.62f)
         } ?: AstrionTheme.controlSunken
-        val faceColor = tileColor ?: AstrionTheme.raised
+        val faceColor = tileColor ?: if (flat) AstrionTheme.cardBgAlt else AstrionTheme.raised
 
         val interaction = remember { MutableInteractionSource() }
         val pressed by interaction.collectIsPressedAsState()
         val haptics = LocalHapticFeedback.current
         val sink by animateDpAsState(if (pressed) lip else 0.dp, label = "button_sink")
+        // Flat tiles answer a press by lifting to the raised surface instead of sinking.
+        val face = if (flat && pressed && tileColor == null) AstrionTheme.raised else faceColor
 
         Box(
             modifier = modifier
                 .height(height + lip)
                 .clip(RoundedCornerShape(14.dp))
-                .background(baseColor),
+                .background(if (flat) Color.Transparent else baseColor),
         ) {
             Column(
                 modifier = Modifier
@@ -189,7 +201,7 @@ class ButtonGridCard : CardRenderer {
                     .align(Alignment.TopCenter)
                     .graphicsLayer { translationY = sink.toPx() }
                     .clip(RoundedCornerShape(14.dp))
-                    .background(faceColor)
+                    .background(face)
                     .clickable(interactionSource = interaction, indication = null) {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         onClick()

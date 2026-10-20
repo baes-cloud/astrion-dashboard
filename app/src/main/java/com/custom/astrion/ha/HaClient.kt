@@ -411,7 +411,12 @@ class HaClient(
     suspend fun fetchBytes(path: String): ByteArray? = withContext(Dispatchers.IO) {
         try {
             val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
-            val req = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
+            // The token only goes to HA itself. Art can be absolute URLs on
+            // other hosts (Spotify's CDN via Music Assistant), and those must
+            // never see the long-lived admin token.
+            val req = Request.Builder().url(url).apply {
+                if (sameHost(url, baseUrl)) header("Authorization", "Bearer $token")
+            }.build()
             imageHttp.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@withContext null
                 resp.body?.bytes()
@@ -421,6 +426,12 @@ class HaClient(
             null
         }
     }
+
+    private fun sameHost(a: String, b: String): Boolean = runCatching {
+        val x = java.net.URI(a)
+        val y = java.net.URI(b)
+        x.host.equals(y.host, ignoreCase = true) && x.port == y.port
+    }.getOrDefault(false)
 
     /**
      * Set an entity's state through HA's REST API (`POST /api/states/<id>`),

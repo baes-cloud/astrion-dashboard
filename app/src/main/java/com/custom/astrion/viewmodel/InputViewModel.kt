@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.custom.astrion.config.AppConfigRepository
 import com.custom.astrion.config.HotkeyConfig
 import com.custom.astrion.config.JsonPlain
+import com.custom.astrion.guide.PressKind
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.input.HardwareKey
@@ -29,13 +30,22 @@ data class InputUiState(
     val irRepeat: Int = 1,
     val volumeTriggerEpoch: Long = 0L,
     val lastVolumeEntityId: String = "media_player.club",
+    /** The button guide (hold ☰) is open: hardware keys explain, not act. */
+    val isGuideOpen: Boolean = false,
+    /** The last button pressed while the guide was open. */
+    val guidePress: GuidePress? = null,
 )
+
+/** A press the guide caught; [epoch] makes a repeat of the same press new. */
+data class GuidePress(val key: HardwareKey, val kind: PressKind, val epoch: Long)
 
 sealed interface InputIntent {
     data class ProcessKeyEvent(val event: KeyEvent) : InputIntent
     data class ProcessTouchEvent(val event: MotionEvent) : InputIntent
     object ToggleIrMode : InputIntent
     object CloseIrMode : InputIntent
+    object OpenGuide : InputIntent
+    object CloseGuide : InputIntent
     data class BlastIr(val key: HardwareKey) : InputIntent
 }
 
@@ -88,6 +98,20 @@ class InputViewModel(
 
     private var lastIrToggleMs = 0L
 
+    /**
+     * While the guide is open every key goes here instead: same tap / double
+     * / hold timing as the real bindings (so practising feels the same), but
+     * each handler only reports the press to the guide.
+     */
+    private val practiceRouter = HardwareKeyRouter()
+    private val practiceDispatcher = KeyDispatcher(
+        router = practiceRouter,
+        scope = viewModelScope,
+        onHoldFired = { haptics.tick() },
+        onTapFired = { haptics.tick() },
+    )
+    private var guideEpoch = 0L
+
     init {
         // Observe config for hotkeys and IR table updates
         viewModelScope.launch {
@@ -128,6 +152,54 @@ class InputViewModel(
         _uiState.update { it.copy(irCodes = codes, irRepeat = repeat) }
 
         bindIrToggle()
+        bindPractice(short, long, double)
+    }
+
+    private fun bindPractice(short: List<HotkeyConfig>, long: List<HotkeyConfig>, double: List<HotkeyConfig>) {
+        practiceDispatcher.cancelPending()
+        practiceRouter.clear()
+        val ir = configRepo.getCurrentResult().config.features.ir
+        fun has(list: List<HotkeyConfig>, key: HardwareKey) = list.any { it.key.equals(key.name, ignoreCase = true) }
+        HardwareKey.entries.filter { it != HardwareKey.UNKNOWN }.forEach { key ->
+            fun report(kind: PressKind): () -> Boolean = {
+                _uiState.update { it.copy(guidePress = GuidePress(key, kind, ++guideEpoch)) }
+                true
+            }
+            val irHere = ir.toggleKey.equals(key.name, ignoreCase = true)
+            practiceRouter.on(key, report(PressKind.TAP))
+            if (has(long, key) || (irHere && ir.toggleLong)) practiceRouter.onLong(key, report(PressKind.HOLD))
+            if (has(double, key)) practiceRouter.onDouble(key, report(PressKind.DOUBLE))
+        }
+    }
+
+    fun openGuide() {
+        dispatcher.cancelPending()
+        practiceDispatcher.cancelPending()
+        val wasOpen = _uiState.value.isGuideOpen
+        _uiState.update { it.copy(isGuideOpen = true, isIrMode = false, guidePress = null) }
+        if (!wasOpen) guideHook("on_open")
+    }
+
+    fun closeGuide() {
+        practiceDispatcher.cancelPending()
+        val wasOpen = _uiState.value.isGuideOpen
+        _uiState.update { it.copy(isGuideOpen = false, guidePress = null) }
+        if (wasOpen) guideHook("on_close")
+    }
+
+    /**
+     * `guide.on_open` / `guide.on_close` in dashboard.json: a service call
+     * run as the guide opens or closes, e.g. putting the full-screen guide
+     * up on the TV and taking it down again:
+     *   "on_open": { "service": "script.turn_on", "entity_id": "script.tv_remote_guide_show" }
+     */
+    private fun guideHook(name: String) {
+        val guide = configRepo.getCurrentResult().config.options["guide"] as? Map<*, *> ?: return
+        val hook = guide[name] as? Map<*, *> ?: return
+        val service = hook["service"] as? String ?: return
+        @Suppress("UNCHECKED_CAST")
+        val data = (hook["data"] as? Map<String, Any?>).orEmpty()
+        client.callService(ServiceCall.fromConfig(service, hook["entity_id"] as? String, data), confirm = false)
     }
 
     private fun bindIrToggle() {
@@ -207,6 +279,10 @@ class InputViewModel(
                     ?.forEach { client.callService(ServiceCall("media_player", "unjoin", entityId = it)) }
                 return true
             }
+            "astrion.open_guide" -> {
+                openGuide()
+                return true
+            }
             "astrion.open_settings" -> {
                 viewModelScope.launch {
                     _effects.send(InputEffect.OpenSystemSettings)
@@ -240,6 +316,12 @@ class InputViewModel(
             if (!screensaver.passesThrough(key.name)) {
                 return true
             }
+        }
+
+        // Guide: every button is explained instead of run, VOICE included.
+        if (_uiState.value.isGuideOpen) {
+            if (key == HardwareKey.UNKNOWN) return false
+            return practiceDispatcher.handle(code, event.action, event.repeatCount)
         }
 
         // IR Mode interception
@@ -291,6 +373,8 @@ class InputViewModel(
             is InputIntent.ProcessTouchEvent -> handleTouchEvent(intent.event, false)
             InputIntent.ToggleIrMode -> toggleIrMode()
             InputIntent.CloseIrMode -> closeIrMode()
+            InputIntent.OpenGuide -> openGuide()
+            InputIntent.CloseGuide -> closeGuide()
             is InputIntent.BlastIr -> {
                 val codeHex = _uiState.value.irCodes[intent.key]
                 if (codeHex != null) {

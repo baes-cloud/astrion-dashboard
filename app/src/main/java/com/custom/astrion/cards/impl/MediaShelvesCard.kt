@@ -271,11 +271,16 @@ class MediaShelvesCard : CardRenderer {
         val player = spec["player"] as? String ?: return emptyList()
         val mediaType = spec["media_type"] as? String ?: "album"
         val limit = (spec["limit"] as? Number)?.toInt() ?: defaultLimit
+        // "exclude_spotify": keep Spotify's saved albums out of a row meant for
+        // the local collection. MA's answer through HA carries no provider, but
+        // Spotify items' artwork is always on Spotify's image CDN. Ask for more
+        // than needed so the row is still full after filtering.
+        val noSpotify = spec["exclude_spotify"] as? Boolean ?: false
         val data = buildJsonObject {
             put("config_entry_id", entry)
             put("media_type", mediaType)
             put("order_by", spec["order_by"] as? String ?: "random")
-            put("limit", limit)
+            put("limit", if (noSpotify) limit * 4 else limit)
             (spec["favorite"] as? Boolean)?.let { put("favorite", it) }
         }
         val response = ctx.client.callServiceForResponse("music_assistant", "get_library", data)
@@ -284,6 +289,7 @@ class MediaShelvesCard : CardRenderer {
             val o = el as? JsonObject ?: return@mapNotNull null
             fun str(k: String) = (o[k] as? JsonPrimitive)?.contentOrNull
             val uri = str("uri") ?: return@mapNotNull null
+            if (noSpotify && str("image")?.contains("scdn.co") == true) return@mapNotNull null
             Item(
                 title = str("name") ?: uri,
                 contentId = uri,
@@ -292,7 +298,7 @@ class MediaShelvesCard : CardRenderer {
                 thumb = str("image")?.replace("size=0", "size=256"),
                 maPlayer = player,
             )
-        }
+        }.take(limit)
     }
 
     private fun parseItem(o: JsonObject?): Item? {

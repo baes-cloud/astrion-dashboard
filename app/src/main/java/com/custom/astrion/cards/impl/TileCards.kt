@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.MotionPhotosAuto
+import androidx.compose.material.icons.filled.MotionPhotosPaused
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Remove
@@ -291,6 +293,14 @@ private const val FAN_ECHO_MS = 5_000L
  * Switch tile: simple toggle. Works for switch.* (and anything toggleable).
  *
  * Config: CardConfig("switch", mapOf("entity_id" to "switch.porch", "name" to "Porch"))
+ *
+ * `"style": "row"` draws it like the lock and blind rows instead (34dp icon
+ * tile, name over state, 50dp tall), so it can sit beside a compact lock in a
+ * `row`. Options that only matter there:
+ *   "on_label" / "off_label"  state words (default On / Off)
+ *   "off_attention": true     tint the off state warm, for a switch whose
+ *                             NORMAL state is on (e.g. pausing automations)
+ *   "icon_off"                a different icon while off
  */
 class SwitchCard : CardRenderer {
     override val type = "switch"
@@ -309,6 +319,11 @@ class SwitchCard : CardRenderer {
         // `compact`: one line (name, state as a dot of colour), for a row of
         // toggles that shouldn't take a card's worth of height each.
         val compact = config.bool("compact", false)
+
+        if (config.string("style") == "row") {
+            RowStyle(config, ctx, entityId, name, on, unavailable, live, icon)
+            return
+        }
 
         Row(
             modifier = Modifier
@@ -358,8 +373,80 @@ class SwitchCard : CardRenderer {
     }
 }
 
+@Composable
+private fun RowStyle(
+    config: CardConfig,
+    ctx: CardContext,
+    entityId: String,
+    name: String,
+    on: Boolean,
+    unavailable: Boolean,
+    live: Boolean,
+    icon: ImageVector,
+) {
+    val offAttention = config.bool("off_attention", false)
+    val shownIcon = if (on) icon else config.string("icon_off")?.let { switchIcon(it) } ?: icon
+    val stateWord = if (on) config.string("on_label") ?: "On" else config.string("off_label") ?: "Off"
+    val tint = when {
+        unavailable -> AstrionTheme.unavailable
+        on -> if (offAttention) AstrionTheme.good else AstrionTheme.colors.blush
+        else -> if (offAttention) AstrionTheme.blush else AstrionTheme.colors.textSoft
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dimIfUnavailable(unavailable)
+            .clip(RoundedCornerShape(18.dp))
+            // The whole tile is the switch: it's half a row, there's no room
+            // for a separate button, and a toggle has no dangerous side.
+            .background(if (!on && offAttention) AstrionTheme.blush.copy(alpha = 0.12f) else AstrionTheme.cardBgAlt)
+            .tap(enabled = live) { ctx.client.toggle(entityId) }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(AstrionTheme.raised),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                shownIcon,
+                contentDescription = "$name, $stateWord",
+                tint = tint,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                name,
+                color = AstrionTheme.textPrimary,
+                fontSize = AstrionTheme.size.body,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (unavailable) {
+                UnavailableLabel(AstrionTheme.size.label)
+            } else {
+                Text(
+                    stateWord,
+                    color = if (!on && offAttention) AstrionTheme.blush else AstrionTheme.textSecondary,
+                    fontSize = AstrionTheme.size.label,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
 /** Map a switch card's `icon` option name to a Material icon. */
 private fun switchIcon(name: String?): ImageVector = when (name) {
+    "motion", "auto" -> Icons.Filled.MotionPhotosAuto
+    "paused", "motion_off" -> Icons.Filled.MotionPhotosPaused
     "heater", "heat" -> Icons.Filled.Whatshot
     "fan" -> Icons.Filled.Air
     "bulb", "light" -> Icons.Filled.Lightbulb

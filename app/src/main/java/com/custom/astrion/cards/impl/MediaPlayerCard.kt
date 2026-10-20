@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -194,8 +195,14 @@ class MediaPlayerCard : CardRenderer {
             }
         }
         val art = rememberArt(ctx, session.artPath)
+        // `footer`: another card drawn inside this one, under what's on
+        // (the Plex buttons), so the two read as one card.
+        val footer = remember(config) { config.options["footer"] as? Map<String, Any?> }
+        // `corner_button`: a small round button top right, e.g. TV sound.
+        val corner = remember(config) { config.options["corner_button"] as? Map<String, Any?> }
 
         ArtBackdrop(art, washPx = 6) {
+          Box(Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -203,7 +210,16 @@ class MediaPlayerCard : CardRenderer {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     SessionArt(art, session, config.string("placeholder"))
                     Spacer(Modifier.width(14.dp))
-                    SessionInfo(ctx, session, Modifier.weight(1f))
+                    // Keeps the title clear of the corner button.
+                    SessionInfo(ctx, session, Modifier.weight(1f).padding(end = if (corner != null) 30.dp else 0.dp))
+                }
+                footer?.let { f ->
+                    val type = f["type"] as? String
+                    val renderer = type?.let { com.custom.astrion.cards.CardRegistry.get(it) }
+                    if (renderer != null) {
+                        val opts = ((f["options"] as? Map<String, Any?>) ?: emptyMap()) + ("flush" to true)
+                        renderer.Render(CardConfig(type, opts), ctx)
+                    }
                 }
                 if (apps.isNotEmpty()) {
                     Row(
@@ -219,6 +235,53 @@ class MediaPlayerCard : CardRenderer {
                     }
                 }
             }
+            corner?.let { CornerButton(ctx, it, Modifier.align(Alignment.TopEnd).padding(10.dp)) }
+          }
+        }
+    }
+
+    /**
+     * The TV card's corner button: lit while [`lit_entity`] has [`lit_when`]
+     * (attribute `lit_attribute`, else its state); a tap runs `service` on
+     * `entity_id`, then unjoins every other speaker from `unjoin_others`.
+     *   "corner_button": { "icon": "speaker", "label": "TV sound",
+     *     "service": "script.turn_on", "entity_id": "script.long_music",
+     *     "unjoin_others": "media_player.club",
+     *     "lit_entity": "media_player.club", "lit_attribute": "source", "lit_when": "TV" }
+     */
+    @Composable
+    private fun CornerButton(ctx: CardContext, b: Map<String, Any?>, modifier: Modifier) {
+        val litEntity = b["lit_entity"] as? String
+        val lit = litEntity?.let { id ->
+            val e = ctx.entity(id)
+            val v = (b["lit_attribute"] as? String)?.let { e?.attrString(it) } ?: e?.state
+            v != null && v == b["lit_when"]?.toString()
+        } == true
+        val label = b["label"] as? String ?: "Sound"
+        com.custom.astrion.ui.HitTarget(
+            visual = 32.dp,
+            enabled = ctx.connected,
+            onClick = {
+                (b["service"] as? String)?.let { svc ->
+                    ctx.client.callService(ServiceCall.fromConfig(svc, b["entity_id"] as? String), confirm = true)
+                }
+                (b["unjoin_others"] as? String)?.let { master ->
+                    ctx.client.live[master]?.attrStringList("group_members")
+                        ?.filter { it != master }
+                        ?.forEach { ctx.client.callService(ServiceCall("media_player", "unjoin", entityId = it)) }
+                }
+            },
+            modifier = modifier,
+            face = Modifier
+                .clip(CircleShape)
+                .background(if (lit) AstrionTheme.accentStrong else AstrionTheme.colors.void.copy(alpha = 0.45f)),
+        ) {
+            Icon(
+                Icons.Filled.SurroundSound,
+                contentDescription = if (lit) "$label, on" else label,
+                tint = if (lit) AstrionTheme.colors.onPrimary else AstrionTheme.textOnControl,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 
@@ -526,7 +589,19 @@ class MediaPlayerCard : CardRenderer {
             // empty rectangle that reads as broken rather than idle.
             val artMod = Modifier.fillMaxWidth().aspectRatio(artAspect).clip(RoundedCornerShape(16.dp))
             if (art != null) {
-                Image(art, null, modifier = artMod, contentScale = ContentScale.Crop)
+                // The whole cover, never cropped: it sits centred at its own
+                // shape and the card's blurred wash shows either side. (Cropping
+                // a square cover into this wide frame cut off half of it.)
+                Box(Modifier.fillMaxWidth().aspectRatio(artAspect), contentAlignment = Alignment.Center) {
+                    Image(
+                        art, null,
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .aspectRatio(art.width.toFloat() / art.height.coerceAtLeast(1), matchHeightConstraintsFirst = true)
+                            .clip(RoundedCornerShape(16.dp)),
+                        contentScale = ContentScale.Fit,
+                    )
+                }
             } else {
                 Box(
                     artMod.background(AstrionTheme.raised),

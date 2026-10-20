@@ -188,7 +188,8 @@ object DashboardLoader {
         val then = (obj["then"] as? JsonArray)
             ?.mapNotNull { (it as? JsonObject)?.let { o -> parseChainedAction(o) } }
             ?: emptyList()
-        return HotkeyConfig(key, page, service, entityId, data, then)
+        val label = (obj["label"] as? JsonPrimitive)?.content
+        return HotkeyConfig(key, page, service, entityId, data, then, label)
     }
 
     /** A `then` entry: same shape as a hotkey but the key is inherited. */
