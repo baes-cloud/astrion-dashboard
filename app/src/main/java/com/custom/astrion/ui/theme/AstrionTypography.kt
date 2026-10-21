@@ -122,6 +122,8 @@ data class AstrionTypeSizes(
     val displayXl: TextUnit = 34.sp,
     /** Climate's set temperature. */
     val readout: TextUnit = 40.sp,
+    /** A popup's big number: a light's brightness, a set temperature. */
+    val readoutLarge: TextUnit = 64.sp,
     /** The screensaver clock. */
     val clock: TextUnit = 81.sp,
     /** The ringing alarm's clock. */

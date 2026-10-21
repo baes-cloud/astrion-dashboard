@@ -15,8 +15,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,7 +50,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.custom.astrion.ui.InWindowDialog
+import com.custom.astrion.ui.BottomSheet
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -363,17 +361,14 @@ class PictureElementsCard : CardRenderer {
             }
 
             if (showVacuumDialog && vacuumOpts != null) {
-                InWindowDialog(onDismissRequest = { showVacuumDialog = false }) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(AstrionTheme.colors.surface)
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        VacuumPanelContent(vacuumOpts, ctx)
-                    }
+                val vacId = vacuumOpts["entity_id"] as? String
+                val vac = vacId?.let { ctx.entities[it] }
+                BottomSheet(
+                    title = vacuumOpts["name"] as? String ?: vac?.friendlyName ?: "Vacuum",
+                    subtitle = vac?.let { prettyVacuumLabel(it.state) },
+                    onDismissRequest = { showVacuumDialog = false },
+                ) {
+                    VacuumPanelContent(vacuumOpts, ctx, header = false)
                 }
             }
         }

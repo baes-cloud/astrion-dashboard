@@ -95,7 +95,7 @@ class VacuumCard : CardRenderer {
  */
 @Suppress("UNCHECKED_CAST")
 @Composable
-fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
+fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext, header: Boolean = true) {
     val entityId = options["entity_id"] as? String ?: return
     val e = ctx.entities[entityId]
     val state = e?.state ?: "unknown"
@@ -138,7 +138,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
         )
     }
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    if (header) Row(verticalAlignment = Alignment.CenterVertically) {
         Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.emphasis, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f))
         Text(prettyVacuumLabel(state), color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.small)
@@ -261,7 +261,7 @@ private fun VacuumCtrlBtn(icon: ImageVector, accent: Boolean = false, onClick: (
     }
 }
 
-private fun prettyVacuumLabel(s: String): String =
+internal fun prettyVacuumLabel(s: String): String =
     s.split('_').joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
 
 /** Rotate a bitmap by whole-degree steps (clockwise), swapping width/height as needed. */
