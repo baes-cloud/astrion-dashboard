@@ -30,11 +30,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,7 +45,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -65,6 +59,7 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.rememberSampledBitmap
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Glyphs
 import kotlin.math.roundToInt
 import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalPageVisible
@@ -91,6 +86,9 @@ import com.custom.astrion.ui.tap
  */
 /** How long a floorplan icon shows its "sent" ring after a tap. */
 private const val SENT_RING_MS = 1200L
+
+/** The drawn size of a floorplan bulb; its touch area is larger. */
+private val BULB_FACE = 33.dp
 
 class PictureElementsCard : CardRenderer {
     override val type = "picture_elements"
@@ -235,24 +233,24 @@ class PictureElementsCard : CardRenderer {
 
                 // With lit rooms the bulb takes the light's own colour, so the
                 // icon matches the glow around it.
-                val glowColor = if (on && litRooms != null) entity?.let { lightColor(it) } else null
+                // Lit, the bulb is filled with the light's own colour (amber
+                // when HA reports none), so it matches the glow around it; off,
+                // it's a dark disc with a hairline rim.
+                val glowColor = if (on) entity?.let { lightColor(it) } ?: AstrionTheme.on else null
                 val bg = when {
                     elUnavailable -> AstrionTheme.colors.danger.copy(alpha = 0.27f)
-                    glowColor != null -> glowColor.copy(alpha = 0.42f)
-                    on -> AstrionTheme.colors.lightOn.copy(alpha = 0.4f)
-                    else -> Color.Black.copy(alpha = 0.2f)
+                    glowColor != null -> glowColor
+                    else -> AstrionTheme.colors.surfaceSunken.copy(alpha = 0.78f)
                 }
                 val tint = when {
                     elUnavailable -> AstrionTheme.colors.danger
-                    glowColor != null -> lerp(glowColor, Color.White, 0.65f)
-                    on -> AstrionTheme.colors.lightOnBright
-                    else -> AstrionTheme.colors.onSurface
+                    glowColor != null -> AstrionTheme.onBg
+                    else -> AstrionTheme.textSecondary
                 }
                 val icon = when {
-                    isPower -> Icons.Filled.PowerSettingsNew
-                    elUnavailable -> Icons.Filled.HelpOutline
-                    on -> Icons.Filled.Lightbulb
-                    else -> Icons.Outlined.Lightbulb
+                    isPower -> Glyphs.power
+                    elUnavailable -> Glyphs.help
+                    else -> Glyphs.bulb
                 }
 
                 // The most-tapped targets on Main, and they gave no feedback
@@ -266,19 +264,10 @@ class PictureElementsCard : CardRenderer {
                         sent = false
                     }
                 }
-                Icon(
-                    imageVector = icon,
-                    contentDescription = entityId,
-                    tint = tint,
+                Box(
                     modifier = Modifier
                         .offset(x = x.coerceAtLeast(0.dp), y = y.coerceAtLeast(0.dp))
                         .size(iconBox)
-                        .clip(CircleShape)
-                        .background(bg)
-                        .then(
-                            if (sent) Modifier.border(2.dp, AstrionTheme.accent.copy(alpha = 0.85f), CircleShape)
-                            else Modifier
-                        )
                         .pointerInput(entityId, service) {
                             detectTapGestures(
                                 // Long-press a light icon → colour/brightness popup
@@ -309,9 +298,28 @@ class PictureElementsCard : CardRenderer {
                                     }
                                 },
                             )
-                        }
-                        .padding(6.dp),
-                )
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(BULB_FACE)
+                            .clip(CircleShape)
+                            .background(bg)
+                            .border(
+                                if (sent) 2.dp else 1.dp,
+                                when {
+                                    sent -> AstrionTheme.accent.copy(alpha = 0.85f)
+                                    glowColor != null -> Color.Transparent
+                                    else -> AstrionTheme.colors.hairlineStrong
+                                },
+                                CircleShape,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(icon, contentDescription = entityId, tint = tint, modifier = Modifier.size(19.dp))
+                    }
+                }
             }
 
             // Radar overlays: plot mmWave target dots (e.g. LD2450) on the plan.

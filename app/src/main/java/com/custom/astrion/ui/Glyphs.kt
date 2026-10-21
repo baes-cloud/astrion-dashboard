@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
+import com.custom.astrion.ui.theme.AstrionColors
 
 /**
  * The redesign's line icons: 24-unit grid, 1.75 stroke, round ends, drawn in
@@ -96,12 +97,12 @@ fun weatherGlyph(condition: String): ImageVector = when (condition) {
 
 // Placeholder ink: Icon() replaces it with its tint.
 private val INK = Color.Black
-// Sky colours for the weather glyphs, kept soft so they never read as a light that is on.
-private val WX_SUN = Color(0xFFF2CB7E)
-private val WX_SUN_FILL = Color(0x38F2CB7E)
-private val WX_CLOUD = Color(0xFFC3D0CD)
-private val WX_CLOUD_FILL = Color(0x1FC3D0CD)
-private val WX_RAIN = Color(0xFF7FB2E5)
+private val palette = AstrionColors()
+private val WX_SUN = palette.wxSun
+private val WX_SUN_FILL = palette.wxSunFill
+private val WX_CLOUD = palette.wxCloud
+private val WX_CLOUD_FILL = palette.wxCloudFill
+private val WX_RAIN = palette.wxRain
 
 private class P(val d: String, val stroke: Color, val fill: Color? = null)
 
