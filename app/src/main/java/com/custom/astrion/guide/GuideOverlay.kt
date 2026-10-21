@@ -10,25 +10,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
-import androidx.compose.material.icons.filled.AcUnit
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material.icons.filled.Radar
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MotionPhotosAuto
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.SettingsRemote
-import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -43,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Glyphs
 import com.custom.astrion.ui.HitTarget
 import com.custom.astrion.ui.tap
 import com.custom.astrion.viewmodel.GuidePress
@@ -241,7 +226,7 @@ private fun PressKinds() {
                 Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(AstrionTheme.cardBgAlt)
+                    .background(AstrionTheme.cardBg)
                     .padding(horizontal = 10.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -265,7 +250,7 @@ private fun KeyCard(help: KeyHelp, highlight: PressKind? = null) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(AstrionTheme.cardBgAlt)
+            .background(AstrionTheme.cardBg)
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
@@ -310,7 +295,7 @@ private fun TipCard(tip: GuideTip, open: Boolean, onToggle: () -> Unit, extra: @
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(if (open) AstrionTheme.cardBgAlt else AstrionTheme.colors.surfacePrimary),
+            .background(if (open) AstrionTheme.cardBg else AstrionTheme.colors.surfaceSunken),
     ) {
         Row(
             Modifier.fillMaxWidth().tap(onClick = onToggle).padding(horizontal = 12.dp, vertical = 10.dp),
@@ -328,7 +313,7 @@ private fun TipCard(tip: GuideTip, open: Boolean, onToggle: () -> Unit, extra: @
                 fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
             )
             Icon(
-                if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                if (open) Glyphs.up else Glyphs.down,
                 contentDescription = if (open) "Close" else "Open",
                 tint = AstrionTheme.textMuted, modifier = Modifier.size(22.dp),
             )
@@ -550,7 +535,7 @@ private fun Waiting(kind: PressKind) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(AstrionTheme.cardBgAlt)
+            .background(AstrionTheme.cardBg)
             .padding(vertical = 22.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -569,7 +554,7 @@ private fun Feedback(catalog: GuideCatalog, press: GuidePress, correct: Boolean,
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(if (correct) AstrionTheme.colors.accentContainer else AstrionTheme.cardBgAlt)
+            .background(if (correct) AstrionTheme.colors.accentContainer else AstrionTheme.cardBg)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -579,7 +564,7 @@ private fun Feedback(catalog: GuideCatalog, press: GuidePress, correct: Boolean,
                     Modifier.size(24.dp).clip(CircleShape).background(AstrionTheme.accentStrong),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Filled.Check, contentDescription = null, tint = AstrionTheme.colors.onPrimary, modifier = Modifier.size(16.dp))
+                    Icon(Glyphs.check, contentDescription = null, tint = AstrionTheme.textPrimary, modifier = Modifier.size(16.dp))
                 }
                 Spacer(Modifier.width(8.dp))
             }
@@ -666,9 +651,9 @@ private fun Header(title: String, subtitle: String, onClose: () -> Unit) {
         HitTarget(
             visual = 38.dp,
             onClick = onClose,
-            face = Modifier.clip(CircleShape).background(AstrionTheme.controlBg),
+            face = Modifier.clip(CircleShape).background(AstrionTheme.raised),
         ) {
-            Icon(Icons.Filled.Close, contentDescription = "Close", tint = AstrionTheme.textOnControl, modifier = Modifier.size(20.dp))
+            Icon(Glyphs.close, contentDescription = "Close", tint = AstrionTheme.textPrimary, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -700,7 +685,7 @@ private fun KeyCap(help: KeyHelp) {
     Row(
         Modifier
             .clip(RoundedCornerShape(9.dp))
-            .background(AstrionTheme.controlBg)
+            .background(AstrionTheme.raised)
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -733,7 +718,7 @@ private fun Segmented(labels: List<String>, selected: Int, onSelect: (Int) -> Un
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(AstrionTheme.colors.surfacePrimary)
+            .background(AstrionTheme.colors.surfaceSunken)
             .padding(3.dp),
     ) {
         labels.forEachIndexed { i, label ->
@@ -800,7 +785,7 @@ private fun SecondaryButton(text: String, modifier: Modifier, onClick: () -> Uni
         modifier
             .height(44.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(AstrionTheme.controlBg)
+            .background(AstrionTheme.raised)
             .tap(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -809,19 +794,19 @@ private fun SecondaryButton(text: String, modifier: Modifier, onClick: () -> Uni
 }
 
 private fun tipIcon(name: String): ImageVector = when (name) {
-    "light" -> Icons.Filled.Lightbulb
-    "music" -> Icons.Filled.MusicNote
-    "tv" -> Icons.Filled.Tv
-    "climate" -> Icons.Filled.AcUnit
-    "door", "lock" -> Icons.Filled.Lock
-    "auto", "motion" -> Icons.Filled.MotionPhotosAuto
-    "voice", "mic" -> Icons.Filled.Mic
-    "help" -> Icons.AutoMirrored.Filled.HelpOutline
-    "plan", "map" -> Icons.Filled.Map
-    "search" -> Icons.Filled.Search
-    "speakers", "zones" -> Icons.Filled.Speaker
-    "link" -> Icons.Filled.Link
+    "light" -> Glyphs.bulb
+    "music" -> Glyphs.note
+    "tv" -> Glyphs.tv
+    "climate" -> Glyphs.snow
+    "door", "lock" -> Glyphs.lock
+    "auto", "motion" -> Glyphs.motion
+    "voice", "mic" -> Glyphs.mic
+    "help" -> Glyphs.help
+    "plan", "map" -> Glyphs.plan
+    "search" -> Glyphs.search
+    "speakers", "zones" -> Glyphs.speaker
+    "link" -> Glyphs.link
     "remote", "ir" -> Icons.Filled.SettingsRemote
     "people", "radar" -> Icons.Filled.Radar
-    else -> Icons.Filled.Info
+    else -> Glyphs.help
 }

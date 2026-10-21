@@ -207,8 +207,8 @@
           },
           {
            "entity_id": "light.bathroom_downlights",
-           "left": 57,
-           "top": 90
+           "left": 56.5,
+           "top": 82
           },
           {
            "entity_id": "light.bedroom_lights",
@@ -256,7 +256,7 @@
            "Bathroom": [57, 90],
            "Office": [88, 82]
           },
-          "dock_position": [6, 63]
+          "dock_position": [5, 60]
          },
          "stretch": true,
          "lit_rooms": {
