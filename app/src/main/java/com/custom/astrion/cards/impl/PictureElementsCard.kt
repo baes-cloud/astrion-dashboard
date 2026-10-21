@@ -213,7 +213,8 @@ class PictureElementsCard : CardRenderer {
                 )
             }
 
-            val iconBox = 40.dp
+            // 36dp: a touch smaller than the 40dp it was, so the plan shows more.
+            val iconBox = 36.dp
 
             elements.forEach { el ->
                 val leftPct = (el["left"] as? Number)?.toFloat() ?: 50f

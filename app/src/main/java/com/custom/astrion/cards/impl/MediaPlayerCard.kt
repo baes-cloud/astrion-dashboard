@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -51,6 +52,9 @@ import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Fader
+import com.custom.astrion.ui.Glyphs
+import com.custom.astrion.ui.HitTarget
 import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalPageVisible
 import com.custom.astrion.ui.formatMediaTime
@@ -143,26 +147,33 @@ class MediaPlayerCard : CardRenderer {
                 ?: e?.attrString("app_name")
                 ?: "—"
         }
-        val artPath = (if (tv != null) tv.attrString("entity_picture") else null)
-            ?: e?.attrString("entity_picture")
-        val art = rememberArt(ctx, artPath)
+        val artFrom = if (tv?.attrString("entity_picture") != null) tv else e
+        val art = rememberArt(ctx, artFrom?.attrString("entity_picture"), artFrom?.artKey())
 
         fun mp(service: String, vararg data: Pair<String, Any?>) {
             ctx.client.callService(ServiceCall.of("media_player", service, entityId, *data))
         }
 
-        ArtBackdrop(art) {
+        val queuePlayer = config.string("queue_player") ?: "media_player.club_2"
+        val speakerName = config.string("name")
+            ?: e?.friendlyName?.takeIf { it.isNotBlank() }
+            ?: "Club"
+        var queueOpen by remember { mutableStateOf(false) }
+
+        val showControls = config.bool("show_controls", true)
+        ArtBackdrop(art, bottomShade = full) {
             if (full) {
                 FullContent(
-                    ctx, title, artist, playing, art, ::mp, topButtons, sourceEntity, live,
-                    showControls = config.bool("show_controls", true),
-                    // Width / height of the artwork; wider leaves room below
-                    // the card for the favourites row on one screen.
-                    artAspect = (config.options["art_aspect"] as? Number)?.toFloat() ?: 1.2f,
+                    ctx, e, entityId, speakerName, title, artist, playing, art, ::mp, topButtons, sourceEntity, live,
+                    showControls = showControls,
+                    onQueue = { queueOpen = true },
                 )
             } else {
                 CompactContent(title, artist, playing, art, ::mp, live)
             }
+        }
+        if (full && queueOpen) {
+            QueueSheet(ctx, queuePlayer, speaker = entityId) { queueOpen = false }
         }
     }
 
@@ -479,16 +490,6 @@ class MediaPlayerCard : CardRenderer {
         mp: (String, Array<out Pair<String, Any?>>) -> Unit,
         enabled: Boolean,
     ) {
-        // NOTE: the row itself is deliberately NOT clickable. It used to be a
-        // full-width invisible play/pause toggle sitting directly above the
-        // page indicator — reaching for navigation and landing slightly high
-        // paused the music, and with no play state on screen there was nothing
-        // to tell you it had happened.
-        // Trimmed from 64dp to 54dp: on Main this row sits under a `pin: fill`
-        // floorplan, so its height comes straight out of the plan. The play
-        // button only gives up 2dp and the volume pair none at all — they are
-        // already at 40dp, and shrinking a touch target on a wall panel to buy
-        // whitespace is the wrong trade.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -496,8 +497,6 @@ class MediaPlayerCard : CardRenderer {
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Album art carries play state as a ring, so "is it playing" is
-            // answerable without reading anything.
             val artMod = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
@@ -532,10 +531,13 @@ class MediaPlayerCard : CardRenderer {
         }
     }
 
-    // ---- full (media page) --------------------------------------------------
+    // ---- full (media page): square blended 1.4 + 1.5 player ------------------
     @Composable
     private fun FullContent(
         ctx: CardContext,
+        e: EntityState?,
+        entityId: String,
+        speakerName: String,
         title: String,
         artist: String,
         playing: Boolean,
@@ -545,115 +547,242 @@ class MediaPlayerCard : CardRenderer {
         sourceEntity: String?,
         enabled: Boolean,
         showControls: Boolean,
-        artAspect: Float,
+        onQueue: (() -> Unit)? = null,
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
-            // Compact source dropdown, right at the top — kept to one slim
-            // row (tight margins) so it doesn't push the shortcut row below
-            // this card off the first screen.
-            if (sourceEntity != null) {
-                CompactSourceSelect(ctx, sourceEntity)
-            }
-            // Top action buttons (e.g. Group / Ungroup).
-            if (topButtons.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    topButtons.forEach { b ->
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(44.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(AstrionTheme.colors.controlBg.copy(alpha = 0.4f)) // semi-transparent
-                                .tap(enabled = enabled) { fireService(ctx, b) },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                b["name"] as? String ?: "",
-                                color = AstrionTheme.colors.onSurface,
-                                fontSize = AstrionTheme.size.bodyLarge,
-                                fontWeight = FontWeight.Medium,
-                            )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (sourceEntity != null) {
+                    CompactSourceSelect(ctx, sourceEntity)
+                }
+                if (topButtons.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        topButtons.forEach { b ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(38.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(AstrionTheme.colors.controlBg.copy(alpha = 0.4f))
+                                    .tap(enabled = enabled) { fireService(ctx, b) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    b["name"] as? String ?: "",
+                                    color = AstrionTheme.colors.onSurface,
+                                    fontSize = AstrionTheme.size.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
                         }
                     }
                 }
-            }
-            // Big album art, or a placeholder glyph when nothing is playing /
-            // the poster can't be fetched — otherwise the card is a large
-            // empty rectangle that reads as broken rather than idle.
-            val artMod = Modifier.fillMaxWidth().aspectRatio(artAspect).clip(RoundedCornerShape(16.dp))
-            if (art != null) {
-                // The whole cover, never cropped: it sits centred at its own
-                // shape and the card's blurred wash shows either side. (Cropping
-                // a square cover into this wide frame cut off half of it.)
-                Box(Modifier.fillMaxWidth().aspectRatio(artAspect), contentAlignment = Alignment.Center) {
-                    Image(
-                        art, null,
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .aspectRatio(art.width.toFloat() / art.height.coerceAtLeast(1), matchHeightConstraintsFirst = true)
-                            .clip(RoundedCornerShape(16.dp)),
-                        contentScale = ContentScale.Fit,
-                    )
-                }
-            } else {
-                Box(
-                    artMod.background(AstrionTheme.raised),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Filled.Movie,
-                        contentDescription = "Nothing playing",
-                        tint = AstrionTheme.colors.accentMuted,
-                        modifier = Modifier.size(56.dp),
-                    )
-                }
-            }
-            // Centered now-playing text.
+                // Single clear album cover in focus over the blurred backdrop.
+                FocusedAlbumArt(art = art, maxHeight = 150.dp, maxWidth = 290.dp)
+
+            // Centered now-playing track title + artist.
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(title, color = AstrionTheme.colors.onSurface, fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.headingLarge, fontWeight = FontWeight.Bold,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth())
-                Text(artist, color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.size.body,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth())
+                Text(
+                    title,
+                    color = AstrionTheme.textPrimary,
+                    fontFamily = AstrionTheme.headingFont,
+                    fontSize = AstrionTheme.size.title,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    artist,
+                    color = AstrionTheme.textSecondary,
+                    fontSize = AstrionTheme.size.small,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
-            // Single control row: vol- prev play/pause next vol+, justified.
-            // Suppressed on a display-only card (e.g. the TV page, which just
-            // shows what's on screen).
-            if (showControls) Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CircleControl(Icons.Filled.VolumeDown, 48.dp, "Volume down", enabled = enabled) {
-                    mp("volume_down", emptyArray())
-                }
-                CircleControl(Icons.Filled.SkipPrevious, 52.dp, "Previous track", enabled = enabled) {
-                    mp("media_previous_track", emptyArray())
-                }
-                CircleControl(
-                    if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, 68.dp,
-                    description = if (playing) "Pause" else "Play",
-                    accent = true, enabled = enabled,
+            // Clean 3-button transport row + integrated glass/blend volume bar inside the card.
+            if (showControls) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    mp("media_play_pause", emptyArray())
+                    CircleControl(Glyphs.prev, 38.dp, "Previous track", enabled = enabled) {
+                        mp("media_previous_track", emptyArray())
+                    }
+                    CircleControl(
+                        if (playing) Glyphs.pause else Glyphs.play, 48.dp,
+                        description = if (playing) "Pause" else "Play",
+                        accent = true, enabled = enabled,
+                    ) {
+                        mp("media_play_pause", emptyArray())
+                    }
+                    CircleControl(Glyphs.next, 38.dp, "Next track", enabled = enabled) {
+                        mp("media_next_track", emptyArray())
+                    }
                 }
-                CircleControl(Icons.Filled.SkipNext, 52.dp, "Next track", enabled = enabled) {
-                    mp("media_next_track", emptyArray())
+                VolumeRow(ctx, entityId, speakerName, enabled)
+            }
+        }
+        if (onQueue != null) {
+            // 34dp drawn, 48dp to hit: the small one took a second try.
+            HitTarget(
+                visual = 34.dp,
+                onClick = onQueue,
+                modifier = Modifier.align(Alignment.TopEnd),
+                enabled = enabled,
+                face = Modifier
+                    .clip(CircleShape)
+                    .background(AstrionTheme.colors.void.copy(alpha = 0.44f))
+                    .border(1.dp, AstrionTheme.colors.hairline, CircleShape),
+            ) {
+                Icon(
+                    Glyphs.list,
+                    contentDescription = "Queue",
+                    tint = AstrionTheme.colors.textOnControl,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+}
+
+    /**
+     * Single clear album cover in focus in the center over the card's
+     * blurred background, dynamically sized to fit naturally whether square,
+     * widescreen (16:9), or portrait without cropping or distortion.
+     */
+    @Composable
+    private fun FocusedAlbumArt(
+        art: ImageBitmap?,
+        maxHeight: androidx.compose.ui.unit.Dp = 165.dp,
+        maxWidth: androidx.compose.ui.unit.Dp = 290.dp,
+    ) {
+        val frontShape = RoundedCornerShape(15.dp)
+        val imgAspect = if (art != null && art.height > 0) {
+            (art.width.toFloat() / art.height.toFloat()).coerceIn(0.5f, 2.5f)
+        } else 1f
+
+        val targetW: androidx.compose.ui.unit.Dp
+        val targetH: androidx.compose.ui.unit.Dp
+        if (maxWidth.value / maxHeight.value > imgAspect) {
+            targetH = maxHeight
+            targetW = maxHeight * imgAspect
+        } else {
+            targetW = maxWidth
+            targetH = maxWidth / imgAspect
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(targetH),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (art != null) {
+                Box(
+                    Modifier
+                        .size(width = targetW, height = targetH)
+                        .clip(frontShape)
+                        .border(1.dp, AstrionTheme.colors.hairlineStrong, frontShape),
+                ) {
+                    Image(
+                        art,
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.Crop,
+                    )
                 }
-                CircleControl(Icons.Filled.VolumeUp, 48.dp, "Volume up", enabled = enabled) {
-                    mp("volume_up", emptyArray())
+            } else {
+                Box(
+                    Modifier
+                        .size(width = targetW, height = targetH)
+                        .clip(frontShape)
+                        .background(AstrionTheme.raised)
+                        .border(1.dp, AstrionTheme.colors.hairline, frontShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Glyphs.note,
+                        contentDescription = "Nothing playing",
+                        tint = AstrionTheme.colors.accentMuted,
+                        modifier = Modifier.size(44.dp),
+                    )
                 }
+            }
+        }
+    }
+
+    /**
+     * Mute toggle button on the left + horizontal draggable volume fader bar
+     * inside the player card, using a translucent glass track and additive
+     * (`BlendMode.Plus`) fill so the blurred artwork colours blend through.
+     */
+    @Composable
+    private fun VolumeRow(ctx: CardContext, entityId: String, name: String, enabled: Boolean) {
+        val e = ctx.entities[entityId]
+        val muted = e?.attrString("is_volume_muted") == "true"
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (muted) AstrionTheme.blush.copy(alpha = 0.25f)
+                        else Color.White.copy(alpha = 0.11f)
+                    )
+                    .border(
+                        1.dp,
+                        if (muted) AstrionTheme.blush.copy(alpha = 0.45f) else AstrionTheme.colors.hairline,
+                        CircleShape,
+                    )
+                    .tap(enabled = enabled) {
+                        ctx.client.callService(ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted))
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (muted) Glyphs.mute else Glyphs.vol,
+                    contentDescription = if (muted) "Unmute" else "Mute",
+                    tint = if (muted) AstrionTheme.blush else AstrionTheme.textPrimary,
+                    modifier = Modifier.size(17.dp),
+                )
+            }
+            Fader(
+                value = e?.attrDouble("volume_level")?.toFloat(),
+                onCommit = { v ->
+                    ctx.client.callService(ServiceCall.of("media_player", "volume_set", entityId, "volume_level" to v.toDouble()))
+                },
+                modifier = Modifier.weight(1f).height(36.dp),
+                enabled = enabled,
+                fill = if (muted) Color.White.copy(alpha = 0.18f) else AstrionTheme.accent.copy(alpha = 0.46f),
+                track = Color.White.copy(alpha = 0.10f),
+                radius = 12.dp,
+                // No end cap: at low volume it sat on top of the name.
+                cap = false,
+                fillBlendMode = androidx.compose.ui.graphics.BlendMode.Plus,
+                borderColor = AstrionTheme.colors.hairline,
+            ) {
+                Text(name, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.Bold, maxLines = 1)
             }
         }
     }
@@ -738,11 +867,11 @@ class MediaPlayerCard : CardRenderer {
             modifier = Modifier
                 .size(size)
                 .clip(CircleShape)
-                .background(if (accent) AstrionTheme.accentStrong else AstrionTheme.colors.controlBg.copy(alpha = 0.33f))
+                .background(if (accent) AstrionTheme.accentStrong else AstrionTheme.colors.controlBg.copy(alpha = 0.38f))
                 .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = description, tint = Color.White)
+            Icon(icon, contentDescription = description, tint = AstrionTheme.textPrimary, modifier = Modifier.size(size * 0.42f))
         }
     }
 }
@@ -839,12 +968,25 @@ private fun resolveTvSession(tv: EntityState?, players: List<EntityState>, apps:
  * a poster decoded at full size can be ~6 MB. 480px covers the panel's width.
  */
 @Composable
-private fun rememberArt(ctx: CardContext, path: String?): ImageBitmap? {
-    var art by remember(path) { mutableStateOf(path?.let { ArtCache.peek(it, 480) }) }
-    LaunchedEffect(path) {
-        art = path?.let { p -> ArtCache.load(p, 480) { ctx.client.fetchBytes(p) } }
+internal fun rememberArt(ctx: CardContext, path: String?, cacheKey: String? = path): ImageBitmap? {
+    // Not keyed, so the last cover stays up while the next one loads.
+    var art by remember { mutableStateOf(cacheKey?.let { ArtCache.peek(it, 480) }) }
+    LaunchedEffect(cacheKey) {
+        art = if (path == null || cacheKey == null) null
+        else ArtCache.load(cacheKey, 480) { ctx.client.fetchBytes(path) }
     }
     return art
+}
+
+/**
+ * ArtCache key for a player's cover. A Sonos that Music Assistant is feeding
+ * keeps one entity_picture (same `cache=` hash) from track to track, while HA
+ * serves the current cover behind it, so the URL alone pins the first cover
+ * it saw. The album, or the title, tells the tracks apart.
+ */
+internal fun EntityState.artKey(): String? = attrString("entity_picture")?.let { path ->
+    val track = attrString("media_album_name")?.takeIf { it.isNotBlank() } ?: attrString("media_title").orEmpty()
+    "$path#$track"
 }
 
 /**
@@ -855,7 +997,12 @@ private fun rememberArt(ctx: CardContext, path: String?): ImageBitmap? {
  * where 32px still drew its shapes, blocky, behind the title.
  */
 @Composable
-private fun ArtBackdrop(art: ImageBitmap?, washPx: Int = 32, content: @Composable () -> Unit) {
+private fun ArtBackdrop(
+    art: ImageBitmap?,
+    washPx: Int = 32,
+    bottomShade: Boolean = false,
+    content: @Composable () -> Unit,
+) {
     val blurred = remember(art, washPx) {
         art?.let { img ->
             val src = img.asAndroidBitmap()
@@ -865,6 +1012,7 @@ private fun ArtBackdrop(art: ImageBitmap?, washPx: Int = 32, content: @Composabl
             Bitmap.createScaledBitmap(src, w, h, true).asImageBitmap()
         }
     }
+    val shade = AstrionTheme.colors.void
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -873,7 +1021,24 @@ private fun ArtBackdrop(art: ImageBitmap?, washPx: Int = 32, content: @Composabl
     ) {
         blurred?.let { bg ->
             Image(bitmap = bg, contentDescription = null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-            Box(modifier = Modifier.matchParentSize().background(AstrionTheme.colors.pinnedTopBg.copy(alpha = 0.7f)))
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(AstrionTheme.colors.pinnedTopBg.copy(alpha = if (bottomShade) 0.58f else 0.7f)),
+            )
+            if (bottomShade) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.verticalGradient(
+                                0.35f to shade.copy(alpha = 0f),
+                                0.72f to shade.copy(alpha = 0.42f),
+                                1f to shade.copy(alpha = 0.76f),
+                            )
+                        ),
+                )
+            }
         }
         content()
     }

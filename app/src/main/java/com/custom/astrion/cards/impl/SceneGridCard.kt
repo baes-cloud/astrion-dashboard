@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
@@ -86,8 +87,10 @@ class SceneGridCard : CardRenderer {
         if (config.string("style") == "pill") {
             // `"label": "Scenes"`: a small centred caption between two short
             // hairlines above the pills, so the row reads as its own thing.
-            config.string("label")?.let { SceneCaption(it) }
-            PillRow(scenes, ctx)
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                config.string("label")?.let { SceneCaption(it) }
+                PillRow(scenes, ctx)
+            }
             return
         }
 
@@ -121,22 +124,30 @@ class SceneGridCard : CardRenderer {
 
     @Composable
     private fun SceneCaption(text: String) {
+        // Tight on top, with a tiny bit of breathing room below before the pills.
         Row(
-            Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            Modifier
+                .fillMaxWidth()
+                .layout { measurable, constraints ->
+                    val p = measurable.measure(constraints)
+                    val trimTop = 5.dp.roundToPx()
+                    layout(p.width, (p.height - trimTop).coerceAtLeast(0)) { p.place(0, -trimTop) }
+                },
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val line = AstrionTheme.textMuted.copy(alpha = 0.35f)
-            Box(Modifier.width(44.dp).height(1.dp).background(line))
+            val line = AstrionTheme.textMuted.copy(alpha = 0.3f)
+            Box(Modifier.width(32.dp).height(1.dp).background(line))
             Text(
                 text.uppercase(),
                 color = AstrionTheme.textMuted,
                 fontSize = AstrionTheme.size.label,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.28.em,
-                modifier = Modifier.padding(horizontal = 10.dp),
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.18.em,
+                style = com.custom.astrion.ui.tightTextStyle(12.sp),
+                modifier = Modifier.padding(horizontal = 8.dp),
             )
-            Box(Modifier.width(44.dp).height(1.dp).background(line))
+            Box(Modifier.width(32.dp).height(1.dp).background(line))
         }
     }
 

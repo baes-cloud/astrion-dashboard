@@ -113,8 +113,8 @@ class PlexCard : CardRenderer {
 
         // ~3.5 tiles across a 480px/220dpi panel.
         // Four and a bit across, so the fifth peeking in says "swipe for more".
-        val TILE_W = 66.dp
-        val POSTER_H = 95.dp
+        val TILE_W = 74.dp
+        val POSTER_H = 106.dp
 
         /** Posters per row fetched ahead of being scrolled into view. */
         const val PREFETCH = 6

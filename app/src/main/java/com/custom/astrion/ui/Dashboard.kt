@@ -1,22 +1,24 @@
 package com.custom.astrion.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -24,9 +26,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
@@ -35,6 +43,7 @@ import com.custom.astrion.config.AppConfig
 import com.custom.astrion.config.PageConfig
 import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ha.HaClient
+import kotlin.math.abs
 import kotlinx.coroutines.delay
 
 /**
@@ -153,27 +162,66 @@ fun Dashboard(
         // the constraint (≈70 MB of ≈590 MB free).
         // One name slot per page, for a card that names itself (see
         // LocalPageNameOverride); the footer reads the current page's.
+        // The Main page's clock header (day, date, time, battery) carries
+        // across every page that doesn't have its own, in the same dark band.
+        val sharedHeader = remember(config.pages) {
+            config.pages.asSequence().flatMap { it.cards }.firstOrNull { it.type == "clock_header" }
+        }
         val nameOverrides = remember(config.pages) { config.pages.map { mutableStateOf<String?>(null) } }
-        config.pages.forEachIndexed { i, page ->
-            key(i) {
-                CompositionLocalProvider(
-                    LocalPageVisible provides (i == current),
-                    LocalPageNameOverride provides nameOverrides[i],
-                    LocalNavEpoch provides navEpoch,
-                ) {
-                    Box(Modifier.fillMaxSize().unplacedWhen(i != current)) {
-                        PageContent(page, ctx)
+        // Each page change fades the new page in, sliding a little from the
+        // side it came from: opacity and translation only, cheap on this GPU.
+        var lastPage by remember { mutableIntStateOf(current) }
+        val enter = remember { Animatable(1f) }
+        val enterFrom = when {
+            current == (lastPage + 1).mod(pageCount) -> 1f
+            current == (lastPage - 1).mod(pageCount) -> -1f
+            current >= lastPage -> 1f
+            else -> -1f
+        }
+        LaunchedEffect(current) {
+            if (current == lastPage) return@LaunchedEffect
+            enter.snapTo(0f)
+            enter.animateTo(1f, tween(PAGE_ENTER_MS))
+            lastPage = current
+        }
+        val slidePx = with(LocalDensity.current) { 16.dp.toPx() }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .pageSwipe(pageCount) { dir -> current = (current + dir).mod(pageCount) },
+        ) {
+            config.pages.forEachIndexed { i, page ->
+                key(i) {
+                    CompositionLocalProvider(
+                        LocalPageVisible provides (i == current),
+                        LocalPageNameOverride provides nameOverrides[i],
+                        LocalNavEpoch provides navEpoch,
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .unplacedWhen(i != current)
+                                .graphicsLayer {
+                                    if (i == current) {
+                                        alpha = enter.value
+                                        translationX = (1f - enter.value) * slidePx * enterFrom
+                                    }
+                                },
+                        ) {
+                            PageContent(page, ctx, sharedHeader)
+                        }
                     }
                 }
             }
         }
 
-        // The device name sits in the footer slot every page leaves free. It's
+        // The nameplate sits in the footer slot every page leaves free. It's
         // drawn once, here, rather than per page, so a page change crossfades
         // the name in place instead of swapping it.
-        val page = config.pages.getOrNull(current)
         PageName(
-            name = nameOverrides.getOrNull(current)?.value ?: page?.deviceName,
+            names = config.pages.mapIndexed { i, p -> nameOverrides.getOrNull(i)?.value ?: p.deviceName },
+            current = current,
+            onGo = { current = it.mod(pageCount) },
             modifier = Modifier.align(Alignment.BottomCenter),
         )
 
@@ -195,8 +243,43 @@ fun Dashboard(
 /** Counts button jumps to a page; see SwipeStackCard. 0 = none yet. */
 val LocalNavEpoch = compositionLocalOf { 0 }
 
+private const val PAGE_ENTER_MS = 220
+
+/**
+ * A sideways swipe anywhere on a page turns it: [onTurn] gets +1 for the next
+ * page, -1 for the previous one. Watched in the final pass, after the page's
+ * own controls, so a swipe that a slider, a scrolling row or a button already
+ * took (it consumed the pointer) doesn't also turn the page.
+ */
+private fun Modifier.pageSwipe(pageCount: Int, onTurn: (Int) -> Unit): Modifier =
+    pointerInput(pageCount) {
+        val minTravel = 56.dp.toPx()
+        val claimAt = viewConfiguration.touchSlop * 2
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Final)
+            var dx = 0f
+            var dy = 0f
+            var taken = false
+            var claimed = false
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Final)
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!claimed && change.isConsumed) taken = true
+                val d = change.positionChangeIgnoreConsumed()
+                dx += d.x
+                dy += d.y
+                if (!taken && !claimed && abs(dx) > claimAt && abs(dx) > abs(dy) * 1.5f) claimed = true
+                // Once it's a page swipe, say so: a tile it started on sees the
+                // consumed pointer and drops the press instead of taking a tap.
+                if (claimed) change.consume()
+                if (!change.pressed) break
+            }
+            if (claimed && abs(dx) > minTravel) onTurn(if (dx < 0) 1 else -1)
+        }
+    }
+
 @Composable
-private fun PageContent(page: PageConfig, ctx: CardContext) {
+private fun PageContent(page: PageConfig, ctx: CardContext, sharedHeader: CardConfig? = null) {
     // Cards can pin to "top" (fixed header section, e.g. Scenes) or "bottom"
     // (fixed footer section); everything else sits in between.
     //
@@ -211,6 +294,14 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
     val hasFill = middle.any { it.options["pin"] == "fill" }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        if (sharedHeader != null && page.cards.none { it.type == "clock_header" }) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .background(AstrionTheme.pinnedTopBg)
+                    .padding(horizontal = 10.dp, vertical = 3.dp),
+            ) { RenderCard(sharedHeader, ctx) }
+        }
         if (pinnedTop.isNotEmpty() && !hasFill) {
             FloatingTopPage(pinnedTop, middle, ctx, Modifier.weight(1f))
         } else {
@@ -219,8 +310,8 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(AstrionTheme.pinnedTopBg)
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                        .padding(horizontal = 10.dp, vertical = if (hasFill) 3.dp else 5.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (hasFill) 3.dp else 5.dp),
                 ) {
                     pinnedTop.forEach { RenderCard(it, ctx) }
                 }
@@ -234,8 +325,13 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
                         // (infinite height), so it's one or the other per page.
                         if (hasFill) Modifier else Modifier.verticalScroll(rememberScrollState())
                     )
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                    .padding(
+                        start = 10.dp,
+                        end = 10.dp,
+                        top = if (hasFill) 4.dp else 6.dp,
+                        bottom = if (hasFill) 0.dp else 2.dp,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(if (hasFill) 6.dp else 8.dp),
             ) {
                 middle.forEach { card ->
                     if (card.options["pin"] == "fill") {

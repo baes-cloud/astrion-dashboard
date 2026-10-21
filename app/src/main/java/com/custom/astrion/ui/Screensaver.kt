@@ -62,6 +62,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.astrion.cards.impl.artKey
 import com.custom.astrion.cards.impl.nextAlarmMs
 import com.custom.astrion.cards.impl.weatherEmoji
 import com.custom.astrion.ha.EntityMap
@@ -610,9 +611,11 @@ private fun NowPlaying(
     val artPath = e.attrString("entity_picture")
     // Shared with the media player card via ArtCache, so it's usually
     // already decoded; 76dp needs ~128px.
-    var art by remember(artPath) { mutableStateOf(artPath?.let { ArtCache.peek(it, 128) }) }
-    LaunchedEffect(artPath) {
-        art = artPath?.let { p -> ArtCache.load(p, 128) { client.fetchBytes(p) } }
+    val artKey = e.artKey()
+    var art by remember(artKey) { mutableStateOf(artKey?.let { ArtCache.peek(it, 128) }) }
+    LaunchedEffect(artKey) {
+        art = if (artPath == null || artKey == null) null
+        else ArtCache.load(artKey, 128) { client.fetchBytes(artPath) }
     }
 
     // When playing, make the media display significantly brighter and crisper

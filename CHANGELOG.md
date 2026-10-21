@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.4.5 (2026-10-21)
+
+The 1.4 layout with the pieces of the 1.5 redesign worth keeping:
+- **Every page.** The clock band (date, time, battery) sits on every page; pages fade and slide in, and a sideways swipe anywhere turns the page. The footer keeps BÆO still and crossfades the rest (REMOTE, VISION, SOUND, LIVING) in thin Syne, with faded arrows.
+- **Main.** Motion Lights and Door share a chrome-free row (the padlock alone locks and unlocks); smaller floorplan bulbs; accent lights can glow from several spots (`glow_spots`) without lighting the whole room (`glow_ambient`), at their own strength (`glow_strength`).
+- **SOUND.** Search above a squarer player: one clear cover over the blurred wash, transport, a volume fader and a queue button. The cover now follows the track when Music Assistant plays through the Sonos (its picture link never changes). The queue shows now playing and up next from Music Assistant, or the Sonos's own track when MA didn't start it. Two-line mix tiles; tighter shelves.
+- **Zones.** The 1.5 BÆOLINK card and faders, with linked speakers on the card's gradient and one soft edge style throughout.
+- **Light popups** from 1.5: a bottom sheet with a tall fader, big readout, warmth and colour.
+- **VISION.** Slightly larger Plex posters. **LIVING.** Fits the clock band without scrolling.
+
 ## v1.4.0 (2026-10-21)
 
 Help, search and Plex:
