@@ -144,7 +144,7 @@
            "entity_id": "light.tv_art_lights",
            "left": 45,
            "top": 11,
-           "icon": "art_blob"
+           "icon": "portrait_art"
           },
           {
            "entity_id": "light.art_group",
@@ -313,7 +313,7 @@
            "entity_id": "light.bedroom_cupboard_light",
            "left": 51,
            "top": 54,
-           "icon": "portrait_art"
+           "icon": "mirrorball"
           },
           {
            "entity_id": "light.kitchen_group",
@@ -323,7 +323,7 @@
           {
            "entity_id": "light.send_nudes",
            "left": 28,
-           "top": 64
+           "top": 69.5
           },
           {
            "entity_id": "light.office_lights",
@@ -586,7 +586,27 @@
           "show_hibernating": false,
           "color": "#D92CAA9C",
           "accent_color": "#FF8CE0D4"
-         }
+         },
+         "screens": [
+          {
+           "entity_id": "media_player.the_club_tvv",
+           "rect": [
+            23.6,
+            8.2,
+            38.8,
+            11.2
+           ]
+          },
+          {
+           "entity_id": "media_player.samsung_serif_tv_43_qa43ls01tawxxy",
+           "rect": [
+            21.4,
+            56.3,
+            36.5,
+            57.7
+           ]
+          }
+         ]
         }
        }
       ]

@@ -194,6 +194,8 @@ class PictureElementsCard : CardRenderer {
             // else, so icons and dots stay crisp on top. See LitRooms.kt.
             val litRooms = config.options["lit_rooms"] as? Map<String, Any?>
             if (litRooms != null && bitmap != null) LitRoomsLayer(litRooms, elements, ctx)
+            // TV screens that glow while the TV is on. See ScreenGlow.kt.
+            (config.options["screens"] as? List<*>)?.let { if (bitmap != null) ScreenGlowLayer(it, ctx) }
 
             // Optional embedded card floated over the plan (e.g. the
             // now-playing strip in the empty band across the bedroom /
@@ -720,7 +722,7 @@ class PictureElementsCard : CardRenderer {
  * ("icon": "table_lamp", "led_strip", "hue_strip", "glow_strip", "zigzag",
  * "underglow", "spotlight", "downlight", "playbar", "candles", "artwork",
  * "artworks", "portrait_art", "art_blob", "roundel", "bulbs", "bulb_grid",
- * "sofa", "xmas_tree", "desk"); null keeps the bulb. On or off
+ * "sofa", "mirrorball", "xmas_tree", "desk"); null keeps the bulb. On or off
  * shows in its tint and backing, as for the bulb.
  */
 private fun fixtureGlyph(key: String?): androidx.compose.ui.graphics.vector.ImageVector? = when (key) {
@@ -742,6 +744,7 @@ private fun fixtureGlyph(key: String?): androidx.compose.ui.graphics.vector.Imag
     "bulb_grid" -> Glyphs.bulbGrid
     "art_blob" -> Glyphs.artBlob
     "sofa" -> Glyphs.sofa
+    "mirrorball" -> Glyphs.mirrorball
     "xmas_tree" -> Glyphs.xmasTree
     "desk", "computer" -> Glyphs.desk
     else -> null
