@@ -463,7 +463,7 @@
            "type": "button_grid",
            "options": {
             "columns": 4,
-            "tile_height": 62,
+            "tile_height": 68,
             "icon_size": 18,
             "spacing": 8,
             "buttons": [
