@@ -267,3 +267,6 @@ fun parseHexColor(hex: String?): Color? {
     val v = h.toLongOrNull(16) ?: return null
     return if (h.length <= 6) Color(0xFF000000L or v) else Color(v)
 }
+
+/** Height of the Main page's tiles (Auto lights, the door), so a row lines up. */
+val TileHeight: Dp = 48.dp
