@@ -1099,12 +1099,22 @@
   },
   "tips": [
    {
+    "title": "Get around",
+    "icon": "plan",
+    "steps": [
+     "Swipe sideways anywhere to change page: BÆOREMOTE, BÆOVISION, BÆOSOUND, BÆOLIVING.",
+     "The name at the bottom says where you are. The dots either side are the other pages: tap one to jump there.",
+     "Or press a page button: Light, TV/Plex (curtain), Media, Climate."
+    ]
+   },
+   {
     "title": "Turn a light on or off",
     "icon": "light",
     "steps": [
      "Press Light. The map shows the flat from above.",
-     "Tap a bulb to switch it. Hold it for brightness and colour.",
-     "Tap a scene (Tokyo, Soho…) to set the whole room at once.",
+     "Tap a bulb to switch it. A lit bulb glows in the light's own colour.",
+     "Hold a bulb to open its panel: slide the tall bar for brightness, pick a warmth or a colour, or tap Turn off.",
+     "Tap a scene chip (Tokyo, Soho…) to set the whole room at once. Swipe the chips for more.",
      "Hold Light to turn everything off."
     ]
    },
@@ -1114,7 +1124,16 @@
     "steps": [
      "Press Media.",
      "Tap a mix, like GAYFM or Glitterbox.",
+     "Slide the Club bar sideways for the volume. The speaker button beside it mutes.",
      "Hold OK to pause or play. Volume + and − work from any page."
+    ]
+   },
+   {
+    "title": "See what's next",
+    "icon": "music",
+    "steps": [
+     "On Media, tap the list button at the top right of the player.",
+     "It shows what's playing and what's up next."
     ]
    },
    {
@@ -1137,6 +1156,17 @@
     ]
    },
    {
+    "title": "Music in other rooms",
+    "icon": "speakers",
+    "steps": [
+     "Press Media and tap Zones at the top.",
+     "Tap Join beside a room to play the Club's music there too. Tap Joined to drop it.",
+     "Slide a room's bar sideways for its volume.",
+     "Unjoin all sends every room back to its own music.",
+     "Switch BÆOLINK on and the music follows you from room to room."
+    ]
+   },
+   {
     "title": "Talk to it",
     "icon": "voice",
     "steps": [
@@ -1149,7 +1179,7 @@
     "title": "Read the map",
     "icon": "plan",
     "steps": [
-     "The map on Main is the flat from above, live. Every bulb is a real light, where it really is.",
+     "The map on BÆOREMOTE is the flat from above, live. Every bulb is a real light, where it really is.",
      "Here's an example (this one isn't live):"
     ]
    },
@@ -1159,7 +1189,7 @@
     "steps": [
      "Radar sensors (not cameras) feel movement. Each person is a teal dot on the map.",
      "Walk into a room and its light comes on. Leave, and it goes off a few minutes later.",
-     "Want them left alone? Tap Auto lights on Main. Tap it again to go back to normal."
+     "Want them left alone? Tap Auto lights on BÆOREMOTE. Tap it again to go back to normal."
     ]
    },
    {
@@ -1167,25 +1197,17 @@
     "icon": "climate",
     "steps": [
      "Press Climate for the aircon, fan and blinds.",
+     "Tap − or + to set the temperature, and the row below for Cool, Heat, Fan or Dry.",
      "Hold Climate to turn the aircon on or off from any page.",
      "Hold Page ▲ or Page ▼ to open or close the blinds."
-    ]
-   },
-   {
-    "title": "Music in other rooms",
-    "icon": "speakers",
-    "steps": [
-     "Press Media and swipe to Zones.",
-     "Tap a room's link button to play the Club's music there too. Tap again to drop it.",
-     "BÆOLINK on: the music follows you from room to room."
     ]
    },
    {
     "title": "Lock or unlock the door",
     "icon": "door",
     "steps": [
-     "On Main, tap the padlock beside Door.",
-     "Hold the padlock tile to keep the door unlocked (it turns red). Hold again to let it lock itself."
+     "On BÆOREMOTE, tap the Door tile on the right.",
+     "Hold it to keep the door unlocked (it turns red and says Held open). Hold again to let it lock itself."
     ]
    },
    {
@@ -1201,7 +1223,7 @@
     "title": "Stuck?",
     "icon": "help",
     "steps": [
-     "Back closes whatever is open.",
+     "Back closes whatever is open. Panels that slide up from the bottom also close when you tap above them.",
      "Hold Menu ☰ to get this guide back."
     ]
    }
