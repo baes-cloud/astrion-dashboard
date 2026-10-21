@@ -454,7 +454,7 @@
             ],
             "variant": "full",
             "layout": "sleeve",
-            "max_size": 300,
+            "max_size": 292,
             "name": "Club",
             "queue_player": "media_player.club_2"
            }
@@ -463,7 +463,7 @@
            "type": "button_grid",
            "options": {
             "columns": 4,
-            "tile_height": 54,
+            "tile_height": 62,
             "icon_size": 18,
             "spacing": 8,
             "buttons": [
