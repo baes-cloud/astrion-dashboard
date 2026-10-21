@@ -323,7 +323,7 @@
            "entity_id": "light.bedroom_cupboard_light",
            "left": 51,
            "top": 54,
-           "icon": "mirrorball"
+           "icon": "portrait_art"
           },
           {
            "entity_id": "light.kitchen_group",
