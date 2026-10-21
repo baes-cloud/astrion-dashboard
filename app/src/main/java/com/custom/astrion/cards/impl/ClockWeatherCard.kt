@@ -175,7 +175,7 @@ class ClockWeatherCard : CardRenderer {
                         Text(
                             Time.format(now, timePattern),
                             color = AstrionTheme.colors.onSurface,
-                            fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.displayLg,
+                            fontFamily = AstrionTheme.readoutFont, fontSize = AstrionTheme.size.displayLg,
                             fontWeight = FontWeight.Light,
                         )
                     }

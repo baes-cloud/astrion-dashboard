@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.ui.AstrionTheme
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -26,7 +25,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * The rest face: a large H:mm clock in Syne, centred over a dim pool of light,
+ * The rest face: a large H:mm clock in Antonio, centred over a dim pool of light,
  * the date below it in quiet text. Shown when nothing is playing and
  * `ambient.restClock` is on. Redraws on the minute, not the second.
  */
@@ -52,10 +51,9 @@ fun RestClock(is24: Boolean) {
             Text(
                 timeFmt.format(Date(now)),
                 color = AstrionTheme.nightInk,
-                fontFamily = AstrionTheme.headingFont,
+                fontFamily = AstrionTheme.readoutFont,
                 fontWeight = FontWeight.Light,
                 fontSize = AstrionTheme.size.restClock,
-                letterSpacing = (-1.5).sp,
                 maxLines = 1,
             )
             Spacer(Modifier.height(8.dp))

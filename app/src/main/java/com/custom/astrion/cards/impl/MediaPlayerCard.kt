@@ -10,8 +10,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VolumeDown
@@ -289,7 +287,7 @@ class MediaPlayerCard : CardRenderer {
                 .background(if (lit) AstrionTheme.accentStrong else AstrionTheme.colors.void.copy(alpha = 0.45f)),
         ) {
             Icon(
-                Icons.Filled.SurroundSound,
+                Glyphs.speaker,
                 contentDescription = if (lit) "$label, on" else label,
                 tint = if (lit) AstrionTheme.colors.onPrimary else AstrionTheme.textOnControl,
                 modifier = Modifier.size(18.dp),
@@ -336,7 +334,7 @@ class MediaPlayerCard : CardRenderer {
                 modifier = Modifier.size(SQUARE_ART).clip(shape).background(AstrionTheme.raised),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Movie, contentDescription = null, tint = AstrionTheme.colors.accentMuted, modifier = Modifier.size(40.dp))
+                Icon(Glyphs.film, contentDescription = null, tint = AstrionTheme.colors.accentMuted, modifier = Modifier.size(36.dp))
             }
         }
     }
@@ -351,8 +349,8 @@ class MediaPlayerCard : CardRenderer {
         }?.let { word -> listOfNotNull(word, s.appName?.takeIf { it != s.title }).joinToString(" · ") }
         Column(modifier) {
             Text(
-                s.title, color = AstrionTheme.textPrimary, fontFamily = AstrionTheme.headingFont,
-                fontSize = AstrionTheme.size.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                s.title, color = AstrionTheme.textPrimary,
+                fontSize = AstrionTheme.size.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 style = tightTextStyle(21.sp),
             )
             s.subtitle?.let {
