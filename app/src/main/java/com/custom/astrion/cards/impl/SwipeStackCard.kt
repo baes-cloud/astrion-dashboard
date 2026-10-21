@@ -1,6 +1,5 @@
 package com.custom.astrion.cards.impl
 
-import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -16,11 +15,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -99,18 +94,15 @@ class SwipeStackCard : CardRenderer {
 
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (titles.size >= children.size) {
-                // Segmented tab bar ("Player | Media"): says what's behind each
-                // page and, unlike a swipe, always gets through children built
-                // from LazyRows (which eat horizontal drags).
-                // Recessed track; the current tab sinks a shade darker and
-                // gets a bright Hailstorm neon rule under its name. Gunmetal fill is kept for
-                // things that are ON (Linked, BÆOLINK, the active scene), so
-                // the tab no longer reads as a switched-on button.
+                // Segmented tab bar ("Player | Media | Zones"): a recessed
+                // track, the current tab raised out of it. Tabs change only by
+                // tapping here; a sideways swipe turns the dashboard page, as
+                // everywhere else.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(AstrionTheme.trackBg)
+                        .background(AstrionTheme.colors.surfaceSunken)
                         .padding(3.dp),
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
@@ -119,51 +111,18 @@ class SwipeStackCard : CardRenderer {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(38.dp)
+                                .height(34.dp)
                                 .clip(RoundedCornerShape(9.dp))
-                                .background(if (current) TabSelectedBg else AstrionTheme.trackBg)
+                                .background(if (current) AstrionTheme.raised else Color.Transparent)
                                 .tap { scope.launch { pagerState.animateScrollToPage(i) } },
                             contentAlignment = Alignment.Center,
                         ) {
-                            // Cut-out titles: a dark drop shadow sinks the
-                            // names into the track; the current one also
-                            // glows faintly in the neon of its rule, which
-                            // reads larger without a bigger font.
                             Text(
                                 titles[i],
-                                color = if (current) AstrionTheme.textPrimary else AstrionTheme.textMuted,
+                                color = if (current) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
                                 fontSize = AstrionTheme.size.small,
                                 fontWeight = FontWeight.SemiBold,
-                                style = TextStyle(
-                                    shadow = if (current) {
-                                        Shadow(TabNeon.copy(alpha = 0.55f), Offset(0f, 0f), blurRadius = 10f)
-                                    } else {
-                                        Shadow(Color.Black.copy(alpha = 0.75f), Offset(0f, 2f), blurRadius = 3f)
-                                    },
-                                ),
                             )
-                            if (current) {
-                                // Neon rule: a faint glow rising off a bright core.
-                                Box(
-                                    Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(bottom = 8.dp)
-                                        .size(width = 40.dp, height = 10.dp)
-                                        .background(
-                                            Brush.radialGradient(
-                                                listOf(TabNeon.copy(alpha = 0.18f), Color.Transparent),
-                                            )
-                                        ),
-                                )
-                                Box(
-                                    Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(bottom = 5.dp)
-                                        .size(width = 26.dp, height = 3.dp)
-                                        .clip(RoundedCornerShape(2.dp))
-                                        .background(TabNeon),
-                                )
-                            }
                         }
                     }
                 }
@@ -213,6 +172,8 @@ class SwipeStackCard : CardRenderer {
                 modifier = if (height > 0) Modifier.height(height.dp) else Modifier,
                 // Shorter tabs sit at the top rather than centred in the pager.
                 verticalAlignment = Alignment.Top,
+                // With tabs, a swipe belongs to the dashboard (page to page).
+                userScrollEnabled = titles.size < children.size,
             ) { page ->
                 val child = children[page]
                 val childType = child["type"] as? String
@@ -238,9 +199,3 @@ class SwipeStackCard : CardRenderer {
         }
     }
 }
-
-/** The current tab: a shade darker than the track it sits in. */
-private val TabSelectedBg: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.pinnedTopBg
-
-/** Hailstorm pushed brighter for the tab's neon rule. */
-private val TabNeon: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.accentBright

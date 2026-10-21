@@ -8,8 +8,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.PhoneBluetoothSpeaker
 import androidx.compose.material.icons.filled.Speaker
@@ -34,6 +32,15 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.em
+import com.custom.astrion.ui.Fader
+import com.custom.astrion.ui.Glyphs
+import com.custom.astrion.ui.namedGlyph
 import com.custom.astrion.ui.WordmarkTracking
 import com.custom.astrion.ui.baeoWordmark
 import com.custom.astrion.ui.dimIfUnavailable
@@ -159,115 +166,171 @@ class SpeakerGroupCard : CardRenderer {
         }
     }
 
+    /**
+     * The Zones tab: a BÆOLINK card (the follow-me switch, what the group is
+     * playing and who's in it, Unjoin all), then one row per speaker: its
+     * volume as a fader with the name on it, and a Join button. With
+     * `"height"` the rows share the height so the tab fills the screen.
+     */
     @Composable
     private fun LinkList(config: CardConfig, ctx: CardContext, master: String, speakers: List<Map<String, Any?>>) {
         val height = config.int("height", 0)
-        val m = ctx.entities[master]
-        val mVol = m?.attrDouble("volume_level")
-        val mUnavailable = m == null || m.isUnavailable
+        val masterName = config.string("name") ?: ctx.entities[master]?.friendlyName ?: master
         @Suppress("UNCHECKED_CAST")
         val toggles = (config.options["toggles"] as? List<Map<String, Any?>>) ?: emptyList()
+        val joined = speakers.mapNotNull { sp ->
+            val id = sp["entity_id"] as? String ?: return@mapNotNull null
+            val members = ctx.entities[id]?.attrStringList("group_members").orEmpty()
+            if (members.contains(master) && members.size > 1) id to (sp["name"] as? String ?: ctx.entities[id]?.friendlyName ?: id) else null
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (height > 0) Modifier.height(height.dp) else Modifier),
-            // No card of its own: the header and the speaker cards sit
-            // straight on the page.
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // One line: the master's name and level, then the toggles on the
-            // right. The level is set like the speakers' own, not bold.
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                // Same as the Aircon card's title.
-                Text(
-                    config.string("name") ?: m?.friendlyName ?: master,
-                    color = AstrionTheme.textPrimary,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = AstrionTheme.size.title,
-                )
-                Text(
-                    when {
-                        mUnavailable -> "Unavailable"
-                        mVol != null -> "${(mVol * 100).roundToInt()}%"
-                        else -> "—"
-                    },
-                    color = if (mUnavailable) AstrionTheme.unavailable else AstrionTheme.textSecondary,
-                    fontSize = AstrionTheme.size.body,
-                    modifier = Modifier.weight(1f),
-                )
-                toggles.forEach { t ->
-                    val id = t["entity_id"] as? String ?: return@forEach
-                    TogglePill(ctx, id, t["name"] as? String, t["icon"] as? String, Modifier)
-                }
-            }
+            LinkCard(ctx, master, masterName, toggles.firstOrNull(), joined)
             speakers.forEach { sp ->
                 val id = sp["entity_id"] as? String ?: return@forEach
                 LinkRow(
                     ctx, id, sp["name"] as? String, sp["icon"] as? String, master,
-                    if (height > 0) Modifier.weight(1f) else Modifier,
+                    if (height > 0) Modifier.weight(1f) else Modifier.height(60.dp),
                 )
             }
         }
     }
 
-    /** A toggle such as Follow me: icon + word (or a wordmark), filled Gunmetal when on. */
+    /** BÆOLINK: the group itself, lit when music follows you round the flat. */
     @Composable
-    private fun TogglePill(ctx: CardContext, entityId: String, name: String?, icon: String?, modifier: Modifier) {
-        val e = ctx.entities[entityId]
-        val on = e?.isOn == true
-        val unavailable = e == null || e.isUnavailable
-        Row(
-            modifier = modifier
-                .height(if (icon == "wordmark") 34.dp else 38.dp)
-                .then(if (icon == "wordmark") Modifier.widthIn(min = 140.dp) else Modifier)
-                .dimIfUnavailable(unavailable)
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (on) AstrionTheme.accentStrong else AstrionTheme.controlSunken)
-                .tap(enabled = !unavailable && ctx.connected) {
-                    ctx.client.callService(ServiceCall(entityId.substringBefore('.'), "toggle", entityId))
-                }
-                .padding(horizontal = if (icon == "wordmark") 10.dp else 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+    private fun LinkCard(
+        ctx: CardContext,
+        master: String,
+        masterName: String,
+        toggle: Map<String, Any?>?,
+        joined: List<Pair<String, String>>,
+    ) {
+        val toggleId = toggle?.get("entity_id") as? String
+        val t = toggleId?.let { ctx.entities[it] }
+        val on = t?.isOn == true
+        val m = ctx.entities[master]
+        val shape = RoundedCornerShape(18.dp)
+        val art = rememberArt(ctx, m?.attrString("entity_picture"))
+        val title = m?.attrString("media_title")?.takeIf { it.isNotBlank() && m.state in listOf("playing", "paused") }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(Brush.linearGradient(listOf(AstrionTheme.colors.accentContainer, AstrionTheme.cardBg)))
+                .border(if (on) 1.5.dp else 1.dp, if (on) AstrionTheme.accent else AstrionTheme.accentStrong.copy(alpha = 0.5f), shape)
+                .padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val label = name ?: e?.friendlyName ?: entityId
-            // "icon": "wordmark" sets the name as a Bæo wordmark (BÆOLINK),
-            // with no glyph, in the footer's Syne and tracking.
-            if (icon == "wordmark") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    baeoWordmark(label),
-                    // One step of start padding centres the trailing tracking.
-                    modifier = Modifier.padding(start = 3.dp),
-                    color = if (on) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
-                    fontFamily = AstrionTheme.headingFont,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = AstrionTheme.size.label,
+                    baeoWordmark(toggle?.get("name") as? String ?: "BÆOLINK"),
+                    color = AstrionTheme.textPrimary,
+                    fontFamily = AstrionTheme.bodyFont,
+                    fontSize = AstrionTheme.size.small,
                     letterSpacing = WordmarkTracking,
                     maxLines = 1,
                 )
-                return@Row
+                Text(
+                    if (on) "On · music follows you" else "Off · music stays put",
+                    color = AstrionTheme.textSecondary,
+                    fontSize = AstrionTheme.size.label,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                )
+                if (toggleId != null) {
+                    val unavailable = t == null || t.isUnavailable
+                    Switch(on, enabled = !unavailable && ctx.connected) {
+                        ctx.client.callService(ServiceCall(toggleId.substringBefore('.'), "toggle", toggleId))
+                    }
+                }
             }
-            Icon(
-                if (icon == "night") Icons.Filled.NightsStay else Icons.Filled.MusicNote,
-                contentDescription = null,
-                tint = if (on) AstrionTheme.blush else AstrionTheme.textMuted,
-                modifier = Modifier.size(18.dp),
-            )
-            Text(
-                label,
-                color = if (on) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
-                fontSize = AstrionTheme.size.body,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(AstrionTheme.colors.surfaceSunken),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (art != null) {
+                        Image(art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+                    } else {
+                        Icon(Glyphs.note, contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(18.dp))
+                    }
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (title != null) "NOW PLAYING" else "NOTHING PLAYING",
+                        color = AstrionTheme.accent,
+                        fontSize = AstrionTheme.size.label,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.14.em,
+                        maxLines = 1,
+                    )
+                    if (title != null) {
+                        Text(title, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.Bold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    val names = listOf(masterName) + joined.map { it.second }
+                    Text(
+                        if (names.size == 1) "Just the $masterName"
+                        else names.dropLast(1).joinToString(", ") + " and " + names.last(),
+                        color = AstrionTheme.textSecondary,
+                        fontSize = AstrionTheme.size.label,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (joined.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .height(36.dp)
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(AstrionTheme.raised)
+                            .tap(enabled = ctx.connected) {
+                                joined.forEach { (id, _) -> ctx.client.callService(ServiceCall("media_player", "unjoin", id)) }
+                            }
+                            .padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(Glyphs.link, contentDescription = null, tint = AstrionTheme.textSecondary, modifier = Modifier.size(15.dp))
+                        Text("Unjoin all", color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
+                }
+            }
+        }
+    }
+
+    /** A small on/off switch: Gunmetal track and a light knob when on. */
+    @Composable
+    private fun Switch(on: Boolean, enabled: Boolean, onToggle: () -> Unit) {
+        Box(
+            Modifier
+                .size(width = 40.dp, height = 24.dp)
+                .dimIfUnavailable(!enabled)
+                .clip(CircleShape)
+                .background(if (on) AstrionTheme.accentStrong else AstrionTheme.controlBg)
+                .tap(enabled = enabled, onClick = onToggle)
+                .padding(3.dp),
+            contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
+        ) {
+            Box(
+                Modifier
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(if (on) AstrionTheme.textPrimary else AstrionTheme.textSecondary),
             )
         }
     }
 
-    /** One speaker on the Link tab: name over its level, then - / + / link. */
+    /** One speaker on the Zones tab: its volume as a fader with the name on it, then Join. */
     @Composable
     private fun LinkRow(
         ctx: CardContext,
@@ -281,10 +344,9 @@ class SpeakerGroupCard : CardRenderer {
         val label = name ?: e?.friendlyName ?: entityId
         val unavailable = e == null || e.isUnavailable
         val live = !unavailable && ctx.connected
-        val vol = e?.attrDouble("volume_level")
+        val vol = e?.attrDouble("volume_level")?.toFloat()
         val members = e?.attrStringList("group_members") ?: emptyList()
         val grouped = members.contains(master) && members.size > 1
-        val shape = RoundedCornerShape(18.dp)
         fun toggleGroup() {
             if (grouped) {
                 ctx.client.callService(ServiceCall("media_player", "unjoin", entityId))
@@ -297,93 +359,62 @@ class SpeakerGroupCard : CardRenderer {
                 )
             }
         }
-        // Two lines: name, level and link on top; vol- / level bar / vol+
-        // under it, so the buttons sit either side of what they change.
-        Column(
+        Row(
             modifier = modifier
                 .fillMaxWidth()
                 .dimIfUnavailable(unavailable)
-                .clip(shape)
+                .clip(RoundedCornerShape(18.dp))
                 .background(AstrionTheme.cardBg)
-                .then(if (grouped) Modifier.border(1.5.dp, AstrionTheme.accentStrong, shape) else Modifier)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+                .padding(5.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Fader(
+                value = if (unavailable) null else vol,
+                onCommit = { v ->
+                    ctx.client.callService(ServiceCall.of("media_player", "volume_set", entityId, "volume_level" to v.toDouble()))
+                },
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                enabled = live,
+                fill = if (grouped) AstrionTheme.accentStrong else AstrionTheme.raised,
+                cap = false,
             ) {
                 Icon(
-                    speakerIcon(icon),
+                    namedGlyph(icon) ?: if (icon == "lamp") Glyphs.bulb else Glyphs.speaker,
                     contentDescription = null,
-                    tint = when {
-                        unavailable -> AstrionTheme.unavailable
-                        grouped -> AstrionTheme.accent
-                        else -> AstrionTheme.textMuted
-                    },
-                    modifier = Modifier.size(20.dp),
+                    tint = AstrionTheme.textPrimary,
+                    modifier = Modifier.size(17.dp),
                 )
                 Text(
-                    label,
+                    if (unavailable) "$label · off" else label,
                     color = AstrionTheme.textPrimary,
-                    fontSize = AstrionTheme.size.emphasis,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = AstrionTheme.size.body,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
                 )
-                Text(
-                    when {
-                        unavailable -> "Unavailable"
-                        vol != null -> "${(vol * 100).roundToInt()}%"
-                        else -> "—"
-                    },
-                    color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textSecondary,
-                    fontSize = AstrionTheme.size.body,
-                    maxLines = 1,
-                )
-                Row(
-                    modifier = Modifier
-                        .height(32.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (grouped) AstrionTheme.accentStrong else AstrionTheme.controlSunken)
-                        .tap(enabled = live, onClick = ::toggleGroup)
-                        .padding(horizontal = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
-                    Icon(
-                        if (grouped) Icons.Filled.Link else Icons.Filled.LinkOff,
-                        contentDescription = if (grouped) "Remove $label from group" else "Add $label to group",
-                        tint = if (grouped) AstrionTheme.textPrimary else AstrionTheme.textMuted,
-                        modifier = Modifier.size(17.dp),
-                    )
-                    Text(
-                        if (grouped) "Linked" else "Join",
-                        color = if (grouped) AstrionTheme.textPrimary else AstrionTheme.textMuted,
-                        fontSize = AstrionTheme.size.small,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
             }
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .width(76.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (grouped) AstrionTheme.accentStrong else AstrionTheme.raised)
+                    .tap(enabled = live, onClick = ::toggleGroup),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
             ) {
-                WideBtn(Icons.Filled.VolumeDown, "$label volume down", Modifier.width(56.dp), enabled = live, height = 38.dp) {
-                    ctx.client.callService(ServiceCall("media_player", "volume_down", entityId))
-                }
-                Box(Modifier.weight(1f)) {
-                    LevelBar(
-                        level = (vol ?: 0.0).toFloat(), muted = false, unavailable = unavailable,
-                        track = AstrionTheme.controlSunken, thickness = 6.dp,
-                    )
-                }
-                WideBtn(Icons.Filled.VolumeUp, "$label volume up", Modifier.width(56.dp), enabled = live, height = 38.dp) {
-                    ctx.client.callService(ServiceCall("media_player", "volume_up", entityId))
-                }
+                Icon(
+                    Glyphs.link,
+                    contentDescription = null,
+                    tint = if (grouped) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
+                    modifier = Modifier.size(15.dp),
+                )
+                Text(
+                    if (grouped) "Joined" else "Join",
+                    color = if (grouped) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
+                    fontSize = AstrionTheme.size.small,
+                    fontWeight = FontWeight.Bold,
+                )
             }
         }
     }

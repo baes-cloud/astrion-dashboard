@@ -445,19 +445,22 @@
              "media_player.the_club_tv"
             ],
             "variant": "full",
-            "art_aspect": 1.9
+            "art_aspect": 1.9,
+            "name": "Club",
+            "queue_player": "media_player.club_2"
            }
           },
           {
            "type": "button_grid",
            "options": {
             "columns": 4,
-            "tile_height": 60,
-            "icon_size": 22,
+            "tile_height": 54,
+            "icon_size": 18,
             "spacing": 8,
             "buttons": [
              {
               "name": "GAYFM",
+              "glyph": "radio",
               "icon": "/sdcard/astrion/icons/gayfm.png",
               "service": "media_player.select_source",
               "entity_id": "media_player.club",
@@ -467,6 +470,7 @@
              },
              {
               "name": "Glitterbox",
+              "glyph": "disc",
               "icon": "/sdcard/astrion/icons/disco.png",
               "service": "media_player.play_media",
               "entity_id": "media_player.club",
@@ -477,11 +481,13 @@
              },
              {
               "name": "Purple Disco",
+              "glyph": "disc",
               "icon": "/sdcard/astrion/icons/turntable.png",
               "service": "script.play_pdm"
              },
              {
               "name": "Dimitri From",
+              "glyph": "note",
               "icon": "/sdcard/astrion/icons/paris.png",
               "service": "script.play_dfp"
              }
@@ -551,22 +557,22 @@
           {
            "entity_id": "media_player.unnamed_room_5",
            "name": "Living Room",
-           "icon": "play3"
+           "icon": "speaker"
           },
           {
            "entity_id": "media_player.bathroom_sonos",
            "name": "Bathroom",
-           "icon": "move"
+           "icon": "drop"
           },
           {
            "entity_id": "media_player.bedroom_sonos",
            "name": "Bedroom",
-           "icon": "lamp"
+           "icon": "bulb"
           },
           {
            "entity_id": "media_player.office_sonos",
            "name": "Office",
-           "icon": "play1"
+           "icon": "speaker"
           }
          ]
         }

@@ -81,6 +81,21 @@ object Glyphs {
     val help: ImageVector by lazy { glyph("help", P("M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0 -17 0z", INK), P("M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.7M12 17h.01", INK)) }
 }
 
+/** A glyph by its config name ("radio", "disc", "note", …), or null. */
+fun namedGlyph(name: String?): ImageVector? = when (name) {
+    "bulb" -> Glyphs.bulb; "lock" -> Glyphs.lock; "motion" -> Glyphs.motion
+    "play" -> Glyphs.play; "search" -> Glyphs.search; "film" -> Glyphs.film
+    "tv" -> Glyphs.tv; "mtv" -> Glyphs.mtv; "note" -> Glyphs.note; "plan" -> Glyphs.plan
+    "thermo" -> Glyphs.thermo; "speaker" -> Glyphs.speaker; "vol" -> Glyphs.vol
+    "power" -> Glyphs.power; "calendar" -> Glyphs.calendar; "alarm" -> Glyphs.alarm
+    "washer" -> Glyphs.washer; "drop" -> Glyphs.drop; "vacuum" -> Glyphs.vacuum
+    "fan" -> Glyphs.fan; "blind" -> Glyphs.blind; "snow" -> Glyphs.snow; "flame" -> Glyphs.flame
+    "wind" -> Glyphs.wind; "menu" -> Glyphs.menu; "mic" -> Glyphs.mic; "link" -> Glyphs.link
+    "list" -> Glyphs.list; "queue" -> Glyphs.queue; "disc" -> Glyphs.disc; "radio" -> Glyphs.radio
+    "moon" -> Glyphs.moon; "help" -> Glyphs.help
+    else -> null
+}
+
 /** The weather glyph for a Home Assistant condition. */
 fun weatherGlyph(condition: String): ImageVector = when (condition) {
     "sunny", "clear" -> Glyphs.sun
