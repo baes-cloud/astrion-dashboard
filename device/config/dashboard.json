@@ -323,8 +323,7 @@
           {
            "entity_id": "light.send_nudes",
            "left": 28,
-           "top": 64,
-           "icon": "bulbs"
+           "top": 64
           },
           {
            "entity_id": "light.office_lights",
