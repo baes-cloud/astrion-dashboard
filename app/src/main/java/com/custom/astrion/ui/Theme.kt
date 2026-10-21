@@ -99,6 +99,8 @@ object AstrionTheme {
     val bodyFont: FontFamily @Composable @ReadOnlyComposable get() = typography.bodyFont
     /** Syne: big numerals and headings (clock, temperatures, titles). */
     val headingFont: FontFamily @Composable @ReadOnlyComposable get() = typography.headingFont
+    /** Antonio: readout numerals (temperatures, volume, brightness, clocks). */
+    val readoutFont: FontFamily @Composable @ReadOnlyComposable get() = typography.readoutFont
 
     // ---- type roles ---------------------------------------------------------
     val display: TextUnit @Composable @ReadOnlyComposable get() = typography.displaySize

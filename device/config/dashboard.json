@@ -1,94 +1,6 @@
 {
- "startPage": 1,
+ "startPage": 0,
  "pages": [
-  {
-   "name": "TV",
-   "device_name": "BÆOVISION",
-   "cards": [
-    {
-     "type": "media_player",
-     "options": {
-      "entity_id": "media_player.club_android_tv_10_0_0_248_club_tv",
-      "variant": "tv",
-      "pin": "top",
-      "placeholder": "/sdcard/astrion/serif_tv.png",
-      "art_entities": [
-       "media_player.plex_plex_for_android_tv_tv",
-       "media_player.the_club_tv"
-      ],
-      "footer": {
-       "type": "plex_browse",
-       "options": {
-        "host": "http://YOUR_PLEX_IP:32400",
-        "play_entity": "media_player.plex_plex_for_android_tv_tv",
-        "tv_entity": "media_player.the_club_tvv",
-        "adb_entity": "media_player.club_android_tv_10_0_0_248_club_tv",
-        "wake_timeout": 25,
-        "buttons": [
-         {
-          "name": "Search",
-          "kind": "search"
-         },
-         {
-          "name": "Movies",
-          "section": "1",
-          "icon": "movie"
-         },
-         {
-          "name": "TV",
-          "section": "2",
-          "icon": "tv"
-         },
-         {
-          "name": "MTV",
-          "section": "4",
-          "icon": "music_video"
-         }
-        ]
-       }
-      },
-      "corner_button": {
-       "icon": "speaker",
-       "label": "TV sound on the speakers",
-       "service": "script.long_music",
-       "unjoin_others": "media_player.club",
-       "lit_entity": "media_player.club",
-       "lit_attribute": "source",
-       "lit_when": "TV"
-      }
-     }
-    },
-    {
-     "type": "plex",
-     "options": {
-      "host": "http://YOUR_PLEX_IP:32400",
-      "play_entity": "media_player.plex_plex_for_android_tv_tv",
-      "tv_entity": "media_player.the_club_tvv",
-      "adb_entity": "media_player.club_android_tv_10_0_0_248_club_tv",
-      "wake_timeout": 25,
-      "limit": 15,
-      "rows": [
-       {
-        "title": "On Deck",
-        "path": "/library/onDeck"
-       },
-       {
-        "title": "Recently Released",
-        "path": "/library/sections/2/newest"
-       },
-       {
-        "title": "Recently Added TV",
-        "path": "/library/sections/2/recentlyAdded"
-       },
-       {
-        "title": "Recently Added Movies",
-        "path": "/library/sections/1/recentlyAdded"
-       }
-      ]
-     }
-    }
-   ]
-  },
   {
    "name": "Main",
    "device_name": "BÆOREMOTE",
@@ -406,6 +318,94 @@
           "accent_color": "#FF8CE0D4"
          }
         }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "TV",
+   "device_name": "BÆOVISION",
+   "cards": [
+    {
+     "type": "media_player",
+     "options": {
+      "entity_id": "media_player.club_android_tv_10_0_0_248_club_tv",
+      "variant": "tv",
+      "pin": "top",
+      "placeholder": "/sdcard/astrion/serif_tv.png",
+      "art_entities": [
+       "media_player.plex_plex_for_android_tv_tv",
+       "media_player.the_club_tv"
+      ],
+      "footer": {
+       "type": "plex_browse",
+       "options": {
+        "host": "http://YOUR_PLEX_IP:32400",
+        "play_entity": "media_player.plex_plex_for_android_tv_tv",
+        "tv_entity": "media_player.the_club_tvv",
+        "adb_entity": "media_player.club_android_tv_10_0_0_248_club_tv",
+        "wake_timeout": 25,
+        "buttons": [
+         {
+          "name": "Search",
+          "kind": "search"
+         },
+         {
+          "name": "Movies",
+          "section": "1",
+          "icon": "movie"
+         },
+         {
+          "name": "TV",
+          "section": "2",
+          "icon": "tv"
+         },
+         {
+          "name": "MTV",
+          "section": "4",
+          "icon": "music_video"
+         }
+        ]
+       }
+      },
+      "corner_button": {
+       "icon": "speaker",
+       "label": "TV sound on the speakers",
+       "service": "script.long_music",
+       "unjoin_others": "media_player.club",
+       "lit_entity": "media_player.club",
+       "lit_attribute": "source",
+       "lit_when": "TV"
+      }
+     }
+    },
+    {
+     "type": "plex",
+     "options": {
+      "host": "http://YOUR_PLEX_IP:32400",
+      "play_entity": "media_player.plex_plex_for_android_tv_tv",
+      "tv_entity": "media_player.the_club_tvv",
+      "adb_entity": "media_player.club_android_tv_10_0_0_248_club_tv",
+      "wake_timeout": 25,
+      "limit": 15,
+      "rows": [
+       {
+        "title": "On Deck",
+        "path": "/library/onDeck"
+       },
+       {
+        "title": "Recently Released",
+        "path": "/library/sections/2/newest"
+       },
+       {
+        "title": "Recently Added TV",
+        "path": "/library/sections/2/recentlyAdded"
+       },
+       {
+        "title": "Recently Added Movies",
+        "path": "/library/sections/1/recentlyAdded"
        }
       ]
      }

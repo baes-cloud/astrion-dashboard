@@ -14,6 +14,8 @@ import com.custom.astrion.R
 data class AstrionTypography(
     val bodyFont: FontFamily,
     val headingFont: FontFamily,
+    /** Antonio: tall, narrow numerals for readouts (temperatures, volume, the clock). */
+    val readoutFont: FontFamily,
 
     // ---- E2E Contract Tokens (DesignSystemModel.TYPOGRAPHY) -----------------
     val display: TextStyle,                            // 34sp / 40sp line height
@@ -53,6 +55,12 @@ fun defaultAstrionTypography(): AstrionTypography {
         Font(R.font.manrope_500, FontWeight.Medium),
         Font(R.font.manrope_600, FontWeight.SemiBold),
         Font(R.font.manrope_700, FontWeight.Bold),
+        Font(R.font.manrope_800, FontWeight.ExtraBold),
+    )
+    val readoutFont = FontFamily(
+        Font(R.font.antonio_200, FontWeight.ExtraLight),
+        Font(R.font.antonio_300, FontWeight.Light),
+        Font(R.font.antonio_400, FontWeight.Normal),
     )
     val headingFont = FontFamily(
         Font(R.font.syne_500, FontWeight.Light),
@@ -64,6 +72,7 @@ fun defaultAstrionTypography(): AstrionTypography {
     return AstrionTypography(
         bodyFont = bodyFont,
         headingFont = headingFont,
+        readoutFont = readoutFont,
         display = TextStyle(fontFamily = headingFont, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Normal),
         title = TextStyle(fontFamily = bodyFont, fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
         body = TextStyle(fontFamily = bodyFont, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Normal),
