@@ -43,6 +43,10 @@ object Glyphs {
     val roundel: ImageVector by lazy { glyph("roundel", P("M5.5 12a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0 -13 0z", INK), P("M2.5 10h19v4h-19z", INK)) }
     val twoArtworks: ImageVector by lazy { glyph("twoArtworks", P("M2.5 7h8.5v10H2.5zM13 7h8.5v10H13z", INK), P("M2.5 15l3-3 2.5 2.5M13 15l3-3 2.5 2.5", INK)) }
     val portraitArt: ImageVector by lazy { glyph("portraitArt", P("M6 3h12v18H6z", INK), P("M6 17l4-4 3 3 2-2 3 3", INK), P("M14.5 7.5h.01", INK)) }
+    val bulbs: ImageVector by lazy { glyph("bulbs", P("M6 3v4.5M12 3v2.5M18 3v4.5", INK), P("M3.5 10a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0zM9.5 8a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0zM15.5 10a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0z", INK), P("M5 14.5h2M11 12.5h2M17 14.5h2", INK)) }
+    val sofa: ImageVector by lazy { glyph("sofa", P("M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3", INK), P("M3 11a1.5 1.5 0 0 1 3 0v2h12v-2a1.5 1.5 0 0 1 3 0v5H3z", INK), P("M5 16v2M19 16v2", INK)) }
+    val xmasTree: ImageVector by lazy { glyph("xmasTree", P("M12 3l4.5 5.5h-2.5l3.5 4.5h-2.5l3.5 4.5h-13l3.5-4.5h-2.5l3.5-4.5h-2.5z", INK), P("M12 17.5v3", INK)) }
+    val desk: ImageVector by lazy { glyph("desk", P("M4 4.5h16v10.5H4z", INK), P("M12 15v3.5M8 20h8", INK)) }
     val artwork: ImageVector by lazy { glyph("artwork", P("M4 5h16v14H4z", INK), P("M4 16l5-5 4 4 2-2 5 5", INK), P("M15.5 9h.01", INK)) }
     val prev: ImageVector by lazy { glyph("prev", P("M6 5.5v13", INK), P("M19 5.5v13L9 12z", INK, fill = INK)) }
     val next: ImageVector by lazy { glyph("next", P("M18 5.5v13", INK), P("M5 5.5v13L15 12z", INK, fill = INK)) }

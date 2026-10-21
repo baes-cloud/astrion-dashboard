@@ -138,7 +138,7 @@
            "entity_id": "light.hue_play",
            "left": 16,
            "top": 9,
-           "icon": "playbar"
+           "icon": "xmas_tree"
           },
           {
            "entity_id": "light.tv_art_lights",
@@ -179,7 +179,7 @@
            "glow_reach": 0.4,
            "glow_ambient": false,
            "glow_strength": 1.7,
-           "icon": "underglow"
+           "icon": "sofa"
           },
           {
            "entity_id": "light.downlights",
@@ -324,12 +324,13 @@
            "entity_id": "light.send_nudes",
            "left": 28,
            "top": 64,
-           "icon": "led_strip"
+           "icon": "bulbs"
           },
           {
            "entity_id": "light.office_lights",
            "left": 93,
-           "top": 67
+           "top": 67,
+           "icon": "desk"
           },
           {
            "entity_id": "light.wardrobes",
