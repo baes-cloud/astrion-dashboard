@@ -36,6 +36,13 @@ object Glyphs {
     val underglow: ImageVector by lazy { glyph("underglow", P("M5 7h14a1.5 1.5 0 0 1 1.5 1.5v3.5h-17v-3.5a1.5 1.5 0 0 1 1.5 -1.5z", INK), P("M6 15.5l-1.2 3M12 15.5v3.5M18 15.5l1.2 3", INK)) }
     val spotlight: ImageVector by lazy { glyph("spotlight", P("M10 3.5h4v2.5l2.5 3.5h-9L10 6z", INK), P("M8.5 13l-2 5.5M12 13v6M15.5 13l2 5.5", INK)) }
     val candles: ImageVector by lazy { glyph("candles", P("M4.5 13h3v7h-3zM10.5 10h3v10h-3zM16.5 14h3v6h-3z", INK), P("M6 10.5v-1.5M12 7.5v-2M18 11.5v-1.5", INK)) }
+    val downlight: ImageVector by lazy { glyph("downlight", P("M6 12a6 6 0 1 0 12 0a6 6 0 1 0 -12 0z", INK), P("M9.75 12a2.25 2.25 0 1 0 4.5 0a2.25 2.25 0 1 0 -4.5 0z", INK)) }
+    val playbar: ImageVector by lazy { glyph("playbar", P("M10.5 3h3v14h-3z", INK), P("M12 17v3.5M9 20.5h6", INK), P("M7.5 7.5l-2-1M7.5 11.5H5M16.5 7.5l2-1M16.5 11.5H19", INK)) }
+    val glowStrip: ImageVector by lazy { glyph("glowStrip", P("M3.5 10.5h17a1 1 0 0 1 1 1v1a1 1 0 0 1 -1 1h-17a1 1 0 0 1 -1 -1v-1a1 1 0 0 1 1 -1z", INK), P("M6 7.5l-.8-2M12 7V4.5M18 7.5l.8-2M6 16.5l-.8 2M12 17v2.5M18 16.5l.8 2", INK)) }
+    val zigzag: ImageVector by lazy { glyph("zigzag", P("M2.5 16l4.75-8 4.75 8 4.75-8 4.75 8", INK)) }
+    val roundel: ImageVector by lazy { glyph("roundel", P("M5.5 12a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0 -13 0z", INK), P("M2.5 10h19v4h-19z", INK)) }
+    val twoArtworks: ImageVector by lazy { glyph("twoArtworks", P("M2.5 7h8.5v10H2.5zM13 7h8.5v10H13z", INK), P("M2.5 15l3-3 2.5 2.5M13 15l3-3 2.5 2.5", INK)) }
+    val portraitArt: ImageVector by lazy { glyph("portraitArt", P("M6 3h12v18H6z", INK), P("M6 17l4-4 3 3 2-2 3 3", INK), P("M14.5 7.5h.01", INK)) }
     val artwork: ImageVector by lazy { glyph("artwork", P("M4 5h16v14H4z", INK), P("M4 16l5-5 4 4 2-2 5 5", INK), P("M15.5 9h.01", INK)) }
     val prev: ImageVector by lazy { glyph("prev", P("M6 5.5v13", INK), P("M19 5.5v13L9 12z", INK, fill = INK)) }
     val next: ImageVector by lazy { glyph("next", P("M18 5.5v13", INK), P("M5 5.5v13L15 12z", INK, fill = INK)) }

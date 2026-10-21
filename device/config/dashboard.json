@@ -137,13 +137,14 @@
           {
            "entity_id": "light.hue_play",
            "left": 16,
-           "top": 9
+           "top": 9,
+           "icon": "playbar"
           },
           {
            "entity_id": "light.tv_art_lights",
            "left": 45,
            "top": 11,
-           "icon": "spotlight"
+           "icon": "artworks"
           },
           {
            "entity_id": "light.art_group",
@@ -154,7 +155,8 @@
           {
            "entity_id": "light.bar_spotlights",
            "left": 85,
-           "top": 13
+           "top": 13,
+           "icon": "roundel"
           },
           {
            "entity_id": "light.couch",
@@ -209,7 +211,8 @@
              38
             ]
            ],
-           "glow_reach": 0.6
+           "glow_reach": 0.6,
+           "icon": "downlight"
           },
           {
            "entity_id": "light.kitchen_console_candles",
@@ -304,13 +307,13 @@
             ]
            ],
            "glow_reach": 0.35,
-           "icon": "hue_strip"
+           "icon": "zigzag"
           },
           {
            "entity_id": "light.bedroom_cupboard_light",
            "left": 51,
            "top": 54,
-           "icon": "spotlight"
+           "icon": "portrait_art"
           },
           {
            "entity_id": "light.kitchen_group",
@@ -331,12 +334,14 @@
           {
            "entity_id": "light.wardrobes",
            "left": 77,
-           "top": 86
+           "top": 86,
+           "icon": "glow_strip"
           },
           {
            "entity_id": "light.bathroom_downlights",
            "left": 56.5,
-           "top": 82
+           "top": 82,
+           "icon": "downlight"
           },
           {
            "entity_id": "light.bedroom_lights",
