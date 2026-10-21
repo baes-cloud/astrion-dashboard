@@ -144,7 +144,7 @@
            "entity_id": "light.tv_art_lights",
            "left": 45,
            "top": 11,
-           "icon": "artworks"
+           "icon": "art_blob"
           },
           {
            "entity_id": "light.art_group",
@@ -212,7 +212,7 @@
             ]
            ],
            "glow_reach": 0.6,
-           "icon": "downlight"
+           "icon": "bulb_grid"
           },
           {
            "entity_id": "light.kitchen_console_candles",
@@ -341,8 +341,7 @@
           {
            "entity_id": "light.bathroom_downlights",
            "left": 56.5,
-           "top": 82,
-           "icon": "downlight"
+           "top": 82
           },
           {
            "entity_id": "light.bedroom_lights",
