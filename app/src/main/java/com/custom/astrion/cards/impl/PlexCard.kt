@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
-import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.rememberPageVisits
@@ -40,13 +39,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import java.util.concurrent.TimeUnit
 
 /**
  * Plex poster rows — swipeable shelves of On Deck / Recently Added, where
