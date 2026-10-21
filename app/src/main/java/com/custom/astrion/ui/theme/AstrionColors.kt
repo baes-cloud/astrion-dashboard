@@ -18,7 +18,7 @@ data class AstrionColors(
     // ---- surfaces, darkest to lightest --------------------------------------
     /** Near-black behind artwork and the lit-rooms shade. */
     val void: Color = Color(0xFF070809),
-    val surfaceSunken: Color = Color(0xFF0F1318),
+    val surfaceSunken: Color = Color(0xFF161F28),
     /** Deepest panel ground (dialogs' backdrop, the tab strip). */
     val surfacePrimary: Color = Color(0xFF151B21),
     val pinnedTopBg: Color = Color(0xFF151D25),
@@ -87,6 +87,12 @@ data class AstrionColors(
     /** A bulb's colour when HA doesn't report one. */
     val lightWarmWhite: Color = Color(0xFFFFD9A0),
 
+    // ---- weather glyphs: sky colours, soft so they never read as a light that is on
+    val wxSun: Color = Color(0xFFF2CB7E),
+    val wxSunFill: Color = Color(0x38F2CB7E),
+    val wxCloudFill: Color = Color(0x1FC3D0CD),
+    val wxRain: Color = Color(0xFF7FB2E5),
+
     // ---- errors (the only red) ----------------------------------------------
     val danger: Color = Color(0xFFE37B7B),
     val dangerSoft: Color = Color(0xFFE06767),
@@ -105,6 +111,8 @@ data class AstrionColors(
     val hairlineStrong: Color = Color(0x33FFFFFF),
     /** 8% white glass fill. */
     val glass: Color = Color(0x14FFFFFF),
+    /** A segmented control's track: a faint lift of whatever panel it sits on. */
+    val segmentTrack: Color = Color(0x0BFFFFFF),
     val divider: Color = Color(0x333A4F57),
     val scrim: Color = Color(0xCC0B1015),
     /** Deep scrim behind the ringing alarm. */

@@ -1,5 +1,6 @@
 package com.custom.astrion.cards.impl
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import com.custom.astrion.ui.Time
 import com.custom.astrion.ui.LocalMinuteClock
@@ -26,11 +27,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Glyphs
+import com.custom.astrion.ui.weatherGlyph
+import androidx.compose.ui.graphics.Color
 import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalPageVisible
 import com.custom.astrion.ui.weatherLabel
@@ -171,7 +176,7 @@ class ClockWeatherCard : CardRenderer {
                         Text(
                             Time.format(now, timePattern),
                             color = AstrionTheme.colors.onSurface,
-                            fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.displayLg,
+                            fontFamily = AstrionTheme.readoutFont, fontSize = AstrionTheme.size.displayLg,
                             fontWeight = FontWeight.Light,
                         )
                     }
@@ -257,20 +262,20 @@ class ClockWeatherCard : CardRenderer {
     }
 
     /**
-     * Main-page layout: one strip, two balanced zones.
+     * Main-page layout: NOW on the left, the coming days on the right.
      *
-     *   🌙 9° Clear      │  📅 Tue 8:15 HQ
-     *         night     │  Wed  Thu  Fri  Sat  Sun
-     *   7° ▬▬▬▬▬▬ 16°   │   ⛅   ⛅   ⛅   🌤   ☁
-     *                   │  19/6 26/9 27/15 18/14 25/12
+     *   ⛅ 19°  Partly cloudy       │  Thu  Fri  Sat  Sun
+     *          17° ━━━●━━━━ 29°     │   ☀    ⛅   🌧    ☁
+     *                               │ 30/15 30/20 26/15 22/13
      *
-     * Left is NOW: the one big number on the page, the condition in words,
-     * and today's range as a bar on the same scale as the coming days — so
-     * where it sits says whether today is a warm or cool one. Right is WHAT'S
-     * NEXT: the next diary entry, then the coming days as columns.
+     * The temperature is the one big number on the page, in Antonio. Under the
+     * condition, today's range is a bar on the same scale as the coming days,
+     * warm at its top end, with a dot for right now. The days sit behind a
+     * hairline, and a hairline under the whole strip parts it from the diary
+     * line below.
      *
      * Temperatures are whole degrees throughout. A daily high/low to 0.1° is
-     * false precision, and on a 9° the decimal is a third of the width.
+     * false precision.
      */
     @Composable
     private fun DenseContent(
@@ -291,91 +296,82 @@ class ClockWeatherCard : CardRenderer {
         val today = if (waiting) stub else forecast.firstOrNull { it.date == todayKey }
         val days = if (waiting) List(chipDays) { stub } else forecast.filter { it.date > todayKey }.take(chipDays)
 
-        val temps = forecast.flatMap { listOfNotNull(it.low, it.high) }
+        val temps = forecast.flatMap { listOfNotNull(it.low, it.high) } + listOfNotNull(temp)
         val weekMin = temps.minOrNull() ?: 0.0
         val span = ((temps.maxOrNull() ?: 1.0) - weekMin).coerceAtLeast(1.0)
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-                .padding(horizontal = padH, vertical = padV),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(
-                modifier = Modifier.weight(0.45f),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
+        Column(Modifier.fillMaxWidth().padding(horizontal = padH)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
+                    .padding(top = padV, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Now on the left, as narrow as it can be; the four days
+                // take whatever is left so they're never cramped.
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(emojiFor(condition), fontSize = AstrionTheme.size.displayXs)
-                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        weatherGlyph(condition),
+                        contentDescription = weatherLabel(condition),
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
                     Text(
-                        temp?.let { "${whole(it)}°" } ?: "—",
+                        temp?.let { whole(it) } ?: "—",
                         color = AstrionTheme.textPrimary,
-                        // Manrope Bold, not Syne: the BæoRemote system keeps
-                        // Syne for names and headings.
-                        fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.displaySm,
-                        fontWeight = FontWeight.Bold,
+                        fontFamily = AstrionTheme.bodyFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = AstrionTheme.size.displayXl,
+                        lineHeight = AstrionTheme.size.displayXl,
+                        letterSpacing = (-0.04).em,
                         maxLines = 1,
                     )
-                    Spacer(Modifier.width(7.dp))
-                    // Beside the number, not under it; two lines if it needs
-                    // them ("Partly / cloudy") rather than truncating.
                     Text(
-                        weatherLabel(condition),
-                        color = AstrionTheme.textSecondary,
-                        fontSize = AstrionTheme.size.label,
-                        lineHeight = 14.sp,
-                        maxLines = 2,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        "°",
+                        color = AstrionTheme.textPrimary,
+                        fontFamily = AstrionTheme.bodyFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = AstrionTheme.size.emphasis,
+                        modifier = Modifier.align(Alignment.Top),
                     )
-                }
-                if (today != null) Box(Modifier.alpha(if (waiting) 0f else 1f)) { TodayBar(today, weekMin, span) }
-            }
-
-            Box(
-                Modifier
-                    .padding(horizontal = 10.dp)
-                    .width(1.dp)
-                    .fillMaxHeight()
-                    .background(AstrionTheme.controlBg),
-            )
-
-            Column(
-                modifier = Modifier.weight(0.55f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (calendarLine != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Filled.Event,
-                            contentDescription = "Next diary entry",
-                            tint = AstrionTheme.accent,
-                            modifier = Modifier.size(13.dp),
-                        )
-                        Spacer(Modifier.width(5.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            calendarLine,
-                            color = AstrionTheme.accent,
-                            fontSize = AstrionTheme.size.label,
-                            fontWeight = FontWeight.Medium,
+                            weatherLabel(condition),
+                            color = AstrionTheme.textPrimary,
+                            fontSize = AstrionTheme.size.small,
+                            fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         )
+                        if (today != null) {
+                            Box(Modifier.alpha(if (waiting) 0f else 1f)) { TodayBar(today, temp, weekMin, span) }
+                        }
                     }
                 }
-                Row(Modifier.fillMaxWidth().alpha(if (waiting) 0f else 1f)) {
+
+                Box(
+                    Modifier
+                        .padding(horizontal = 9.dp)
+                        .width(1.dp)
+                        .fillMaxHeight()
+                        .background(AstrionTheme.colors.hairline),
+                )
+
+                Row(Modifier.weight(1f).alpha(if (waiting) 0f else 1f)) {
                     days.forEach { f ->
                         Column(
                             modifier = Modifier.weight(1f),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
                         ) {
-                            Text(f.day, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, maxLines = 1)
-                            Text(emojiFor(f.condition), fontSize = AstrionTheme.size.emphasis)
+                            Text(f.day, color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Icon(weatherGlyph(f.condition), contentDescription = weatherLabel(f.condition), tint = Color.Unspecified, modifier = Modifier.size(18.dp))
                             Text(
                                 buildAnnotatedString {
-                                    withStyle(SpanStyle(color = AstrionTheme.textPrimary, fontWeight = FontWeight.Medium)) {
+                                    withStyle(SpanStyle(color = AstrionTheme.textPrimary, fontWeight = FontWeight.Bold)) {
                                         append(whole(f.high))
                                     }
                                     withStyle(SpanStyle(color = AstrionTheme.textMuted)) {
@@ -389,40 +385,64 @@ class ClockWeatherCard : CardRenderer {
                     }
                 }
             }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(AstrionTheme.colors.hairline))
+            if (calendarLine != null) {
+                Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Glyphs.calendar, contentDescription = "Next diary entry", tint = AstrionTheme.accent, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        calendarLine,
+                        color = AstrionTheme.textSecondary,
+                        fontSize = AstrionTheme.size.label,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
 
-    /** "7° ▬▬▬ 16°": today's low and high, the bar placed on the week's scale. */
+    /**
+     * "17° ━━●━━ 29°": today's low and high, the bar placed on the week's
+     * scale and shaded cool to warm, with a dot where the temperature is now.
+     */
     @Composable
-    private fun TodayBar(f: Forecast, weekMin: Double, span: Double) {
-        val lowFrac = (((f.low ?: weekMin) - weekMin) / span).toFloat().coerceIn(0f, 1f)
-        val highFrac = (((f.high ?: (weekMin + span)) - weekMin) / span).toFloat().coerceIn(0f, 1f)
+    private fun TodayBar(f: Forecast, now: Double?, weekMin: Double, span: Double) {
+        fun frac(v: Double) = ((v - weekMin) / span).toFloat().coerceIn(0f, 1f)
+        val lowFrac = frac(f.low ?: weekMin)
+        val highFrac = frac(f.high ?: (weekMin + span))
+        val nowFrac = now?.let { frac(it) }
+        val cool = AstrionTheme.colors.accent
+        val mid = AstrionTheme.colors.accentBright
+        val warm = AstrionTheme.blush
+        val track = AstrionTheme.colors.raised
+        val dot = AstrionTheme.textPrimary
+        val ring = AstrionTheme.pageBg
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("${whole(f.low)}°", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small)
-            Spacer(Modifier.width(5.dp))
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(5.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(AstrionTheme.colors.raised),
-            ) {
-                Row(Modifier.matchParentSize()) {
-                    Spacer(Modifier.weight(lowFrac.coerceAtLeast(0.001f)))
-                    Box(
-                        modifier = Modifier
-                            .weight((highFrac - lowFrac).coerceAtLeast(0.05f))
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(
-                                Brush.horizontalGradient(listOf(AstrionTheme.colors.accent, AstrionTheme.colors.accentBright))
-                            ),
-                    )
-                    Spacer(Modifier.weight((1f - highFrac).coerceAtLeast(0.001f)))
+            Text("${whole(f.low)}°", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.width(4.dp))
+            Canvas(Modifier.width(40.dp).height(8.dp)) {
+                val h = 4.dp.toPx()
+                val y = (size.height - h) / 2
+                val r = androidx.compose.ui.geometry.CornerRadius(h / 2)
+                drawRoundRect(track, topLeft = androidx.compose.ui.geometry.Offset(0f, y), size = androidx.compose.ui.geometry.Size(size.width, h), cornerRadius = r)
+                val x0 = size.width * lowFrac
+                val x1 = (size.width * highFrac).coerceAtLeast(x0 + h)
+                drawRoundRect(
+                    Brush.horizontalGradient(listOf(cool, mid, warm), startX = x0, endX = x1),
+                    topLeft = androidx.compose.ui.geometry.Offset(x0, y),
+                    size = androidx.compose.ui.geometry.Size(x1 - x0, h),
+                    cornerRadius = r,
+                )
+                if (nowFrac != null) {
+                    val c = androidx.compose.ui.geometry.Offset(size.width * nowFrac, size.height / 2)
+                    drawCircle(ring, radius = 4.5.dp.toPx(), center = c)
+                    drawCircle(dot, radius = 3.dp.toPx(), center = c)
                 }
             }
-            Spacer(Modifier.width(5.dp))
-            Text("${whole(f.high)}°", color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.width(4.dp))
+            Text("${whole(f.high)}°", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.SemiBold)
         }
     }
 

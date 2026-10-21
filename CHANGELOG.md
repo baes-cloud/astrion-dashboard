@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.5.0 (2026-10-21)
+
+The BÆO redesign, built from the mockup:
+- **Nameplate nav.** The bottom bar is the page's wordmark, centred: BÆO stays put and the suffix (REMOTE, VISION, SOUND, LIVING) slides and fades as the page changes, with faint dots for the pages either side and arrows only where there's a page to go to. Swipe sideways anywhere to turn the page. REMOTE is now the first page.
+- **Type and icons.** Antonio for every big number (weather, setpoints, light level, clocks, volumes); Manrope for everything else, so Syne goes. A line icon set drawn for the app replaces the Material icons on the redesigned cards.
+- **REMOTE.** Weather strip with a today range bar and coloured icons, Auto lights tile with the Door tile on the right, smaller swipeable scene chips, floorplan bulbs filled in the light's own colour.
+- **Bottom sheets.** Popups rise from the bottom. The light sheet has a tall fader, a big readout, Turn on/off, warmth and colour; the vacuum sheet too.
+- **SOUND.** Segmented Player / Media / Zones tabs (tabs change by tap; a swipe turns the page). The player gets a mute button and a volume fader, a queue button (now playing and up next, from Music Assistant), and line-icon mix tiles. Zones is a BÆOLINK card (switch, what's playing, who's joined, Unjoin all) over one fader row per speaker with Join. Faders move only on a sideways drag and by how far you drag, so a tap or scroll can't jump the volume.
+- **LIVING.** Antonio setpoint with segmented mode (with icons) and fan controls; fan and blind rows with line icons and a position bar.
+- **Second pass from the mockup.** A bigger, wider-spaced page name with fainter dots and arrows. See-through floorplan bulbs. Door is a half-width tile like Auto lights, DOOR in large type over LOCKED. The forecast takes the row's spare width; the temperature is in Manrope. Bigger posters and album covers on the shelves. The player is a square record sleeve with Search above it and the queue button bottom right. Mirror ball and Eiffel Tower mix icons. Zones rows are slimmer, under LINKED and NOT LINKED. Segmented controls and insets lifted off near-black; the fan and blind icons sit in Gunmetal wells. The Bed blind is gone.
+- **Config.** `row` children take a fixed `width`; `lock` has `"style": "door"`; `button_grid` buttons take a line `glyph`; `media_player` (full) takes `queue_player`, `volume_fader` and `"layout": "sleeve"` with `max_size`; `clock_weather` takes `chip_days`.
+
 ## v1.4.0 (2026-10-21)
 
 Help, search and Plex:

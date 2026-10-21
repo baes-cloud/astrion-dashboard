@@ -1,6 +1,329 @@
 {
- "startPage": 1,
+ "startPage": 0,
  "pages": [
+  {
+   "name": "Main",
+   "device_name": "BÆOREMOTE",
+   "cards": [
+    {
+     "type": "clock_header",
+     "options": {
+      "pin": "top",
+      "time_format": 12,
+      "title": "Main",
+      "date_format": "EEE, d MMM"
+     }
+    },
+    {
+     "type": "clock_weather",
+     "options": {
+      "entity_id": "weather.forecast_home",
+      "time_format": 12,
+      "forecast_rows": 2,
+      "chip_days": 4,
+      "show_time": false,
+      "show_date": false,
+      "watermark_size": 0,
+      "bare": true,
+      "pin": "top"
+     }
+    },
+    {
+     "type": "next_up",
+     "options": {
+      "pin": "top",
+      "calendar_entity": "calendar.your_calendar",
+      "title_separator": " - ",
+      "alarm_entities": [
+       "sensor.work_alarm_1",
+       "sensor.work_alarm_2",
+       "sensor.work_alarm_wfh"
+      ],
+      "always_entities": [
+       "sensor.work_alarm_wfh"
+      ],
+      "enabled_entity": "input_boolean.work_alarms_enabled",
+      "off_today_entity": "input_boolean.work_alarms_off_today"
+     }
+    },
+    {
+     "type": "row",
+     "options": {
+      "cards": [
+       {
+        "type": "switch",
+        "options": {
+         "entity_id": "input_boolean.light_automations",
+         "name": "Auto lights",
+         "style": "row",
+         "icon": "motion",
+         "icon_off": "paused",
+         "on_label": "On",
+         "off_label": "Paused",
+         "off_attention": true
+        }
+       },
+       {
+        "type": "lock",
+        "options": {
+         "entity_id": "lock.lock_pro_0fa0",
+         "name": "Door",
+         "hold_entity": "input_boolean.front_door_keep_unlocked",
+         "style": "door"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "type": "scene_grid",
+     "options": {
+      "style": "pill",
+      "scenes": [
+       {
+        "entity_id": "scene.home_home_tokyo",
+        "name": "Tokyo",
+        "color": "#EC4899"
+       },
+       {
+        "entity_id": "scene.home_home_soho",
+        "name": "Soho",
+        "color": "#F43F5E"
+       },
+       {
+        "entity_id": "scene.home_home_santorini",
+        "name": "Santorini",
+        "color": "#3B82F6"
+       },
+       {
+        "entity_id": "scene.home_home_disturbia",
+        "name": "Disturbia",
+        "color": "#8B5CF6"
+       },
+       {
+        "entity_id": "scene.home_home_miami",
+        "name": "Miami",
+        "color": "#14B8A6"
+       },
+       {
+        "entity_id": "scene.home_home_tyrell",
+        "name": "Tyrell",
+        "color": "#F97316"
+       },
+       {
+        "entity_id": "scene.home_home_precious",
+        "name": "Precious",
+        "color": "#F9A8D4"
+       },
+       {
+        "entity_id": "scene.home_home_snow_capped",
+        "name": "Snow capped",
+        "color": "#BAE6FD"
+       }
+      ]
+     }
+    },
+    {
+     "type": "stack",
+     "options": {
+      "pin": "fill",
+      "cards": [
+       {
+        "type": "picture_elements",
+        "options": {
+         "image": "/sdcard/astrion/floorplan.png",
+         "pin": "fill",
+         "aspect": 1.3,
+         "elements": [
+          {
+           "entity_id": "light.hue_play",
+           "left": 16,
+           "top": 9
+          },
+          {
+           "entity_id": "light.tv_art_lights",
+           "left": 45,
+           "top": 11
+          },
+          {
+           "entity_id": "light.art_group",
+           "left": 64,
+           "top": 8
+          },
+          {
+           "entity_id": "light.bar_spotlights",
+           "left": 85,
+           "top": 13
+          },
+          {
+           "entity_id": "light.couch",
+           "left": 27,
+           "top": 30
+          },
+          {
+           "entity_id": "light.downlights",
+           "left": 65,
+           "top": 28,
+           "glow_spots": [[23, 14], [53, 14], [83, 14], [23, 38], [53, 38], [83, 38]],
+           "glow_reach": 0.6
+          },
+          {
+           "entity_id": "light.kitchen_console_candles",
+           "left": 93,
+           "top": 33
+          },
+          {
+           "entity_id": "light.club_led_group",
+           "left": 12,
+           "top": 46,
+           "glow_spots": [[2, 47], [7, 47], [12, 47], [17, 47], [22, 47], [27, 47], [32, 47], [37, 47], [42, 47], [47, 47], [52, 47], [57, 47], [62, 47], [67, 47], [72, 47], [77, 47], [82, 47], [87, 47], [92, 47], [97, 47]],
+           "glow_reach": 0.35
+          },
+          {
+           "entity_id": "light.bedroom_cupboard_light",
+           "left": 51,
+           "top": 54
+          },
+          {
+           "entity_id": "light.kitchen_group",
+           "left": 73,
+           "top": 54
+          },
+          {
+           "entity_id": "light.send_nudes",
+           "left": 28,
+           "top": 64
+          },
+          {
+           "entity_id": "light.office_lights",
+           "left": 93,
+           "top": 67
+          },
+          {
+           "entity_id": "light.wardrobes",
+           "left": 77,
+           "top": 86
+          },
+          {
+           "entity_id": "light.bathroom_downlights",
+           "left": 56.5,
+           "top": 82
+          },
+          {
+           "entity_id": "light.bedroom_lights",
+           "left": 18,
+           "top": 90
+          },
+          {
+           "entity_id": "light.bedlamps",
+           "left": 40,
+           "top": 90
+          }
+         ],
+         "vacuum": {
+          "entity_id": "vacuum.roborock_qrevo_master",
+          "name": "Vacuum",
+          "map_image": "image.kitchen_roborock_qrevo_master_map_0_custom",
+          "map_rotation": 90,
+          "rooms": [
+           {
+            "name": "Club",
+            "id": 17
+           },
+           {
+            "name": "Kitchen",
+            "id": 18
+           },
+           {
+            "name": "Bedroom",
+            "id": 22
+           },
+           {
+            "name": "Bathroom",
+            "id": 16
+           },
+           {
+            "name": "Office",
+            "id": 21
+           }
+          ],
+          "room_entity": "sensor.roborock_qrevo_master_current_room",
+          "room_positions": {
+           "Club": [42, 44],
+           "Kitchen": [69, 57],
+           "Bedroom": [29, 90],
+           "Bathroom": [57, 90],
+           "Office": [88, 82]
+          },
+          "dock_position": [5, 60]
+         },
+         "stretch": true,
+         "lit_rooms": {
+          "shade": "sun",
+          "rooms": [
+           {
+            "name": "Club and kitchen",
+            "shape": [[1, 1], [99, 1], [99, 53], [89, 53], [89, 64], [58, 64], [58, 50], [1, 50]],
+            "lights": [
+             "light.hue_play",
+             "light.tv_art_lights",
+             "light.couch",
+             "light.club_led_group",
+             "light.art_group",
+             "light.bar_spotlights",
+             "light.downlights",
+             "light.kitchen_console_candles",
+             "light.kitchen_group"
+            ]
+           },
+           {
+            "name": "Hall",
+            "shape": [[44, 50], [58, 50], [58, 64], [44, 64]],
+            "lights": [
+             "light.bedroom_cupboard_light"
+            ]
+           },
+           {
+            "name": "Bedroom",
+            "shape": [[0, 51], [43, 51], [43, 100], [0, 100]],
+            "lights": [
+             "light.send_nudes",
+             "light.bedroom_lights",
+             "light.bedlamps"
+            ]
+           },
+           {
+            "name": "Bathroom",
+            "shape": [[44, 65], [69, 65], [69, 100], [44, 100]],
+            "lights": [
+             "light.bathroom_downlights"
+            ]
+           },
+           {
+            "name": "Office",
+            "shape": [[70, 65], [89, 65], [89, 54], [100, 54], [100, 100], [70, 100]],
+            "lights": [
+             "light.office_lights",
+             "light.wardrobes"
+            ]
+           }
+          ]
+         },
+         "rmm": {
+          "map_group": "default",
+          "source_size": [1179, 1179],
+          "crop": [16, 12, 1089, 1047],
+          "show_hibernating": false,
+          "color": "#D92CAA9C",
+          "accent_color": "#FF8CE0D4"
+         }
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
   {
    "name": "TV",
    "device_name": "BÆOVISION",
@@ -90,329 +413,6 @@
    ]
   },
   {
-   "name": "Main",
-   "device_name": "BÆOREMOTE",
-   "cards": [
-    {
-     "type": "clock_header",
-     "options": {
-      "pin": "top",
-      "time_format": 12,
-      "title": "Main",
-      "date_format": "EEE, d MMM"
-     }
-    },
-    {
-     "type": "clock_weather",
-     "options": {
-      "entity_id": "weather.forecast_home",
-      "time_format": 12,
-      "forecast_rows": 2,
-      "show_time": false,
-      "show_date": false,
-      "watermark_size": 0,
-      "bare": true,
-      "pin": "top"
-     }
-    },
-    {
-     "type": "next_up",
-     "options": {
-      "pin": "top",
-      "calendar_entity": "calendar.your_calendar",
-      "title_separator": " - ",
-      "alarm_entities": [
-       "sensor.work_alarm_1",
-       "sensor.work_alarm_2",
-       "sensor.work_alarm_wfh"
-      ],
-      "always_entities": [
-       "sensor.work_alarm_wfh"
-      ],
-      "enabled_entity": "input_boolean.work_alarms_enabled",
-      "off_today_entity": "input_boolean.work_alarms_off_today"
-     }
-    },
-    {
-     "type": "row",
-     "options": {
-      "cards": [
-       {
-        "type": "lock",
-        "options": {
-         "entity_id": "lock.lock_pro_0fa0",
-         "name": "Door",
-         "hold_entity": "input_boolean.front_door_keep_unlocked",
-         "compact": true
-        }
-       },
-       {
-        "type": "switch",
-        "options": {
-         "entity_id": "input_boolean.light_automations",
-         "name": "Auto lights",
-         "style": "row",
-         "icon": "motion",
-         "icon_off": "paused",
-         "on_label": "On",
-         "off_label": "Paused",
-         "off_attention": true
-        }
-       }
-      ]
-     }
-    },
-    {
-     "type": "scene_grid",
-     "options": {
-      "style": "pill",
-      "scenes": [
-       {
-        "entity_id": "scene.home_home_tokyo",
-        "name": "Tokyo",
-        "color": "#EC4899"
-       },
-       {
-        "entity_id": "scene.home_home_soho",
-        "name": "Soho",
-        "color": "#F43F5E"
-       },
-       {
-        "entity_id": "scene.home_home_santorini",
-        "name": "Santorini",
-        "color": "#3B82F6"
-       },
-       {
-        "entity_id": "scene.home_home_disturbia",
-        "name": "Disturbia",
-        "color": "#8B5CF6"
-       },
-       {
-        "entity_id": "scene.home_home_miami",
-        "name": "Miami",
-        "color": "#14B8A6"
-       },
-       {
-        "entity_id": "scene.home_home_tyrell",
-        "name": "Tyrell",
-        "color": "#F97316"
-       },
-       {
-        "entity_id": "scene.home_home_precious",
-        "name": "Precious",
-        "color": "#F9A8D4"
-       },
-       {
-        "entity_id": "scene.home_home_snow_capped",
-        "name": "Snow capped",
-        "color": "#BAE6FD"
-       }
-      ],
-      "label": "Scenes"
-     }
-    },
-    {
-     "type": "stack",
-     "options": {
-      "pin": "fill",
-      "cards": [
-       {
-        "type": "picture_elements",
-        "options": {
-         "image": "/sdcard/astrion/floorplan.png",
-         "pin": "fill",
-         "aspect": 1.3,
-         "elements": [
-          {
-           "entity_id": "light.hue_play",
-           "left": 16,
-           "top": 9
-          },
-          {
-           "entity_id": "light.tv_art_lights",
-           "left": 45,
-           "top": 11
-          },
-          {
-           "entity_id": "light.art_group",
-           "left": 64,
-           "top": 8
-          },
-          {
-           "entity_id": "light.bar_spotlights",
-           "left": 85,
-           "top": 13
-          },
-          {
-           "entity_id": "light.couch",
-           "left": 27,
-           "top": 30
-          },
-          {
-           "entity_id": "light.downlights",
-           "left": 65,
-           "top": 28,
-           "glow_spots": [[23, 14], [53, 14], [83, 14], [23, 38], [53, 38], [83, 38]],
-           "glow_reach": 0.6
-          },
-          {
-           "entity_id": "light.kitchen_console_candles",
-           "left": 93,
-           "top": 33
-          },
-          {
-           "entity_id": "light.club_led_group",
-           "left": 12,
-           "top": 46,
-           "glow_spots": [[2, 47], [7, 47], [12, 47], [17, 47], [22, 47], [27, 47], [32, 47], [37, 47], [42, 47], [47, 47], [52, 47], [57, 47], [62, 47], [67, 47], [72, 47], [77, 47], [82, 47], [87, 47], [92, 47], [97, 47]],
-           "glow_reach": 0.35
-          },
-          {
-           "entity_id": "light.bedroom_cupboard_light",
-           "left": 51,
-           "top": 54
-          },
-          {
-           "entity_id": "light.kitchen_group",
-           "left": 73,
-           "top": 54
-          },
-          {
-           "entity_id": "light.send_nudes",
-           "left": 28,
-           "top": 64
-          },
-          {
-           "entity_id": "light.office_lights",
-           "left": 93,
-           "top": 67
-          },
-          {
-           "entity_id": "light.wardrobes",
-           "left": 77,
-           "top": 86
-          },
-          {
-           "entity_id": "light.bathroom_downlights",
-           "left": 57,
-           "top": 90
-          },
-          {
-           "entity_id": "light.bedroom_lights",
-           "left": 18,
-           "top": 90
-          },
-          {
-           "entity_id": "light.bedlamps",
-           "left": 40,
-           "top": 90
-          }
-         ],
-         "vacuum": {
-          "entity_id": "vacuum.roborock_qrevo_master",
-          "name": "Vacuum",
-          "map_image": "image.kitchen_roborock_qrevo_master_map_0_custom",
-          "map_rotation": 90,
-          "rooms": [
-           {
-            "name": "Club",
-            "id": 17
-           },
-           {
-            "name": "Kitchen",
-            "id": 18
-           },
-           {
-            "name": "Bedroom",
-            "id": 22
-           },
-           {
-            "name": "Bathroom",
-            "id": 16
-           },
-           {
-            "name": "Office",
-            "id": 21
-           }
-          ],
-          "room_entity": "sensor.roborock_qrevo_master_current_room",
-          "room_positions": {
-           "Club": [42, 44],
-           "Kitchen": [69, 57],
-           "Bedroom": [29, 90],
-           "Bathroom": [57, 90],
-           "Office": [88, 82]
-          },
-          "dock_position": [6, 63]
-         },
-         "stretch": true,
-         "lit_rooms": {
-          "shade": "sun",
-          "rooms": [
-           {
-            "name": "Club and kitchen",
-            "shape": [[1, 1], [99, 1], [99, 53], [89, 53], [89, 64], [58, 64], [58, 50], [1, 50]],
-            "lights": [
-             "light.hue_play",
-             "light.tv_art_lights",
-             "light.couch",
-             "light.club_led_group",
-             "light.art_group",
-             "light.bar_spotlights",
-             "light.downlights",
-             "light.kitchen_console_candles",
-             "light.kitchen_group"
-            ]
-           },
-           {
-            "name": "Hall",
-            "shape": [[44, 50], [58, 50], [58, 64], [44, 64]],
-            "lights": [
-             "light.bedroom_cupboard_light"
-            ]
-           },
-           {
-            "name": "Bedroom",
-            "shape": [[0, 51], [43, 51], [43, 100], [0, 100]],
-            "lights": [
-             "light.send_nudes",
-             "light.bedroom_lights",
-             "light.bedlamps"
-            ]
-           },
-           {
-            "name": "Bathroom",
-            "shape": [[44, 65], [69, 65], [69, 100], [44, 100]],
-            "lights": [
-             "light.bathroom_downlights"
-            ]
-           },
-           {
-            "name": "Office",
-            "shape": [[70, 65], [89, 65], [89, 54], [100, 54], [100, 100], [70, 100]],
-            "lights": [
-             "light.office_lights",
-             "light.wardrobes"
-            ]
-           }
-          ]
-         },
-         "rmm": {
-          "map_group": "default",
-          "source_size": [1179, 1179],
-          "crop": [16, 12, 1089, 1047],
-          "show_hibernating": false,
-          "color": "#D92CAA9C",
-          "accent_color": "#FF8CE0D4"
-         }
-        }
-       }
-      ]
-     }
-    }
-   ]
-  },
-  {
    "name": "Media",
    "device_name": "BÆOSOUND",
    "cards": [
@@ -436,6 +436,15 @@
          "spacing": 10,
          "cards": [
           {
+           "type": "music_search",
+           "options": {
+            "config_entry_id": "01KVF3KES1KSZ0JYSXJ405AKVA",
+            "player": "media_player.club_2",
+            "placeholder": "Search music",
+            "limit": 8
+           }
+          },
+          {
            "type": "media_player",
            "options": {
             "entity_id": "media_player.club",
@@ -444,19 +453,23 @@
              "media_player.the_club_tv"
             ],
             "variant": "full",
-            "art_aspect": 1.9
+            "layout": "sleeve",
+            "max_size": 292,
+            "name": "Club",
+            "queue_player": "media_player.club_2"
            }
           },
           {
            "type": "button_grid",
            "options": {
             "columns": 4,
-            "tile_height": 60,
-            "icon_size": 22,
+            "tile_height": 68,
+            "icon_size": 18,
             "spacing": 8,
             "buttons": [
              {
               "name": "GAYFM",
+              "glyph": "radio",
               "icon": "/sdcard/astrion/icons/gayfm.png",
               "service": "media_player.select_source",
               "entity_id": "media_player.club",
@@ -466,6 +479,7 @@
              },
              {
               "name": "Glitterbox",
+              "glyph": "mirrorball",
               "icon": "/sdcard/astrion/icons/disco.png",
               "service": "media_player.play_media",
               "entity_id": "media_player.club",
@@ -476,26 +490,19 @@
              },
              {
               "name": "Purple Disco",
+              "glyph": "disc",
               "icon": "/sdcard/astrion/icons/turntable.png",
               "service": "script.play_pdm"
              },
              {
               "name": "Dimitri From",
+              "glyph": "eiffel",
               "icon": "/sdcard/astrion/icons/paris.png",
               "service": "script.play_dfp"
              }
             ],
             "label_lines": 2,
             "style": "flat"
-           }
-          },
-          {
-           "type": "music_search",
-           "options": {
-            "config_entry_id": "01KVF3KES1KSZ0JYSXJ405AKVA",
-            "player": "media_player.club_2",
-            "placeholder": "Search music",
-            "limit": 8
            }
           }
          ]
@@ -550,22 +557,22 @@
           {
            "entity_id": "media_player.unnamed_room_5",
            "name": "Living Room",
-           "icon": "play3"
+           "icon": "speaker"
           },
           {
            "entity_id": "media_player.bathroom_sonos",
            "name": "Bathroom",
-           "icon": "move"
+           "icon": "drop"
           },
           {
            "entity_id": "media_player.bedroom_sonos",
            "name": "Bedroom",
-           "icon": "lamp"
+           "icon": "bulb"
           },
           {
            "entity_id": "media_player.office_sonos",
            "name": "Office",
-           "icon": "play1"
+           "icon": "speaker"
           }
          ]
         }
@@ -617,15 +624,6 @@
      "options": {
       "entity_id": "cover.club_sheer_blinds",
       "name": "Sheer"
-     }
-    },
-    {
-     "type": "cover",
-     "options": {
-      "entity_id": "cover.smart_blinds",
-      "name": "Bed",
-      "invert_position": true,
-      "invert_buttons": true
      }
     }
    ]
@@ -1092,12 +1090,22 @@
   },
   "tips": [
    {
+    "title": "Get around",
+    "icon": "plan",
+    "steps": [
+     "Swipe sideways anywhere to change page: BÆOREMOTE, BÆOVISION, BÆOSOUND, BÆOLIVING.",
+     "The name at the bottom says where you are. The dots either side are the other pages: tap one to jump there.",
+     "Or press a page button: Light, TV/Plex (curtain), Media, Climate."
+    ]
+   },
+   {
     "title": "Turn a light on or off",
     "icon": "light",
     "steps": [
      "Press Light. The map shows the flat from above.",
-     "Tap a bulb to switch it. Hold it for brightness and colour.",
-     "Tap a scene (Tokyo, Soho…) to set the whole room at once.",
+     "Tap a bulb to switch it. A lit bulb glows in the light's own colour.",
+     "Hold a bulb to open its panel: slide the tall bar for brightness, pick a warmth or a colour, or tap Turn off.",
+     "Tap a scene chip (Tokyo, Soho…) to set the whole room at once. Swipe the chips for more.",
      "Hold Light to turn everything off."
     ]
    },
@@ -1107,14 +1115,23 @@
     "steps": [
      "Press Media.",
      "Tap a mix, like GAYFM or Glitterbox.",
+     "Slide the Club bar sideways for the volume. The speaker button beside it mutes.",
      "Hold OK to pause or play. Volume + and − work from any page."
+    ]
+   },
+   {
+    "title": "See what's next",
+    "icon": "music",
+    "steps": [
+     "On Media, tap the list button at the bottom right of the player.",
+     "It shows what's playing and what's up next."
     ]
    },
    {
     "title": "Find a song",
     "icon": "search",
     "steps": [
-     "Press Media and tap Search music, under the four mixes.",
+     "Press Media and tap Search music, above the player.",
      "Type an artist, song, album or radio station.",
      "Tap a result to play it in the Club. Tap + to add it to the queue instead."
     ]
@@ -1130,6 +1147,17 @@
     ]
    },
    {
+    "title": "Music in other rooms",
+    "icon": "speakers",
+    "steps": [
+     "Press Media and tap Zones at the top.",
+     "Tap Join beside a room to play the Club's music there too. Tap Joined to drop it.",
+     "Slide a room's bar sideways for its volume.",
+     "Unjoin all sends every room back to its own music.",
+     "Switch BÆOLINK on and the music follows you from room to room."
+    ]
+   },
+   {
     "title": "Talk to it",
     "icon": "voice",
     "steps": [
@@ -1142,7 +1170,7 @@
     "title": "Read the map",
     "icon": "plan",
     "steps": [
-     "The map on Main is the flat from above, live. Every bulb is a real light, where it really is.",
+     "The map on BÆOREMOTE is the flat from above, live. Every bulb is a real light, where it really is.",
      "Here's an example (this one isn't live):"
     ]
    },
@@ -1152,7 +1180,7 @@
     "steps": [
      "Radar sensors (not cameras) feel movement. Each person is a teal dot on the map.",
      "Walk into a room and its light comes on. Leave, and it goes off a few minutes later.",
-     "Want them left alone? Tap Auto lights on Main. Tap it again to go back to normal."
+     "Want them left alone? Tap Auto lights on BÆOREMOTE. Tap it again to go back to normal."
     ]
    },
    {
@@ -1160,25 +1188,17 @@
     "icon": "climate",
     "steps": [
      "Press Climate for the aircon, fan and blinds.",
+     "Tap − or + to set the temperature, and the row below for Cool, Heat, Fan or Dry.",
      "Hold Climate to turn the aircon on or off from any page.",
      "Hold Page ▲ or Page ▼ to open or close the blinds."
-    ]
-   },
-   {
-    "title": "Music in other rooms",
-    "icon": "speakers",
-    "steps": [
-     "Press Media and swipe to Zones.",
-     "Tap a room's link button to play the Club's music there too. Tap again to drop it.",
-     "BÆOLINK on: the music follows you from room to room."
     ]
    },
    {
     "title": "Lock or unlock the door",
     "icon": "door",
     "steps": [
-     "On Main, tap the padlock beside Door.",
-     "Hold the padlock tile to keep the door unlocked (it turns red). Hold again to let it lock itself."
+     "On BÆOREMOTE, tap the Door tile, next to Auto lights.",
+     "Hold it to keep the door unlocked (it turns red and says Held open). Hold again to let it lock itself."
     ]
    },
    {
@@ -1194,7 +1214,7 @@
     "title": "Stuck?",
     "icon": "help",
     "steps": [
-     "Back closes whatever is open.",
+     "Back closes whatever is open. Panels that slide up from the bottom also close when you tap above them.",
      "Hold Menu ☰ to get this guide back."
     ]
    }

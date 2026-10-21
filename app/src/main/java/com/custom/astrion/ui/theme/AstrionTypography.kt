@@ -14,6 +14,8 @@ import com.custom.astrion.R
 data class AstrionTypography(
     val bodyFont: FontFamily,
     val headingFont: FontFamily,
+    /** Antonio: tall, narrow numerals for readouts (temperatures, volume, the clock). */
+    val readoutFont: FontFamily,
 
     // ---- E2E Contract Tokens (DesignSystemModel.TYPOGRAPHY) -----------------
     val display: TextStyle,                            // 34sp / 40sp line height
@@ -53,25 +55,27 @@ fun defaultAstrionTypography(): AstrionTypography {
         Font(R.font.manrope_500, FontWeight.Medium),
         Font(R.font.manrope_600, FontWeight.SemiBold),
         Font(R.font.manrope_700, FontWeight.Bold),
+        Font(R.font.manrope_800, FontWeight.ExtraBold),
     )
-    val headingFont = FontFamily(
-        Font(R.font.syne_500, FontWeight.Light),
-        Font(R.font.syne_500, FontWeight.Normal),
-        Font(R.font.syne_500, FontWeight.Medium),
-        Font(R.font.syne_600, FontWeight.SemiBold),
-        Font(R.font.syne_700, FontWeight.Bold),
+    val readoutFont = FontFamily(
+        Font(R.font.antonio_200, FontWeight.ExtraLight),
+        Font(R.font.antonio_300, FontWeight.Light),
+        Font(R.font.antonio_400, FontWeight.Normal),
     )
+    // The redesign sets headings in Manrope too; Antonio carries the numerals.
+    val headingFont = bodyFont
     return AstrionTypography(
         bodyFont = bodyFont,
         headingFont = headingFont,
-        display = TextStyle(fontFamily = headingFont, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Normal),
+        readoutFont = readoutFont,
+        display = TextStyle(fontFamily = readoutFont, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Light),
         title = TextStyle(fontFamily = bodyFont, fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
         body = TextStyle(fontFamily = bodyFont, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Normal),
         label = TextStyle(fontFamily = bodyFont, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium),
 
         displayLarge = TextStyle(fontFamily = bodyFont, fontSize = 81.sp, lineHeight = 81.sp, fontWeight = FontWeight.Medium, letterSpacing = (-1.5).sp),
-        displayMedium = TextStyle(fontFamily = headingFont, fontSize = 40.sp, lineHeight = 44.sp, fontWeight = FontWeight.Light),
-        displaySmall = TextStyle(fontFamily = headingFont, fontSize = 32.sp, lineHeight = 36.sp, fontWeight = FontWeight.Light),
+        displayMedium = TextStyle(fontFamily = readoutFont, fontSize = 40.sp, lineHeight = 44.sp, fontWeight = FontWeight.Light),
+        displaySmall = TextStyle(fontFamily = readoutFont, fontSize = 32.sp, lineHeight = 36.sp, fontWeight = FontWeight.Light),
         titleLarge = TextStyle(fontFamily = headingFont, fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold),
         titleMedium = TextStyle(fontFamily = bodyFont, fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
         titleSmall = TextStyle(fontFamily = bodyFont, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
@@ -113,8 +117,10 @@ data class AstrionTypeSizes(
     val displayXl: TextUnit = 34.sp,
     /** Climate's set temperature. */
     val readout: TextUnit = 40.sp,
-    /** The screensaver clock. */
-    val clock: TextUnit = 81.sp,
+    /** A popup's big number: a light's brightness, a set temperature. */
+    val readoutLarge: TextUnit = 64.sp,
+    /** The screensaver clock (Antonio, tall and narrow). */
+    val clock: TextUnit = 120.sp,
     /** The ringing alarm's clock. */
     val alarmClock: TextUnit = 88.sp,
     /** The ambient rest clock. */

@@ -9,10 +9,6 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,7 +24,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.custom.astrion.ui.InWindowDialog
+import com.custom.astrion.ui.BottomSheet
+import com.custom.astrion.ui.Glyphs
+import androidx.compose.foundation.border
+import kotlin.math.abs
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
@@ -97,30 +96,24 @@ fun LightDetailDialog(
         client.callService(ServiceCall.of("light", "turn_on", entityId, "color_temp_kelvin" to k))
     }
 
-    InWindowDialog(onDismissRequest = onClose) {
-        Column(
-            modifier = Modifier
-                .clip(RoundedCornerShape(24.dp))
-                .background(AstrionTheme.colors.surface)
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Text(
-                "${(dragLevel * 100).roundToInt()}%",
-                color = AstrionTheme.colors.onSurface,
-                fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.displaySm,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(name, color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.small)
+    val members = e?.attrStringList("entity_id").orEmpty().filter { it.startsWith("light.") }
+    val kelvin = e?.attrInt("color_temp_kelvin")
+    val shown = (dragLevel * 100).roundToInt()
 
-            // Vertical brightness pill: drag or tap to set; fill rises from the bottom.
+    BottomSheet(
+        title = name,
+        subtitle = if (members.isNotEmpty()) "${members.size} lights" else null,
+        onDismissRequest = onClose,
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            // Vertical brightness fader: drag or tap to set; the fill rises
+            // from the bottom in the light's own colour.
             Box(
                 modifier = Modifier
-                    .width(120.dp)
-                    .height(230.dp)
-                    .clip(RoundedCornerShape(30.dp))
-                    .background(AstrionTheme.colors.surfaceCard)
+                    .width(FADER_WIDTH)
+                    .height(FADER_HEIGHT)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(AstrionTheme.colors.surfaceSunken)
                     .pointerInput(entityId) {
                         detectVerticalDragGestures(
                             onDragEnd = { commit(dragLevel) },
@@ -136,77 +129,135 @@ fun LightDetailDialog(
                         }
                     },
             ) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .fillMaxHeight(dragLevel.coerceIn(0.02f, 1f))
-                        .background(fillColor.copy(alpha = if (on) 0.9f else 0.35f)),
-                )
-            }
-
-            // Power toggle.
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(if (on) AstrionTheme.colors.lightOn else AstrionTheme.colors.controlBg)
-                    .tap { client.toggle(entityId) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Filled.PowerSettingsNew,
-                    contentDescription = "Toggle",
-                    tint = if (on) AstrionTheme.colors.onLightOn else AstrionTheme.colors.textOnControl,
-                )
-            }
-
-            // A group's own lights, one tap each. Picking out one light in a
-            // group was a reason to reach for the phone.
-            val members = e?.attrStringList("entity_id").orEmpty().filter { it.startsWith("light.") }
-            if (members.isNotEmpty()) {
-                GroupMembers(members, client) { memberDetail = it }
-            }
-
-            // Colour swatches (only for colour-capable lights).
-            if (hasColor) {
-                val swatches = listOf(
-                    Triple(244, 67, 54), Triple(255, 152, 0), Triple(255, 235, 59),
-                    Triple(76, 175, 80), Triple(0, 188, 212),
-                    Triple(33, 150, 243), Triple(156, 39, 176), Triple(233, 30, 99),
-                    Triple(255, 182, 193), Triple(255, 255, 255),
-                )
-                swatches.chunked(5).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        row.forEach { (r, g, b) ->
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(r, g, b))
-                                    .tap { setRgb(r, g, b) },
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Colour-temperature presets (warm → cool).
-            if (hasTemp) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Candle" to 2200, "Warm" to 2700, "Neutral" to 4000, "Cool" to 5500).forEach { (label, k) ->
+                if (dragLevel > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .fillMaxHeight(dragLevel.coerceIn(0.02f, 1f))
+                            .background(fillColor.copy(alpha = if (on) 1f else 0.4f)),
+                    ) {
+                        // The fader's cap: a short line riding the top of the fill.
                         Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(AstrionTheme.colors.controlSunken)
-                                .tap { setKelvin(k) }
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                        ) {
-                            Text(label, color = AstrionTheme.colors.textOnControl, fontSize = AstrionTheme.size.label)
+                            Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 8.dp, start = 14.dp, end = 14.dp)
+                                .fillMaxWidth()
+                                .height(3.dp)
+                                .clip(CircleShape)
+                                .background(AstrionTheme.onBg.copy(alpha = 0.5f)),
+                        )
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        "$shown",
+                        color = AstrionTheme.textPrimary,
+                        fontFamily = AstrionTheme.readoutFont,
+                        fontWeight = FontWeight.ExtraLight,
+                        fontSize = AstrionTheme.size.readoutLarge,
+                        maxLines = 1,
+                    )
+                    Text(
+                        "%",
+                        color = AstrionTheme.textSecondary,
+                        fontFamily = AstrionTheme.readoutFont,
+                        fontWeight = FontWeight.Light,
+                        fontSize = AstrionTheme.size.displayXs,
+                        modifier = Modifier.padding(start = 3.dp, bottom = 12.dp),
+                    )
+                }
+
+                // Power: says what it will do.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (on) AstrionTheme.on else AstrionTheme.raised)
+                        .tap { client.toggle(entityId) },
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val ink = if (on) AstrionTheme.onBg else AstrionTheme.textPrimary
+                    Icon(Glyphs.power, contentDescription = null, tint = ink, modifier = Modifier.size(18.dp))
+                    Text(
+                        if (on) "Turn off" else "Turn on",
+                        color = ink,
+                        fontSize = AstrionTheme.size.body,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+
+                if (hasTemp) {
+                    Caption("Warmth")
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        WARMTH.forEach { w ->
+                            val picked = on && kelvin != null && abs(kelvin - w.kelvin) < 150 &&
+                                e?.attrString("color_mode") == "color_temp"
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(AstrionTheme.raised)
+                                    .then(
+                                        if (picked) Modifier.border(1.5.dp, AstrionTheme.textPrimary, RoundedCornerShape(12.dp))
+                                        else Modifier,
+                                    )
+                                    .tap { setKelvin(w.kelvin) },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(w.r, w.g, w.b)),
+                                )
+                                Text(
+                                    w.label,
+                                    color = AstrionTheme.textPrimary,
+                                    fontSize = AstrionTheme.size.label,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (hasColor) {
+                    Caption("Colour")
+                    SWATCHES.chunked(6).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row.forEach { (r, g, b) ->
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .aspectRatio(1f)
+                                        .clip(CircleShape)
+                                        .background(Color(r, g, b))
+                                        .tap { setRgb(r, g, b) },
+                                )
+                            }
                         }
                     }
                 }
             }
+        }
+
+        // A group's own lights, one tap each. Picking out one light in a
+        // group was a reason to reach for the phone.
+        if (members.isNotEmpty()) {
+            GroupMembers(members, client) { memberDetail = it }
         }
     }
 
@@ -228,7 +279,7 @@ fun LightDetailDialog(
 private fun GroupMembers(members: List<String>, client: HaClient, onOpen: (String) -> Unit) {
     Row(
         modifier = Modifier
-            .width(268.dp)
+            .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -250,7 +301,7 @@ private fun GroupMembers(members: List<String>, client: HaClient, onOpen: (Strin
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Icon(
-                    if (on) Icons.Filled.Lightbulb else Icons.Outlined.Lightbulb,
+                    Glyphs.bulb,
                     contentDescription = null,
                     tint = when {
                         unavailable -> AstrionTheme.unavailable
@@ -276,3 +327,28 @@ private fun GroupMembers(members: List<String>, client: HaClient, onOpen: (Strin
         }
     }
 }
+
+@Composable
+private fun Caption(text: String) {
+    Text(text, color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.SemiBold)
+}
+
+private class Warmth(val label: String, val kelvin: Int, val r: Int, val g: Int, val b: Int)
+
+/** Warm to cool. Each dot is roughly the white it sets. */
+private val WARMTH = listOf(
+    Warmth("Candle", 2200, 255, 179, 71),
+    Warmth("Warm", 2700, 255, 194, 75),
+    Warmth("Soft", 3500, 255, 217, 160),
+    Warmth("Day", 5500, 255, 255, 255),
+)
+
+private val SWATCHES = listOf(
+    Triple(243, 155, 184), Triple(244, 63, 94), Triple(201, 160, 240),
+    Triple(110, 155, 232), Triple(110, 200, 184), Triple(249, 166, 90),
+    Triple(255, 235, 59), Triple(76, 175, 80), Triple(0, 188, 212),
+    Triple(33, 150, 243), Triple(156, 39, 176), Triple(255, 255, 255),
+)
+
+private val FADER_WIDTH = 96.dp
+private val FADER_HEIGHT = 248.dp

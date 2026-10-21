@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -72,6 +73,9 @@ import com.custom.astrion.ha.ServiceCall
  * Recognised `icon` keys: "mood", "night", "white", "day", "club", "off" —
  * anything else (or omitted) shows no icon, just the label.
  */
+/** How far the chip row runs past the page's side padding. */
+private val PILL_BLEED = 10.dp
+
 class SceneGridCard : CardRenderer {
     override val type = "scene_grid"
 
@@ -152,11 +156,20 @@ class SceneGridCard : CardRenderer {
         val active = tapped?.takeIf { t -> latest == null || latest.second < t.second }?.first
             ?: latest?.takeIf { System.currentTimeMillis() - it.second < 12 * 3_600_000L }?.first
 
+        // Runs edge to edge, past the page's side padding, so the chip cut
+        // off at the right says the row scrolls.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .layout { measurable, constraints ->
+                    val bleed = PILL_BLEED.roundToPx()
+                    val wide = constraints.maxWidth + 2 * bleed
+                    val p = measurable.measure(constraints.copy(minWidth = wide, maxWidth = wide))
+                    layout(constraints.maxWidth, p.height) { p.place(-bleed, 0) }
+                }
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = PILL_BLEED),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             scenes.forEach { scene ->
                 val entityId = scene["entity_id"] as? String ?: return@forEach
@@ -166,15 +179,13 @@ class SceneGridCard : CardRenderer {
                 val haptics = LocalHapticFeedback.current
                 Row(
                     modifier = Modifier
-                        .height(34.dp)
-                        .clip(RoundedCornerShape(13.dp))
-                        // Inactive sits on the card fill so it still reads
-                        // as a pill against the page; active is sunken, tinted
-                        // with the scene colour below.
-                        .background(if (isActive) AstrionTheme.controlSunken else AstrionTheme.cardBg)
-                        .then(if (isActive) Modifier.background(color.copy(alpha = 0.10f)) else Modifier)
+                        .height(30.dp)
+                        .clip(CircleShape)
+                        // Small rounded chips, so the row reads as a list that
+                        // swipes; the active one sits in Gunmetal, outlined.
+                        .background(if (isActive) AstrionTheme.colors.accentContainer else AstrionTheme.cardBg)
                         .then(
-                            if (isActive) Modifier.border(1.dp, AstrionTheme.colors.hairline, RoundedCornerShape(13.dp))
+                            if (isActive) Modifier.border(1.dp, AstrionTheme.accentStrong, CircleShape)
                             else Modifier
                         )
                         .clickable {
@@ -184,29 +195,28 @@ class SceneGridCard : CardRenderer {
                                 ServiceCall(domain = entityId.substringBefore('.'), service = "turn_on", entityId = entityId)
                             )
                         }
-                        .padding(horizontal = 13.dp),
+                        .padding(start = 10.dp, end = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Glowing dot. No coloured shadows on Android 8.1, so the
                     // glow is a few fading rings drawn behind it.
                     Box(
                         modifier = Modifier
-                            .size(if (isActive) 11.dp else 10.dp)
+                            .size(7.dp)
                             .drawBehind {
                                 if (isActive) for (i in 4 downTo 1) {
-                                    drawCircle(color.copy(alpha = 0.10f), radius = size.minDimension / 2 + i * 2.dp.toPx())
+                                    drawCircle(color.copy(alpha = 0.10f), radius = size.minDimension / 2 + i * 1.5.dp.toPx())
                                 }
                             }
                             .clip(CircleShape)
                             .background(if (isActive) color else color.copy(alpha = 0.8f)),
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(7.dp))
                     Text(
                         name,
-                        color = if (isActive) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
-                        fontSize = AstrionTheme.size.small,
-                        fontWeight = FontWeight.Medium,
-                        letterSpacing = 0.3.sp,
+                        color = AstrionTheme.textPrimary,
+                        fontSize = AstrionTheme.size.label,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         softWrap = false,
                     )
@@ -214,7 +224,7 @@ class SceneGridCard : CardRenderer {
                     if (isActive) {
                         Text(
                             "ON",
-                            modifier = Modifier.padding(start = 2.dp),
+                            modifier = Modifier.padding(start = 6.dp),
                             color = AstrionTheme.accent,
                             fontSize = AstrionTheme.size.label,
                             fontWeight = FontWeight.Bold,

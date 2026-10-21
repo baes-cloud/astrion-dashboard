@@ -28,6 +28,14 @@ import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
+import androidx.compose.ui.platform.LocalDensity
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRegistry
@@ -36,6 +44,7 @@ import com.custom.astrion.config.PageConfig
 import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ha.HaClient
 import kotlinx.coroutines.delay
+import kotlin.math.abs
 
 /**
  * Whether the page this composable sits on is the one on screen. Hidden pages
@@ -154,26 +163,55 @@ fun Dashboard(
         // One name slot per page, for a card that names itself (see
         // LocalPageNameOverride); the footer reads the current page's.
         val nameOverrides = remember(config.pages) { config.pages.map { mutableStateOf<String?>(null) } }
-        config.pages.forEachIndexed { i, page ->
-            key(i) {
-                CompositionLocalProvider(
-                    LocalPageVisible provides (i == current),
-                    LocalPageNameOverride provides nameOverrides[i],
-                    LocalNavEpoch provides navEpoch,
-                ) {
-                    Box(Modifier.fillMaxSize().unplacedWhen(i != current)) {
-                        PageContent(page, ctx)
+        // Each page change fades the new page in, sliding a little from the
+        // side it came from: opacity and translation only, cheap on this GPU.
+        var lastPage by remember { mutableIntStateOf(current) }
+        val enter = remember { Animatable(1f) }
+        val enterFrom = if (current >= lastPage) 1f else -1f
+        LaunchedEffect(current) {
+            if (current == lastPage) return@LaunchedEffect
+            enter.snapTo(0f)
+            enter.animateTo(1f, tween(PAGE_ENTER_MS))
+            lastPage = current
+        }
+        val slidePx = with(LocalDensity.current) { 16.dp.toPx() }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .pageSwipe(pageCount) { dir -> current = (current + dir).coerceIn(0, pageCount - 1) },
+        ) {
+            config.pages.forEachIndexed { i, page ->
+                key(i) {
+                    CompositionLocalProvider(
+                        LocalPageVisible provides (i == current),
+                        LocalPageNameOverride provides nameOverrides[i],
+                        LocalNavEpoch provides navEpoch,
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .unplacedWhen(i != current)
+                                .graphicsLayer {
+                                    if (i == current) {
+                                        alpha = enter.value
+                                        translationX = (1f - enter.value) * slidePx * enterFrom
+                                    }
+                                },
+                        ) {
+                            PageContent(page, ctx)
+                        }
                     }
                 }
             }
         }
 
-        // The device name sits in the footer slot every page leaves free. It's
-        // drawn once, here, rather than per page, so a page change crossfades
+        // The nameplate sits in the footer slot every page leaves free. It's
+        // drawn once, here, rather than per page, so a page change slides
         // the name in place instead of swapping it.
-        val page = config.pages.getOrNull(current)
         PageName(
-            name = nameOverrides.getOrNull(current)?.value ?: page?.deviceName,
+            names = config.pages.mapIndexed { i, p -> nameOverrides.getOrNull(i)?.value ?: p.deviceName },
+            current = current,
+            onGo = { current = it.coerceIn(0, pageCount - 1) },
             modifier = Modifier.align(Alignment.BottomCenter),
         )
 
@@ -194,6 +232,41 @@ fun Dashboard(
 
 /** Counts button jumps to a page; see SwipeStackCard. 0 = none yet. */
 val LocalNavEpoch = compositionLocalOf { 0 }
+
+private const val PAGE_ENTER_MS = 220
+
+/**
+ * A sideways swipe anywhere on a page turns it: [onTurn] gets +1 for the next
+ * page, -1 for the previous one. Watched in the final pass, after the page's
+ * own controls, so a swipe that a slider, a scrolling row or a button already
+ * took (it consumed the pointer) doesn't also turn the page.
+ */
+private fun Modifier.pageSwipe(pageCount: Int, onTurn: (Int) -> Unit): Modifier =
+    pointerInput(pageCount) {
+        val minTravel = 56.dp.toPx()
+        val claimAt = viewConfiguration.touchSlop * 2
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Final)
+            var dx = 0f
+            var dy = 0f
+            var taken = false
+            var claimed = false
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Final)
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!claimed && change.isConsumed) taken = true
+                val d = change.positionChangeIgnoreConsumed()
+                dx += d.x
+                dy += d.y
+                if (!taken && !claimed && abs(dx) > claimAt && abs(dx) > abs(dy) * 1.5f) claimed = true
+                // Once it's a page swipe, say so: a tile it started on sees the
+                // consumed pointer and drops the press instead of taking a tap.
+                if (claimed) change.consume()
+                if (!change.pressed) break
+            }
+            if (claimed && abs(dx) > minTravel) onTurn(if (dx < 0) 1 else -1)
+        }
+    }
 
 @Composable
 private fun PageContent(page: PageConfig, ctx: CardContext) {

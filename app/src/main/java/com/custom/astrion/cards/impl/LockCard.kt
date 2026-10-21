@@ -23,6 +23,14 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Glyphs
+import com.custom.astrion.ui.TileHeight
+import com.custom.astrion.ui.tapAndHold
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.em
 import com.custom.astrion.ui.UnavailableLabel
 import com.custom.astrion.ui.dimIfUnavailable
 import com.custom.astrion.ui.holdOnly
@@ -87,6 +95,27 @@ class LockCard : CardRenderer {
 
         fun call(service: String) {
             ctx.client.callService(ServiceCall(domain = "lock", service = service, entityId = entityId))
+        }
+
+        if (config.string("style") == "door") {
+            DoorTile(
+                name = name,
+                state = state,
+                locked = locked,
+                moving = moving,
+                unavailable = unavailable,
+                keepUnlocked = keepUnlocked,
+                live = live && !moving,
+                onTap = { call(if (locked) "unlock" else "lock") },
+                onHold = if (holdLive) {
+                    {
+                        ctx.client.callService(
+                            ServiceCall(domain = "input_boolean", service = "toggle", entityId = holdEntity!!)
+                        )
+                    }
+                } else null,
+            )
+            return
         }
 
         Row(
@@ -247,6 +276,94 @@ class LockCard : CardRenderer {
                 fontSize = AstrionTheme.size.small,
                 fontWeight = FontWeight.SemiBold,
             )
+        }
+    }
+
+    /**
+     * The redesign's door: a narrow tile on the right of the Auto lights row,
+     * padlock then DOOR over its state. Locked sits quiet in Gunmetal; unlocked
+     * turns solid Baby Doll so it stands out across the room; held open is
+     * outlined red and says so. Tap locks or unlocks; hold toggles "keep
+     * unlocked" when a hold_entity is configured.
+     */
+    @Composable
+    private fun DoorTile(
+        name: String,
+        state: String,
+        locked: Boolean,
+        moving: Boolean,
+        unavailable: Boolean,
+        keepUnlocked: Boolean,
+        live: Boolean,
+        onTap: () -> Unit,
+        onHold: (() -> Unit)?,
+    ) {
+        // Laid out like the Auto lights tile beside it (icon well, then the
+        // name over the state) so the pair splits the row evenly.
+        val shape = RoundedCornerShape(16.dp)
+        val (bg, ink, edge) = when {
+            unavailable || moving -> Triple(AstrionTheme.cardBg, AstrionTheme.textMuted, AstrionTheme.colors.hairlineStrong)
+            keepUnlocked -> Triple(AstrionTheme.dangerBg, AstrionTheme.danger, AstrionTheme.danger)
+            !locked -> Triple(AstrionTheme.blush, AstrionTheme.onBlush, Color.Transparent)
+            else -> Triple(AstrionTheme.colors.accentContainer, AstrionTheme.accent, AstrionTheme.accentStrong)
+        }
+        val word = when {
+            unavailable -> "Unavailable"
+            moving -> state.humanise() + "…"
+            keepUnlocked -> "Held open"
+            locked -> "Locked"
+            else -> "Unlocked"
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(TileHeight)
+                .clip(shape)
+                .background(bg)
+                .border(1.5.dp, edge, shape)
+                .then(
+                    if (onHold != null) Modifier.tapAndHold(enabled = live, onClick = onTap, onLongClick = onHold)
+                    else Modifier.tap(enabled = live, onClick = onTap)
+                )
+                .semantics(mergeDescendants = true) { contentDescription = "$name, $word" }
+                .padding(horizontal = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(ink.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (locked || moving) Glyphs.lock else Glyphs.unlock,
+                    contentDescription = null,
+                    tint = ink,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    name.uppercase(),
+                    color = ink,
+                    fontSize = AstrionTheme.size.emphasis,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.06.em,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    word.uppercase(),
+                    color = ink.copy(alpha = 0.75f),
+                    fontSize = AstrionTheme.size.label,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.16.em,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 

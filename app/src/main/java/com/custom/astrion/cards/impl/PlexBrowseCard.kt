@@ -20,10 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.MusicVideo
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -49,6 +46,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Glyphs
 import com.custom.astrion.ui.HitTarget
 import com.custom.astrion.ui.InWindowDialog
 import com.custom.astrion.ui.tap
@@ -125,10 +123,10 @@ class PlexBrowseCard : CardRenderer {
 }
 
 private fun buttonIcon(b: Map<String, Any?>): ImageVector = when {
-    b["kind"] == "search" -> Icons.Filled.Search
-    b["icon"] == "tv" -> Icons.Filled.Tv
-    b["icon"] == "music_video" || b["icon"] == "mtv" -> Icons.Filled.MusicVideo
-    else -> Icons.Filled.Movie
+    b["kind"] == "search" -> Glyphs.search
+    b["icon"] == "tv" -> Glyphs.tv
+    b["icon"] == "music_video" || b["icon"] == "mtv" -> Glyphs.mtv
+    else -> Glyphs.film
 }
 
 /** A thing in a list: a film, show, season, episode or music video. */

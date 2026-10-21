@@ -1,13 +1,10 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +25,7 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Glyphs
 import com.custom.astrion.ui.UnavailableLabel
 import com.custom.astrion.ui.dimIfUnavailable
 import com.custom.astrion.ui.humanise
@@ -137,46 +135,72 @@ class ClimateCard : CardRenderer {
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            // Header: name + a dedicated off button.
+            // Header: name and what it's doing, then power.
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.SemiBold)
+                Column(Modifier.weight(1f)) {
+                    Text(name, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.Bold)
+                    Text(
+                        when {
+                            unavailable -> "Unavailable"
+                            isOff -> "Off"
+                            else -> listOfNotNull(
+                                (e?.attrString("hvac_action") ?: mode).humanise(),
+                                shownTarget?.let { "to ${trim(it)}°" },
+                            ).joinToString(" ")
+                        },
+                        color = AstrionTheme.textSecondary,
+                        fontSize = AstrionTheme.size.small,
+                    )
+                }
                 HitTarget(
-                    visual = 36.dp,
-                    onClick = { turnOff() },
+                    visual = 38.dp,
+                    onClick = {
+                        if (isOff) ctx.client.callService(ServiceCall("climate", "turn_on", entityId)) else turnOff()
+                    },
                     enabled = live,
-                    face = Modifier.clip(CircleShape).background(if (isOff) AstrionTheme.dangerBg else AstrionTheme.controlBg),
+                    face = Modifier.clip(CircleShape).background(if (isOff) AstrionTheme.raised else AstrionTheme.accentStrong),
                 ) {
                     Icon(
-                        Icons.Filled.PowerSettingsNew,
-                        contentDescription = "Off",
-                        tint = if (isOff) AstrionTheme.colors.dangerSoft else AstrionTheme.colors.textOnControl,
+                        Glyphs.power,
+                        contentDescription = if (isOff) "Turn on" else "Turn off",
+                        tint = if (isOff) AstrionTheme.textSecondary else AstrionTheme.textPrimary,
+                        modifier = Modifier.size(19.dp),
                     )
                 }
             }
 
-            // Setpoint with steppers
+            // Setpoint, big in Antonio, with steppers either side.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Stepper(Icons.Filled.Remove, "Lower target temperature", live) {
+                Stepper(Glyphs.minus, "Lower target temperature", live) {
                     nudge(-step)
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        shownTarget?.let { "${trim(it)}°" } ?: "—",
-                        color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
-                        // Syne's bold cut is very wide and odd in numerals;
-                        // the lighter cut matches the weather temperature.
-                        fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.readout,
-                        fontWeight = FontWeight.Light,
-                    )
+                    Row {
+                        Text(
+                            shownTarget?.let { trim(it) } ?: "—",
+                            color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
+                            fontFamily = AstrionTheme.readoutFont,
+                            fontWeight = FontWeight.ExtraLight,
+                            fontSize = AstrionTheme.size.readoutLarge,
+                            maxLines = 1,
+                        )
+                        if (shownTarget != null) Text(
+                            "°",
+                            color = AstrionTheme.textPrimary,
+                            fontFamily = AstrionTheme.readoutFont,
+                            fontWeight = FontWeight.Light,
+                            fontSize = AstrionTheme.size.displayLg,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
                     // The steppers silently no-op when there is no target, so
                     // an unreachable aircon used to look like a working one
                     // showing a dash. Say so instead.
@@ -184,27 +208,26 @@ class ClimateCard : CardRenderer {
                         UnavailableLabel(AstrionTheme.size.small)
                     } else {
                         Text(
-                            current?.let { "Now ${trim(it)}°" } ?: "",
+                            current?.let { "Now ${trim(it)}° inside" } ?: "",
                             color = AstrionTheme.textSecondary,
                             fontSize = AstrionTheme.size.small,
                         )
                     }
                 }
 
-                Stepper(Icons.Filled.Add, "Raise target temperature", live) {
+                Stepper(Glyphs.plus, "Raise target temperature", live) {
                     nudge(step)
                 }
             }
 
-            // HVAC mode chips
-            if (modes.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    modes.take(4).forEach { m ->
+            // HVAC modes (off is the power button's job), icon over word.
+            val shownModes = modes.filter { it != "off" }.take(4)
+            if (shownModes.isNotEmpty()) {
+                Segmented {
+                    shownModes.forEach { m ->
                         ModeChip(
-                            label = m.humanise(),
+                            label = m.humanise().replace(" only", ""),
+                            icon = modeGlyph(m),
                             selected = m == mode,
                             modifier = Modifier.weight(1f),
                             enabled = live,
@@ -213,15 +236,13 @@ class ClimateCard : CardRenderer {
                 }
             }
 
-            // Fan mode chips
+            // Fan modes
             if (fanModes.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
+                Segmented {
                     fanModes.forEach { f ->
                         ModeChip(
                             label = f.humanise(),
+                            icon = null,
                             selected = fanMode?.equals(f, ignoreCase = true) == true,
                             modifier = Modifier.weight(1f),
                             enabled = live,
@@ -230,6 +251,29 @@ class ClimateCard : CardRenderer {
                 }
             }
         }
+    }
+
+    private fun modeGlyph(mode: String) = when (mode) {
+        "cool" -> Glyphs.snow
+        "heat" -> Glyphs.flame
+        "fan_only" -> Glyphs.wind
+        "dry" -> Glyphs.drop
+        else -> Glyphs.thermo
+    }
+
+    /** A recessed track holding a row of choices. */
+    @Composable
+    private fun Segmented(content: @Composable RowScope.() -> Unit) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(13.dp))
+                .background(AstrionTheme.colors.segmentTrack)
+                .border(1.dp, AstrionTheme.colors.hairline, RoundedCornerShape(13.dp))
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            content = content,
+        )
     }
 
     private fun trim(d: Double): String =
@@ -244,41 +288,42 @@ class ClimateCard : CardRenderer {
     ) {
         Box(
             modifier = Modifier
-                .size(50.dp)
+                .size(48.dp)
                 .clip(CircleShape)
-                .background(AstrionTheme.controlBg)
+                .background(AstrionTheme.raised)
                 .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = description, tint = AstrionTheme.textOnControl)
+            Icon(icon, contentDescription = description, tint = AstrionTheme.textPrimary, modifier = Modifier.size(20.dp))
         }
     }
 
     @Composable
     private fun ModeChip(
         label: String,
+        icon: androidx.compose.ui.graphics.vector.ImageVector?,
         selected: Boolean,
         modifier: Modifier,
         enabled: Boolean = true,
         onClick: () -> Unit,
     ) {
-        Box(
+        Column(
             modifier = modifier
-                // Raised from 40dp; this is the row that carries mode state.
-                .height(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                // accentStrong is a darkened 0xFF4C6EF5 — white 13sp on the
-                // original measured 4.32:1, the only real contrast failure in
-                // the app, and it was on the selected chip.
-                .background(if (selected) AstrionTheme.accentStrong else AstrionTheme.controlSunken)
+                .height(if (icon != null) 44.dp else 36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (selected) AstrionTheme.accentStrong else Color.Transparent)
                 .tap(enabled = enabled, onClick = onClick),
-            contentAlignment = Alignment.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
         ) {
+            val ink = if (selected) AstrionTheme.textPrimary else AstrionTheme.textSecondary
+            if (icon != null) Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(15.dp))
             Text(
                 label,
-                color = if (selected) Color.White else AstrionTheme.textSecondary,
-                fontSize = AstrionTheme.size.small,
-                fontWeight = FontWeight.Medium,
+                color = ink,
+                fontSize = if (icon != null) AstrionTheme.size.label else AstrionTheme.size.small,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 1,
             )
         }
     }

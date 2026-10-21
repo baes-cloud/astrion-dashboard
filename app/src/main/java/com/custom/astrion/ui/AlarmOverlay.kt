@@ -180,7 +180,7 @@ fun AlarmOverlay(
                 Text(
                     Time.format(now, "h:mm"),
                     color = Ink,
-                    fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.alarmClock,
+                    fontFamily = AstrionTheme.readoutFont, fontSize = AstrionTheme.size.alarmClock,
                     fontWeight = FontWeight.ExtraLight,
                     modifier = Modifier.alignByBaseline(),
                 )
@@ -188,7 +188,7 @@ fun AlarmOverlay(
                 Text(
                     Time.format(now, "a"),
                     color = InkSoft,
-                    fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.displayMd,
+                    fontFamily = AstrionTheme.readoutFont, fontSize = AstrionTheme.size.displayMd,
                     fontWeight = FontWeight.Light,
                     modifier = Modifier.alignByBaseline(),
                 )
@@ -346,7 +346,7 @@ private fun SnoozeRing(endsMs: Long, totalMs: Long, nowMs: Long) {
             )
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("%d:%02d".format(secs / 60, secs % 60), color = Ink, fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.displayMd, fontWeight = FontWeight.Light)
+            Text("%d:%02d".format(secs / 60, secs % 60), color = Ink, fontFamily = AstrionTheme.readoutFont, fontSize = AstrionTheme.size.displayMd, fontWeight = FontWeight.Light)
             Text("BACK IN", color = InkFaint, fontSize = AstrionTheme.size.label, letterSpacing = 2.sp)
         }
     }

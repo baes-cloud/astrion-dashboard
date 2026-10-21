@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,6 +35,7 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.namedGlyph
 import com.custom.astrion.ui.parseHexColor
 import com.custom.astrion.ui.rememberSampledBitmap
 import com.custom.astrion.ui.tightTextStyle
@@ -165,8 +167,11 @@ class ButtonGridCard : CardRenderer {
         // Off-thread and downsampled — these are drawn into a 32dp box but
         // were being decoded at native resolution (up to 78 KB apiece) on the
         // composition thread, six at a time, when the Media page first drew.
-        val bitmap by rememberSampledBitmap(iconPath, targetPx = 96)
-        val hasIcon = bitmap != null
+        // `glyph` names a line icon from the app's own set, drawn in the
+        // accent; it wins over a bitmap `icon`.
+        val lineGlyph = namedGlyph(b["glyph"] as? String)
+        val bitmap by rememberSampledBitmap(if (lineGlyph != null) null else iconPath, targetPx = 96)
+        val hasIcon = bitmap != null || lineGlyph != null
         val tileColor = parseHexColor(b["color"] as? String)
         val inkColor = parseHexColor(b["text_color"] as? String)
             ?: tileColor?.let { if (0.2126f * it.red + 0.7152f * it.green + 0.0722f * it.blue > 0.6f) AstrionTheme.colors.surfacePrimary else Color.White }
@@ -179,7 +184,7 @@ class ButtonGridCard : CardRenderer {
         val baseColor = tileColor?.let {
             Color(it.red * 0.5f, it.green * 0.5f, it.blue * 0.5f, 0.62f)
         } ?: AstrionTheme.controlSunken
-        val faceColor = tileColor ?: if (flat) AstrionTheme.cardBgAlt else AstrionTheme.raised
+        val faceColor = tileColor ?: if (flat) AstrionTheme.cardBg else AstrionTheme.raised
 
         val interaction = remember { MutableInteractionSource() }
         val pressed by interaction.collectIsPressedAsState()
@@ -210,7 +215,10 @@ class ButtonGridCard : CardRenderer {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                bitmap?.let { bmp ->
+                if (lineGlyph != null) {
+                    Icon(lineGlyph, contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(glyph))
+                    if (!name.isNullOrBlank()) Spacer(Modifier.height(4.dp))
+                } else bitmap?.let { bmp ->
                     Image(bitmap = bmp, contentDescription = name, modifier = Modifier.size(glyph))
                     if (!name.isNullOrBlank()) Spacer(Modifier.height(if (labelLines > 1) 2.dp else 3.dp))
                 }
@@ -222,7 +230,7 @@ class ButtonGridCard : CardRenderer {
                         style = if (labelLines > 1) tightTextStyle(13.sp) else LocalTextStyle.current,
                         color = inkColor,
                         fontSize = if (hasIcon) (if (labelLines > 1) AstrionTheme.size.label else AstrionTheme.size.label) else if (name.length > 8) AstrionTheme.size.small else AstrionTheme.size.bodyLarge,
-                        fontWeight = if (tileColor != null && !hasIcon) FontWeight.Bold else FontWeight.Medium,
+                        fontWeight = if (lineGlyph != null || (tileColor != null && !hasIcon)) FontWeight.Bold else FontWeight.Medium,
                         maxLines = labelLines,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,

@@ -10,12 +10,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.DropdownMenu
@@ -33,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -51,6 +48,8 @@ import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Fader
+import com.custom.astrion.ui.Glyphs
 import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalPageVisible
 import com.custom.astrion.ui.formatMediaTime
@@ -64,7 +63,9 @@ import kotlinx.coroutines.delay
  *  - "compact" (default): a single row — round album art, title/artist, and
  *    prev / play-pause / next / vol- / vol+ controls. Blurred art background.
  *  - "full": a big square album art on top, title/artist, then transport and
- *    volume rows. For the dedicated Media page.
+ *    volume rows. For the dedicated Media page. With `"layout": "sleeve"`
+ *    it's a square record sleeve instead: the art fills it, the title and
+ *    transport sit on a shade at its foot, and `max_size` (dp) caps its side.
  *
  * Album art is loaded from the entity's `entity_picture` (auth'd fetch). Since
  * Modifier.blur is a no-op on this API 26 device, the blurred background is a
@@ -151,18 +152,39 @@ class MediaPlayerCard : CardRenderer {
             ctx.client.callService(ServiceCall.of("media_player", service, entityId, *data))
         }
 
-        ArtBackdrop(art) {
-            if (full) {
-                FullContent(
-                    ctx, title, artist, playing, art, ::mp, topButtons, sourceEntity, live,
-                    showControls = config.bool("show_controls", true),
-                    // Width / height of the artwork; wider leaves room below
-                    // the card for the favourites row on one screen.
-                    artAspect = (config.options["art_aspect"] as? Number)?.toFloat() ?: 1.2f,
-                )
-            } else {
-                CompactContent(title, artist, playing, art, ::mp, live)
+        if (full) {
+            val showControls = config.bool("show_controls", true)
+            val queuePlayer = config.string("queue_player")
+            var queueOpen by remember { mutableStateOf(false) }
+            val sleeve = config.string("layout") == "sleeve"
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (sleeve) Sleeve(
+                    title, artist, playing, art, ::mp, live,
+                    showControls = showControls,
+                    maxSize = (config.options["max_size"] as? Number)?.toFloat()?.dp,
+                    onQueue = queuePlayer?.let { { queueOpen = true } },
+                ) else ArtBackdrop(art) {
+                    FullContent(
+                        ctx, title, artist, playing, art, ::mp, topButtons, sourceEntity, live,
+                        showControls = showControls,
+                        // Width / height of the artwork; wider leaves room below
+                        // the card for the favourites row on one screen.
+                        artAspect = (config.options["art_aspect"] as? Number)?.toFloat() ?: 1.2f,
+                        onQueue = queuePlayer?.let { { queueOpen = true } },
+                    )
+                }
+                if (showControls && config.bool("volume_fader", true)) {
+                    VolumeRow(ctx, entityId, config.string("name") ?: e?.friendlyName ?: entityId, live)
+                }
             }
+            if (queueOpen && queuePlayer != null) {
+                QueueSheet(ctx, queuePlayer) { queueOpen = false }
+            }
+        } else ArtBackdrop(art) {
+            CompactContent(title, artist, playing, art, ::mp, live)
         }
     }
 
@@ -277,7 +299,7 @@ class MediaPlayerCard : CardRenderer {
                 .background(if (lit) AstrionTheme.accentStrong else AstrionTheme.colors.void.copy(alpha = 0.45f)),
         ) {
             Icon(
-                Icons.Filled.SurroundSound,
+                Glyphs.speaker,
                 contentDescription = if (lit) "$label, on" else label,
                 tint = if (lit) AstrionTheme.colors.onPrimary else AstrionTheme.textOnControl,
                 modifier = Modifier.size(18.dp),
@@ -324,7 +346,7 @@ class MediaPlayerCard : CardRenderer {
                 modifier = Modifier.size(SQUARE_ART).clip(shape).background(AstrionTheme.raised),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Movie, contentDescription = null, tint = AstrionTheme.colors.accentMuted, modifier = Modifier.size(40.dp))
+                Icon(Glyphs.film, contentDescription = null, tint = AstrionTheme.colors.accentMuted, modifier = Modifier.size(36.dp))
             }
         }
     }
@@ -339,8 +361,8 @@ class MediaPlayerCard : CardRenderer {
         }?.let { word -> listOfNotNull(word, s.appName?.takeIf { it != s.title }).joinToString(" · ") }
         Column(modifier) {
             Text(
-                s.title, color = AstrionTheme.textPrimary, fontFamily = AstrionTheme.headingFont,
-                fontSize = AstrionTheme.size.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                s.title, color = AstrionTheme.textPrimary,
+                fontSize = AstrionTheme.size.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 style = tightTextStyle(21.sp),
             )
             s.subtitle?.let {
@@ -546,10 +568,12 @@ class MediaPlayerCard : CardRenderer {
         enabled: Boolean,
         showControls: Boolean,
         artAspect: Float,
+        onQueue: (() -> Unit)?,
     ) {
+        Box {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Compact source dropdown, right at the top — kept to one slim
@@ -608,52 +632,195 @@ class MediaPlayerCard : CardRenderer {
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        Icons.Filled.Movie,
+                        Glyphs.note,
                         contentDescription = "Nothing playing",
                         tint = AstrionTheme.colors.accentMuted,
-                        modifier = Modifier.size(56.dp),
+                        modifier = Modifier.size(44.dp),
                     )
                 }
             }
-            // Centered now-playing text.
+            // Centred now-playing text.
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(title, color = AstrionTheme.colors.onSurface, fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.headingLarge, fontWeight = FontWeight.Bold,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                Text(title, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth())
-                Text(artist, color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.size.body,
+                Text(artist, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth())
             }
-            // Single control row: vol- prev play/pause next vol+, justified.
-            // Suppressed on a display-only card (e.g. the TV page, which just
-            // shows what's on screen).
+            // Transport: previous, a big play/pause, next. Volume has its own
+            // fader under the card. Suppressed on a display-only card.
             if (showControls) Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CircleControl(Icons.Filled.VolumeDown, 48.dp, "Volume down", enabled = enabled) {
-                    mp("volume_down", emptyArray())
-                }
-                CircleControl(Icons.Filled.SkipPrevious, 52.dp, "Previous track", enabled = enabled) {
+                CircleControl(Glyphs.prev, 40.dp, "Previous track", enabled = enabled) {
                     mp("media_previous_track", emptyArray())
                 }
                 CircleControl(
-                    if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, 68.dp,
+                    if (playing) Glyphs.pause else Glyphs.play, 52.dp,
                     description = if (playing) "Pause" else "Play",
                     accent = true, enabled = enabled,
                 ) {
                     mp("media_play_pause", emptyArray())
                 }
-                CircleControl(Icons.Filled.SkipNext, 52.dp, "Next track", enabled = enabled) {
+                CircleControl(Glyphs.next, 40.dp, "Next track", enabled = enabled) {
                     mp("media_next_track", emptyArray())
                 }
-                CircleControl(Icons.Filled.VolumeUp, 48.dp, "Volume up", enabled = enabled) {
-                    mp("volume_up", emptyArray())
+            }
+        }
+        // The queue, top right over the art's corner.
+        if (onQueue != null) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .size(30.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(AstrionTheme.colors.void.copy(alpha = 0.35f))
+                    .tap(onClick = onQueue),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Glyphs.list, contentDescription = "Queue", tint = AstrionTheme.textSecondary, modifier = Modifier.size(16.dp))
+            }
+        }
+        }
+    }
+
+    /**
+     * The player as a record sleeve: always square, the artwork edge to edge,
+     * the title and transport on a shade along its foot and the queue button
+     * in the bottom-right corner. [maxSize] caps the side so the page around
+     * it still fits without scrolling.
+     */
+    @Composable
+    private fun Sleeve(
+        title: String,
+        artist: String,
+        playing: Boolean,
+        art: ImageBitmap?,
+        mp: (String, Array<out Pair<String, Any?>>) -> Unit,
+        enabled: Boolean,
+        showControls: Boolean,
+        maxSize: androidx.compose.ui.unit.Dp?,
+        onQueue: (() -> Unit)?,
+    ) {
+        val shade = AstrionTheme.colors.void
+        Box(
+            modifier = Modifier
+                .then(if (maxSize != null) Modifier.widthIn(max = maxSize) else Modifier)
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(20.dp))
+                .background(AstrionTheme.cardBg),
+        ) {
+            if (art != null) {
+                Image(art, null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+            } else {
+                Icon(
+                    Glyphs.note,
+                    contentDescription = "Nothing playing",
+                    tint = AstrionTheme.colors.accentMuted,
+                    modifier = Modifier.align(Alignment.Center).padding(bottom = 60.dp).size(56.dp),
+                )
+            }
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.38f to shade.copy(alpha = 0f),
+                            0.62f to shade.copy(alpha = 0.55f),
+                            1f to shade.copy(alpha = 0.88f),
+                        )
+                    ),
+            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(start = 14.dp, end = 14.dp, bottom = if (showControls) 76.dp else 14.dp),
+            ) {
+                Text(title, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(artist, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (showControls) Row(
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(22.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircleControl(Glyphs.prev, 40.dp, "Previous track", enabled = enabled) {
+                    mp("media_previous_track", emptyArray())
                 }
+                CircleControl(
+                    if (playing) Glyphs.pause else Glyphs.play, 52.dp,
+                    description = if (playing) "Pause" else "Play",
+                    accent = true, enabled = enabled,
+                ) {
+                    mp("media_play_pause", emptyArray())
+                }
+                CircleControl(Glyphs.next, 40.dp, "Next track", enabled = enabled) {
+                    mp("media_next_track", emptyArray())
+                }
+            }
+            if (onQueue != null) {
+                Box(
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 12.dp, bottom = 16.dp)
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(shade.copy(alpha = 0.45f))
+                        .tap(onClick = onQueue),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Glyphs.list, contentDescription = "Queue", tint = AstrionTheme.textPrimary, modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+    }
+
+    /** Mute, then the player's volume as a fader with its name on it. */
+    @Composable
+    private fun VolumeRow(ctx: CardContext, entityId: String, name: String, enabled: Boolean) {
+        val e = ctx.entities[entityId]
+        val muted = e?.attrString("is_volume_muted") == "true"
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(if (muted) AstrionTheme.colors.blushContainer else AstrionTheme.cardBg)
+                    .tap(enabled = enabled) {
+                        ctx.client.callService(ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted))
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (muted) Glyphs.mute else Glyphs.vol,
+                    contentDescription = if (muted) "Unmute" else "Mute",
+                    tint = if (muted) AstrionTheme.blush else AstrionTheme.textSecondary,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+            Fader(
+                value = e?.attrDouble("volume_level")?.toFloat(),
+                onCommit = { v ->
+                    ctx.client.callService(ServiceCall.of("media_player", "volume_set", entityId, "volume_level" to v.toDouble()))
+                },
+                modifier = Modifier.weight(1f).height(40.dp),
+                enabled = enabled,
+                fill = if (muted) AstrionTheme.raised else AstrionTheme.accentStrong,
+            ) {
+                Text(name, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.Bold, maxLines = 1)
             }
         }
     }
@@ -738,11 +905,11 @@ class MediaPlayerCard : CardRenderer {
             modifier = Modifier
                 .size(size)
                 .clip(CircleShape)
-                .background(if (accent) AstrionTheme.accentStrong else AstrionTheme.colors.controlBg.copy(alpha = 0.33f))
+                .background(if (accent) AstrionTheme.accentStrong else AstrionTheme.colors.glass)
                 .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = description, tint = Color.White)
+            Icon(icon, contentDescription = description, tint = AstrionTheme.textPrimary, modifier = Modifier.size(size * 0.42f))
         }
     }
 }
@@ -839,7 +1006,7 @@ private fun resolveTvSession(tv: EntityState?, players: List<EntityState>, apps:
  * a poster decoded at full size can be ~6 MB. 480px covers the panel's width.
  */
 @Composable
-private fun rememberArt(ctx: CardContext, path: String?): ImageBitmap? {
+internal fun rememberArt(ctx: CardContext, path: String?): ImageBitmap? {
     var art by remember(path) { mutableStateOf(path?.let { ArtCache.peek(it, 480) }) }
     LaunchedEffect(path) {
         art = path?.let { p -> ArtCache.load(p, 480) { ctx.client.fetchBytes(p) } }

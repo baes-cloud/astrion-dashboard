@@ -8,7 +8,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.material.icons.filled.Alarm
 import com.custom.astrion.ui.tap
 import com.custom.astrion.ha.ServiceCall
 import androidx.compose.foundation.layout.Box
@@ -40,6 +39,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Glyphs
 
 /**
  * The two one-line cards on Main: the next diary entry, and what's playing.
@@ -274,24 +274,24 @@ class NextUpCard : CardRenderer {
             // The event owns everything left of the alarm and ellipsises if it
             // must; the alarm hugs the right edge.
             Box(Modifier.weight(1f)) {
-                if (event != null) Fact(Icons.Filled.Event, null, event, AstrionTheme.accent, Modifier)
+                if (event != null) Fact(Glyphs.calendar, null, event, AstrionTheme.accent, Modifier, AstrionTheme.textSecondary)
             }
             if (alarm != null) {
                 Spacer(Modifier.width(10.dp))
-                Fact(Icons.Filled.Alarm, null, alarm, AstrionTheme.blush, Modifier)
+                Fact(Glyphs.alarm, null, alarm, AstrionTheme.blush, Modifier)
             }
         }
     }
 
     @Composable
-    private fun Fact(icon: ImageVector, label: String?, value: String, tint: Color, modifier: Modifier) {
+    private fun Fact(icon: ImageVector, label: String?, value: String, tint: Color, modifier: Modifier, ink: Color = tint) {
         Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(13.dp))
-            Spacer(Modifier.width(4.dp))
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
                 buildAnnotatedString {
                     if (label != null) withStyle(SpanStyle(color = AstrionTheme.textSecondary)) { append("$label ") }
-                    withStyle(SpanStyle(color = tint, fontWeight = FontWeight.Medium)) { append(value) }
+                    withStyle(SpanStyle(color = ink, fontWeight = FontWeight.SemiBold)) { append(value) }
                 },
                 fontSize = AstrionTheme.size.label,
                 maxLines = 1,

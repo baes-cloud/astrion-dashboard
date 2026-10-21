@@ -209,10 +209,9 @@ fun Screensaver(
                     // Faded through the colour, not Modifier.alpha: no extra
                     // layer. The rose night ink is already dim at full alpha.
                     color = if (night) clockInk else clockInk.copy(alpha = 0.62f),
-                    fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.clock,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = (-1.5).sp,
-                    lineHeight = 81.sp,
+                    fontFamily = AstrionTheme.readoutFont, fontSize = AstrionTheme.size.clock,
+                    fontWeight = FontWeight.Light,
+                    lineHeight = 120.sp,
                     style = TextStyle(fontFeatureSettings = "tnum"),
                     maxLines = 1,
                     modifier = Modifier.alignByBaseline(),
@@ -221,9 +220,9 @@ fun Screensaver(
                     Text(
                         Time.format(now, "a").lowercase(Locale.getDefault()),
                         color = faint,
-                        fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.heading,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(start = 5.dp).alignByBaseline(),
+                        fontFamily = AstrionTheme.readoutFont, fontSize = AstrionTheme.size.displayMd,
+                        fontWeight = FontWeight.Light,
+                        modifier = Modifier.padding(start = 6.dp).alignByBaseline(),
                     )
                 }
             }

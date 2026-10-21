@@ -97,8 +97,10 @@ object AstrionTheme {
     // ---- fonts --------------------------------------------------------------
     /** Manrope: everything by default (provided as the root text style). */
     val bodyFont: FontFamily @Composable @ReadOnlyComposable get() = typography.bodyFont
-    /** Syne: big numerals and headings (clock, temperatures, titles). */
+    /** Headings: Manrope, as the body (Syne until the 1.5 redesign). */
     val headingFont: FontFamily @Composable @ReadOnlyComposable get() = typography.headingFont
+    /** Antonio: readout numerals (temperatures, volume, brightness, clocks). */
+    val readoutFont: FontFamily @Composable @ReadOnlyComposable get() = typography.readoutFont
 
     // ---- type roles ---------------------------------------------------------
     val display: TextUnit @Composable @ReadOnlyComposable get() = typography.displaySize

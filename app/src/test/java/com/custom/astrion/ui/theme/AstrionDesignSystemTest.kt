@@ -20,7 +20,7 @@ class AstrionDesignSystemTest {
         assertEquals(Color(0xFF151B21), colors.surfacePrimary)
         assertEquals(Color(0xFF1C2630), colors.surfaceCard)
         assertEquals(Color(0xFF243140), colors.surface)
-        assertEquals(Color(0xFF0F1318), colors.surfaceSunken)
+        assertEquals(Color(0xFF161F28), colors.surfaceSunken)
         assertEquals(Color(0xFF8CBDB5), colors.accent)
         assertEquals(Color(0xFFEEF2EF), colors.onSurface)
         assertEquals(Color(0xFFA9BAB6), colors.onSurfaceMuted)
@@ -96,7 +96,7 @@ class AstrionDesignSystemTest {
         val scale = listOf(
             s.micro, s.label, s.small, s.body, s.bodyLarge, s.emphasis, s.title,
             s.titleLarge, s.heading, s.headingLarge, s.displayXs, s.displaySm, s.displayMd, s.displayLg,
-            s.displayXl, s.readout, s.clock, s.alarmClock, s.restClock,
+            s.displayXl, s.readout, s.readoutLarge, s.alarmClock, s.restClock, s.clock,
         ).map { it.value }
         assertEquals(scale.sorted(), scale)
         assertEquals(scale.distinct(), scale)

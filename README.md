@@ -219,6 +219,6 @@ com.custom.astrion/
 
 ## Notes & Licensing
 
-* **Licence:** MIT ([`LICENSE`](LICENSE)). Manrope and Syne fonts are used under the SIL Open Font License ([`licenses/`](licenses)).
+* **Licence:** MIT ([`LICENSE`](LICENSE)). Manrope and Antonio fonts are used under the SIL Open Font License ([`licenses/`](licenses)).
 * **Wireless ADB Security:** The HA100 firmware runs `userdebug`. See [`device/README.md`](device/README.md) for network lockdown instructions.
 * **Plex for Android TV:** Deep linking uses standard Android intents supported by classic Plex for Android TV (10.x).
