@@ -156,8 +156,8 @@
           },
           {
            "entity_id": "light.couch",
-           "left": 38,
-           "top": 30,
+           "left": 26,
+           "top": 27,
            "glow_spots": [
             [
              23,
