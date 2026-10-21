@@ -255,7 +255,7 @@ class SpeakerGroupCard : CardRenderer {
                     baeoWordmark(toggle?.get("name") as? String ?: "BÆOLINK"),
                     color = AstrionTheme.textPrimary,
                     fontFamily = AstrionTheme.headingFont,
-                    fontSize = AstrionTheme.size.small,
+                    fontSize = AstrionTheme.size.title,
                     letterSpacing = WordmarkTracking,
                     maxLines = 1,
                 )
@@ -321,18 +321,18 @@ class SpeakerGroupCard : CardRenderer {
                 if (joined.isNotEmpty()) {
                     Row(
                         modifier = Modifier
-                            .height(36.dp)
+                            .height(46.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(AstrionTheme.raised)
                             .tap(enabled = ctx.connected) {
                                 joined.forEach { (id, _) -> ctx.client.callService(ServiceCall("media_player", "unjoin", id)) }
                             }
-                            .padding(horizontal = 10.dp),
+                            .padding(horizontal = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
                     ) {
-                        Icon(Glyphs.link, contentDescription = null, tint = AstrionTheme.textSecondary, modifier = Modifier.size(16.dp))
-                        Text("Unjoin all", color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Icon(Glyphs.link, contentDescription = null, tint = AstrionTheme.textSecondary, modifier = Modifier.size(18.dp))
+                        Text("Unjoin all", color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     }
                 }
             }
