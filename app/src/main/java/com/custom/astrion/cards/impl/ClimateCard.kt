@@ -133,9 +133,9 @@ class ClimateCard : CardRenderer {
                 .clip(RoundedCornerShape(20.dp))
                 .background(AstrionTheme.cardBg)
                 // Tightened so the Climate page (this card plus three blinds)
-                // fits one screen without scrolling.
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                // fits one screen without scrolling, under the clock band.
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             // Header: name + a dedicated off button.
             Row(
@@ -244,7 +244,7 @@ class ClimateCard : CardRenderer {
     ) {
         Box(
             modifier = Modifier
-                .size(50.dp)
+                .size(46.dp)
                 .clip(CircleShape)
                 .background(AstrionTheme.controlBg)
                 .tap(enabled = enabled, onClick = onClick),

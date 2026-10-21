@@ -65,6 +65,7 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.rememberSampledBitmap
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Glyphs
 import kotlin.math.roundToInt
 import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalPageVisible
@@ -193,6 +194,8 @@ class PictureElementsCard : CardRenderer {
             // else, so icons and dots stay crisp on top. See LitRooms.kt.
             val litRooms = config.options["lit_rooms"] as? Map<String, Any?>
             if (litRooms != null && bitmap != null) LitRoomsLayer(litRooms, elements, ctx)
+            // TV screens that glow while the TV is on. See ScreenGlow.kt.
+            (config.options["screens"] as? List<*>)?.let { if (bitmap != null) ScreenGlowLayer(it, ctx) }
 
             // Optional embedded card floated over the plan (e.g. the
             // now-playing strip in the empty band across the bedroom /
@@ -213,7 +216,8 @@ class PictureElementsCard : CardRenderer {
                 )
             }
 
-            val iconBox = 40.dp
+            // 36dp: a touch smaller than the 40dp it was, so the plan shows more.
+            val iconBox = 36.dp
 
             elements.forEach { el ->
                 val leftPct = (el["left"] as? Number)?.toFloat() ?: 50f
@@ -230,8 +234,10 @@ class PictureElementsCard : CardRenderer {
                 val elUnavailable = entityId != null && (entity == null || entity.isUnavailable)
 
                 // Position using cheap Modifier.offset instead of expensive layout padding
-                val x = w * (leftPct / 100f) - iconBox / 2
-                val y = h * (topPct / 100f) - iconBox / 2
+                // "size" (dp) makes one fixture a bigger button than the rest.
+                val box = (el["size"] as? Number)?.toFloat()?.dp ?: iconBox
+                val x = w * (leftPct / 100f) - box / 2
+                val y = h * (topPct / 100f) - box / 2
 
                 // With lit rooms the bulb takes the light's own colour, so the
                 // icon matches the glow around it.
@@ -251,8 +257,8 @@ class PictureElementsCard : CardRenderer {
                 val icon = when {
                     isPower -> Icons.Filled.PowerSettingsNew
                     elUnavailable -> Icons.Filled.HelpOutline
-                    on -> Icons.Filled.Lightbulb
-                    else -> Icons.Outlined.Lightbulb
+                    else -> fixtureGlyph(el["icon"] as? String)
+                        ?: if (on) Icons.Filled.Lightbulb else Icons.Outlined.Lightbulb
                 }
 
                 // The most-tapped targets on Main, and they gave no feedback
@@ -272,7 +278,7 @@ class PictureElementsCard : CardRenderer {
                     tint = tint,
                     modifier = Modifier
                         .offset(x = x.coerceAtLeast(0.dp), y = y.coerceAtLeast(0.dp))
-                        .size(iconBox)
+                        .size(box)
                         .clip(CircleShape)
                         .background(bg)
                         .then(
@@ -709,4 +715,38 @@ class PictureElementsCard : CardRenderer {
         "overlay", null -> BlendMode.Overlay
         else -> BlendMode.Overlay
     }
+}
+
+/**
+ * A fixture's own line icon for a floorplan light that isn't a bulb
+ * ("icon": "table_lamp", "led_strip", "led_bar", "hue_strip", "glow_strip",
+ * "zigzag", "underglow", "spotlight", "downlight", "playbar", "candles",
+ * "artwork", "artworks", "portrait_art", "art_blob", "roundel", "bulbs",
+ * "bulb_grid", "sofa", "mirrorball", "xmas_tree", "desk"); null keeps the
+ * bulb. On or off shows in its tint and backing, as for the bulb.
+ */
+private fun fixtureGlyph(key: String?): androidx.compose.ui.graphics.vector.ImageVector? = when (key) {
+    "table_lamp", "lamp" -> Glyphs.tableLamp
+    "led_strip", "strip" -> Glyphs.ledStrip
+    "hue_strip" -> Glyphs.hueStrip
+    "underglow" -> Glyphs.underglow
+    "spotlight", "spot" -> Glyphs.spotlight
+    "candles" -> Glyphs.candles
+    "artwork", "art" -> Glyphs.artwork
+    "artworks" -> Glyphs.twoArtworks
+    "portrait_art" -> Glyphs.portraitArt
+    "downlight" -> Glyphs.downlight
+    "playbar" -> Glyphs.playbar
+    "glow_strip" -> Glyphs.glowStrip
+    "zigzag" -> Glyphs.zigzag
+    "led_bar" -> Glyphs.ledBar
+    "roundel" -> Glyphs.roundel
+    "bulbs" -> Glyphs.bulbs
+    "bulb_grid" -> Glyphs.bulbGrid
+    "art_blob" -> Glyphs.artBlob
+    "sofa" -> Glyphs.sofa
+    "mirrorball" -> Glyphs.mirrorball
+    "xmas_tree" -> Glyphs.xmasTree
+    "desk", "computer" -> Glyphs.desk
+    else -> null
 }

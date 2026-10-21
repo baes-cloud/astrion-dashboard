@@ -213,6 +213,8 @@ class SwipeStackCard : CardRenderer {
                 modifier = if (height > 0) Modifier.height(height.dp) else Modifier,
                 // Shorter tabs sit at the top rather than centred in the pager.
                 verticalAlignment = Alignment.Top,
+                // With tabs, a swipe belongs to the dashboard (page to page).
+                userScrollEnabled = titles.size < children.size,
             ) { page ->
                 val child = children[page]
                 val childType = child["type"] as? String
