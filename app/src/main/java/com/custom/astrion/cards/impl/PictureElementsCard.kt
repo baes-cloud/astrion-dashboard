@@ -719,11 +719,11 @@ class PictureElementsCard : CardRenderer {
 
 /**
  * A fixture's own line icon for a floorplan light that isn't a bulb
- * ("icon": "table_lamp", "led_strip", "hue_strip", "glow_strip", "zigzag",
- * "underglow", "spotlight", "downlight", "playbar", "candles", "artwork",
- * "artworks", "portrait_art", "art_blob", "roundel", "bulbs", "bulb_grid",
- * "sofa", "mirrorball", "xmas_tree", "desk"); null keeps the bulb. On or off
- * shows in its tint and backing, as for the bulb.
+ * ("icon": "table_lamp", "led_strip", "led_bar", "hue_strip", "glow_strip",
+ * "zigzag", "underglow", "spotlight", "downlight", "playbar", "candles",
+ * "artwork", "artworks", "portrait_art", "art_blob", "roundel", "bulbs",
+ * "bulb_grid", "sofa", "mirrorball", "xmas_tree", "desk"); null keeps the
+ * bulb. On or off shows in its tint and backing, as for the bulb.
  */
 private fun fixtureGlyph(key: String?): androidx.compose.ui.graphics.vector.ImageVector? = when (key) {
     "table_lamp", "lamp" -> Glyphs.tableLamp
@@ -739,6 +739,7 @@ private fun fixtureGlyph(key: String?): androidx.compose.ui.graphics.vector.Imag
     "playbar" -> Glyphs.playbar
     "glow_strip" -> Glyphs.glowStrip
     "zigzag" -> Glyphs.zigzag
+    "led_bar" -> Glyphs.ledBar
     "roundel" -> Glyphs.roundel
     "bulbs" -> Glyphs.bulbs
     "bulb_grid" -> Glyphs.bulbGrid

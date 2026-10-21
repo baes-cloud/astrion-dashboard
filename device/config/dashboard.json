@@ -317,7 +317,7 @@
             ]
            ],
            "glow_reach": 0.35,
-           "icon": "zigzag"
+           "icon": "led_bar"
           },
           {
            "entity_id": "light.bedroom_cupboard_light",
