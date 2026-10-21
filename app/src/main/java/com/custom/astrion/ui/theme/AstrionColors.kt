@@ -90,7 +90,6 @@ data class AstrionColors(
     // ---- weather glyphs: sky colours, soft so they never read as a light that is on
     val wxSun: Color = Color(0xFFF2CB7E),
     val wxSunFill: Color = Color(0x38F2CB7E),
-    val wxCloud: Color = Color(0xFFC3D0CD),
     val wxCloudFill: Color = Color(0x1FC3D0CD),
     val wxRain: Color = Color(0xFF7FB2E5),
 

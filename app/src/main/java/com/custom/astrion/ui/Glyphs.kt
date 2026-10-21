@@ -115,7 +115,7 @@ private val INK = Color.Black
 private val palette = AstrionColors()
 private val WX_SUN = palette.wxSun
 private val WX_SUN_FILL = palette.wxSunFill
-private val WX_CLOUD = palette.wxCloud
+private val WX_CLOUD = palette.textSoft
 private val WX_CLOUD_FILL = palette.wxCloudFill
 private val WX_RAIN = palette.wxRain
 
