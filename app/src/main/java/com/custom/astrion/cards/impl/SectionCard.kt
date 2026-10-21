@@ -2,9 +2,11 @@ package com.custom.astrion.cards.impl
 
 import com.custom.astrion.ui.AstrionTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -24,10 +26,10 @@ class SectionCard : CardRenderer {
         val title = config.string("title") ?: return
         Text(
             title,
-            color = AstrionTheme.colors.onSurfaceVariant,
-            fontSize = AstrionTheme.size.label,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.sp,
+            color = AstrionTheme.textPrimary,
+            fontSize = AstrionTheme.size.small,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 2.dp, top = 2.dp),
         )
     }
 }

@@ -6,19 +6,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Air
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Blinds
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Whatshot
-import androidx.compose.material.icons.outlined.Blinds
 import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Text
@@ -81,7 +75,12 @@ class CoverCard : CardRenderer {
             position != null -> position > 0
             else -> (e?.state == "open") != invertPosition
         }
-        val stateLabel = position?.let { "$it% open" } ?: (e?.state?.humanise() ?: "—")
+        val stateLabel = when (position) {
+            null -> e?.state?.humanise() ?: "—"
+            0 -> "Closed"
+            100 -> "Open"
+            else -> "$position% open"
+        }
 
         fun call(service: String) {
             ctx.client.callService(ServiceCall(domain = "cover", service = service, entityId = entityId))
@@ -93,8 +92,8 @@ class CoverCard : CardRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .dimIfUnavailable(unavailable)
-                .clip(RoundedCornerShape(18.dp))
-                .background(AstrionTheme.cardBgAlt)
+                .clip(RoundedCornerShape(16.dp))
+                .background(AstrionTheme.cardBg)
                 // 55dp tall: three blinds, the fan and the aircon fill the
                 // Climate page exactly, without scrolling.
                 .padding(horizontal = 12.dp, vertical = 8.5.dp),
@@ -104,17 +103,18 @@ class CoverCard : CardRenderer {
                 modifier = Modifier
                     .size(34.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(AstrionTheme.raised),
+                    .background(AstrionTheme.colors.surfaceSunken),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    if (open) Icons.Filled.Blinds else Icons.Outlined.Blinds,
+                    Glyphs.blind,
                     contentDescription = if (open) "$name, open" else "$name, closed",
                     tint = when {
                         unavailable -> AstrionTheme.unavailable
-                        open -> AstrionTheme.blush
-                        else -> AstrionTheme.colors.textSoft
+                        open -> AstrionTheme.textPrimary
+                        else -> AstrionTheme.textMuted
                     },
+                    modifier = Modifier.size(19.dp),
                 )
             }
             Spacer(Modifier.width(10.dp))
@@ -132,12 +132,27 @@ class CoverCard : CardRenderer {
                     UnavailableLabel(AstrionTheme.size.label)
                 } else {
                     Text(stateLabel, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
+                    // How far open, as a short bar.
+                    Box(
+                        Modifier
+                            .padding(top = 3.dp)
+                            .size(width = 84.dp, height = 3.dp)
+                            .clip(CircleShape)
+                            .background(AstrionTheme.colors.surfaceSunken),
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(((position ?: if (open) 100 else 0) / 100f).coerceIn(0f, 1f))
+                                .background(AstrionTheme.accent),
+                        )
+                    }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                CircleBtn(Icons.Filled.KeyboardArrowUp, "Open $name", live, size = 38.dp) { call(openService) }
-                CircleBtn(Icons.Filled.Stop, "Stop $name", live, size = 38.dp) { call("stop_cover") }
-                CircleBtn(Icons.Filled.KeyboardArrowDown, "Close $name", live, size = 38.dp) { call(closeService) }
+                CircleBtn(Glyphs.up, "Open $name", live, size = 38.dp) { call(openService) }
+                CircleBtn(Glyphs.stop, "Stop $name", live, size = 38.dp) { call("stop_cover") }
+                CircleBtn(Glyphs.down, "Close $name", live, size = 38.dp) { call(closeService) }
             }
         }
     }
@@ -208,8 +223,8 @@ class FanCard : CardRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .dimIfUnavailable(unavailable)
-                .clip(RoundedCornerShape(18.dp))
-                .background(AstrionTheme.cardBgAlt)
+                .clip(RoundedCornerShape(16.dp))
+                .background(AstrionTheme.cardBg)
                 // Same 52dp as the blind rows it sits above.
                 .padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -225,17 +240,18 @@ class FanCard : CardRenderer {
                     modifier = Modifier
                         .size(34.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(AstrionTheme.raised),
+                        .background(if (on) AstrionTheme.colors.accentContainer else AstrionTheme.colors.surfaceSunken),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        Icons.Filled.Air,
+                        Glyphs.fan,
                         contentDescription = "$name, ${if (on) "on" else "off"}, more controls",
                         tint = when {
                             unavailable -> AstrionTheme.unavailable
                             on -> AstrionTheme.accent
-                            else -> AstrionTheme.colors.textSoft
+                            else -> AstrionTheme.textSecondary
                         },
+                        modifier = Modifier.size(19.dp),
                     )
                 }
                 Spacer(Modifier.width(10.dp))
@@ -263,18 +279,19 @@ class FanCard : CardRenderer {
             }
             Spacer(Modifier.width(7.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                CircleBtn(Icons.Filled.Remove, "$name slower", live && shownSpeed != null, size = 38.dp) { nudge(-1) }
-                CircleBtn(Icons.Filled.Add, "$name faster", live, size = 38.dp) { nudge(1) }
+                CircleBtn(Glyphs.minus, "$name slower", live && shownSpeed != null, size = 38.dp) { nudge(-1) }
+                CircleBtn(Glyphs.plus, "$name faster", live, size = 38.dp) { nudge(1) }
                 HitTarget(
                     visual = 38.dp,
                     onClick = { ctx.client.toggle(entityId) },
                     enabled = live,
-                    face = Modifier.clip(CircleShape).background(if (on) AstrionTheme.accentStrong else AstrionTheme.controlBg),
+                    face = Modifier.clip(CircleShape).background(if (on) AstrionTheme.accentStrong else AstrionTheme.raised),
                 ) {
                     Icon(
-                        Icons.Filled.PowerSettingsNew,
+                        Glyphs.power,
                         contentDescription = if (on) "Turn $name off" else "Turn $name on",
-                        tint = if (on) Color.White else AstrionTheme.textOnControl,
+                        tint = AstrionTheme.textPrimary,
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }
@@ -483,8 +500,8 @@ private fun CircleBtn(
         visual = size,
         onClick = onClick,
         enabled = enabled,
-        face = Modifier.clip(CircleShape).background(AstrionTheme.controlBg),
+        face = Modifier.clip(CircleShape).background(AstrionTheme.raised),
     ) {
-        Icon(icon, contentDescription = description, tint = AstrionTheme.textOnControl)
+        Icon(icon, contentDescription = description, tint = AstrionTheme.textPrimary, modifier = Modifier.size(size * 0.47f))
     }
 }
