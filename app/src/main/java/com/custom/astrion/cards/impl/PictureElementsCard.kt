@@ -65,6 +65,7 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.rememberSampledBitmap
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Glyphs
 import kotlin.math.roundToInt
 import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalPageVisible
@@ -252,8 +253,8 @@ class PictureElementsCard : CardRenderer {
                 val icon = when {
                     isPower -> Icons.Filled.PowerSettingsNew
                     elUnavailable -> Icons.Filled.HelpOutline
-                    on -> Icons.Filled.Lightbulb
-                    else -> Icons.Outlined.Lightbulb
+                    else -> fixtureGlyph(el["icon"] as? String)
+                        ?: if (on) Icons.Filled.Lightbulb else Icons.Outlined.Lightbulb
                 }
 
                 // The most-tapped targets on Main, and they gave no feedback
@@ -710,4 +711,21 @@ class PictureElementsCard : CardRenderer {
         "overlay", null -> BlendMode.Overlay
         else -> BlendMode.Overlay
     }
+}
+
+/**
+ * A fixture's own line icon for a floorplan light that isn't a bulb
+ * ("icon": "table_lamp", "led_strip", "hue_strip", "underglow", "spotlight",
+ * "candles", "artwork"); null keeps the bulb. On or off shows in its tint
+ * and backing, as for the bulb.
+ */
+private fun fixtureGlyph(key: String?): androidx.compose.ui.graphics.vector.ImageVector? = when (key) {
+    "table_lamp", "lamp" -> Glyphs.tableLamp
+    "led_strip", "strip" -> Glyphs.ledStrip
+    "hue_strip" -> Glyphs.hueStrip
+    "underglow" -> Glyphs.underglow
+    "spotlight", "spot" -> Glyphs.spotlight
+    "candles" -> Glyphs.candles
+    "artwork", "art" -> Glyphs.artwork
+    else -> null
 }

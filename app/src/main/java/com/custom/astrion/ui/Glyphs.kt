@@ -28,6 +28,15 @@ object Glyphs {
     val power: ImageVector by lazy { glyph("power", P("M12 3.5v8", INK), P("M7.2 6.6a7 7 0 1 0 9.6 0", INK)) }
     val pause: ImageVector by lazy { glyph("pause", P("M9 5.5v13M15 5.5v13", INK)) }
     val play: ImageVector by lazy { glyph("play", P("M8 5.5v13l10.5-6.5z", INK, fill = INK)) }
+
+    // Floorplan fixtures, for lights that aren't a bulb.
+    val tableLamp: ImageVector by lazy { glyph("tableLamp", P("M8 4h8l3 8H5z", INK), P("M12 12v7M8.5 20h7", INK)) }
+    val ledStrip: ImageVector by lazy { glyph("ledStrip", P("M3.5 10h17a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-17a1 1 0 0 1 -1 -1v-2a1 1 0 0 1 1 -1z", INK), P("M6.5 12h.01M10 12h.01M14 12h.01M17.5 12h.01", INK)) }
+    val hueStrip: ImageVector by lazy { glyph("hueStrip", P("M3.5 12h17a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-17a1 1 0 0 1 -1 -1v-2a1 1 0 0 1 1 -1z", INK), P("M7 8.5l-1-2.5M12 8.5V5.5M17 8.5l1-2.5", INK)) }
+    val underglow: ImageVector by lazy { glyph("underglow", P("M5 7h14a1.5 1.5 0 0 1 1.5 1.5v3.5h-17v-3.5a1.5 1.5 0 0 1 1.5 -1.5z", INK), P("M6 15.5l-1.2 3M12 15.5v3.5M18 15.5l1.2 3", INK)) }
+    val spotlight: ImageVector by lazy { glyph("spotlight", P("M10 3.5h4v2.5l2.5 3.5h-9L10 6z", INK), P("M8.5 13l-2 5.5M12 13v6M15.5 13l2 5.5", INK)) }
+    val candles: ImageVector by lazy { glyph("candles", P("M4.5 13h3v7h-3zM10.5 10h3v10h-3zM16.5 14h3v6h-3z", INK), P("M6 10.5v-1.5M12 7.5v-2M18 11.5v-1.5", INK)) }
+    val artwork: ImageVector by lazy { glyph("artwork", P("M4 5h16v14H4z", INK), P("M4 16l5-5 4 4 2-2 5 5", INK), P("M15.5 9h.01", INK)) }
     val prev: ImageVector by lazy { glyph("prev", P("M6 5.5v13", INK), P("M19 5.5v13L9 12z", INK, fill = INK)) }
     val next: ImageVector by lazy { glyph("next", P("M18 5.5v13", INK), P("M5 5.5v13L15 12z", INK, fill = INK)) }
 }
