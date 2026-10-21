@@ -232,8 +232,10 @@ class PictureElementsCard : CardRenderer {
                 val elUnavailable = entityId != null && (entity == null || entity.isUnavailable)
 
                 // Position using cheap Modifier.offset instead of expensive layout padding
-                val x = w * (leftPct / 100f) - iconBox / 2
-                val y = h * (topPct / 100f) - iconBox / 2
+                // "size" (dp) makes one fixture a bigger button than the rest.
+                val box = (el["size"] as? Number)?.toFloat()?.dp ?: iconBox
+                val x = w * (leftPct / 100f) - box / 2
+                val y = h * (topPct / 100f) - box / 2
 
                 // With lit rooms the bulb takes the light's own colour, so the
                 // icon matches the glow around it.
@@ -274,7 +276,7 @@ class PictureElementsCard : CardRenderer {
                     tint = tint,
                     modifier = Modifier
                         .offset(x = x.coerceAtLeast(0.dp), y = y.coerceAtLeast(0.dp))
-                        .size(iconBox)
+                        .size(box)
                         .clip(CircleShape)
                         .background(bg)
                         .then(

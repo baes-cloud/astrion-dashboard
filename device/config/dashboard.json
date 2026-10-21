@@ -212,7 +212,7 @@
             ]
            ],
            "glow_reach": 0.6,
-           "icon": "bulb_grid"
+           "size": 44
           },
           {
            "entity_id": "light.kitchen_console_candles",
