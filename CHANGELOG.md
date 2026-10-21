@@ -9,7 +9,8 @@ The BÆO redesign, built from the mockup:
 - **Bottom sheets.** Popups rise from the bottom. The light sheet has a tall fader, a big readout, Turn on/off, warmth and colour; the vacuum sheet too.
 - **SOUND.** Segmented Player / Media / Zones tabs (tabs change by tap; a swipe turns the page). The player gets a mute button and a volume fader, a queue button (now playing and up next, from Music Assistant), and line-icon mix tiles. Zones is a BÆOLINK card (switch, what's playing, who's joined, Unjoin all) over one fader row per speaker with Join. Faders move only on a sideways drag and by how far you drag, so a tap or scroll can't jump the volume.
 - **LIVING.** Antonio setpoint with segmented mode (with icons) and fan controls; fan and blind rows with line icons and a position bar.
-- **Config.** `row` children take a fixed `width`; `lock` has `"style": "door"`; `button_grid` buttons take a line `glyph`; `media_player` (full) takes `queue_player` and `volume_fader`; `clock_weather` takes `chip_days`.
+- **Second pass from the mockup.** A bigger, wider-spaced page name with fainter dots and arrows. See-through floorplan bulbs. Door is a half-width tile like Auto lights, DOOR in large type over LOCKED. The forecast takes the row's spare width; the temperature is in Manrope. Bigger posters and album covers on the shelves. The player is a square record sleeve with Search above it and the queue button bottom right. Mirror ball and Eiffel Tower mix icons. Zones rows are slimmer, under LINKED and NOT LINKED. Segmented controls and insets lifted off near-black; the fan and blind icons sit in Gunmetal wells. The Bed blind is gone.
+- **Config.** `row` children take a fixed `width`; `lock` has `"style": "door"`; `button_grid` buttons take a line `glyph`; `media_player` (full) takes `queue_player`, `volume_fader` and `"layout": "sleeve"` with `max_size`; `clock_weather` takes `chip_days`.
 
 ## v1.4.0 (2026-10-21)
 

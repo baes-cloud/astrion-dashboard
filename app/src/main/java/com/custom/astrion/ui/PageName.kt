@@ -88,12 +88,12 @@ private fun EdgeArrow(
     // Always laid out, so the name stays put at the ends; just not shown or tappable.
     Box(
         modifier = Modifier
-            .size(width = 38.dp, height = PageNameHeight)
-            .graphicsLayer { alpha = if (visible) 0.5f else 0f }
+            .size(width = 32.dp, height = PageNameHeight)
+            .graphicsLayer { alpha = if (visible) 0.28f else 0f }
             .then(if (visible) Modifier.tap(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = if (visible) label else null, tint = AstrionTheme.textMuted, modifier = Modifier.size(19.dp))
+        Icon(icon, contentDescription = if (visible) label else null, tint = AstrionTheme.textMuted, modifier = Modifier.size(13.dp))
     }
 }
 
@@ -107,7 +107,7 @@ private fun Dots(range: IntRange, names: List<String?>, onGo: (Int) -> Unit, mod
         for (i in range) {
             Box(
                 modifier = Modifier
-                    .width(18.dp)
+                    .width(10.dp)
                     .fillMaxHeight()
                     .tap { onGo(i) },
                 contentAlignment = Alignment.Center,
@@ -115,7 +115,7 @@ private fun Dots(range: IntRange, names: List<String?>, onGo: (Int) -> Unit, mod
                 Box(
                     Modifier
                         .size(3.dp)
-                        .graphicsLayer { alpha = 0.4f }
+                        .graphicsLayer { alpha = 0.2f }
                         .clip(CircleShape)
                         .background(AstrionTheme.textMuted),
                 )
@@ -139,7 +139,7 @@ private fun Wordmark(names: List<String?>, current: Int, ink: androidx.compose.u
                 fontFamily = AstrionTheme.bodyFont,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = WordmarkSize,
-                letterSpacing = WordmarkTracking,
+                letterSpacing = NameplateTracking,
                 maxLines = 1,
             )
         }
@@ -191,9 +191,9 @@ private fun Suffix(text: String, offset: Int, ink: androidx.compose.ui.graphics.
 }
 
 /** Every page's suffix spans this width, so BÆO sits in the same place on every page. */
-val SuffixWidth = 80.dp
+val SuffixWidth = 116.dp
 
-private val WordmarkSize = 14.sp
+private val WordmarkSize = 17.sp
 
 /**
  * A Bæo name in caps with the BÆO prefix in Manrope ExtraBold and the rest
@@ -210,6 +210,9 @@ fun baeoWordmark(name: String): AnnotatedString {
 
 /** Wordmark letter spacing. */
 val WordmarkTracking = 0.34.em
+
+/** The nameplate spreads its name wider still: it's the page title. */
+private val NameplateTracking = 0.46.em
 
 private const val BAEO = "BÆO"
 

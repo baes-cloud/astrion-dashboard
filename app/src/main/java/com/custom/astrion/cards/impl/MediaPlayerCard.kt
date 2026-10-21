@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -62,7 +63,9 @@ import kotlinx.coroutines.delay
  *  - "compact" (default): a single row — round album art, title/artist, and
  *    prev / play-pause / next / vol- / vol+ controls. Blurred art background.
  *  - "full": a big square album art on top, title/artist, then transport and
- *    volume rows. For the dedicated Media page.
+ *    volume rows. For the dedicated Media page. With `"layout": "sleeve"`
+ *    it's a square record sleeve instead: the art fills it, the title and
+ *    transport sit on a shade at its foot, and `max_size` (dp) caps its side.
  *
  * Album art is loaded from the entity's `entity_picture` (auth'd fetch). Since
  * Modifier.blur is a no-op on this API 26 device, the blurred background is a
@@ -153,8 +156,17 @@ class MediaPlayerCard : CardRenderer {
             val showControls = config.bool("show_controls", true)
             val queuePlayer = config.string("queue_player")
             var queueOpen by remember { mutableStateOf(false) }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ArtBackdrop(art) {
+            val sleeve = config.string("layout") == "sleeve"
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (sleeve) Sleeve(
+                    title, artist, playing, art, ::mp, live,
+                    showControls = showControls,
+                    maxSize = (config.options["max_size"] as? Number)?.toFloat()?.dp,
+                    onQueue = queuePlayer?.let { { queueOpen = true } },
+                ) else ArtBackdrop(art) {
                     FullContent(
                         ctx, title, artist, playing, art, ::mp, topButtons, sourceEntity, live,
                         showControls = showControls,
@@ -675,6 +687,101 @@ class MediaPlayerCard : CardRenderer {
                 Icon(Glyphs.list, contentDescription = "Queue", tint = AstrionTheme.textSecondary, modifier = Modifier.size(16.dp))
             }
         }
+        }
+    }
+
+    /**
+     * The player as a record sleeve: always square, the artwork edge to edge,
+     * the title and transport on a shade along its foot and the queue button
+     * in the bottom-right corner. [maxSize] caps the side so the page around
+     * it still fits without scrolling.
+     */
+    @Composable
+    private fun Sleeve(
+        title: String,
+        artist: String,
+        playing: Boolean,
+        art: ImageBitmap?,
+        mp: (String, Array<out Pair<String, Any?>>) -> Unit,
+        enabled: Boolean,
+        showControls: Boolean,
+        maxSize: androidx.compose.ui.unit.Dp?,
+        onQueue: (() -> Unit)?,
+    ) {
+        val shade = AstrionTheme.colors.void
+        Box(
+            modifier = Modifier
+                .then(if (maxSize != null) Modifier.widthIn(max = maxSize) else Modifier)
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(20.dp))
+                .background(AstrionTheme.cardBg),
+        ) {
+            if (art != null) {
+                Image(art, null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+            } else {
+                Icon(
+                    Glyphs.note,
+                    contentDescription = "Nothing playing",
+                    tint = AstrionTheme.colors.accentMuted,
+                    modifier = Modifier.align(Alignment.Center).padding(bottom = 60.dp).size(56.dp),
+                )
+            }
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.38f to shade.copy(alpha = 0f),
+                            0.62f to shade.copy(alpha = 0.55f),
+                            1f to shade.copy(alpha = 0.88f),
+                        )
+                    ),
+            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(start = 14.dp, end = 14.dp, bottom = if (showControls) 76.dp else 14.dp),
+            ) {
+                Text(title, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(artist, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (showControls) Row(
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(22.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircleControl(Glyphs.prev, 40.dp, "Previous track", enabled = enabled) {
+                    mp("media_previous_track", emptyArray())
+                }
+                CircleControl(
+                    if (playing) Glyphs.pause else Glyphs.play, 52.dp,
+                    description = if (playing) "Pause" else "Play",
+                    accent = true, enabled = enabled,
+                ) {
+                    mp("media_play_pause", emptyArray())
+                }
+                CircleControl(Glyphs.next, 40.dp, "Next track", enabled = enabled) {
+                    mp("media_next_track", emptyArray())
+                }
+            }
+            if (onQueue != null) {
+                Box(
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 12.dp, bottom = 16.dp)
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(shade.copy(alpha = 0.45f))
+                        .tap(onClick = onQueue),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Glyphs.list, contentDescription = "Queue", tint = AstrionTheme.textPrimary, modifier = Modifier.size(20.dp))
+                }
+            }
         }
     }
 

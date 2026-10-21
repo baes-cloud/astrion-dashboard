@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
@@ -307,10 +308,9 @@ class ClockWeatherCard : CardRenderer {
                     .padding(top = padV, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                // Now on the left, as narrow as it can be; the four days
+                // take whatever is left so they're never cramped.
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         weatherGlyph(condition),
                         contentDescription = weatherLabel(condition),
@@ -321,18 +321,19 @@ class ClockWeatherCard : CardRenderer {
                     Text(
                         temp?.let { whole(it) } ?: "—",
                         color = AstrionTheme.textPrimary,
-                        fontFamily = AstrionTheme.readoutFont,
-                        fontWeight = FontWeight.ExtraLight,
-                        fontSize = AstrionTheme.size.readout,
-                        lineHeight = AstrionTheme.size.readout,
+                        fontFamily = AstrionTheme.bodyFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = AstrionTheme.size.displayXl,
+                        lineHeight = AstrionTheme.size.displayXl,
+                        letterSpacing = (-0.04).em,
                         maxLines = 1,
                     )
                     Text(
                         "°",
                         color = AstrionTheme.textPrimary,
-                        fontFamily = AstrionTheme.readoutFont,
-                        fontWeight = FontWeight.ExtraLight,
-                        fontSize = AstrionTheme.size.displayXs,
+                        fontFamily = AstrionTheme.bodyFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = AstrionTheme.size.emphasis,
                         modifier = Modifier.align(Alignment.Top),
                     )
                     Spacer(Modifier.width(8.dp))
@@ -359,7 +360,7 @@ class ClockWeatherCard : CardRenderer {
                         .background(AstrionTheme.colors.hairline),
                 )
 
-                Row(Modifier.width(DAYS_WIDTH).alpha(if (waiting) 0f else 1f)) {
+                Row(Modifier.weight(1f).alpha(if (waiting) 0f else 1f)) {
                     days.forEach { f ->
                         Column(
                             modifier = Modifier.weight(1f),
@@ -420,8 +421,8 @@ class ClockWeatherCard : CardRenderer {
         val ring = AstrionTheme.pageBg
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("${whole(f.low)}°", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.width(6.dp))
-            Canvas(Modifier.width(46.dp).height(8.dp)) {
+            Spacer(Modifier.width(4.dp))
+            Canvas(Modifier.width(40.dp).height(8.dp)) {
                 val h = 4.dp.toPx()
                 val y = (size.height - h) / 2
                 val r = androidx.compose.ui.geometry.CornerRadius(h / 2)
@@ -440,7 +441,7 @@ class ClockWeatherCard : CardRenderer {
                     drawCircle(dot, radius = 3.dp.toPx(), center = c)
                 }
             }
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(4.dp))
             Text("${whole(f.high)}°", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.SemiBold)
         }
     }
@@ -508,8 +509,6 @@ class ClockWeatherCard : CardRenderer {
         const val RETRY_MS = 60_000L
         /** A visit refetches a forecast older than this. */
         const val REFRESH_ON_VISIT_MS = 10 * 60 * 1000L
-        /** The coming days' columns on the Main page. */
-        val DAYS_WIDTH = 134.dp
     }
 
     private data class Forecast(

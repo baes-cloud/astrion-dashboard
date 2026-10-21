@@ -103,7 +103,7 @@ class CoverCard : CardRenderer {
                 modifier = Modifier
                     .size(34.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(AstrionTheme.colors.surfaceSunken),
+                    .background(AstrionTheme.colors.accentContainer),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -111,8 +111,7 @@ class CoverCard : CardRenderer {
                     contentDescription = if (open) "$name, open" else "$name, closed",
                     tint = when {
                         unavailable -> AstrionTheme.unavailable
-                        open -> AstrionTheme.textPrimary
-                        else -> AstrionTheme.textMuted
+                        else -> AstrionTheme.accent
                     },
                     modifier = Modifier.size(19.dp),
                 )
@@ -240,7 +239,7 @@ class FanCard : CardRenderer {
                     modifier = Modifier
                         .size(34.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (on) AstrionTheme.colors.accentContainer else AstrionTheme.colors.surfaceSunken),
+                        .background(AstrionTheme.colors.accentContainer),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -248,8 +247,7 @@ class FanCard : CardRenderer {
                         contentDescription = "$name, ${if (on) "on" else "off"}, more controls",
                         tint = when {
                             unavailable -> AstrionTheme.unavailable
-                            on -> AstrionTheme.accent
-                            else -> AstrionTheme.textSecondary
+                            else -> AstrionTheme.accent
                         },
                         modifier = Modifier.size(19.dp),
                     )

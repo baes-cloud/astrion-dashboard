@@ -78,6 +78,8 @@ object Glyphs {
     val fog: ImageVector by lazy { glyph("fog", P("M7 12.5h10a4 4 0 0 0 .5-8 5.5 5.5 0 0 0-10.6 1.5A3.3 3.3 0 0 0 7 12.5z", WX_CLOUD, fill = WX_CLOUD_FILL), P("M4 16h16M6 19.5h12", WX_CLOUD)) }
     val snowy: ImageVector by lazy { glyph("snowy", P("M7 15h10a4 4 0 0 0 .5-8 5.5 5.5 0 0 0-10.6 1.5A3.3 3.3 0 0 0 7 15z", WX_CLOUD, fill = WX_CLOUD_FILL), P("M8.5 18.5h.01M12 20.5h.01M15.5 18.5h.01", WX_RAIN)) }
     val windy: ImageVector by lazy { glyph("windy", P("M3 9h11a2.5 2.5 0 1 0-2.5-2.5M3 15h14a2.5 2.5 0 1 1-2.5 2.5M3 12h7", WX_CLOUD)) }
+    val mirrorball: ImageVector by lazy { glyph("mirrorball", P("M12 2v5", INK), P("M5 14a7 7 0 1 0 14 0a7 7 0 1 0 -14 0z", INK), P("M5 14h14M6.2 10.5h11.6M6.2 17.5h11.6", INK), P("M12 7c-2.4 2.2-2.4 11.8 0 14M12 7c2.4 2.2 2.4 11.8 0 14", INK)) }
+    val eiffel: ImageVector by lazy { glyph("eiffel", P("M12 2v3M10.4 5h3.2", INK), P("M10.8 5L9.2 11.5M13.2 5l1.6 6.5", INK), P("M7.8 11.5h8.4", INK), P("M9.2 11.5L5.5 21M14.8 11.5L18.5 21", INK), P("M7.4 16.5h9.2", INK), P("M9.6 21c.4-3 4.4-3 4.8 0", INK)) }
     val help: ImageVector by lazy { glyph("help", P("M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0 -17 0z", INK), P("M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.7M12 17h.01", INK)) }
 }
 
@@ -93,6 +95,7 @@ fun namedGlyph(name: String?): ImageVector? = when (name) {
     "wind" -> Glyphs.wind; "menu" -> Glyphs.menu; "mic" -> Glyphs.mic; "link" -> Glyphs.link
     "list" -> Glyphs.list; "queue" -> Glyphs.queue; "disc" -> Glyphs.disc; "radio" -> Glyphs.radio
     "moon" -> Glyphs.moon; "help" -> Glyphs.help
+    "mirrorball" -> Glyphs.mirrorball; "eiffel" -> Glyphs.eiffel
     else -> null
 }
 

@@ -231,14 +231,15 @@ class PictureElementsCard : CardRenderer {
 
                 // With lit rooms the bulb takes the light's own colour, so the
                 // icon matches the glow around it.
-                // Lit, the bulb is filled with the light's own colour (amber
-                // when HA reports none), so it matches the glow around it; off,
-                // it's a dark disc with a hairline rim.
+                // See-through, so the room shows under it. Lit, the bulb is a
+                // 55% disc of the light's own colour (amber when HA reports
+                // none) with a solid rim of it; off, smoky glass with a
+                // hairline rim.
                 val glowColor = if (on) entity?.let { lightColor(it) } ?: AstrionTheme.on else null
                 val bg = when {
                     elUnavailable -> AstrionTheme.colors.danger.copy(alpha = 0.27f)
-                    glowColor != null -> glowColor
-                    else -> AstrionTheme.colors.surfaceSunken.copy(alpha = 0.78f)
+                    glowColor != null -> glowColor.copy(alpha = 0.55f)
+                    else -> AstrionTheme.colors.surfaceSunken.copy(alpha = 0.42f)
                 }
                 val tint = when {
                     elUnavailable -> AstrionTheme.colors.danger
@@ -305,10 +306,10 @@ class PictureElementsCard : CardRenderer {
                             .clip(CircleShape)
                             .background(bg)
                             .border(
-                                if (sent) 2.dp else 1.dp,
+                                if (sent || glowColor != null) 1.5.dp else 1.dp,
                                 when {
                                     sent -> AstrionTheme.accent.copy(alpha = 0.85f)
-                                    glowColor != null -> Color.Transparent
+                                    glowColor != null -> glowColor
                                     else -> AstrionTheme.colors.hairlineStrong
                                 },
                                 CircleShape,

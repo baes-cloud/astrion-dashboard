@@ -298,7 +298,9 @@ class LockCard : CardRenderer {
         onTap: () -> Unit,
         onHold: (() -> Unit)?,
     ) {
-        val shape = RoundedCornerShape(14.dp)
+        // Laid out like the Auto lights tile beside it (icon well, then the
+        // name over the state) so the pair splits the row evenly.
+        val shape = RoundedCornerShape(16.dp)
         val (bg, ink, edge) = when {
             unavailable || moving -> Triple(AstrionTheme.cardBg, AstrionTheme.textMuted, AstrionTheme.colors.hairlineStrong)
             keepUnlocked -> Triple(AstrionTheme.dangerBg, AstrionTheme.danger, AstrionTheme.danger)
@@ -324,32 +326,40 @@ class LockCard : CardRenderer {
                     else Modifier.tap(enabled = live, onClick = onTap)
                 )
                 .semantics(mergeDescendants = true) { contentDescription = "$name, $word" }
-                .padding(horizontal = 10.dp),
+                .padding(horizontal = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
         ) {
-            Icon(
-                if (locked || moving) Glyphs.lock else Glyphs.unlock,
-                contentDescription = null,
-                tint = ink,
-                modifier = Modifier.size(21.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(ink.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (locked || moving) Glyphs.lock else Glyphs.unlock,
+                    contentDescription = null,
+                    tint = ink,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     name.uppercase(),
-                    color = ink.copy(alpha = 0.75f),
-                    fontSize = AstrionTheme.size.label,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.14.em,
+                    color = ink,
+                    fontSize = AstrionTheme.size.emphasis,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.06.em,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     word.uppercase(),
-                    color = ink,
-                    fontSize = AstrionTheme.size.small,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.08.em,
+                    color = ink.copy(alpha = 0.75f),
+                    fontSize = AstrionTheme.size.label,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.16.em,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.key
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
@@ -168,9 +169,10 @@ class SpeakerGroupCard : CardRenderer {
 
     /**
      * The Zones tab: a BÆOLINK card (the follow-me switch, what the group is
-     * playing and who's in it, Unjoin all), then one row per speaker: its
-     * volume as a fader with the name on it, and a Join button. With
-     * `"height"` the rows share the height so the tab fills the screen.
+     * playing and who's in it, Unjoin all), then one slim row per speaker:
+     * its volume as a fader with the name on it, and a Join button. The rows
+     * sit under LINKED and NOT LINKED headings and move between them as
+     * rooms join and leave.
      */
     @Composable
     private fun LinkList(config: CardConfig, ctx: CardContext, master: String, speakers: List<Map<String, Any?>>) {
@@ -190,12 +192,30 @@ class SpeakerGroupCard : CardRenderer {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             LinkCard(ctx, master, masterName, toggles.firstOrNull(), joined)
-            speakers.forEach { sp ->
-                val id = sp["entity_id"] as? String ?: return@forEach
-                LinkRow(
-                    ctx, id, sp["name"] as? String, sp["icon"] as? String, master,
-                    if (height > 0) Modifier.weight(1f) else Modifier.height(60.dp),
+            // Linked rooms first, then the rest, each under its own heading
+            // (left out when it has no rooms); a room moves across as it joins
+            // or leaves.
+            val linkedIds = joined.map { it.first }.toSet()
+            val (linked, unlinked) = speakers.filter { it["entity_id"] is String }
+                .partition { (it["entity_id"] as String) in linkedIds }
+            listOf("Linked" to linked, "Not linked" to unlinked).forEach { (caption, group) ->
+                if (group.isEmpty()) return@forEach
+                Text(
+                    caption.uppercase(),
+                    color = if (group === linked) AstrionTheme.accent else AstrionTheme.textMuted,
+                    fontSize = AstrionTheme.size.label,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.14.em,
+                    modifier = Modifier.padding(start = 4.dp, top = 2.dp),
                 )
+                group.forEach { sp ->
+                    key(sp["entity_id"]) {
+                        LinkRow(
+                            ctx, sp["entity_id"] as String, sp["name"] as? String, sp["icon"] as? String, master,
+                            Modifier.height(ZONE_ROW),
+                        )
+                    }
+                }
             }
         }
     }
@@ -712,3 +732,6 @@ class SpeakerGroupCard : CardRenderer {
         }
     }
 }
+
+/** A Zones row: slim, so the list reads at a glance. */
+private val ZONE_ROW = 46.dp

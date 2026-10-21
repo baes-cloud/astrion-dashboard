@@ -1,6 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -102,7 +103,8 @@ class SwipeStackCard : CardRenderer {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(AstrionTheme.colors.surfaceSunken)
+                        .background(AstrionTheme.colors.segmentTrack)
+                        .border(1.dp, AstrionTheme.colors.hairline, RoundedCornerShape(12.dp))
                         .padding(3.dp),
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {

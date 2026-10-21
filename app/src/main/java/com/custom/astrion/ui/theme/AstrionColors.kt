@@ -18,7 +18,7 @@ data class AstrionColors(
     // ---- surfaces, darkest to lightest --------------------------------------
     /** Near-black behind artwork and the lit-rooms shade. */
     val void: Color = Color(0xFF070809),
-    val surfaceSunken: Color = Color(0xFF0F1318),
+    val surfaceSunken: Color = Color(0xFF161F28),
     /** Deepest panel ground (dialogs' backdrop, the tab strip). */
     val surfacePrimary: Color = Color(0xFF151B21),
     val pinnedTopBg: Color = Color(0xFF151D25),
@@ -111,6 +111,8 @@ data class AstrionColors(
     val hairlineStrong: Color = Color(0x33FFFFFF),
     /** 8% white glass fill. */
     val glass: Color = Color(0x14FFFFFF),
+    /** A segmented control's track: a faint lift of whatever panel it sits on. */
+    val segmentTrack: Color = Color(0x0BFFFFFF),
     val divider: Color = Color(0x333A4F57),
     val scrim: Color = Color(0xCC0B1015),
     /** Deep scrim behind the ringing alarm. */

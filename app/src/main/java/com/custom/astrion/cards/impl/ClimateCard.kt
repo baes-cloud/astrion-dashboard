@@ -1,6 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -267,7 +268,8 @@ class ClimateCard : CardRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(13.dp))
-                .background(AstrionTheme.colors.surfaceSunken)
+                .background(AstrionTheme.colors.segmentTrack)
+                .border(1.dp, AstrionTheme.colors.hairline, RoundedCornerShape(13.dp))
                 .padding(3.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
             content = content,
