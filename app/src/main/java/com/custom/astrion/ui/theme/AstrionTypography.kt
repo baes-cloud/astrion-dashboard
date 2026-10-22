@@ -14,6 +14,7 @@ import com.custom.astrion.R
 data class AstrionTypography(
     val bodyFont: FontFamily,
     val headingFont: FontFamily,
+    val readoutFont: FontFamily,
 
     // ---- E2E Contract Tokens (DesignSystemModel.TYPOGRAPHY) -----------------
     val display: TextStyle,                            // 34sp / 40sp line height
@@ -55,15 +56,22 @@ fun defaultAstrionTypography(): AstrionTypography {
         Font(R.font.manrope_700, FontWeight.Bold),
     )
     val headingFont = FontFamily(
+        Font(R.font.syne_400, FontWeight.Thin),
         Font(R.font.syne_500, FontWeight.Light),
         Font(R.font.syne_500, FontWeight.Normal),
         Font(R.font.syne_500, FontWeight.Medium),
         Font(R.font.syne_600, FontWeight.SemiBold),
         Font(R.font.syne_700, FontWeight.Bold),
     )
+    val readoutFont = FontFamily(
+        Font(R.font.antonio_200, FontWeight.ExtraLight),
+        Font(R.font.antonio_300, FontWeight.Light),
+        Font(R.font.antonio_400, FontWeight.Normal),
+    )
     return AstrionTypography(
         bodyFont = bodyFont,
         headingFont = headingFont,
+        readoutFont = readoutFont,
         display = TextStyle(fontFamily = headingFont, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Normal),
         title = TextStyle(fontFamily = bodyFont, fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
         body = TextStyle(fontFamily = bodyFont, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Normal),
@@ -113,6 +121,8 @@ data class AstrionTypeSizes(
     val displayXl: TextUnit = 34.sp,
     /** Climate's set temperature. */
     val readout: TextUnit = 40.sp,
+    /** Light brightness percentage readout in LightDetailDialog. */
+    val readoutLarge: TextUnit = 64.sp,
     /** The screensaver clock. */
     val clock: TextUnit = 81.sp,
     /** The ringing alarm's clock. */

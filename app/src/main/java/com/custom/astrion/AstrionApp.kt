@@ -18,6 +18,7 @@ import com.custom.astrion.cards.impl.LightGroupCard
 import com.custom.astrion.cards.impl.LightZonesCard
 import com.custom.astrion.cards.impl.LockCard
 import com.custom.astrion.cards.impl.MediaPlayerCard
+import com.custom.astrion.cards.impl.MirrorBallCard
 import com.custom.astrion.cards.impl.MonitorCard
 import com.custom.astrion.cards.impl.NextUpCard
 import com.custom.astrion.cards.impl.NowPlayingLineCard
@@ -108,6 +109,7 @@ class AstrionApp : Application() {
             ClockWeatherCard(),
             PictureElementsCard(),
             RowCard(),
+            MirrorBallCard(),
             SwipeStackCard(),
             StackCard(),
             MonitorCard(),

@@ -56,7 +56,8 @@ import kotlin.math.pow
  * outline so it stops at the walls. An element may carry "glow_reach" to scale
  * its own pool (1 = the card's reach), and "glow_spots" to glow from several
  * fittings instead of the icon: one light entity that drives six downlights
- * gets six smaller pools.
+ * gets six smaller pools. "glow_strength" brightens (or dims) one light's
+ * pools against the rest, for a low strip that should still read as lit.
  *   { "entity_id": "light.downlights", "left": 65, "top": 28,
  *     "glow_spots": [[24,17],[59,12],[84,18]], "glow_reach": 0.6 }
  *
@@ -74,6 +75,15 @@ private class Glow(
     val room: Int,
     val color: Color,
     val level: State<Float>,
+    val customShape: List<Pair<Float, Float>>? = null,
+    /**
+     * Whether this light also lifts its whole room's shade. "glow_ambient":
+     * false keeps an accent light (the LED strip under the sofa) to its own
+     * soft pools, so it doesn't read as the room being lit.
+     */
+    val ambient: Boolean = true,
+    /** "glow_strength": how bright this light's pools are, 1 = the card's. */
+    val strength: Float = 1f,
 )
 
 /** How much of the shade a full-brightness pool removes at its centre. */
@@ -153,6 +163,10 @@ internal fun LitRoomsLayer(
                     label = "glow",
                 )
                 val color = e?.let { lightColor(it) } ?: WARM_WHITE
+                val customShape = (el["glow_shape"] as? List<*>).orEmpty().mapNotNull { p ->
+                    val xy = (p as? List<*>)?.filterIsInstance<Number>() ?: return@mapNotNull null
+                    if (xy.size == 2) xy[0].toFloat() / 100f to xy[1].toFloat() / 100f else null
+                }.takeIf { it.size >= 3 }
                 val spots = (el["glow_spots"] as? List<*>).orEmpty().mapNotNull { s ->
                     (s as? List<*>)?.filterIsInstance<Number>()?.takeIf { it.size == 2 }
                 }.ifEmpty { listOf(listOf(el["left"] as? Number ?: 50, el["top"] as? Number ?: 50)) }
@@ -164,6 +178,9 @@ internal fun LitRoomsLayer(
                         room = roomIndex,
                         color = color,
                         level = level,
+                        customShape = customShape,
+                        ambient = el["glow_ambient"] as? Boolean ?: (customShape == null),
+                        strength = (el["glow_strength"] as? Number)?.toFloat() ?: 1f,
                     )
                 }
             }
@@ -188,7 +205,7 @@ internal fun LitRoomsLayer(
                             drawPath(path, Color.Black.copy(alpha = lit.level * roomGlow), blendMode = BlendMode.DstOut)
                         }
                         glows.forEach { g ->
-                            pool(g, paths, Color.Black, g.level.value * POOL_CUT, BlendMode.DstOut)
+                            pool(g, paths, Color.Black, (g.level.value * POOL_CUT * g.strength).coerceAtMost(1f), BlendMode.DstOut)
                         }
                     }
                 },
@@ -210,7 +227,7 @@ internal fun LitRoomsLayer(
                         drawPath(path, lit.color.copy(alpha = a), blendMode = BlendMode.Multiply)
                     }
                     glows.forEach { g ->
-                        val a = (g.level.value * glowStrength * glowScale.value).coerceAtMost(1f)
+                        val a = (g.level.value * glowStrength * glowScale.value * g.strength).coerceAtMost(1f)
                         pool(g, paths, g.color, a * TINT, BlendMode.Multiply)
                         pool(g, paths, g.color, a * SHINE, BlendMode.Screen)
                     }
@@ -226,7 +243,9 @@ private fun roomLevels(glows: List<Glow>): Map<Int, RoomLit> {
     val out = HashMap<Int, RoomLit>()
     glows.forEach { g ->
         val k = g.level.value
-        if (k >= 0.01f && k > (out[g.room]?.level ?: 0f)) out[g.room] = RoomLit(k, g.color)
+        if (g.ambient && k >= 0.01f && k > (out[g.room]?.level ?: 0f)) {
+            out[g.room] = RoomLit(k, g.color)
+        }
     }
     return out
 }
@@ -250,11 +269,11 @@ private fun List<Pair<Float, Float>>.toPath(w: Float, h: Float): Path? {
     }
 }
 
-/** One light's pool: a radial gradient from its icon, clipped to its room. */
+/** One light's pool: a radial gradient from its icon, clipped to its room or custom shape. */
 private fun DrawScope.pool(g: Glow, paths: List<Path?>, color: Color, alpha: Float, mode: BlendMode) {
     val k = g.level.value
     if (k < 0.01f || alpha <= 0f) return
-    val path = paths.getOrNull(g.room) ?: return
+    val path = g.customShape?.toPath(size.width, size.height) ?: paths.getOrNull(g.room) ?: return
     val center = Offset(g.left * size.width, g.top * size.height)
     val radius = g.reach * size.width * (0.6f + 0.4f * k)
     val brush = Brush.radialGradient(

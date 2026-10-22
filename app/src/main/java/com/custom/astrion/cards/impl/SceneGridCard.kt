@@ -2,7 +2,6 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.animation.core.animateDpAsState
 import com.custom.astrion.ui.AstrionTheme
-import com.custom.astrion.ui.tightTextStyle
 import com.custom.astrion.ui.parseHexColor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -88,8 +87,10 @@ class SceneGridCard : CardRenderer {
         if (config.string("style") == "pill") {
             // `"label": "Scenes"`: a small centred caption between two short
             // hairlines above the pills, so the row reads as its own thing.
-            config.string("label")?.let { SceneCaption(it) }
-            PillRow(scenes, ctx)
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                config.string("label")?.let { SceneCaption(it) }
+                PillRow(scenes, ctx)
+            }
             return
         }
 
@@ -123,15 +124,14 @@ class SceneGridCard : CardRenderer {
 
     @Composable
     private fun SceneCaption(text: String) {
-        // Tight: the text's own line box only, and it gives back most of the
-        // page's 5dp gaps above and below, so the floorplan keeps the room.
+        // Tight on top, with a tiny bit of breathing room below before the pills.
         Row(
             Modifier
                 .fillMaxWidth()
                 .layout { measurable, constraints ->
                     val p = measurable.measure(constraints)
-                    val give = 9.dp.roundToPx()
-                    layout(p.width, (p.height - give).coerceAtLeast(0)) { p.place(0, -give / 2) }
+                    val trimTop = 5.dp.roundToPx()
+                    layout(p.width, (p.height - trimTop).coerceAtLeast(0)) { p.place(0, -trimTop) }
                 },
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
@@ -144,7 +144,7 @@ class SceneGridCard : CardRenderer {
                 fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 0.18.em,
-                style = tightTextStyle(12.sp),
+                style = com.custom.astrion.ui.tightTextStyle(12.sp),
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
             Box(Modifier.width(32.dp).height(1.dp).background(line))

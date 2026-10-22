@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
-import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.rememberPageVisits
@@ -40,13 +39,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import java.util.concurrent.TimeUnit
 
 /**
  * Plex poster rows — swipeable shelves of On Deck / Recently Added, where
@@ -113,8 +107,8 @@ class PlexCard : CardRenderer {
 
         // ~3.5 tiles across a 480px/220dpi panel.
         // Four and a bit across, so the fifth peeking in says "swipe for more".
-        val TILE_W = 66.dp
-        val POSTER_H = 95.dp
+        val TILE_W = 74.dp
+        val POSTER_H = 106.dp
 
         /** Posters per row fetched ahead of being scrolled into view. */
         const val PREFETCH = 6

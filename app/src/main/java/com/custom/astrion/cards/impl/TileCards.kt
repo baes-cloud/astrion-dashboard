@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.MotionPhotosAuto
 import androidx.compose.material.icons.filled.MotionPhotosPaused
 import androidx.compose.material.icons.filled.MusicNote
@@ -392,53 +393,66 @@ private fun RowStyle(
         on -> if (offAttention) AstrionTheme.good else AstrionTheme.colors.blush
         else -> if (offAttention) AstrionTheme.blush else AstrionTheme.colors.textSoft
     }
+    val bare = config.bool("bare", true)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .dimIfUnavailable(unavailable)
-            .clip(RoundedCornerShape(18.dp))
-            // The whole tile is the switch: it's half a row, there's no room
-            // for a separate button, and a toggle has no dangerous side.
-            .background(if (!on && offAttention) AstrionTheme.blush.copy(alpha = 0.12f) else AstrionTheme.cardBgAlt)
+            .then(
+                if (bare) Modifier
+                else Modifier
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(if (!on && offAttention) AstrionTheme.blush.copy(alpha = 0.12f) else AstrionTheme.cardBgAlt)
+            )
             .tap(enabled = live) { ctx.client.toggle(entityId) }
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = if (bare) 2.dp else 10.dp, vertical = if (bare) 1.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(AstrionTheme.raised),
+                .size(if (bare) 28.dp else 34.dp)
+                .then(
+                    if (bare) Modifier
+                    else Modifier.clip(RoundedCornerShape(10.dp)).background(AstrionTheme.raised)
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 shownIcon,
                 contentDescription = "$name, $stateWord",
                 tint = tint,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(if (bare) 20.dp else 18.dp),
             )
         }
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
-            Text(
-                name,
-                color = AstrionTheme.textPrimary,
-                fontSize = AstrionTheme.size.body,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (unavailable) {
-                UnavailableLabel(AstrionTheme.size.label)
-            } else {
+            // `state_first`: state word small on top, name underneath, so it
+            // mirrors the Door control across the row.
+            val stateFirst = config.bool("state_first", false)
+            val title: @Composable () -> Unit = {
                 Text(
-                    stateWord,
-                    color = if (!on && offAttention) AstrionTheme.blush else AstrionTheme.textSecondary,
-                    fontSize = AstrionTheme.size.label,
+                    name,
+                    color = AstrionTheme.textPrimary,
+                    fontSize = AstrionTheme.size.body,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            val state: @Composable () -> Unit = {
+                if (unavailable) {
+                    UnavailableLabel(AstrionTheme.size.label)
+                } else {
+                    Text(
+                        stateWord,
+                        color = if (!on && offAttention) AstrionTheme.blush else AstrionTheme.textSecondary,
+                        fontSize = AstrionTheme.size.label,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (stateFirst) { state(); title() } else { title(); state() }
         }
     }
 }
@@ -446,6 +460,8 @@ private fun RowStyle(
 /** Map a switch card's `icon` option name to a Material icon. */
 private fun switchIcon(name: String?): ImageVector = when (name) {
     "motion", "auto" -> Icons.Filled.MotionPhotosAuto
+    // The walking figure HA uses for motion sensors.
+    "motion_sensor", "walk" -> Icons.Filled.DirectionsWalk
     "paused", "motion_off" -> Icons.Filled.MotionPhotosPaused
     "heater", "heat" -> Icons.Filled.Whatshot
     "fan" -> Icons.Filled.Air

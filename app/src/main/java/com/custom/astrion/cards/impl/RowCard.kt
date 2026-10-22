@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -14,7 +15,7 @@ import com.custom.astrion.cards.CardRenderer
 
 /**
  * Generic horizontal container: lays out child cards side by side with equal
- * weight (or a child's own `"weight"`, e.g. 1.25 to make it wider). Lets the file config build rows (e.g. two cover buttons) without a
+ * weight. Lets the file config build rows (e.g. two cover buttons) without a
  * dedicated card type per combination.
  *
  * Config shape:
@@ -38,8 +39,11 @@ class RowCard : CardRenderer {
                 val childType = child["type"] as? String ?: return@forEach
                 val childOptions = (child["options"] as? Map<String, Any?>) ?: emptyMap()
                 val renderer = CardRegistry.get(childType) ?: return@forEach
+                // A fixed "width" (dp) for a small child, e.g. a single icon
+                // between two halves; otherwise "weight" (default 1).
+                val width = (child["width"] as? Number)?.toFloat()?.takeIf { it > 0f }
                 val weight = (child["weight"] as? Number)?.toFloat()?.takeIf { it > 0f } ?: 1f
-                Box(modifier = Modifier.weight(weight)) {
+                Box(modifier = if (width != null) Modifier.width(width.dp) else Modifier.weight(weight)) {
                     renderer.Render(CardConfig(childType, childOptions), ctx)
                 }
             }
