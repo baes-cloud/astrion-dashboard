@@ -279,7 +279,15 @@ private fun Art(client: HaClient, item: MediaItem) {
     ) {
         val a = art
         if (a != null) {
-            Image(a, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            // Folders and sources carry wide logos (Plex, Spotify); fit those
+            // whole rather than cropping them to a slice.
+            val logo = item.mediaClass == "directory" || item.mediaClass == "app"
+            Image(
+                a,
+                contentDescription = null,
+                contentScale = if (logo) ContentScale.Fit else ContentScale.Crop,
+                modifier = if (logo) Modifier.fillMaxSize().padding(5.dp) else Modifier.fillMaxSize(),
+            )
         } else {
             Icon(classIcon(item.mediaClass), contentDescription = null, tint = AstrionTheme.textSecondary, modifier = Modifier.size(22.dp))
         }
