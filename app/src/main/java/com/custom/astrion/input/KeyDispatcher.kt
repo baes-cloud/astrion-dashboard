@@ -79,6 +79,12 @@ class KeyDispatcher(
     /** The key whose tap already ran on its DOWN, so its UP doesn't run it again. */
     private var tapFiredOnDown = -1
 
+    /** The held key's press woke the screen, so its release is not a tap. */
+    private var tapSuppressed = false
+
+    /** The key whose first DOWN we saw, until its UP. */
+    private var downKey = -1
+
     fun isBound(code: Int): Boolean =
         router.shortHandler(code) != null || router.longHandler(code) != null || router.doubleHandler(code) != null
 
@@ -94,6 +100,10 @@ class KeyDispatcher(
 
         when (action) {
             KeyEvent.ACTION_DOWN -> {
+                // Repeats of a key whose first DOWN never reached us: the
+                // press began on a dark screen and woke it.
+                val wokeOnHold = repeatCount > 0 && downKey != code
+                if (repeatCount == 0) downKey = code
                 // A press arriving while this key's single-tap is still held
                 // back IS the second tap: cancel the deferred single and fire
                 // the double instead. Checked before the long-press timer so a
@@ -118,10 +128,17 @@ class KeyDispatcher(
                 }
                 if (longH != null) {
                     // Long-capable: start the hold timer on first press, ignore repeats.
-                    if (repeatCount == 0) {
+                    // A repeat of a key we never saw go down is a hold that
+                    // began on a dark screen: the system ate the first DOWN to
+                    // wake it, so arm the timer from here instead of losing
+                    // the hold. Its release must not run the tap: that press
+                    // was the wake-up.
+                    if (repeatCount == 0 || wokeOnHold) {
+                        downKey = code
                         cancelPendingLong()
                         longFired = false
                         activeLongKey = code
+                        tapSuppressed = wokeOnHold
                         val r = Runnable {
                             longFired = true
                             onHoldFired()
@@ -144,12 +161,15 @@ class KeyDispatcher(
                 return true
             }
             KeyEvent.ACTION_UP -> {
+                if (code == downKey) downKey = -1
                 if ((longH != null || doubleH != null) && code == activeLongKey) {
                     cancelPendingLong()
                     activeLongKey = -1
-                    // Already ran on the DOWN (a page jump): don't run it twice.
-                    val tap = if (tapFiredOnDown == code) null else shortH
+                    // Already ran on the DOWN (a page jump), or the press
+                    // only woke the screen: don't run it.
+                    val tap = if (tapFiredOnDown == code || tapSuppressed) null else shortH
                     tapFiredOnDown = -1
+                    tapSuppressed = false
                     // Released before the hold threshold → it was a tap.
                     if (!longFired) {
                         if (doubleH != null) {
@@ -200,8 +220,13 @@ class KeyDispatcher(
     }
 
     companion object {
-        /** Hold this long for a button's long-press action to fire. */
-        const val LONG_PRESS_MS = 1500L
+        /**
+         * Hold this long for a button's long-press action to fire. Was 1.5 s:
+         * a hold let go a little early ran the tap instead (Page ▲/▼ nudged
+         * the lights rather than moving the blinds), so holds often took a
+         * few tries. Android's own hold is 0.5 s; 0.8 s keeps a firm tap a tap.
+         */
+        const val LONG_PRESS_MS = 800L
 
         /**
          * How long a key with a double-tap binding waits after a release to
