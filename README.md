@@ -15,8 +15,8 @@ It talks directly to Home Assistant over the standard WebSocket API, renders cus
 The app is built around four primary pages, reachable with dedicated physical shortcut buttons (`CURTAIN`, `LIGHT`, `SCENE`, `AC`) and anchored by the signature fixed-width **BÆO** wordmark footer:
 
 1. **BÆOVISION (`TV`):** What's on the TV, with **Search, Movies, TV and MTV** tiles inside the card that open your Plex server (search as you type, or full poster libraries with sort and watched ticks), a corner button that puts the TV's sound on the Sonos, and Plex shelves (*On Deck*, *Recently Released*…) where one tap wakes the TV, switches it to the Google TV and starts that exact episode or film.
-2. **BÆOREMOTE (`Main`):** Weather, next alarm and event, the **Door** lock beside an **Auto lights** switch (pauses every motion and presence light automation so lights are manual only), labelled scene pills, and a live floorplan with tappable lights, the robot vacuum and radar presence dots.
-3. **BÆOSOUND (`Media`):** The Club Sonos with uncropped album art over a blurred wash, four mix shortcuts (GAYFM, Glitterbox…), a **Search music** bar across everything in Music Assistant (library and Spotify), Music Assistant shelves, and the Zones tab for joining rooms and BÆOLINK.
+2. **BÆOREMOTE (`Main`):** Weather, next alarm and event, a **Motion Lights** switch (pauses every motion and presence light automation so lights are manual only), a **mirror ball** that spins while it's on, the **Door** lock, labelled scene pills, and a live floorplan: each light drawn as its fixture (lamp, LED bar, artwork, candles…), TVs that glow while they're on, the robot vacuum and radar presence dots.
+3. **BÆOSOUND (`Media`):** A **Search music** bar, the Club Sonos with its cover over a blurred wash, a volume fader and the queue, four mix shortcuts (GAYFM, Glitterbox…), search across everything in Music Assistant (library and Spotify), Music Assistant shelves, and the Zones tab for joining rooms and BÆOLINK.
 4. **BÆOLIVING (`Climate`):** Air conditioning temperature steppers with target readouts, HVAC/fan modes, and motorized blind controls.
 
 ---
@@ -25,11 +25,12 @@ The app is built around four primary pages, reachable with dedicated physical sh
 
 The media dashboard features three dedicated tabs tailored for single-touch music management:
 
-| Player (Now Playing) | Media (Shelves & Playlists) | Zones (BÆOLINK Multi-Room) |
-|---|---|---|
-| ![Sonos Player](screenshots/media-page.png) | ![Sonos Media](screenshots/sonos-media.png) | ![Sonos Zones](screenshots/sonos-group.png) |
+| Player (Now Playing) | Queue | Media (Shelves & Playlists) | Zones (BÆOLINK Multi-Room) |
+|---|---|---|---|
+| ![Sonos Player](screenshots/media-page.png) | ![Queue](screenshots/queue.png) | ![Sonos Media](screenshots/sonos-media.png) | ![Sonos Zones](screenshots/sonos-group.png) |
 
-* **Player:** The whole cover (never cropped) over a blurred wash, transport controls, volume steppers, four one-touch mixes, and the Search music bar.
+* **Player:** The Search music bar on top, then the cover over a blurred wash, transport controls, a volume fader with mute, and four one-touch mixes.
+* **Queue:** Now playing and up next from Music Assistant; when the Sonos is playing something Music Assistant didn't start (a favourite, the radio), its own track.
 * **Media:** Music Assistant shelves: random albums from the local collection (Spotify's saved albums are kept out), favourite songs and playlists.
 * **Zones:** Join or drop each room's speaker with its own volume; the **BÆOLINK** switch makes the music follow you from room to room.
 
