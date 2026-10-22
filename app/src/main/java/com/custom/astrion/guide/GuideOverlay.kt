@@ -235,7 +235,7 @@ private fun PressKinds() {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(
             PressKind.TAP to "Once",
-            PressKind.HOLD to "1.5 s, until it ticks",
+            PressKind.HOLD to "Under a second, until it ticks",
         ).forEach { (kind, how) ->
             Row(
                 Modifier

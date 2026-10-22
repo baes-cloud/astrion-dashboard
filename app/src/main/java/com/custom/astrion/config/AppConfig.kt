@@ -14,7 +14,7 @@ data class AppConfig(
     val startPage: Int = 0,
     /** Short-press button bindings. */
     val hotkeys: List<HotkeyConfig> = emptyList(),
-    /** Long-press (~500ms hold) button bindings — same shape as hotkeys. */
+    /** Long-press (0.8 s hold, KeyDispatcher.LONG_PRESS_MS) button bindings — same shape as hotkeys. */
     val longHotkeys: List<HotkeyConfig> = emptyList(),
     /**
      * Double-tap bindings — same shape again.

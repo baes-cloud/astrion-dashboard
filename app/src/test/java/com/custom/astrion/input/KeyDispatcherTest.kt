@@ -97,6 +97,46 @@ class KeyDispatcherTest {
     }
 
     @Test
+    fun holdFromADarkScreenStillFiresLong() {
+        // The system ate the first DOWN to wake the screen; only repeats arrive.
+        bind(long = true)
+        down(repeat = 1)
+        timers.advance(KeyDispatcher.LONG_PRESS_MS); up()
+        assertEquals(listOf("haptic", "long"), fired)
+    }
+
+    @Test
+    fun shortHoldFromADarkScreenRunsNothing() {
+        bind(long = true)
+        down(repeat = 1); down(repeat = 2)
+        timers.advance(100); up()
+        assertTrue(fired.isEmpty())
+        // The next ordinary tap is a tap again.
+        down(); timers.advance(100); up()
+        assertEquals(listOf("short"), fired)
+    }
+
+    @Test
+    fun repeatsDuringAHoldDoNotRestartTheTimer() {
+        bind(long = true)
+        down()
+        timers.advance(KeyDispatcher.LONG_PRESS_MS - 100)
+        down(repeat = 1)
+        timers.advance(100)
+        assertEquals(listOf("haptic", "long"), fired)
+    }
+
+    @Test
+    fun holdingTheSecondTapOfADoubleIsNotAHold() {
+        bind(long = true, double = true)
+        down(); timers.advance(50); up()
+        timers.advance(100)
+        down(); down(repeat = 1); down(repeat = 2)
+        timers.advance(KeyDispatcher.LONG_PRESS_MS * 2); up()
+        assertEquals(listOf("double"), fired)
+    }
+
+    @Test
     fun unboundKeyIsNotBound() {
         assertFalse(keys.isBound(code))
         bind()
