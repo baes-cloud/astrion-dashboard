@@ -264,6 +264,8 @@
            "entity_id": "light.kitchen_console_candles",
            "left": 93,
            "top": 33,
+           "glow_reach": 0.55,
+           "glow_color": "#FF9440",
            "icon": "candles"
           },
           {

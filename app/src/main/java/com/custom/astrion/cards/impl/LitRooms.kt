@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.ha.EntityState
+import com.custom.astrion.ui.parseHexColor
 import com.custom.astrion.ui.screensaverIsNight
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
@@ -64,6 +65,7 @@ import kotlin.math.pow
  * fittings instead of the icon: one light entity that drives six downlights
  * gets six smaller pools. "glow_strength" brightens (or dims) one light's
  * pools against the rest, for a low strip that should still read as lit.
+ * "glow_color" (hex) colours a light HA reports no colour for.
  *   { "entity_id": "light.downlights", "left": 65, "top": 28,
  *     "glow_spots": [[24,17],[59,12],[84,18]], "glow_reach": 0.6 }
  *
@@ -198,7 +200,8 @@ internal fun LitRoomsLayer(
                     animationSpec = tween(FADE_MS),
                     label = "glow",
                 )
-                val color = e?.let { lightColor(it) } ?: WARM_WHITE
+                // "glow_color" for a light HA reports no colour for, like plain on/off candles.
+                val color = parseHexColor(el["glow_color"] as? String) ?: e?.let { lightColor(it) } ?: WARM_WHITE
                 val customShape = (el["glow_shape"] as? List<*>).orEmpty().mapNotNull { p ->
                     val xy = (p as? List<*>)?.filterIsInstance<Number>() ?: return@mapNotNull null
                     if (xy.size == 2) xy[0].toFloat() / 100f to xy[1].toFloat() / 100f else null
@@ -385,22 +388,26 @@ private fun DrawScope.pool(g: Glow, paths: List<Path?>, color: Color, alpha: Flo
 /**
  * A hidden strip's halo round [Glow.outline]: the shape stroked many times,
  * each wider and faint, packed close at the edge, so the light builds up
- * there and thins out smoothly. Clipped to the room, and the shape cut out.
+ * there and thins out smoothly. The narrow strokes run a little onto the
+ * shape so its edge feathers rather than showing as a hard line; the wide
+ * ones are cut to the outside. Clipped to the room.
  */
 private fun DrawScope.halo(g: Glow, paths: List<Path?>, color: Color, alpha: Float, mode: BlendMode) {
     val shape = g.outline?.toPath(size.width, size.height) ?: return
     if (g.level.value < 0.01f || alpha <= 0f) return
     val depth = g.reach * size.minDimension
+    val ring: DrawScope.(Float) -> Unit = { f ->
+        drawPath(
+            shape,
+            color.copy(alpha = alpha * HALO_RING_ALPHA),
+            style = Stroke(width = 2f * depth * f, join = StrokeJoin.Round),
+            blendMode = mode,
+        )
+    }
     val draw: DrawScope.() -> Unit = {
+        HALO_RINGS.filter { it <= HALO_FEATHER }.forEach { ring(it) }
         clipPath(shape, ClipOp.Difference) {
-            HALO_RINGS.forEach { f ->
-                drawPath(
-                    shape,
-                    color.copy(alpha = alpha * HALO_RING_ALPHA),
-                    style = Stroke(width = 2f * depth * f, join = StrokeJoin.Round),
-                    blendMode = mode,
-                )
-            }
+            HALO_RINGS.filter { it > HALO_FEATHER }.forEach { ring(it) }
         }
     }
     val room = paths.getOrNull(g.room)
@@ -414,6 +421,8 @@ private val HALO_RINGS = FloatArray(14) { i -> ((i + 1) / 14f).let { it * it } }
 private const val HALO_RING_ALPHA = 0.11f
 /** A halo lifts less of the shade than a pool: it is a glow on the floor, not a lit room. */
 private const val HALO_CUT = 0.55f
+/** Halo strokes up to this fraction of its depth also fall on the shape, feathering its edge. */
+private const val HALO_FEATHER = 0.3f
 
 /**
  * A cove strip's wash: a band of light off its line, fading as it goes, deep
