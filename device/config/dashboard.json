@@ -980,7 +980,7 @@
    "service": "media_player.select_source",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "source": "com.netflix.ninja"
+    "source": "org.jellyfin.androidtv"
    }
   },
   {
@@ -1346,7 +1346,7 @@
      "Press TV/Plex (curtain).",
      "In the TV card, tap Search to find a film or show, or Movies, TV or MTV to browse.",
      "Tap one and it plays on the TV.",
-     "Red, green and blue open Netflix, Plex and iview. Arrows, OK, Home and Back work like the TV's own remote."
+     "Red, green and blue open Jellyfin, Plex and iview. Arrows, OK, Home and Back work like the TV's own remote."
     ]
    },
    {
