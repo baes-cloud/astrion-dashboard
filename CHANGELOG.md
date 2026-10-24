@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Floorplan.** A strip light can draw as a cove strip between two points (`glow_line`): a lit rail with a wash of its colour spilling into the room (`glow_toward`), following its brightness. The Club LED uses it. The living-room TV lights up on the plan when the TV is on the PC input (`also_on`), not only when the streamer is awake. The TV art lights are one fixture again, right of the TV, and the sofa icon sits on the end of the chaise.
+- **Floorplan.** A strip light can draw as a cove strip between two points (`glow_line`): a lit rail with a wash of its colour spilling into the room (`glow_toward`), following its brightness. The Club LED uses it. The living-room TV lights up on the plan when the TV is on the PC input (`also_on`), not only when the streamer is awake. Hidden strips can halo the thing they sit under or behind (`glow_outline`): the sofa underglow and the Hue Play bars round the TV; the kitchen gets a counter strip, pools have a hotter core and softer tail, and colour comes up more at night. The TV art lights are one fixture again, right of the TV, and the sofa icon sits on the end of the chaise.
 
 ## v1.4.5 (2026-10-21)
 
