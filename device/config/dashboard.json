@@ -578,6 +578,11 @@
           "color": "#D92CAA9C",
           "accent_color": "#FF8CE0D4"
          },
+         "mirror_ball": { "entity_id": "fan.mirror_ball", "center": [92, 44], "shape": [[1, 1], [99, 1], [99, 50], [1, 50]] },
+         "blinds": [
+           { "entity_id": "cover.blinds", "rect": [2, 7.5, 7.5, 41.5], "invert_position": true },
+           { "entity_id": "cover.smart_blinds", "rect": [2, 7.5, 7.5, 41.5], "style": "sheer" }
+         ],
          "screens": [
           {
            "entity_id": "media_player.the_club_tvv",
