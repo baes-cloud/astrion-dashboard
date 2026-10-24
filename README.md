@@ -63,15 +63,17 @@ Holding **Menu ☰** opens a guide for anyone picking the remote up for the firs
 
 ### Dynamic Floorplan & LitRooms Lighting
 
-The interactive floorplan dynamically responds to solar elevation and lighting state, shifting seamlessly between Day, Dusk, and Night:
+The floorplan follows the sun and every light in the flat. As the sun drops, a shade darkens the plan, and each light that is on lifts it again with a pool of its own colour and brightness, so the plan looks like the room does.
 
-![LitRooms Dynamic Lighting States](screenshots/lit-rooms.png)
+![The floorplan by day, at dusk and at night, with the living room off, an evening mix, and everything on](screenshots/lit-rooms.png)
 
-| Day (Solar Off) | Dusk (Twilight Shading) | Night (Atmospheric Glow) |
+| Day | Dusk | Night |
 |---|---|---|
-| ![Floorplan Day](screenshots/floorplan-day.png) | ![Floorplan Dusk](screenshots/floorplan-dusk.png) | ![Floorplan Night](screenshots/floorplan-night.png) |
+| ![Floorplan by day](screenshots/floorplan-day.png) | ![Floorplan at dusk](screenshots/floorplan-dusk.png) | ![Floorplan at night](screenshots/floorplan-night.png) |
 
-* **Atmospheric Shading:** Sun-synchronized ambient floor shading with automatic light halos that illuminate rooms when active.
+* **Sun-synced shading:** the shade eases in through civil twilight, from sun.sun's elevation. Light pools are faint by day and come up with the dark.
+* **Lights as they look:** pools take each light's colour and brightness. The Club LED is a cove strip on a rail under the ceiling, so it draws as a dim rail with a wash of its colour spilling into the room (`glow_line`, `glow_toward`).
+* **Screens:** the TV lights up on the plan while it is on, including on the PC input (`also_on`).
 * **Interactive Control:** Tap any bulb to toggle room lighting, or long-press to open the full-screen brightness and color tuning slider.
 * **mmWave Radar Presence:** Real-time target tracking dots driven by LD2450 sensors plotted over the apartment layout.
 
