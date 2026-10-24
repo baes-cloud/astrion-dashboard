@@ -45,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
@@ -179,23 +180,35 @@ class PictureElementsCard : CardRenderer {
             // than the box and must overflow it (centred, clipped by the card)
             // rather than be squeezed back into it.
             Box(Modifier.offset(y = imageShift).requiredSize(w, h)) {
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap!!,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    // The box already has the image's proportions.
-                    contentScale = ContentScale.FillBounds,
-                )
-            }
-
-            // Lit rooms: each light's colour and brightness pooled in its own
-            // room, with unlit rooms shaded after sunset. Under everything
-            // else, so icons and dots stay crisp on top. See LitRooms.kt.
             val litRooms = config.options["lit_rooms"] as? Map<String, Any?>
-            if (litRooms != null && bitmap != null) LitRoomsLayer(litRooms, elements, ctx)
-            // TV screens that glow while the TV is on. See ScreenGlow.kt.
-            (config.options["screens"] as? List<*>)?.let { if (bitmap != null) ScreenGlowLayer(it, ctx) }
+            // The plan and everything painted on it, cached as one layer: it
+            // only re-renders when a light, TV or blind changes, so the mirror
+            // ball turning on top costs a texture and its specks per frame
+            // rather than every glow's clips and blends again.
+            Box(Modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap!!,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        // The box already has the image's proportions.
+                        contentScale = ContentScale.FillBounds,
+                    )
+                }
+
+                // Blinds open, closed or part-way over their window, under the
+                // night shade so they darken with the room. See Blinds.kt.
+                (config.options["blinds"] as? List<*>)?.let { if (bitmap != null) BlindsLayer(it, ctx) }
+
+                // Lit rooms: each light's colour and brightness pooled in its own
+                // room, with unlit rooms shaded after sunset. Under everything
+                // else, so icons and dots stay crisp on top. See LitRooms.kt.
+                if (litRooms != null && bitmap != null) LitRoomsLayer(litRooms, elements, ctx)
+                // TV screens that glow while the TV is on. See ScreenGlow.kt.
+                (config.options["screens"] as? List<*>)?.let { if (bitmap != null) ScreenGlowLayer(it, ctx) }
+            }
+            // The mirror ball's specks turning round the room. See MirrorBall.kt.
+            (config.options["mirror_ball"] as? Map<*, *>)?.let { if (bitmap != null) MirrorBallLayer(it, ctx) }
 
             // Optional embedded card floated over the plan (e.g. the
             // now-playing strip in the empty band across the bedroom /
