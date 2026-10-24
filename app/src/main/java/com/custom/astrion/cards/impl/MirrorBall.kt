@@ -14,10 +14,10 @@ import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.dp
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.ui.LocalDashboardShowing
@@ -52,6 +52,13 @@ internal fun MirrorBallLayer(opts: Map<*, *>, ctx: CardContext) {
             ?.let { it[0].toFloat() / 100f to it[1].toFloat() / 100f }
     }.takeIf { it.size >= 3 }
     val color = parseHexColor(opts["color"] as? String) ?: SPECK_WARM
+    val minX = shape?.minOf { it.first } ?: 0f
+    val maxX = shape?.maxOf { it.first } ?: 1f
+    val minY = shape?.minOf { it.second } ?: 0f
+    val maxY = shape?.maxOf { it.second } ?: 1f
+    val isAxisAlignedRect = shape != null && shape.size == 4 && shape.all { (x, y) ->
+        (x == minX || x == maxX) && (y == minY || y == maxY)
+    }
     val specks = remember { specks() }
     val clock = rememberBallClock(LocalPageVisible.current && LocalDashboardShowing.current)
     Box(
@@ -68,22 +75,28 @@ internal fun MirrorBallLayer(opts: Map<*, *>, ctx: CardContext) {
                 val draw = {
                     specks.forEach { s ->
                         val a = s.angle + t * 2f * PI.toFloat()
-                        val p = c + Offset(cos(a), sin(a)) * (s.r * reach)
                         val twinkle = 0.65f + 0.35f * sin(s.phase + t * 2f * PI.toFloat() * TWINKLES)
                         val alpha = k * s.bright * twinkle * (1f - 0.55f * s.r)
-                        val radius = core * s.size
-                        drawCircle(color.copy(alpha = alpha * 0.28f), radius * 2.6f, p, blendMode = BlendMode.Screen)
-                        drawCircle(color.copy(alpha = alpha), radius, p)
+                        if (alpha >= 0.02f) {
+                            val p = c + Offset(cos(a), sin(a)) * (s.r * reach)
+                            val radius = core * s.size
+                            drawCircle(color.copy(alpha = alpha * 0.3f), radius * 2.5f, p)
+                            drawCircle(color.copy(alpha = alpha), radius, p)
+                        }
                     }
                 }
-                val path = shape?.let { pts ->
-                    Path().apply {
-                        moveTo(pts[0].first * size.width, pts[0].second * size.height)
-                        for (i in 1 until pts.size) lineTo(pts[i].first * size.width, pts[i].second * size.height)
+                if (isAxisAlignedRect) {
+                    clipRect(minX * size.width, minY * size.height, maxX * size.width, maxY * size.height) { draw() }
+                } else if (shape != null) {
+                    val path = Path().apply {
+                        moveTo(shape[0].first * size.width, shape[0].second * size.height)
+                        for (i in 1 until shape.size) lineTo(shape[i].first * size.width, shape[i].second * size.height)
                         close()
                     }
+                    clipPath(path) { draw() }
+                } else {
+                    draw()
                 }
-                if (path == null) draw() else clipPath(path) { draw() }
             },
     )
 }
@@ -129,11 +142,11 @@ private fun specks(): List<Speck> {
 /** The spotlit ball's colour on the walls: what it throws, not a theme colour. */
 private val SPECK_WARM = Color(255, 236, 190)
 private val SPECK_CORE = 1.6.dp
-private const val SPECKS = 150
+private const val SPECKS = 80
 /** One full turn of the ball. */
 private const val TURN_MS = 36_000
 /** Ticks a second while it turns, for the ball card too. */
-private const val FPS = 20
+private const val FPS = 15
 /** Twinkles per turn. */
 private const val TWINKLES = 9f
 private const val FADE_MS = 600

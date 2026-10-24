@@ -666,8 +666,8 @@ class PictureElementsCard : CardRenderer {
                     val far = abs((tx - dx.value).value) >= (w * RMM_GLIDE_PCT / 100f).value ||
                         abs((ty - dy.value).value) >= (h * RMM_GLIDE_PCT / 100f).value
                     if (far) {
-                        launch { dx.animateTo(tx, tween(450)) }
-                        launch { dy.animateTo(ty, tween(450)) }
+                        launch { dx.animateTo(tx, tween(280)) }
+                        launch { dy.animateTo(ty, tween(280)) }
                     } else {
                         dx.snapTo(tx)
                         dy.snapTo(ty)
@@ -679,7 +679,7 @@ class PictureElementsCard : CardRenderer {
                         .size(dot)
                         .drawBehind {
                             drawCircle(color = fill)
-                            drawCircle(color = accent, blendMode = BlendMode.Overlay)
+                            drawCircle(color = accent.copy(alpha = 0.45f))
                         },
                     contentAlignment = Alignment.Center,
                 ) {
