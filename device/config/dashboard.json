@@ -668,7 +668,8 @@
             "config_entry_id": "01KVF3KES1KSZ0JYSXJ405AKVA",
             "player": "media_player.club_2",
             "placeholder": "Search music",
-            "limit": 8
+            "limit": 8,
+            "browse_players": ["media_player.club", "media_player.unnamed_room_5", "media_player.bedroom_sonos", "media_player.office_sonos", "media_player.bathroom_sonos"]
            }
           },
           {
