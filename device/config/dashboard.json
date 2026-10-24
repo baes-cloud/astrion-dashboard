@@ -148,6 +148,31 @@
            "entity_id": "light.hue_play",
            "left": 16,
            "top": 9,
+           "glow_outline": [
+            [
+             23.6,
+             8.2
+            ],
+            [
+             38.8,
+             8.2
+            ],
+            [
+             38.8,
+             11.2
+            ],
+            [
+             23.6,
+             11.2
+            ]
+           ],
+           "glow_reach": 1.1,
+           "glow_spots": [
+            [
+             13,
+             15
+            ]
+           ],
            "icon": "xmas_tree"
           },
           {
@@ -172,23 +197,34 @@
            "entity_id": "light.couch",
            "left": 49,
            "top": 28,
-           "glow_spots": [
+           "glow_outline": [
             [
-             23,
-             32
+             16.4,
+             33.2
             ],
             [
-             31,
-             32
+             42.6,
+             33.2
             ],
             [
-             38.5,
-             30
+             42.6,
+             23.3
+            ],
+            [
+             57,
+             23.3
+            ],
+            [
+             57,
+             44.9
+            ],
+            [
+             16.4,
+             44.9
             ]
            ],
-           "glow_reach": 0.4,
            "glow_ambient": false,
-           "glow_strength": 1.7,
+           "glow_strength": 1.4,
            "icon": "sofa"
           },
           {
@@ -256,7 +292,22 @@
           {
            "entity_id": "light.kitchen_group",
            "left": 73,
-           "top": 54
+           "top": 54,
+           "glow_line": [
+            [
+             58,
+             53.4
+            ],
+            [
+             88.5,
+             53.4
+            ]
+           ],
+           "glow_toward": [
+            73,
+            45
+           ],
+           "glow_reach": 0.35
           },
           {
            "entity_id": "light.bedroom_led",

@@ -16,10 +16,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
@@ -72,6 +75,15 @@ import kotlin.math.pow
  *   { "entity_id": "light.club_led_group", "glow_line": [[1,47],[98,47]],
  *     "glow_toward": [50,20] }
  *
+ * "glow_outline" is a strip hidden under or behind something, like the LEDs
+ * under a sofa or the bars behind a TV: a soft halo spilling out all round
+ * the shape and none inside it, since the thing itself hides the strip.
+ * "glow_reach" scales how far the halo spreads.
+ *   { "entity_id": "light.couch",
+ *     "glow_outline": [[16,33],[42,33],[42,23],[57,23],[57,45],[16,45]] }
+ *
+ * A line or outline can also take "glow_spots" for lamps on the same entity.
+ *
  * Pools only part-cut the shade, so a lit spot reads as lamplight in a dark
  * room rather than a hole back to the daytime plan.
  *
@@ -99,6 +111,8 @@ private class Glow(
     val lineEnd: Pair<Float, Float>? = null,
     /** "glow_toward": a point on the side the strip's wash runs deep; null for both sides. */
     val toward: Pair<Float, Float>? = null,
+    /** "glow_outline": the shape a hidden strip haloes; null otherwise. */
+    val outline: List<Pair<Float, Float>>? = null,
 )
 
 /** How much of the shade a full-brightness pool removes at its centre. */
@@ -106,6 +120,8 @@ private const val POOL_CUT = 0.6f
 /** Pool colour: Multiply tint and Screen highlight, relative to glow. */
 private const val TINT = 0.8f
 private const val SHINE = 0.15f
+/** The Screen highlight at full night: colour carries further once the room is dark. */
+private const val NIGHT_SHINE = 0.3f
 /** Tint strength of a lit room's ambient wash, relative to room_glow. */
 private const val ROOM_TINT = 0.35f
 /** A light on at its lowest brightness still glows this much. */
@@ -163,6 +179,9 @@ internal fun LitRoomsLayer(
     val glowScale = animateFloatAsState(
         dayGlow + (1f - dayGlow) * darkness, tween(SHADE_FADE_MS), label = "glowScale",
     )
+    val shine = animateFloatAsState(
+        SHINE + (NIGHT_SHINE - SHINE) * darkness, tween(SHADE_FADE_MS), label = "shine",
+    )
 
     // Only the room lights are read, one entity each, so this recomposes when
     // one of them changes and not for the radar sensors. key() keeps each
@@ -187,37 +206,58 @@ internal fun LitRoomsLayer(
                 val line = (el["glow_line"] as? List<*>).orEmpty().mapNotNull { p ->
                     (p as? List<*>)?.filterIsInstance<Number>()?.takeIf { it.size == 2 }
                 }.takeIf { it.size == 2 }
+                val outline = (el["glow_outline"] as? List<*>).orEmpty().mapNotNull { p ->
+                    val xy = (p as? List<*>)?.filterIsInstance<Number>() ?: return@mapNotNull null
+                    if (xy.size == 2) xy[0].toFloat() / 100f to xy[1].toFloat() / 100f else null
+                }.takeIf { it.size >= 3 }
+                val glowReach = (el["glow_reach"] as? Number)?.toFloat() ?: 1f
+                val strength = (el["glow_strength"] as? Number)?.toFloat() ?: 1f
                 if (line != null) {
                     glows += Glow(
                         left = line[0][0].toFloat() / 100f,
                         top = line[0][1].toFloat() / 100f,
-                        reach = WASH_DEPTH * ((el["glow_reach"] as? Number)?.toFloat() ?: 1f),
+                        reach = WASH_DEPTH * glowReach,
                         room = roomIndex,
                         color = color,
                         level = level,
                         ambient = el["glow_ambient"] as? Boolean ?: true,
-                        strength = (el["glow_strength"] as? Number)?.toFloat() ?: 1f,
+                        strength = strength,
                         lineEnd = line[1][0].toFloat() / 100f to line[1][1].toFloat() / 100f,
                         toward = (el["glow_toward"] as? List<*>)?.filterIsInstance<Number>()
                             ?.takeIf { it.size == 2 }?.let { it[0].toFloat() / 100f to it[1].toFloat() / 100f },
                     )
-                } else {
-                    val spots = (el["glow_spots"] as? List<*>).orEmpty().mapNotNull { s ->
-                        (s as? List<*>)?.filterIsInstance<Number>()?.takeIf { it.size == 2 }
-                    }.ifEmpty { listOf(listOf(el["left"] as? Number ?: 50, el["top"] as? Number ?: 50)) }
-                    spots.forEach { (l, t) ->
-                        glows += Glow(
-                            left = l.toFloat() / 100f,
-                            top = t.toFloat() / 100f,
-                            reach = reach * ((el["glow_reach"] as? Number)?.toFloat() ?: 1f),
-                            room = roomIndex,
-                            color = color,
-                            level = level,
-                            customShape = customShape,
-                            ambient = el["glow_ambient"] as? Boolean ?: (customShape == null),
-                            strength = (el["glow_strength"] as? Number)?.toFloat() ?: 1f,
-                        )
-                    }
+                }
+                if (outline != null) {
+                    glows += Glow(
+                        left = outline[0].first,
+                        top = outline[0].second,
+                        reach = OUTLINE_DEPTH * glowReach,
+                        room = roomIndex,
+                        color = color,
+                        level = level,
+                        ambient = el["glow_ambient"] as? Boolean ?: false,
+                        strength = strength,
+                        outline = outline,
+                    )
+                }
+                val spots = (el["glow_spots"] as? List<*>).orEmpty().mapNotNull { s ->
+                    (s as? List<*>)?.filterIsInstance<Number>()?.takeIf { it.size == 2 }
+                }.ifEmpty {
+                    if (line != null || outline != null) emptyList()
+                    else listOf(listOf(el["left"] as? Number ?: 50, el["top"] as? Number ?: 50))
+                }
+                spots.forEach { (l, t) ->
+                    glows += Glow(
+                        left = l.toFloat() / 100f,
+                        top = t.toFloat() / 100f,
+                        reach = reach * glowReach,
+                        room = roomIndex,
+                        color = color,
+                        level = level,
+                        customShape = customShape,
+                        ambient = el["glow_ambient"] as? Boolean ?: (customShape == null),
+                        strength = strength,
+                    )
                 }
             }
         }
@@ -242,7 +282,11 @@ internal fun LitRoomsLayer(
                         }
                         glows.forEach { g ->
                             val cut = (g.level.value * POOL_CUT * g.strength).coerceAtMost(1f)
-                            if (g.lineEnd != null) wash(g, paths, Color.Black, cut, BlendMode.DstOut) else pool(g, paths, Color.Black, cut, BlendMode.DstOut)
+                            when {
+                                g.lineEnd != null -> wash(g, paths, Color.Black, cut, BlendMode.DstOut)
+                                g.outline != null -> halo(g, paths, Color.Black, cut * HALO_CUT, BlendMode.DstOut)
+                                else -> pool(g, paths, Color.Black, cut, BlendMode.DstOut)
+                            }
                         }
                     }
                 },
@@ -271,8 +315,13 @@ internal fun LitRoomsLayer(
                             rail(g)
                             return@forEach
                         }
+                        if (g.outline != null) {
+                            halo(g, paths, g.color, a * TINT, BlendMode.Multiply)
+                            halo(g, paths, g.color, a * WASH_SHINE, BlendMode.Screen)
+                            return@forEach
+                        }
                         pool(g, paths, g.color, a * TINT, BlendMode.Multiply)
-                        pool(g, paths, g.color, a * SHINE, BlendMode.Screen)
+                        pool(g, paths, g.color, a * shine.value, BlendMode.Screen)
                     }
                 }
             },
@@ -319,15 +368,52 @@ private fun DrawScope.pool(g: Glow, paths: List<Path?>, color: Color, alpha: Flo
     val path = g.customShape?.toPath(size.width, size.height) ?: paths.getOrNull(g.room) ?: return
     val center = Offset(g.left * size.width, g.top * size.height)
     val radius = g.reach * size.width * (0.6f + 0.4f * k)
+    // A hot core and a long soft tail, roughly how lamplight falls off a
+    // floor, rather than an even disc.
     val brush = Brush.radialGradient(
         0f to color.copy(alpha = alpha),
-        0.45f to color.copy(alpha = alpha * 0.55f),
+        0.18f to color.copy(alpha = alpha * 0.72f),
+        0.42f to color.copy(alpha = alpha * 0.38f),
+        0.7f to color.copy(alpha = alpha * 0.13f),
         1f to color.copy(alpha = 0f),
         center = center,
         radius = radius,
     )
     clipPath(path) { drawCircle(brush, radius, center, blendMode = mode) }
 }
+
+/**
+ * A hidden strip's halo round [Glow.outline]: the shape stroked many times,
+ * each wider and faint, packed close at the edge, so the light builds up
+ * there and thins out smoothly. Clipped to the room, and the shape cut out.
+ */
+private fun DrawScope.halo(g: Glow, paths: List<Path?>, color: Color, alpha: Float, mode: BlendMode) {
+    val shape = g.outline?.toPath(size.width, size.height) ?: return
+    if (g.level.value < 0.01f || alpha <= 0f) return
+    val depth = g.reach * size.minDimension
+    val draw: DrawScope.() -> Unit = {
+        clipPath(shape, ClipOp.Difference) {
+            HALO_RINGS.forEach { f ->
+                drawPath(
+                    shape,
+                    color.copy(alpha = alpha * HALO_RING_ALPHA),
+                    style = Stroke(width = 2f * depth * f, join = StrokeJoin.Round),
+                    blendMode = mode,
+                )
+            }
+        }
+    }
+    val room = paths.getOrNull(g.room)
+    if (room == null) draw() else clipPath(room) { draw() }
+}
+
+/** How far a hidden strip's halo spreads, as a fraction of the plan's short side. */
+private const val OUTLINE_DEPTH = 0.06f
+/** The halo's strokes, as fractions of its depth, close together near the edge; each adds [HALO_RING_ALPHA]. */
+private val HALO_RINGS = FloatArray(14) { i -> ((i + 1) / 14f).let { it * it } }
+private const val HALO_RING_ALPHA = 0.11f
+/** A halo lifts less of the shade than a pool: it is a glow on the floor, not a lit room. */
+private const val HALO_CUT = 0.55f
 
 /**
  * A cove strip's wash: a band of light off its line, fading as it goes, deep
