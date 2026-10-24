@@ -25,11 +25,12 @@ The app is built around four primary pages, reachable with dedicated physical sh
 
 The media dashboard features three dedicated tabs tailored for single-touch music management:
 
-| Player (Now Playing) | Queue | Media (Shelves & Playlists) | Zones (BÆOLINK Multi-Room) |
-|---|---|---|---|
-| ![Sonos Player](screenshots/media-page.png) | ![Queue](screenshots/queue.png) | ![Sonos Media](screenshots/sonos-media.png) | ![Sonos Zones](screenshots/sonos-group.png) |
+| Player (Now Playing) | Library | Queue | Media (Shelves & Playlists) | Zones (BÆOLINK Multi-Room) |
+|---|---|---|---|---|
+| ![Sonos Player](screenshots/media-page.png) | ![Library](screenshots/sonos-browser.png) | ![Queue](screenshots/queue.png) | ![Sonos Media](screenshots/sonos-media.png) | ![Sonos Zones](screenshots/sonos-group.png) |
 
-* **Player:** The Search music bar on top, then the cover over a blurred wash, transport controls, a volume fader with mute, and four one-touch mixes.
+* **Player:** The Search music bar and the library button on top, then the cover over a blurred wash, transport controls, a volume fader with mute, and four one-touch mixes.
+* **Library:** The round button beside Search music opens the Sonos library as HA's media browser shows it (favourites, music library, Plex, Spotify, radio) for any room: drill into folders, tap to play now or + to add to that room's queue.
 * **Queue:** Now playing and up next from Music Assistant; when the Sonos is playing something Music Assistant didn't start (a favourite, the radio), its own track.
 * **Media:** Music Assistant shelves: random albums from the local collection (Spotify's saved albums are kept out), favourite songs and playlists.
 * **Zones:** Join or drop each room's speaker with its own volume; the **BÆOLINK** switch makes the music follow you from room to room.
