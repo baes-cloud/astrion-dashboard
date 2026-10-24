@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Floorplan.** A strip light can draw as an LED strip between two points (`glow_line`), a lit tape with a row of bright chips, instead of soft pools; the Club LED uses it. The TV art lights are one fixture again, right of the TV, and the sofa icon sits on the end of the chaise.
+- **Floorplan.** A strip light can draw as a cove strip between two points (`glow_line`): a lit rail with a wash of its colour spilling into the room (`glow_toward`), following its brightness. The Club LED uses it. The living-room TV lights up on the plan when the TV is on the PC input (`also_on`), not only when the streamer is awake. The TV art lights are one fixture again, right of the TV, and the sofa icon sits on the end of the chaise.
 
 ## v1.4.5 (2026-10-21)
 

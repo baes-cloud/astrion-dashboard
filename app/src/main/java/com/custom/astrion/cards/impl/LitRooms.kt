@@ -64,9 +64,13 @@ import kotlin.math.pow
  *   { "entity_id": "light.downlights", "left": 65, "top": 28,
  *     "glow_spots": [[24,17],[59,12],[84,18]], "glow_reach": 0.6 }
  *
- * "glow_line" draws an LED strip between two points instead of pools: a
- * tape in the light's colour with a row of bright chips and a soft halo.
- *   { "entity_id": "light.club_led_group", "glow_line": [[1,47],[98,47]] }
+ * "glow_line" draws a cove strip between two points instead of pools: the
+ * lit rail itself, and a wash of its colour spilling off it the way a strip
+ * under the ceiling lights the ceiling and wall. "glow_toward" is a point on
+ * the room side; the wash runs deep that way and only a little behind the
+ * rail. "glow_reach" scales how deep it runs.
+ *   { "entity_id": "light.club_led_group", "glow_line": [[1,47],[98,47]],
+ *     "glow_toward": [50,20] }
  *
  * Pools only part-cut the shade, so a lit spot reads as lamplight in a dark
  * room rather than a hole back to the daytime plan.
@@ -91,8 +95,10 @@ private class Glow(
     val ambient: Boolean = true,
     /** "glow_strength": how bright this light's pools are, 1 = the card's. */
     val strength: Float = 1f,
-    /** "glow_line": the far end of an LED strip from (left, top); null for a pool. */
+    /** "glow_line": the far end of a cove strip from (left, top); null for a pool. */
     val lineEnd: Pair<Float, Float>? = null,
+    /** "glow_toward": a point on the side the strip's wash runs deep; null for both sides. */
+    val toward: Pair<Float, Float>? = null,
 )
 
 /** How much of the shade a full-brightness pool removes at its centre. */
@@ -185,13 +191,15 @@ internal fun LitRoomsLayer(
                     glows += Glow(
                         left = line[0][0].toFloat() / 100f,
                         top = line[0][1].toFloat() / 100f,
-                        reach = 0f,
+                        reach = WASH_DEPTH * ((el["glow_reach"] as? Number)?.toFloat() ?: 1f),
                         room = roomIndex,
                         color = color,
                         level = level,
                         ambient = el["glow_ambient"] as? Boolean ?: true,
                         strength = (el["glow_strength"] as? Number)?.toFloat() ?: 1f,
                         lineEnd = line[1][0].toFloat() / 100f to line[1][1].toFloat() / 100f,
+                        toward = (el["glow_toward"] as? List<*>)?.filterIsInstance<Number>()
+                            ?.takeIf { it.size == 2 }?.let { it[0].toFloat() / 100f to it[1].toFloat() / 100f },
                     )
                 } else {
                     val spots = (el["glow_spots"] as? List<*>).orEmpty().mapNotNull { s ->
@@ -234,7 +242,7 @@ internal fun LitRoomsLayer(
                         }
                         glows.forEach { g ->
                             val cut = (g.level.value * POOL_CUT * g.strength).coerceAtMost(1f)
-                            if (g.lineEnd != null) stripCut(g, cut) else pool(g, paths, Color.Black, cut, BlendMode.DstOut)
+                            if (g.lineEnd != null) wash(g, paths, Color.Black, cut, BlendMode.DstOut) else pool(g, paths, Color.Black, cut, BlendMode.DstOut)
                         }
                     }
                 },
@@ -256,11 +264,13 @@ internal fun LitRoomsLayer(
                         drawPath(path, lit.color.copy(alpha = a), blendMode = BlendMode.Multiply)
                     }
                     glows.forEach { g ->
+                        val a = (g.level.value * glowStrength * glowScale.value * g.strength).coerceAtMost(1f)
                         if (g.lineEnd != null) {
-                            ledStrip(g)
+                            wash(g, paths, g.color, a * TINT, BlendMode.Multiply)
+                            wash(g, paths, g.color, a * WASH_SHINE, BlendMode.Screen)
+                            rail(g)
                             return@forEach
                         }
-                        val a = (g.level.value * glowStrength * glowScale.value * g.strength).coerceAtMost(1f)
                         pool(g, paths, g.color, a * TINT, BlendMode.Multiply)
                         pool(g, paths, g.color, a * SHINE, BlendMode.Screen)
                     }
@@ -320,53 +330,76 @@ private fun DrawScope.pool(g: Glow, paths: List<Path?>, color: Color, alpha: Flo
 }
 
 /**
- * An LED strip: light thrown on the wall around it, a flat tape in the
- * light's colour, and a row of bright chips along it, each with a small bloom.
- * Bright by day too, like a real strip, so no glowScale. Everything follows the
- * light's brightness: dim, the chips are coloured dots on a faint tape; full,
- * they burn near white in a wide glow.
+ * A cove strip's wash: a band of light off its line, fading as it goes, deep
+ * toward [Glow.toward] and shallow behind the rail, clipped to its room.
  */
-private fun DrawScope.ledStrip(g: Glow) {
+private fun DrawScope.wash(g: Glow, paths: List<Path?>, color: Color, alpha: Float, mode: BlendMode) {
+    val end = g.lineEnd ?: return
+    if (g.level.value < 0.01f || alpha <= 0f) return
+    val a = Offset(g.left * size.width, g.top * size.height)
+    val b = Offset(end.first * size.width, end.second * size.height)
+    val d = b - a
+    val len = d.getDistance().takeIf { it > 0f } ?: return
+    var n = Offset(-d.y / len, d.x / len)
+    val toward = g.toward
+    if (toward != null && (toward.first * size.width - a.x) * n.x + (toward.second * size.height - a.y) * n.y < 0f) n = -n
+    val deep = g.reach * size.minDimension
+    val back = if (toward != null) deep * WASH_BACK else deep
+    val path = paths.getOrNull(g.room)
+    if (path == null) {
+        band(a, b, n * deep, color, alpha, mode)
+        band(a, b, -n * back, color, alpha, mode)
+    } else clipPath(path) {
+        band(a, b, n * deep, color, alpha, mode)
+        band(a, b, -n * back, color, alpha, mode)
+    }
+}
+
+/** One side of a wash: the quad from a–b out by [far], brightest at the line. */
+private fun DrawScope.band(a: Offset, b: Offset, far: Offset, color: Color, alpha: Float, mode: BlendMode) {
+    val brush = Brush.linearGradient(
+        0f to color.copy(alpha = alpha),
+        0.12f to color.copy(alpha = alpha * 0.75f),
+        0.45f to color.copy(alpha = alpha * 0.3f),
+        1f to color.copy(alpha = 0f),
+        start = a,
+        end = a + far,
+    )
+    val quad = Path().apply {
+        moveTo(a.x, a.y)
+        lineTo(b.x, b.y)
+        lineTo(b.x + far.x, b.y + far.y)
+        lineTo(a.x + far.x, a.y + far.y)
+        close()
+    }
+    drawPath(quad, brush, blendMode = mode)
+}
+
+/**
+ * The lit rail itself: a saturated bar with a soft bloom, as bright as the
+ * light. Seen by day too, like the real strip, so no glowScale.
+ */
+private fun DrawScope.rail(g: Glow) {
     val k = g.level.value
     val end = g.lineEnd ?: return
     if (k < 0.01f) return
     // level is LEVEL_FLOOR + brightness, so split it back into on/off fade and brightness.
     val fade = (k / LEVEL_FLOOR).coerceAtMost(1f)
     val p = ((k - LEVEL_FLOOR) / (1f - LEVEL_FLOOR)).coerceIn(0f, 1f)
-    val lit = fade * (0.2f + 0.8f * p)
     val a = Offset(g.left * size.width, g.top * size.height)
     val b = Offset(end.first * size.width, end.second * size.height)
-    val s = g.strength.coerceAtMost(1.5f)
-    drawLine(g.color.copy(alpha = (0.22f * lit * s).coerceAtMost(1f)), a, b, STRIP_HALO.toPx(), StrokeCap.Round)
-    drawLine(g.color.copy(alpha = (0.4f * lit * s).coerceAtMost(1f)), a, b, STRIP_GLOW.toPx(), StrokeCap.Round)
-    drawLine(g.color.copy(alpha = fade * (0.25f + 0.6f * p)), a, b, STRIP_TAPE.toPx(), StrokeCap.Butt)
-    val chip = lerp(g.color, Color.White, 0.2f + 0.55f * p)
-    val bloom = STRIP_BLOOM.toPx() * (0.5f + 0.5f * p)
-    val n = ((b - a).getDistance() / STRIP_PITCH.toPx()).toInt().coerceAtLeast(1)
-    for (i in 0 until n) {
-        val t = (i + 0.5f) / n
-        val c = Offset(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
-        drawCircle(chip.copy(alpha = 0.35f * lit), bloom, c)
-        drawCircle(chip.copy(alpha = fade * (0.35f + 0.65f * p)), STRIP_CHIP.toPx(), c)
-    }
+    drawLine(g.color.copy(alpha = fade * (0.075f + 0.15f * p)), a, b, RAIL_BLOOM.toPx(), StrokeCap.Round)
+    drawLine(lerp(g.color, Color.White, 0.3f * p).copy(alpha = fade * (0.225f + 0.275f * p)), a, b, RAIL.toPx(), StrokeCap.Round)
 }
 
-/** The strip's band of the shade lifted, no wider than its halo. */
-private fun DrawScope.stripCut(g: Glow, alpha: Float) {
-    val end = g.lineEnd ?: return
-    if (g.level.value < 0.01f || alpha <= 0f) return
-    val a = Offset(g.left * size.width, g.top * size.height)
-    val b = Offset(end.first * size.width, end.second * size.height)
-    drawLine(Color.Black.copy(alpha = alpha), a, b, STRIP_HALO.toPx(), StrokeCap.Round, blendMode = BlendMode.DstOut)
-}
-
-private val STRIP_TAPE = 6.dp
-private val STRIP_GLOW = 11.dp
-private val STRIP_HALO = 22.dp
-private val STRIP_CHIP = 1.6.dp
-private val STRIP_BLOOM = 4.dp
-/** Gap between LED chips along the tape. */
-private val STRIP_PITCH = 9.dp
+/** How deep a cove strip's wash runs into the room, as a fraction of the plan's short side. */
+private const val WASH_DEPTH = 0.3f
+/** How far it spills behind the rail, relative to its depth. */
+private const val WASH_BACK = 0.25f
+/** The wash's Screen highlight: a strip lights its ceiling harder than a lamp's pool. */
+private const val WASH_SHINE = 0.35f
+private val RAIL = 2.5.dp
+private val RAIL_BLOOM = 7.dp
 
 /** 0–1. A light that is on but reports no brightness counts as full. */
 private fun brightnessOf(e: EntityState): Float =

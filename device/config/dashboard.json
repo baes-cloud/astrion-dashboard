@@ -244,6 +244,7 @@
              47
             ]
            ],
+           "glow_toward": [50, 20],
            "icon": "led_bar"
           },
           {
@@ -527,6 +528,7 @@
          "screens": [
           {
            "entity_id": "media_player.the_club_tvv",
+           "also_on": { "entity_id": "media_player.55_the_serif_3", "attribute": "source", "is": "hdmi2" },
            "rect": [
             23.6,
             8.2,
