@@ -2,7 +2,8 @@ package com.custom.astrion.cards.impl
 
 import com.custom.astrion.ui.parseHexColor
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
 import androidx.compose.animation.core.RepeatMode
@@ -58,6 +59,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.custom.astrion.ui.InWindowDialog
 import com.custom.astrion.cards.CardConfig
@@ -71,6 +73,7 @@ import kotlin.math.roundToInt
 import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalPageVisible
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.floatOrNull
@@ -99,6 +102,8 @@ private const val SENT_RING_MS = 1200L
  * (about 2 px on a remote), are left undrawn: sensor jitter, not walking.
  */
 private const val RMM_STILL_PCT = 0.5f
+/** Moves at least this far, in percent of the plan, glide; shorter ones step. */
+private const val RMM_GLIDE_PCT = 2f
 
 class PictureElementsCard : CardRenderer {
     override val type = "picture_elements"
@@ -650,11 +655,27 @@ class PictureElementsCard : CardRenderer {
             if (leftPct !in 0f..100f || topPct !in 0f..100f) return@forEachIndexed
             key(t.id) {
                 val dot = 26.dp
-                val dx by animateDpAsState(w * (leftPct / 100f) - dot / 2, tween(450), label = "rmmx")
-                val dy by animateDpAsState(h * (topPct / 100f) - dot / 2, tween(450), label = "rmmy")
+                val tx = w * (leftPct / 100f) - dot / 2
+                val ty = h * (topPct / 100f) - dot / 2
+                val dx = remember { Animatable(tx, Dp.VectorConverter) }
+                val dy = remember { Animatable(ty, Dp.VectorConverter) }
+                // Someone walking glides; someone shifting on the sofa steps
+                // in one frame. Gliding every small step kept the plan at the
+                // full frame rate most of the evening for a couple of pixels.
+                LaunchedEffect(tx, ty) {
+                    val far = abs((tx - dx.value).value) >= (w * RMM_GLIDE_PCT / 100f).value ||
+                        abs((ty - dy.value).value) >= (h * RMM_GLIDE_PCT / 100f).value
+                    if (far) {
+                        launch { dx.animateTo(tx, tween(450)) }
+                        launch { dy.animateTo(ty, tween(450)) }
+                    } else {
+                        dx.snapTo(tx)
+                        dy.snapTo(ty)
+                    }
+                }
                 Box(
                     modifier = Modifier
-                        .offset(x = dx.coerceAtLeast(0.dp), y = dy.coerceAtLeast(0.dp))
+                        .offset { IntOffset(dx.value.coerceAtLeast(0.dp).roundToPx(), dy.value.coerceAtLeast(0.dp).roundToPx()) }
                         .size(dot)
                         .drawBehind {
                             drawCircle(color = fill)
