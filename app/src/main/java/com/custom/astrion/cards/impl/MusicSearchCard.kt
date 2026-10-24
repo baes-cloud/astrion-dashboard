@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QueueMusic
@@ -64,12 +65,17 @@ import kotlinx.serialization.json.put
  * once they're added in MA. Tap a result to play it now on [player]; tap its
  * + to add it to the queue instead.
  *
+ * With `browse_players`, a library button sits beside the bar and opens HA's
+ * media browser ([MediaBrowser]) for those players, e.g. the Sonos rooms:
+ * favourites, Sonos library, Plex, Spotify, radio. The first is the default.
+ *
  * Config:
  *   { "type": "music_search", "options": {
  *       "config_entry_id": "01KVF3KES1KSZ0JYSXJ405AKVA",   // the MA integration
  *       "player": "media_player.club_2",                    // an MA player
  *       "placeholder": "Search music",
- *       "limit": 8                                          // per type
+ *       "limit": 8,                                         // per type
+ *       "browse_players": ["media_player.club", "media_player.bedroom_sonos"]
  *   } }
  */
 class MusicSearchCard : CardRenderer {
@@ -81,26 +87,51 @@ class MusicSearchCard : CardRenderer {
         val player = config.string("player") ?: return
         val placeholder = config.string("placeholder") ?: "Search music"
         val limit = config.int("limit", 8)
+        val browsePlayers = config.stringList("browse_players")
         var open by remember { mutableStateOf(false) }
+        var browsing by remember { mutableStateOf(false) }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(40.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(AstrionTheme.cardBgAlt)
-                .tap(enabled = ctx.connected) { open = true }
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Filled.Search, contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(10.dp))
-            Text(placeholder, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.body)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(AstrionTheme.cardBgAlt)
+                    .tap(enabled = ctx.connected) { open = true }
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Search, contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(placeholder, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.body)
+            }
+            if (browsePlayers.isNotEmpty()) {
+                Spacer(Modifier.width(8.dp))
+                HitTarget(
+                    visual = 40.dp,
+                    enabled = ctx.connected,
+                    onClick = { browsing = true },
+                    face = Modifier.clip(CircleShape).background(AstrionTheme.cardBgAlt),
+                ) {
+                    Icon(Icons.Filled.LibraryMusic, contentDescription = "Browse music", tint = AstrionTheme.accent, modifier = Modifier.size(20.dp))
+                }
+            }
         }
 
         if (open) {
             InWindowDialog(onDismissRequest = { open = false }) {
                 SearchPanel(ctx, entry, player, placeholder, limit) { open = false }
+            }
+        }
+
+        if (browsing) {
+            // Names are read once on open; a renamed room shows next time.
+            val rooms = remember(browsePlayers) {
+                browsePlayers.map { BrowseRoom(it, ctx.entity(it)?.friendlyName ?: it.substringAfter('.')) }
+            }
+            InWindowDialog(onDismissRequest = { browsing = false }) {
+                MediaBrowser(ctx.client, rooms) { browsing = false }
             }
         }
     }

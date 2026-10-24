@@ -668,7 +668,8 @@
             "config_entry_id": "01KVF3KES1KSZ0JYSXJ405AKVA",
             "player": "media_player.club_2",
             "placeholder": "Search music",
-            "limit": 8
+            "limit": 8,
+            "browse_players": ["media_player.club", "media_player.unnamed_room_5", "media_player.bedroom_sonos", "media_player.office_sonos", "media_player.bathroom_sonos"]
            }
           },
           {
@@ -980,7 +981,7 @@
    "service": "media_player.select_source",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "source": "com.netflix.ninja"
+    "source": "org.jellyfin.androidtv"
    }
   },
   {
@@ -1346,7 +1347,7 @@
      "Press TV/Plex (curtain).",
      "In the TV card, tap Search to find a film or show, or Movies, TV or MTV to browse.",
      "Tap one and it plays on the TV.",
-     "Red, green and blue open Netflix, Plex and iview. Arrows, OK, Home and Back work like the TV's own remote."
+     "Red, green and blue open Jellyfin, Plex and iview. Arrows, OK, Home and Back work like the TV's own remote."
     ]
    },
    {
