@@ -18,9 +18,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.unit.dp
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ui.screensaverIsNight
@@ -61,6 +64,10 @@ import kotlin.math.pow
  *   { "entity_id": "light.downlights", "left": 65, "top": 28,
  *     "glow_spots": [[24,17],[59,12],[84,18]], "glow_reach": 0.6 }
  *
+ * "glow_line" draws a strip as a neon tube instead of pools: a thin bright
+ * core with a tight halo between two points, in the light's colour.
+ *   { "entity_id": "light.club_led_group", "glow_line": [[1,47],[98,47]] }
+ *
  * Pools only part-cut the shade, so a lit spot reads as lamplight in a dark
  * room rather than a hole back to the daytime plan.
  *
@@ -84,6 +91,8 @@ private class Glow(
     val ambient: Boolean = true,
     /** "glow_strength": how bright this light's pools are, 1 = the card's. */
     val strength: Float = 1f,
+    /** "glow_line": the far end of a neon tube from (left, top); null for a pool. */
+    val lineEnd: Pair<Float, Float>? = null,
 )
 
 /** How much of the shade a full-brightness pool removes at its centre. */
@@ -167,21 +176,38 @@ internal fun LitRoomsLayer(
                     val xy = (p as? List<*>)?.filterIsInstance<Number>() ?: return@mapNotNull null
                     if (xy.size == 2) xy[0].toFloat() / 100f to xy[1].toFloat() / 100f else null
                 }.takeIf { it.size >= 3 }
-                val spots = (el["glow_spots"] as? List<*>).orEmpty().mapNotNull { s ->
-                    (s as? List<*>)?.filterIsInstance<Number>()?.takeIf { it.size == 2 }
-                }.ifEmpty { listOf(listOf(el["left"] as? Number ?: 50, el["top"] as? Number ?: 50)) }
-                spots.forEach { (l, t) ->
+                val line = (el["glow_line"] as? List<*>).orEmpty().mapNotNull { p ->
+                    (p as? List<*>)?.filterIsInstance<Number>()?.takeIf { it.size == 2 }
+                }.takeIf { it.size == 2 }
+                if (line != null) {
                     glows += Glow(
-                        left = l.toFloat() / 100f,
-                        top = t.toFloat() / 100f,
-                        reach = reach * ((el["glow_reach"] as? Number)?.toFloat() ?: 1f),
+                        left = line[0][0].toFloat() / 100f,
+                        top = line[0][1].toFloat() / 100f,
+                        reach = 0f,
                         room = roomIndex,
                         color = color,
                         level = level,
-                        customShape = customShape,
-                        ambient = el["glow_ambient"] as? Boolean ?: (customShape == null),
+                        ambient = el["glow_ambient"] as? Boolean ?: true,
                         strength = (el["glow_strength"] as? Number)?.toFloat() ?: 1f,
+                        lineEnd = line[1][0].toFloat() / 100f to line[1][1].toFloat() / 100f,
                     )
+                } else {
+                    val spots = (el["glow_spots"] as? List<*>).orEmpty().mapNotNull { s ->
+                        (s as? List<*>)?.filterIsInstance<Number>()?.takeIf { it.size == 2 }
+                    }.ifEmpty { listOf(listOf(el["left"] as? Number ?: 50, el["top"] as? Number ?: 50)) }
+                    spots.forEach { (l, t) ->
+                        glows += Glow(
+                            left = l.toFloat() / 100f,
+                            top = t.toFloat() / 100f,
+                            reach = reach * ((el["glow_reach"] as? Number)?.toFloat() ?: 1f),
+                            room = roomIndex,
+                            color = color,
+                            level = level,
+                            customShape = customShape,
+                            ambient = el["glow_ambient"] as? Boolean ?: (customShape == null),
+                            strength = (el["glow_strength"] as? Number)?.toFloat() ?: 1f,
+                        )
+                    }
                 }
             }
         }
@@ -205,7 +231,8 @@ internal fun LitRoomsLayer(
                             drawPath(path, Color.Black.copy(alpha = lit.level * roomGlow), blendMode = BlendMode.DstOut)
                         }
                         glows.forEach { g ->
-                            pool(g, paths, Color.Black, (g.level.value * POOL_CUT * g.strength).coerceAtMost(1f), BlendMode.DstOut)
+                            val cut = (g.level.value * POOL_CUT * g.strength).coerceAtMost(1f)
+                            if (g.lineEnd != null) neonCut(g, cut) else pool(g, paths, Color.Black, cut, BlendMode.DstOut)
                         }
                     }
                 },
@@ -227,6 +254,10 @@ internal fun LitRoomsLayer(
                         drawPath(path, lit.color.copy(alpha = a), blendMode = BlendMode.Multiply)
                     }
                     glows.forEach { g ->
+                        if (g.lineEnd != null) {
+                            neon(g)
+                            return@forEach
+                        }
                         val a = (g.level.value * glowStrength * glowScale.value * g.strength).coerceAtMost(1f)
                         pool(g, paths, g.color, a * TINT, BlendMode.Multiply)
                         pool(g, paths, g.color, a * SHINE, BlendMode.Screen)
@@ -285,6 +316,35 @@ private fun DrawScope.pool(g: Glow, paths: List<Path?>, color: Color, alpha: Flo
     )
     clipPath(path) { drawCircle(brush, radius, center, blendMode = mode) }
 }
+
+/**
+ * A neon tube: a narrow halo, a brighter glow and a pale core, all round-capped
+ * strokes. Bright by day too, like a real tube, so no glowScale.
+ */
+private fun DrawScope.neon(g: Glow) {
+    val k = g.level.value
+    val end = g.lineEnd ?: return
+    if (k < 0.01f) return
+    val a = Offset(g.left * size.width, g.top * size.height)
+    val b = Offset(end.first * size.width, end.second * size.height)
+    val s = g.strength.coerceAtMost(1.5f)
+    drawLine(g.color.copy(alpha = (0.16f * k * s).coerceAtMost(1f)), a, b, NEON_HALO.toPx(), StrokeCap.Round)
+    drawLine(g.color.copy(alpha = (0.45f * k * s).coerceAtMost(1f)), a, b, NEON_GLOW.toPx(), StrokeCap.Round)
+    drawLine(lerp(g.color, Color.White, 0.55f).copy(alpha = 0.5f + 0.5f * k), a, b, NEON_CORE.toPx(), StrokeCap.Round)
+}
+
+/** The tube's strip of the shade lifted, no wider than its halo. */
+private fun DrawScope.neonCut(g: Glow, alpha: Float) {
+    val end = g.lineEnd ?: return
+    if (g.level.value < 0.01f || alpha <= 0f) return
+    val a = Offset(g.left * size.width, g.top * size.height)
+    val b = Offset(end.first * size.width, end.second * size.height)
+    drawLine(Color.Black.copy(alpha = alpha), a, b, NEON_HALO.toPx(), StrokeCap.Round, blendMode = BlendMode.DstOut)
+}
+
+private val NEON_CORE = 1.5.dp
+private val NEON_GLOW = 4.dp
+private val NEON_HALO = 9.dp
 
 /** 0–1. A light that is on but reports no brightness counts as full. */
 private fun brightnessOf(e: EntityState): Float =

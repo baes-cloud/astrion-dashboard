@@ -151,15 +151,9 @@
            "icon": "xmas_tree"
           },
           {
-           "entity_id": "light.tv_art_lights_1",
-           "left": 26.5,
-           "top": 4,
-           "icon": "portrait_art"
-          },
-          {
-           "entity_id": "light.tv_art_lights_2",
-           "left": 36.5,
-           "top": 4,
+           "entity_id": "light.tv_art_lights",
+           "left": 45,
+           "top": 11,
            "icon": "portrait_art"
           },
           {
@@ -176,8 +170,8 @@
           },
           {
            "entity_id": "light.couch",
-           "left": 26,
-           "top": 27,
+           "left": 49,
+           "top": 28,
            "glow_spots": [
             [
              23,
@@ -240,89 +234,16 @@
            "entity_id": "light.club_led_group",
            "left": 12,
            "top": 46,
-           "glow_spots": [
+           "glow_line": [
             [
-             2,
+             1,
              47
             ],
             [
-             7,
-             47
-            ],
-            [
-             12,
-             47
-            ],
-            [
-             17,
-             47
-            ],
-            [
-             22,
-             47
-            ],
-            [
-             27,
-             47
-            ],
-            [
-             32,
-             47
-            ],
-            [
-             37,
-             47
-            ],
-            [
-             42,
-             47
-            ],
-            [
-             47,
-             47
-            ],
-            [
-             52,
-             47
-            ],
-            [
-             57,
-             47
-            ],
-            [
-             62,
-             47
-            ],
-            [
-             67,
-             47
-            ],
-            [
-             72,
-             47
-            ],
-            [
-             77,
-             47
-            ],
-            [
-             82,
-             47
-            ],
-            [
-             87,
-             47
-            ],
-            [
-             92,
-             47
-            ],
-            [
-             97,
+             98,
              47
             ]
            ],
-           "glow_reach": 0.35,
            "icon": "led_bar"
           },
           {
@@ -468,8 +389,7 @@
             ],
             "lights": [
              "light.hue_play",
-             "light.tv_art_lights_1",
-             "light.tv_art_lights_2",
+             "light.tv_art_lights",
              "light.couch",
              "light.club_led_group",
              "light.art_group",
