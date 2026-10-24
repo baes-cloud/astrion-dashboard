@@ -80,6 +80,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 import com.custom.astrion.ui.tap
@@ -93,6 +94,11 @@ import com.custom.astrion.ui.tap
  */
 /** How long a floorplan icon shows its "sent" ring after a tap. */
 private const val SENT_RING_MS = 1200L
+/**
+ * A radar dot's moves smaller than this, in percent of the plan on each axis
+ * (about 2 px on a remote), are left undrawn: sensor jitter, not walking.
+ */
+private const val RMM_STILL_PCT = 0.5f
 
 class PictureElementsCard : CardRenderer {
     override val type = "picture_elements"
@@ -620,7 +626,15 @@ class PictureElementsCard : CardRenderer {
                         y = t["y"]?.jsonPrimitive?.floatOrNull?.let { (it * 10).roundToInt() / 10f } ?: return@mapNotNull null,
                     )
                 }
-                if (next != targets) targets = next
+                // Someone sitting still wobbles a tenth or two of a percent
+                // (about a pixel) every frame, and each wobble ran the 450 ms
+                // glide again: frames all evening for a dot that never visibly
+                // moved. Under RMM_STILL_PCT it stays where it is drawn.
+                val shown = next.map { t ->
+                    val was = targets.firstOrNull { it.id == t.id }
+                    if (was != null && abs(t.x - was.x) < RMM_STILL_PCT && abs(t.y - was.y) < RMM_STILL_PCT) was else t
+                }
+                if (shown != targets) targets = shown
             } else null
             if (cancel == null) targets = emptyList()
             onDispose { cancel?.invoke() }

@@ -1,18 +1,12 @@
 package com.custom.astrion.cards.impl
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -30,6 +24,8 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.LocalDashboardShowing
+import com.custom.astrion.ui.LocalPageVisible
 import com.custom.astrion.ui.dimIfUnavailable
 import com.custom.astrion.ui.tap
 import kotlin.math.PI
@@ -66,10 +62,18 @@ class MirrorBallCard : CardRenderer {
             contentAlignment = Alignment.Center,
         ) {
             if (on) {
-                val t = rememberInfiniteTransition(label = "mirrorball")
-                val turn by t.animateFloat(0f, PI.toFloat(), infiniteRepeatable(tween(SPIN_MS, easing = LinearEasing)), label = "turn")
-                val twinkle by t.animateFloat(0f, 1f, infiniteRepeatable(tween(TWINKLE_MS), RepeatMode.Reverse), label = "twinkle")
-                Canvas(Modifier.size(size)) { ball(ink, turn, twinkle) }
+                // On the specks' clock, not an infinite transition: that ran
+                // at the display's full rate, on every page and under the
+                // screensaver, for as long as the ball was on.
+                val clock = rememberBallClock(LocalPageVisible.current && LocalDashboardShowing.current)
+                Canvas(Modifier.size(size)) {
+                    val ms = clock.value
+                    val turn = (ms % SPIN_MS) / SPIN_MS.toFloat() * PI.toFloat()
+                    // Up and back down again, eased each way as the tween was.
+                    val leg = (ms % (2 * TWINKLE_MS)) / TWINKLE_MS.toFloat()
+                    val twinkle = FastOutSlowInEasing.transform(if (leg <= 1f) leg else 2f - leg)
+                    ball(ink, turn, twinkle)
+                }
             } else {
                 Canvas(Modifier.size(size)) { ball(ink, STILL_TURN, null) }
             }
