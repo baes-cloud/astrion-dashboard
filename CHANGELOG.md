@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Floorplan.** A strip light can draw as a thin neon tube between two points (`glow_line`) instead of soft pools; the Club LED uses it. The TV art lights are one fixture again, right of the TV, and the sofa icon sits on the end of the chaise.
+- **Floorplan.** A strip light can draw as an LED strip between two points (`glow_line`), a lit tape with a row of bright chips, instead of soft pools; the Club LED uses it. The TV art lights are one fixture again, right of the TV, and the sofa icon sits on the end of the chaise.
 
 ## v1.4.5 (2026-10-21)
 

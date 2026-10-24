@@ -64,8 +64,8 @@ import kotlin.math.pow
  *   { "entity_id": "light.downlights", "left": 65, "top": 28,
  *     "glow_spots": [[24,17],[59,12],[84,18]], "glow_reach": 0.6 }
  *
- * "glow_line" draws a strip as a neon tube instead of pools: a thin bright
- * core with a tight halo between two points, in the light's colour.
+ * "glow_line" draws an LED strip between two points instead of pools: a
+ * tape in the light's colour with a row of bright chips and a soft halo.
  *   { "entity_id": "light.club_led_group", "glow_line": [[1,47],[98,47]] }
  *
  * Pools only part-cut the shade, so a lit spot reads as lamplight in a dark
@@ -91,7 +91,7 @@ private class Glow(
     val ambient: Boolean = true,
     /** "glow_strength": how bright this light's pools are, 1 = the card's. */
     val strength: Float = 1f,
-    /** "glow_line": the far end of a neon tube from (left, top); null for a pool. */
+    /** "glow_line": the far end of an LED strip from (left, top); null for a pool. */
     val lineEnd: Pair<Float, Float>? = null,
 )
 
@@ -102,6 +102,8 @@ private const val TINT = 0.8f
 private const val SHINE = 0.15f
 /** Tint strength of a lit room's ambient wash, relative to room_glow. */
 private const val ROOM_TINT = 0.35f
+/** A light on at its lowest brightness still glows this much. */
+private const val LEVEL_FLOOR = 0.15f
 
 private const val FADE_MS = 400
 private const val SHADE_FADE_MS = 1500
@@ -167,7 +169,7 @@ internal fun LitRoomsLayer(
                 val e = ctx.entities[id]
                 val on = e != null && e.isOn
                 val level = animateFloatAsState(
-                    targetValue = if (on) 0.15f + 0.85f * brightnessOf(e!!) else 0f,
+                    targetValue = if (on) LEVEL_FLOOR + (1f - LEVEL_FLOOR) * brightnessOf(e!!) else 0f,
                     animationSpec = tween(FADE_MS),
                     label = "glow",
                 )
@@ -232,7 +234,7 @@ internal fun LitRoomsLayer(
                         }
                         glows.forEach { g ->
                             val cut = (g.level.value * POOL_CUT * g.strength).coerceAtMost(1f)
-                            if (g.lineEnd != null) neonCut(g, cut) else pool(g, paths, Color.Black, cut, BlendMode.DstOut)
+                            if (g.lineEnd != null) stripCut(g, cut) else pool(g, paths, Color.Black, cut, BlendMode.DstOut)
                         }
                     }
                 },
@@ -255,7 +257,7 @@ internal fun LitRoomsLayer(
                     }
                     glows.forEach { g ->
                         if (g.lineEnd != null) {
-                            neon(g)
+                            ledStrip(g)
                             return@forEach
                         }
                         val a = (g.level.value * glowStrength * glowScale.value * g.strength).coerceAtMost(1f)
@@ -318,33 +320,53 @@ private fun DrawScope.pool(g: Glow, paths: List<Path?>, color: Color, alpha: Flo
 }
 
 /**
- * A neon tube: a narrow halo, a brighter glow and a pale core, all round-capped
- * strokes. Bright by day too, like a real tube, so no glowScale.
+ * An LED strip: light thrown on the wall around it, a flat tape in the
+ * light's colour, and a row of bright chips along it, each with a small bloom.
+ * Bright by day too, like a real strip, so no glowScale. Everything follows the
+ * light's brightness: dim, the chips are coloured dots on a faint tape; full,
+ * they burn near white in a wide glow.
  */
-private fun DrawScope.neon(g: Glow) {
+private fun DrawScope.ledStrip(g: Glow) {
     val k = g.level.value
     val end = g.lineEnd ?: return
     if (k < 0.01f) return
+    // level is LEVEL_FLOOR + brightness, so split it back into on/off fade and brightness.
+    val fade = (k / LEVEL_FLOOR).coerceAtMost(1f)
+    val p = ((k - LEVEL_FLOOR) / (1f - LEVEL_FLOOR)).coerceIn(0f, 1f)
+    val lit = fade * (0.2f + 0.8f * p)
     val a = Offset(g.left * size.width, g.top * size.height)
     val b = Offset(end.first * size.width, end.second * size.height)
     val s = g.strength.coerceAtMost(1.5f)
-    drawLine(g.color.copy(alpha = (0.16f * k * s).coerceAtMost(1f)), a, b, NEON_HALO.toPx(), StrokeCap.Round)
-    drawLine(g.color.copy(alpha = (0.45f * k * s).coerceAtMost(1f)), a, b, NEON_GLOW.toPx(), StrokeCap.Round)
-    drawLine(lerp(g.color, Color.White, 0.55f).copy(alpha = 0.5f + 0.5f * k), a, b, NEON_CORE.toPx(), StrokeCap.Round)
+    drawLine(g.color.copy(alpha = (0.22f * lit * s).coerceAtMost(1f)), a, b, STRIP_HALO.toPx(), StrokeCap.Round)
+    drawLine(g.color.copy(alpha = (0.4f * lit * s).coerceAtMost(1f)), a, b, STRIP_GLOW.toPx(), StrokeCap.Round)
+    drawLine(g.color.copy(alpha = fade * (0.25f + 0.6f * p)), a, b, STRIP_TAPE.toPx(), StrokeCap.Butt)
+    val chip = lerp(g.color, Color.White, 0.2f + 0.55f * p)
+    val bloom = STRIP_BLOOM.toPx() * (0.5f + 0.5f * p)
+    val n = ((b - a).getDistance() / STRIP_PITCH.toPx()).toInt().coerceAtLeast(1)
+    for (i in 0 until n) {
+        val t = (i + 0.5f) / n
+        val c = Offset(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
+        drawCircle(chip.copy(alpha = 0.35f * lit), bloom, c)
+        drawCircle(chip.copy(alpha = fade * (0.35f + 0.65f * p)), STRIP_CHIP.toPx(), c)
+    }
 }
 
-/** The tube's strip of the shade lifted, no wider than its halo. */
-private fun DrawScope.neonCut(g: Glow, alpha: Float) {
+/** The strip's band of the shade lifted, no wider than its halo. */
+private fun DrawScope.stripCut(g: Glow, alpha: Float) {
     val end = g.lineEnd ?: return
     if (g.level.value < 0.01f || alpha <= 0f) return
     val a = Offset(g.left * size.width, g.top * size.height)
     val b = Offset(end.first * size.width, end.second * size.height)
-    drawLine(Color.Black.copy(alpha = alpha), a, b, NEON_HALO.toPx(), StrokeCap.Round, blendMode = BlendMode.DstOut)
+    drawLine(Color.Black.copy(alpha = alpha), a, b, STRIP_HALO.toPx(), StrokeCap.Round, blendMode = BlendMode.DstOut)
 }
 
-private val NEON_CORE = 1.5.dp
-private val NEON_GLOW = 4.dp
-private val NEON_HALO = 9.dp
+private val STRIP_TAPE = 6.dp
+private val STRIP_GLOW = 11.dp
+private val STRIP_HALO = 22.dp
+private val STRIP_CHIP = 1.6.dp
+private val STRIP_BLOOM = 4.dp
+/** Gap between LED chips along the tape. */
+private val STRIP_PITCH = 9.dp
 
 /** 0–1. A light that is on but reports no brightness counts as full. */
 private fun brightnessOf(e: EntityState): Float =
