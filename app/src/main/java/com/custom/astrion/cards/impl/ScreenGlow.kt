@@ -24,6 +24,10 @@ import com.custom.astrion.ui.parseHexColor
  * plan (left, top, right, bottom):
  *   "screens": [ { "entity_id": "media_player.the_club_tvv",
  *                  "rect": [23.4, 7.9, 39, 11.5], "color": "#BFE3FF" } ]
+ * "also_on" lights it for another source too, e.g. the TV itself on the PC
+ * input while the streamer sleeps. Same shape as the IR buttons' "unless";
+ * without "attribute" the entity's state is compared:
+ *   "also_on": { "entity_id": "media_player.tv", "attribute": "source", "is": "hdmi2" }
  */
 @Composable
 internal fun ScreenGlowLayer(screens: List<*>, ctx: CardContext) {
@@ -33,7 +37,8 @@ internal fun ScreenGlowLayer(screens: List<*>, ctx: CardContext) {
             ?.takeIf { it.size == 4 } ?: return@forEach
         key(id, rect) {
             val e = ctx.entities[id]
-            val on = e != null && !e.isUnavailable && e.state !in TV_OFF
+            val on = (e != null && !e.isUnavailable && e.state !in TV_OFF) ||
+                (s["also_on"] as? Map<*, *>)?.let { alsoOn(it, ctx) } == true
             val level = animateFloatAsState(if (on) 1f else 0f, tween(GLOW_FADE_MS), label = "screen")
             val color = (s["color"] as? String)?.let { parseHexColor(it) } ?: SCREEN_BLUE
             Box(
@@ -69,6 +74,18 @@ internal fun ScreenGlowLayer(screens: List<*>, ctx: CardContext) {
                     },
             )
         }
+    }
+}
+
+/** An "also_on" match: the entity's attribute, or its state, is "is" (or one of a list of them). */
+private fun alsoOn(c: Map<*, *>, ctx: CardContext): Boolean {
+    val e = (c["entity_id"] as? String)?.let { ctx.entities[it] } ?: return false
+    if (e.isUnavailable || e.state in TV_OFF) return false
+    val actual = (c["attribute"] as? String)?.let { e.attrString(it) } ?: e.state
+    return when (val v = c["is"]) {
+        is List<*> -> actual in v.map { it.toString() }
+        null -> false
+        else -> actual == v.toString()
     }
 }
 
