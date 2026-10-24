@@ -72,7 +72,7 @@ The floorplan follows the sun and every light in the flat. As the sun drops, a s
 | ![Floorplan by day](screenshots/floorplan-day.png) | ![Floorplan at dusk](screenshots/floorplan-dusk.png) | ![Floorplan at night](screenshots/floorplan-night.png) |
 
 * **Sun-synced shading:** the shade eases in through civil twilight, from sun.sun's elevation. Light pools are faint by day and come up with the dark.
-* **Lights as they look:** pools take each light's colour and brightness. The Club LED is a cove strip on a rail under the ceiling, so it draws as a dim rail with a wash of its colour spilling into the room (`glow_line`, `glow_toward`).
+* **Lights as they look:** pools take each light's colour and brightness, with a hot core and a soft tail. The Club LED is a cove strip on a rail under the ceiling, so it draws as a dim rail with a wash of its colour spilling into the room (`glow_line`, `glow_toward`). Hidden strips halo what they sit under or behind (`glow_outline`): the sofa's underglow and the Hue Play bars round the TV. The kitchen strips light the counter.
 * **Screens:** the TV lights up on the plan while it is on, including on the PC input (`also_on`).
 * **Interactive Control:** Tap any bulb to toggle room lighting, or long-press to open the full-screen brightness and color tuning slider.
 * **mmWave Radar Presence:** Real-time target tracking dots driven by LD2450 sensors plotted over the apartment layout.
