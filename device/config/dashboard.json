@@ -144,7 +144,7 @@
          "pin": "fill",
          "aspect": 1.3,
          "elements": [
-          { "service": "script.club_blinds_all", "left": 2.8, "top": 7.5, "size": 26, "icon": "roller_blind", "shape": "square" },
+          { "service": "script.club_blinds_all", "left": 4.75, "top": 24.5, "size": 26, "icon": "roller_blind", "bare": true, "color": "#7A7472" },
           {
            "entity_id": "light.hue_play",
            "left": 16,
