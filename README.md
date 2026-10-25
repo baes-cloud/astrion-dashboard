@@ -74,6 +74,8 @@ The floorplan follows the sun and every light in the flat. As the sun drops, a s
 * **Sun-synced shading:** the shade eases in through civil twilight, from sun.sun's elevation. Light pools are faint by day and come up with the dark.
 * **Lights as they look:** pools take each light's colour and brightness, with a hot core and a soft tail. The Club LED is a cove strip on a rail under the ceiling, so it draws as a dim rail with a wash of its colour spilling into the room (`glow_line`), stopping at the walls. Hidden strips halo what they sit under or behind (`glow_outline`): the sofa's underglow and the Hue Play bars round the TV. The kitchen strips light the counter.
 * **Screens:** the TV lights up on the plan while it is on, including on the PC input (`also_on`).
+* **Blinds:** the balcony door's blind is drawn over the glass as far down as it really is, a shade lighter than the wall, and darkens with the room at night (`blinds`). The grey blind icon on it toggles it.
+* **Mirror ball:** while it spins, warm specks turn slowly round the main room (`mirror_ball`), on a 15 fps clock that only runs while Main is on screen.
 * **Interactive Control:** Tap any bulb to toggle room lighting, or long-press to open the full-screen brightness and color tuning slider.
 * **mmWave Radar Presence:** Real-time target tracking dots driven by LD2450 sensors plotted over the apartment layout.
 
@@ -92,6 +94,12 @@ The floorplan follows the sun and every light in the flat. As the sun drops, a s
 * **Physical Key Pass-Through:** Configured hardware keys (`VOLUME_UP`, `VOLUME_DOWN`, `MUTE`, `LIGHT`, `CURTAIN`, `SCENE`, `AC`, `VOICE`) wake the screen and immediately execute on the very first press without being swallowed.
 
 ---
+
+### Doorbell
+
+When the building intercom rings, a popup shows who is at the entrance with **Let in**, which calls the lift and opens the main door. It wakes the screen and comes to the front like an alarm, refreshes the snapshot while it is up, and clears when the call ends, after 90 seconds, or on Hide (`doorbell` in `dashboard.json`).
+
+<img src="screenshots/intercom.png" alt="Doorbell popup with the entrance snapshot and Let in" width="240">
 
 ### Additional Feature Screenshots
 
