@@ -29,6 +29,8 @@ data class DashboardUiState(
     val isAlarmHidden: Boolean = false,
     val activeAlerts: List<ActiveAlert> = emptyList(),
     val hiddenAlertTokens: Set<String> = emptySet(),
+    val doorbell: DoorbellRing? = null,
+    val hiddenDoorbellToken: String? = null,
     val toastMessage: ToastMessage? = null,
     val voiceState: VoiceState = VoiceState(),
 ) {
@@ -39,7 +41,8 @@ data class DashboardUiState(
      */
     val holdsScreen: Boolean
         get() = (activeAlarm?.ringing == true && !isAlarmHidden) ||
-            activeAlerts.firstOrNull()?.spec?.severity == "alarm"
+            activeAlerts.firstOrNull()?.spec?.severity == "alarm" ||
+            doorbell != null
 }
 
 sealed interface DashboardIntent {
@@ -55,6 +58,8 @@ sealed interface DashboardIntent {
     object HideAlarm : DashboardIntent
     data class TriggerAlertAction(val action: AlertAction) : DashboardIntent
     data class DismissAlert(val token: String) : DashboardIntent
+    data class LetIn(val action: AlertAction) : DashboardIntent
+    object HideDoorbell : DashboardIntent
     object ClearToast : DashboardIntent
     object Foreground : DashboardIntent
     object Background : DashboardIntent
@@ -91,7 +96,10 @@ class DashboardViewModel(
 
     private var toastJob: Job? = null
     private var alertsJob: Job? = null
+    private var doorbellJob: Job? = null
     @Volatile private var cachedAlertSpecs: List<AlertSpec> = emptyList()
+    @Volatile private var cachedDoorbell: DoorbellSpec? = null
+    private var lastDoorbellToken: String? = null
     private var lastAlarmPhase: Int = 0
     private var lastAlertToken: String? = null
     private val wakeWordWanted = MutableStateFlow(false)
@@ -102,7 +110,9 @@ class DashboardViewModel(
             configRepo.configFlow.collect { res ->
                 val specs = AlertSpec.parse(res.config.options["alerts"])
                 cachedAlertSpecs = specs
+                cachedDoorbell = DoorbellSpec.parse(res.config.options["doorbell"])
                 val watched = res.config.features.alarm.entities.toMutableSet()
+                cachedDoorbell?.let { watched += it.entities }
                 specs.forEach { s ->
                     watched += s.entity
                     s.unlessEntity?.let { watched += it }
@@ -236,13 +246,31 @@ class DashboardViewModel(
         val hidden = uiState.value.hiddenAlertTokens
         val filtered = active.filter { it.token !in hidden }
 
+        val ring = doorbellRing(cachedDoorbell, live, now)?.takeIf { it.token != uiState.value.hiddenDoorbellToken }
+
         val unhideAlarm = phase != lastAlarmPhase && phase == 1
         _uiState.update {
             it.copy(
                 activeAlarm = alarmState,
                 isAlarmHidden = if (unhideAlarm) false else it.isAlarmHidden,
                 activeAlerts = filtered,
+                doorbell = ring,
             )
+        }
+
+        // A new ring wakes the screen and comes to the front, like an alarm,
+        // then takes itself down when it times out.
+        if (ring?.token != lastDoorbellToken) {
+            lastDoorbellToken = ring?.token
+            doorbellJob?.cancel()
+            if (ring != null) {
+                _effects.trySend(DashboardEffect.WakeScreenForAlarm(isRinging = true))
+                _effects.trySend(DashboardEffect.BringActivityToFront)
+                doorbellJob = viewModelScope.launch {
+                    delay((ring.untilMs - System.currentTimeMillis()).coerceAtLeast(50L))
+                    updateAlertsAndAlarms()
+                }
+            }
         }
 
         if (phase != lastAlarmPhase) {
@@ -336,6 +364,13 @@ class DashboardViewModel(
             }
             is DashboardIntent.TriggerAlertAction -> {
                 client.callService(ServiceCall.fromConfig(intent.action.service, intent.action.entityId, intent.action.data))
+            }
+            is DashboardIntent.LetIn -> {
+                client.callService(ServiceCall.fromConfig(intent.action.service, intent.action.entityId, intent.action.data))
+                _uiState.update { it.copy(hiddenDoorbellToken = it.doorbell?.token, doorbell = null) }
+            }
+            DashboardIntent.HideDoorbell -> {
+                _uiState.update { it.copy(hiddenDoorbellToken = it.doorbell?.token, doorbell = null) }
             }
             is DashboardIntent.DismissAlert -> {
                 _uiState.update { it.copy(hiddenAlertTokens = it.hiddenAlertTokens + intent.token) }

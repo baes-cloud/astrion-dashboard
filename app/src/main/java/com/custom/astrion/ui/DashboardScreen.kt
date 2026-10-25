@@ -105,7 +105,16 @@ fun DashboardScreen(
                 )
             }
 
-            if (dashboardState.activeAlerts.isNotEmpty() && (dashboardState.activeAlarm == null || dashboardState.isAlarmHidden)) {
+            val doorbell = dashboardState.doorbell
+            if (doorbell != null) {
+                DoorbellOverlay(
+                    ring = doorbell,
+                    client = dashboardVm.client,
+                    camera = doorbell.spec.camera?.let { dashboardVm.client.live[it] },
+                    onLetIn = { dashboardVm.onIntent(DashboardIntent.LetIn(it)) },
+                    onHide = { dashboardVm.onIntent(DashboardIntent.HideDoorbell) },
+                )
+            } else if (dashboardState.activeAlerts.isNotEmpty() && (dashboardState.activeAlarm == null || dashboardState.isAlarmHidden)) {
                 val top = dashboardState.activeAlerts.first()
                 AlertOverlay(
                     alert = top,

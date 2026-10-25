@@ -21,6 +21,7 @@ import com.custom.astrion.power.PowerMachine
 import com.custom.astrion.power.PowerOutputs
 import com.custom.astrion.power.PowerSettings
 import com.custom.astrion.power.PowerState
+import com.custom.astrion.ui.DoorbellSpec
 import com.custom.astrion.ui.AlertSpec
 import com.custom.astrion.ui.screensaverIsNight
 import kotlinx.coroutines.Dispatchers
@@ -233,6 +234,7 @@ class PowerViewModel(
             spec.unlessEntity?.let { ids += it }
         }
         ids += config.features.power.screenOffEntities
+        DoorbellSpec.parse(config.options["doorbell"])?.let { ids += it.entities }
         return ids
     }
 

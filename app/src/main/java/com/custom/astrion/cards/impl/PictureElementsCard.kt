@@ -249,8 +249,10 @@ class PictureElementsCard : CardRenderer {
                 val entityId = el["entity_id"] as? String
                 val service = el["service"] as? String
                 val isPower = (el["icon"] as? String) == "power"
-                // "shape": "square" for a fixture that isn't a light, like a blind.
+                // "shape": "square" for a fixture that isn't a light, like a blind;
+                // "bare": true for just the glyph, no backing disc.
                 val shape = if (el["shape"] == "square") RoundedCornerShape(10.dp) else CircleShape
+                val bare = el["bare"] == true
 
                 val entity = entityId?.let { ctx.entities[it] }
                 val on = entity?.isOn == true
@@ -301,12 +303,13 @@ class PictureElementsCard : CardRenderer {
                 Icon(
                     imageVector = icon,
                     contentDescription = entityId,
-                    tint = tint,
+                    // "color" (hex) for a bare glyph that sits on something pale.
+                    tint = parseHexColor(el["color"] as? String)?.takeIf { !elUnavailable } ?: tint,
                     modifier = Modifier
                         .offset(x = x.coerceAtLeast(0.dp), y = y.coerceAtLeast(0.dp))
                         .size(box)
                         .clip(shape)
-                        .background(bg)
+                        .background(if (bare) Color.Transparent else bg)
                         .then(
                             if (sent) Modifier.border(2.dp, AstrionTheme.accent.copy(alpha = 0.85f), shape)
                             else Modifier

@@ -144,7 +144,7 @@
          "pin": "fill",
          "aspect": 1.3,
          "elements": [
-          { "service": "script.club_blinds_all", "left": 3.7, "top": 7, "icon": "roller_blind", "shape": "square" },
+          { "service": "script.club_blinds_all", "left": 4.75, "top": 24.5, "size": 26, "icon": "roller_blind", "bare": true, "color": "#7A7472" },
           {
            "entity_id": "light.hue_play",
            "left": 16,
@@ -1233,6 +1233,13 @@
    "service": "script.turn_on",
    "entity_id": "script.work_alarm_stop_and_start_day"
   }
+ },
+ "doorbell": {
+   "event": "event.comelit_intercom_doorbell_2",
+   "ring": ["ring"],
+   "camera": "camera.comelit_intercom_entrance",
+   "timeout_seconds": 90,
+   "let_in": { "name": "Let in", "service": "script.turn_on", "entity_id": "script.intercom_let_in" }
  },
  "alerts": [
   {
