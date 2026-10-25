@@ -324,7 +324,7 @@ class MainActivity : ComponentActivity() {
         val wasScreensaver = pState.isScreensaverOn
         powerVm.onIntent(PowerIntent.UserActivity)
         val dState = dashboardVm.uiState.value
-        val alertOrAlarmShowing = dState.activeAlerts.isNotEmpty() || (dState.activeAlarm != null && !dState.isAlarmHidden)
+        val alertOrAlarmShowing = dState.activeAlerts.isNotEmpty() || dState.doorbell != null || (dState.activeAlarm != null && !dState.isAlarmHidden)
         if (wasScreensaver && ev.actionMasked == MotionEvent.ACTION_DOWN && !alertOrAlarmShowing) {
             powerVm.onIntent(PowerIntent.SetSwallowTouch(true))
             return true

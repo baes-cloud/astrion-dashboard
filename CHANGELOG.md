@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Doorbell.** When the intercom rings, a popup shows the entrance snapshot with **Let in** (`doorbell` in dashboard.json). It wakes the screen, refreshes the snapshot while up, and clears when the call ends, after 90 s, or on Hide.
+
 - **Floorplan.** A strip light can draw as a cove strip along a path (`glow_line`, one or several runs): a lit rail with a soft wash of its colour spilling into the room and stopping at its walls, following its brightness. The Club LED uses it. The living-room TV lights up on the plan when the TV is on the PC input (`also_on`), not only when the streamer is awake. Hidden strips can halo the thing they sit under or behind (`glow_outline`): the sofa underglow and the Hue Play bars round the TV; the kitchen gets a counter strip, pools have a hotter core and softer tail, and colour comes up more at night. Blinds show on the plan, covering their window as far as they are down (`blinds`), and the mirror ball throws slowly turning specks over the main room while it spins (`mirror_ball`). The TV art lights are one fixture again, right of the TV, and the sofa icon sits on the end of the chaise.
 
 ## v1.4.5 (2026-10-21)
