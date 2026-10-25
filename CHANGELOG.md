@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## v1.4.6 (2026-10-25)
+
+- **SOUND.** A browse button beside the music search opens the Sonos library, with source logos fitted rather than cropped.
+
+- **Buttons.** A long press now holds for 0.8 s instead of 1.5 s, and a hold that starts on a dark screen still counts. The red button opens Jellyfin on the Google TV instead of Netflix.
 
 - **Doorbell.** When the intercom rings, a popup shows the entrance snapshot with **Let in** (`doorbell` in dashboard.json). It wakes the screen, refreshes the snapshot while up, and clears when the call ends, after 90 s, or on Hide.
 
