@@ -713,7 +713,7 @@
            "type": "music_search",
            "options": {
             "config_entry_id": "01KVF3KES1KSZ0JYSXJ405AKVA",
-            "player": "media_player.club_2",
+            "player": "media_player.club_3",
             "placeholder": "Search music",
             "limit": 8,
             "browse_players": ["media_player.club", "media_player.unnamed_room_5", "media_player.bedroom_sonos", "media_player.office_sonos", "media_player.bathroom_sonos"]
@@ -729,7 +729,7 @@
             ],
             "variant": "full",
             "art_aspect": 1.9,
-            "queue_player": "media_player.club_2",
+            "queue_player": "media_player.club_3",
             "name": "Club"
            }
           },
@@ -790,7 +790,7 @@
            "title": "Random albums",
            "source": "music_assistant",
            "config_entry_id": "01KVF3KES1KSZ0JYSXJ405AKVA",
-           "player": "media_player.club_2",
+           "player": "media_player.club_3",
            "media_type": "album",
            "order_by": "random",
            "limit": 12,
