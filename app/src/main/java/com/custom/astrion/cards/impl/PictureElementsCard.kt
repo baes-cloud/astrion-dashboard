@@ -249,6 +249,8 @@ class PictureElementsCard : CardRenderer {
                 val entityId = el["entity_id"] as? String
                 val service = el["service"] as? String
                 val isPower = (el["icon"] as? String) == "power"
+                // "shape": "square" for a fixture that isn't a light, like a blind.
+                val shape = if (el["shape"] == "square") RoundedCornerShape(10.dp) else CircleShape
 
                 val entity = entityId?.let { ctx.entities[it] }
                 val on = entity?.isOn == true
@@ -303,10 +305,10 @@ class PictureElementsCard : CardRenderer {
                     modifier = Modifier
                         .offset(x = x.coerceAtLeast(0.dp), y = y.coerceAtLeast(0.dp))
                         .size(box)
-                        .clip(CircleShape)
+                        .clip(shape)
                         .background(bg)
                         .then(
-                            if (sent) Modifier.border(2.dp, AstrionTheme.accent.copy(alpha = 0.85f), CircleShape)
+                            if (sent) Modifier.border(2.dp, AstrionTheme.accent.copy(alpha = 0.85f), shape)
                             else Modifier
                         )
                         .pointerInput(entityId, service) {
@@ -770,7 +772,7 @@ class PictureElementsCard : CardRenderer {
  * ("icon": "table_lamp", "led_strip", "led_bar", "hue_strip", "glow_strip",
  * "zigzag", "underglow", "spotlight", "downlight", "playbar", "candles",
  * "artwork", "artworks", "portrait_art", "art_blob", "roundel", "bulbs",
- * "bulb_grid", "sofa", "mirrorball", "xmas_tree", "desk"); null keeps the
+ * "bulb_grid", "sofa", "mirrorball", "xmas_tree", "desk", "roller_blind"); null keeps the
  * bulb. On or off shows in its tint and backing, as for the bulb.
  */
 private fun fixtureGlyph(key: String?): androidx.compose.ui.graphics.vector.ImageVector? = when (key) {
@@ -796,5 +798,6 @@ private fun fixtureGlyph(key: String?): androidx.compose.ui.graphics.vector.Imag
     "mirrorball" -> Glyphs.mirrorball
     "xmas_tree" -> Glyphs.xmasTree
     "desk", "computer" -> Glyphs.desk
+    "roller_blind", "blind" -> Glyphs.rollerBlind
     else -> null
 }
