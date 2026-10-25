@@ -63,7 +63,6 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.rememberSampledBitmap
 import com.custom.astrion.ui.AstrionTheme
-import com.custom.astrion.ui.Glyphs
 import kotlin.math.roundToInt
 import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalPageVisible
