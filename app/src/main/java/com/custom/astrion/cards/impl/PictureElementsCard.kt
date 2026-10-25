@@ -2,7 +2,8 @@ package com.custom.astrion.cards.impl
 
 import com.custom.astrion.ui.parseHexColor
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
 import androidx.compose.animation.core.RepeatMode
@@ -58,6 +59,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.custom.astrion.ui.InWindowDialog
 import com.custom.astrion.cards.CardConfig
@@ -71,6 +73,7 @@ import kotlin.math.roundToInt
 import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalPageVisible
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.floatOrNull
@@ -80,6 +83,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 import com.custom.astrion.ui.tap
@@ -93,6 +97,13 @@ import com.custom.astrion.ui.tap
  */
 /** How long a floorplan icon shows its "sent" ring after a tap. */
 private const val SENT_RING_MS = 1200L
+/**
+ * A radar dot's moves smaller than this, in percent of the plan on each axis
+ * (about 2 px on a remote), are left undrawn: sensor jitter, not walking.
+ */
+private const val RMM_STILL_PCT = 0.5f
+/** Moves at least this far, in percent of the plan, glide; shorter ones step. */
+private const val RMM_GLIDE_PCT = 2f
 
 class PictureElementsCard : CardRenderer {
     override val type = "picture_elements"
@@ -620,7 +631,15 @@ class PictureElementsCard : CardRenderer {
                         y = t["y"]?.jsonPrimitive?.floatOrNull?.let { (it * 10).roundToInt() / 10f } ?: return@mapNotNull null,
                     )
                 }
-                if (next != targets) targets = next
+                // Someone sitting still wobbles a tenth or two of a percent
+                // (about a pixel) every frame, and each wobble ran the 450 ms
+                // glide again: frames all evening for a dot that never visibly
+                // moved. Under RMM_STILL_PCT it stays where it is drawn.
+                val shown = next.map { t ->
+                    val was = targets.firstOrNull { it.id == t.id }
+                    if (was != null && abs(t.x - was.x) < RMM_STILL_PCT && abs(t.y - was.y) < RMM_STILL_PCT) was else t
+                }
+                if (shown != targets) targets = shown
             } else null
             if (cancel == null) targets = emptyList()
             onDispose { cancel?.invoke() }
@@ -636,15 +655,31 @@ class PictureElementsCard : CardRenderer {
             if (leftPct !in 0f..100f || topPct !in 0f..100f) return@forEachIndexed
             key(t.id) {
                 val dot = 26.dp
-                val dx by animateDpAsState(w * (leftPct / 100f) - dot / 2, tween(450), label = "rmmx")
-                val dy by animateDpAsState(h * (topPct / 100f) - dot / 2, tween(450), label = "rmmy")
+                val tx = w * (leftPct / 100f) - dot / 2
+                val ty = h * (topPct / 100f) - dot / 2
+                val dx = remember { Animatable(tx, Dp.VectorConverter) }
+                val dy = remember { Animatable(ty, Dp.VectorConverter) }
+                // Someone walking glides; someone shifting on the sofa steps
+                // in one frame. Gliding every small step kept the plan at the
+                // full frame rate most of the evening for a couple of pixels.
+                LaunchedEffect(tx, ty) {
+                    val far = abs((tx - dx.value).value) >= (w * RMM_GLIDE_PCT / 100f).value ||
+                        abs((ty - dy.value).value) >= (h * RMM_GLIDE_PCT / 100f).value
+                    if (far) {
+                        launch { dx.animateTo(tx, tween(280)) }
+                        launch { dy.animateTo(ty, tween(280)) }
+                    } else {
+                        dx.snapTo(tx)
+                        dy.snapTo(ty)
+                    }
+                }
                 Box(
                     modifier = Modifier
-                        .offset(x = dx.coerceAtLeast(0.dp), y = dy.coerceAtLeast(0.dp))
+                        .offset { IntOffset(dx.value.coerceAtLeast(0.dp).roundToPx(), dy.value.coerceAtLeast(0.dp).roundToPx()) }
                         .size(dot)
                         .drawBehind {
                             drawCircle(color = fill)
-                            drawCircle(color = accent, blendMode = BlendMode.Overlay)
+                            drawCircle(color = accent.copy(alpha = 0.45f))
                         },
                     contentAlignment = Alignment.Center,
                 ) {

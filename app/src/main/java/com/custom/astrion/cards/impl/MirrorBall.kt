@@ -1,25 +1,27 @@
 package com.custom.astrion.cards.impl
 
+import android.os.SystemClock
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.dp
 import com.custom.astrion.cards.CardContext
+import com.custom.astrion.ui.LocalDashboardShowing
+import com.custom.astrion.ui.LocalPageVisible
 import com.custom.astrion.ui.parseHexColor
 import kotlin.math.PI
 import kotlin.math.cos
@@ -33,7 +35,7 @@ import kotlinx.coroutines.delay
  * The mirror ball's specks drifting round the room while it spins: a field
  * of small soft spots turning slowly about the ball, thick near it and
  * thinning out, each twinkling a little, clipped to "shape" (percent of the
- * plan, like icons). Ticks at FPS, and only while the ball is on.
+ * plan, like icons). Ticks at FPS, and only while the ball is on and seen.
  *   "mirror_ball": { "entity_id": "fan.mirror_ball", "center": [92, 44],
  *                    "shape": [[1,1],[99,1],[99,50],[1,50]], "color": "#FFECBE" }
  */
@@ -50,17 +52,15 @@ internal fun MirrorBallLayer(opts: Map<*, *>, ctx: CardContext) {
             ?.let { it[0].toFloat() / 100f to it[1].toFloat() / 100f }
     }.takeIf { it.size >= 3 }
     val color = parseHexColor(opts["color"] as? String) ?: SPECK_WARM
-    val specks = remember { specks() }
-    // A slow turn needs no more than FPS frames a second, and each one
-    // costs the GPU, so tick at that rather than every display frame.
-    var turn by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(Unit) {
-        val start = withFrameMillis { it }
-        while (true) {
-            delay(1000L / FPS)
-            withFrameMillis { now -> turn = ((now - start) % TURN_MS) / TURN_MS.toFloat() }
-        }
+    val minX = shape?.minOf { it.first } ?: 0f
+    val maxX = shape?.maxOf { it.first } ?: 1f
+    val minY = shape?.minOf { it.second } ?: 0f
+    val maxY = shape?.maxOf { it.second } ?: 1f
+    val isAxisAlignedRect = shape != null && shape.size == 4 && shape.all { (x, y) ->
+        (x == minX || x == maxX) && (y == minY || y == maxY)
     }
+    val specks = remember { specks() }
+    val clock = rememberBallClock(LocalPageVisible.current && LocalDashboardShowing.current)
     Box(
         Modifier
             .fillMaxSize()
@@ -70,29 +70,57 @@ internal fun MirrorBallLayer(opts: Map<*, *>, ctx: CardContext) {
                 // Far enough to reach every corner of the room from the ball.
                 val reach = (shape ?: listOf(0f to 0f, 1f to 0f, 1f to 1f, 0f to 1f))
                     .maxOf { (x, y) -> hypot(x * size.width - c.x, y * size.height - c.y) }
-                val t = turn
+                val t = (clock.value % TURN_MS) / TURN_MS.toFloat()
                 val core = SPECK_CORE.toPx()
                 val draw = {
                     specks.forEach { s ->
                         val a = s.angle + t * 2f * PI.toFloat()
-                        val p = c + Offset(cos(a), sin(a)) * (s.r * reach)
                         val twinkle = 0.65f + 0.35f * sin(s.phase + t * 2f * PI.toFloat() * TWINKLES)
                         val alpha = k * s.bright * twinkle * (1f - 0.55f * s.r)
-                        val radius = core * s.size
-                        drawCircle(color.copy(alpha = alpha * 0.28f), radius * 2.6f, p, blendMode = BlendMode.Screen)
-                        drawCircle(color.copy(alpha = alpha), radius, p)
+                        if (alpha >= 0.02f) {
+                            val p = c + Offset(cos(a), sin(a)) * (s.r * reach)
+                            val radius = core * s.size
+                            drawCircle(color.copy(alpha = alpha * 0.3f), radius * 2.5f, p)
+                            drawCircle(color.copy(alpha = alpha), radius, p)
+                        }
                     }
                 }
-                val path = shape?.let { pts ->
-                    Path().apply {
-                        moveTo(pts[0].first * size.width, pts[0].second * size.height)
-                        for (i in 1 until pts.size) lineTo(pts[i].first * size.width, pts[i].second * size.height)
+                if (isAxisAlignedRect) {
+                    clipRect(minX * size.width, minY * size.height, maxX * size.width, maxY * size.height) { draw() }
+                } else if (shape != null) {
+                    val path = Path().apply {
+                        moveTo(shape[0].first * size.width, shape[0].second * size.height)
+                        for (i in 1 until shape.size) lineTo(shape[i].first * size.width, shape[i].second * size.height)
                         close()
                     }
+                    clipPath(path) { draw() }
+                } else {
+                    draw()
                 }
-                if (path == null) draw() else clipPath(path) { draw() }
             },
     )
+}
+
+/**
+ * The frame clock in ms, for the ball and its specks: it ticks [FPS] times a
+ * second while [live] and stands still otherwise (another page, the
+ * screensaver, screen off), where an infinite transition would keep asking
+ * for frames all night. A slow turn needs no more, and every frame redraws the
+ * whole screen on the remotes. Each caller wakes on the same grid of the
+ * clock, so the ball and its specks share one frame rather than taking two.
+ */
+@Composable
+internal fun rememberBallClock(live: Boolean): State<Long> {
+    val now = remember { mutableLongStateOf(0L) }
+    LaunchedEffect(live) {
+        if (!live) return@LaunchedEffect
+        val tick = 1000L / FPS
+        while (true) {
+            delay(tick - SystemClock.uptimeMillis() % tick)
+            withFrameMillis { now.longValue = it }
+        }
+    }
+    return now
 }
 
 private class Speck(val angle: Float, val r: Float, val size: Float, val bright: Float, val phase: Float)
@@ -114,11 +142,11 @@ private fun specks(): List<Speck> {
 /** The spotlit ball's colour on the walls: what it throws, not a theme colour. */
 private val SPECK_WARM = Color(255, 236, 190)
 private val SPECK_CORE = 1.6.dp
-private const val SPECKS = 150
+private const val SPECKS = 80
 /** One full turn of the ball. */
 private const val TURN_MS = 36_000
-/** Ticks a second while it turns. */
-private const val FPS = 20
+/** Ticks a second while it turns, for the ball card too. */
+private const val FPS = 15
 /** Twinkles per turn. */
 private const val TWINKLES = 9f
 private const val FADE_MS = 600
