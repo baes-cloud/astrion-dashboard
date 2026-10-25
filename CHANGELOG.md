@@ -2,7 +2,7 @@
 
 ## v1.4.6 (2026-10-25)
 
-- **SOUND.** A browse button beside the music search opens the Sonos library (favourites, playlists, radio, music services), with each source's logo fitted rather than cropped.
+- **SOUND.** A browse button beside the music search opens the Sonos library, with source logos fitted rather than cropped.
 
 - **Buttons.** A long press now holds for 0.8 s instead of 1.5 s, and a hold that starts on a dark screen still counts. The red button opens Jellyfin on the Google TV instead of Netflix.
 
