@@ -96,7 +96,7 @@ class AstrionDesignSystemTest {
         val scale = listOf(
             s.micro, s.label, s.small, s.body, s.bodyLarge, s.emphasis, s.title,
             s.titleLarge, s.heading, s.headingLarge, s.displayXs, s.displaySm, s.displayMd, s.displayLg,
-            s.displayXl, s.readout, s.readoutLarge, s.alarmClock, s.restClock, s.clock,
+            s.displayXl, s.readout, s.readoutLarge, s.clock, s.alarmClock, s.restClock,
         ).map { it.value }
         assertEquals(scale.sorted(), scale)
         assertEquals(scale.distinct(), scale)

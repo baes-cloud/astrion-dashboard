@@ -16,6 +16,8 @@ data class AstrionTypography(
     val headingFont: FontFamily,
     /** Antonio: tall, narrow numerals for readouts (temperatures, volume, the clock). */
     val readoutFont: FontFamily,
+    /** Syne: the 1.4 brand face, kept for the page nameplate, the guide and the screensaver. */
+    val brandFont: FontFamily,
 
     // ---- E2E Contract Tokens (DesignSystemModel.TYPOGRAPHY) -----------------
     val display: TextStyle,                            // 34sp / 40sp line height
@@ -62,12 +64,20 @@ fun defaultAstrionTypography(): AstrionTypography {
         Font(R.font.antonio_300, FontWeight.Light),
         Font(R.font.antonio_400, FontWeight.Normal),
     )
+    val brandFont = FontFamily(
+        Font(R.font.syne_500, FontWeight.Light),
+        Font(R.font.syne_500, FontWeight.Normal),
+        Font(R.font.syne_500, FontWeight.Medium),
+        Font(R.font.syne_600, FontWeight.SemiBold),
+        Font(R.font.syne_700, FontWeight.Bold),
+    )
     // The redesign sets headings in Manrope too; Antonio carries the numerals.
     val headingFont = bodyFont
     return AstrionTypography(
         bodyFont = bodyFont,
         headingFont = headingFont,
         readoutFont = readoutFont,
+        brandFont = brandFont,
         display = TextStyle(fontFamily = readoutFont, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Light),
         title = TextStyle(fontFamily = bodyFont, fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
         body = TextStyle(fontFamily = bodyFont, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Normal),
@@ -119,8 +129,8 @@ data class AstrionTypeSizes(
     val readout: TextUnit = 40.sp,
     /** A popup's big number: a light's brightness, a set temperature. */
     val readoutLarge: TextUnit = 64.sp,
-    /** The screensaver clock (Antonio, tall and narrow). */
-    val clock: TextUnit = 120.sp,
+    /** The screensaver clock (Manrope Medium, the 1.4 face). */
+    val clock: TextUnit = 81.sp,
     /** The ringing alarm's clock. */
     val alarmClock: TextUnit = 88.sp,
     /** The ambient rest clock. */

@@ -11,6 +11,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeUp
@@ -157,6 +160,8 @@ class MediaPlayerCard : CardRenderer {
             val queuePlayer = config.string("queue_player")
             var queueOpen by remember { mutableStateOf(false) }
             val sleeve = config.string("layout") == "sleeve"
+            // `"layout": "classic"`: the 1.4 player, volume buttons beside the transport, no fader.
+            val classic = config.string("layout") == "classic"
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -166,7 +171,14 @@ class MediaPlayerCard : CardRenderer {
                     showControls = showControls,
                     maxSize = (config.options["max_size"] as? Number)?.toFloat()?.dp,
                     onQueue = queuePlayer?.let { { queueOpen = true } },
-                ) else ArtBackdrop(art) {
+                ) else if (classic) ArtBackdrop(art) {
+                    ClassicFullContent(
+                        ctx, title, artist, playing, art, ::mp, topButtons, sourceEntity, live,
+                        showControls = showControls,
+                        artAspect = (config.options["art_aspect"] as? Number)?.toFloat() ?: 1.2f,
+                        onQueue = queuePlayer?.let { { queueOpen = true } },
+                    )
+                } else ArtBackdrop(art) {
                     FullContent(
                         ctx, title, artist, playing, art, ::mp, topButtons, sourceEntity, live,
                         showControls = showControls,
@@ -176,7 +188,7 @@ class MediaPlayerCard : CardRenderer {
                         onQueue = queuePlayer?.let { { queueOpen = true } },
                     )
                 }
-                if (showControls && config.bool("volume_fader", true)) {
+                if (showControls && !classic && config.bool("volume_fader", true)) {
                     VolumeRow(ctx, entityId, config.string("name") ?: e?.friendlyName ?: entityId, live)
                 }
             }
@@ -821,6 +833,147 @@ class MediaPlayerCard : CardRenderer {
                 fill = if (muted) AstrionTheme.raised else AstrionTheme.accentStrong,
             ) {
                 Text(name, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+        }
+    }
+
+    // ---- classic full (the 1.4 media page, `"layout": "classic"`) ------------
+    @Composable
+    private fun ClassicFullContent(
+        ctx: CardContext,
+        title: String,
+        artist: String,
+        playing: Boolean,
+        art: ImageBitmap?,
+        mp: (String, Array<out Pair<String, Any?>>) -> Unit,
+        topButtons: List<Map<String, Any?>>,
+        sourceEntity: String?,
+        enabled: Boolean,
+        showControls: Boolean,
+        artAspect: Float,
+        onQueue: (() -> Unit)?,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            // Compact source dropdown, right at the top — kept to one slim
+            // row (tight margins) so it doesn't push the shortcut row below
+            // this card off the first screen.
+            if (sourceEntity != null) {
+                CompactSourceSelect(ctx, sourceEntity)
+            }
+            // Top action buttons (e.g. Group / Ungroup).
+            if (topButtons.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    topButtons.forEach { b ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(AstrionTheme.colors.controlBg.copy(alpha = 0.4f)) // semi-transparent
+                                .tap(enabled = enabled) { fireService(ctx, b) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                b["name"] as? String ?: "",
+                                color = AstrionTheme.colors.onSurface,
+                                fontSize = AstrionTheme.size.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+            }
+            // Big album art, or a placeholder glyph when nothing is playing /
+            // the poster can't be fetched — otherwise the card is a large
+            // empty rectangle that reads as broken rather than idle.
+            val artMod = Modifier.fillMaxWidth().aspectRatio(artAspect).clip(RoundedCornerShape(16.dp))
+            Box(Modifier.fillMaxWidth()) {
+            if (art != null) {
+                // The whole cover, never cropped: it sits centred at its own
+                // shape and the card's blurred wash shows either side. (Cropping
+                // a square cover into this wide frame cut off half of it.)
+                Box(Modifier.fillMaxWidth().aspectRatio(artAspect), contentAlignment = Alignment.Center) {
+                    Image(
+                        art, null,
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .aspectRatio(art.width.toFloat() / art.height.coerceAtLeast(1), matchHeightConstraintsFirst = true)
+                            .clip(RoundedCornerShape(16.dp)),
+                        contentScale = ContentScale.Fit,
+                    )
+                }
+            } else {
+                Box(
+                    artMod.background(AstrionTheme.raised),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.Movie,
+                        contentDescription = "Nothing playing",
+                        tint = AstrionTheme.colors.accentMuted,
+                        modifier = Modifier.size(56.dp),
+                    )
+                }
+            }
+            // What's up next: the one addition to the 1.4 layout.
+            if (onQueue != null) Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(AstrionTheme.colors.void.copy(alpha = 0.45f))
+                    .tap(onClick = onQueue),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Glyphs.list, contentDescription = "Up next", tint = AstrionTheme.textOnControl, modifier = Modifier.size(20.dp))
+            }
+            }
+            // Centered now-playing text.
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(title, color = AstrionTheme.colors.onSurface, fontFamily = AstrionTheme.brandFont, fontSize = AstrionTheme.size.headingLarge, fontWeight = FontWeight.Bold,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth())
+                Text(artist, color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.size.body,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth())
+            }
+            // Single control row: vol- prev play/pause next vol+, justified.
+            // Suppressed on a display-only card (e.g. the TV page, which just
+            // shows what's on screen).
+            if (showControls) Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircleControl(Icons.Filled.VolumeDown, 48.dp, "Volume down", enabled = enabled) {
+                    mp("volume_down", emptyArray())
+                }
+                CircleControl(Icons.Filled.SkipPrevious, 52.dp, "Previous track", enabled = enabled) {
+                    mp("media_previous_track", emptyArray())
+                }
+                CircleControl(
+                    if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, 68.dp,
+                    description = if (playing) "Pause" else "Play",
+                    accent = true, enabled = enabled,
+                ) {
+                    mp("media_play_pause", emptyArray())
+                }
+                CircleControl(Icons.Filled.SkipNext, 52.dp, "Next track", enabled = enabled) {
+                    mp("media_next_track", emptyArray())
+                }
+                CircleControl(Icons.Filled.VolumeUp, 48.dp, "Volume up", enabled = enabled) {
+                    mp("volume_up", emptyArray())
+                }
             }
         }
     }

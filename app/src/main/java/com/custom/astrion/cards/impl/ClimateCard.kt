@@ -135,44 +135,28 @@ class ClimateCard : CardRenderer {
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            // Header: name and what it's doing, then power.
+            // Header: name + a dedicated off button (the 1.4 header).
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.weight(1f)) {
-                    Text(name, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.Bold)
-                    Text(
-                        when {
-                            unavailable -> "Unavailable"
-                            isOff -> "Off"
-                            else -> listOfNotNull(
-                                (e?.attrString("hvac_action") ?: mode).humanise(),
-                                shownTarget?.let { "to ${trim(it)}°" },
-                            ).joinToString(" ")
-                        },
-                        color = AstrionTheme.textSecondary,
-                        fontSize = AstrionTheme.size.small,
-                    )
-                }
+                Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.SemiBold)
                 HitTarget(
-                    visual = 38.dp,
-                    onClick = {
-                        if (isOff) ctx.client.callService(ServiceCall("climate", "turn_on", entityId)) else turnOff()
-                    },
+                    visual = 36.dp,
+                    onClick = { turnOff() },
                     enabled = live,
-                    face = Modifier.clip(CircleShape).background(if (isOff) AstrionTheme.raised else AstrionTheme.accentStrong),
+                    face = Modifier.clip(CircleShape).background(if (isOff) AstrionTheme.dangerBg else AstrionTheme.controlBg),
                 ) {
                     Icon(
                         Glyphs.power,
-                        contentDescription = if (isOff) "Turn on" else "Turn off",
-                        tint = if (isOff) AstrionTheme.textSecondary else AstrionTheme.textPrimary,
-                        modifier = Modifier.size(19.dp),
+                        contentDescription = "Off",
+                        tint = if (isOff) AstrionTheme.colors.dangerSoft else AstrionTheme.colors.textOnControl,
                     )
                 }
             }
 
-            // Setpoint, big in Antonio, with steppers either side.
+            // Setpoint with steppers (the 1.4 readout)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -183,24 +167,14 @@ class ClimateCard : CardRenderer {
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row {
-                        Text(
-                            shownTarget?.let { trim(it) } ?: "—",
-                            color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
-                            fontFamily = AstrionTheme.readoutFont,
-                            fontWeight = FontWeight.ExtraLight,
-                            fontSize = AstrionTheme.size.readoutLarge,
-                            maxLines = 1,
-                        )
-                        if (shownTarget != null) Text(
-                            "°",
-                            color = AstrionTheme.textPrimary,
-                            fontFamily = AstrionTheme.readoutFont,
-                            fontWeight = FontWeight.Light,
-                            fontSize = AstrionTheme.size.displayLg,
-                            modifier = Modifier.padding(top = 6.dp),
-                        )
-                    }
+                    Text(
+                        shownTarget?.let { "${trim(it)}°" } ?: "—",
+                        color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
+                        // Syne's bold cut is very wide and odd in numerals;
+                        // the lighter cut matches the weather temperature.
+                        fontFamily = AstrionTheme.brandFont, fontSize = AstrionTheme.size.readout,
+                        fontWeight = FontWeight.Light,
+                    )
                     // The steppers silently no-op when there is no target, so
                     // an unreachable aircon used to look like a working one
                     // showing a dash. Say so instead.
@@ -208,7 +182,7 @@ class ClimateCard : CardRenderer {
                         UnavailableLabel(AstrionTheme.size.small)
                     } else {
                         Text(
-                            current?.let { "Now ${trim(it)}° inside" } ?: "",
+                            current?.let { "Now ${trim(it)}°" } ?: "",
                             color = AstrionTheme.textSecondary,
                             fontSize = AstrionTheme.size.small,
                         )
@@ -288,13 +262,13 @@ class ClimateCard : CardRenderer {
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(50.dp)
                 .clip(CircleShape)
-                .background(AstrionTheme.raised)
+                .background(AstrionTheme.controlBg)
                 .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = description, tint = AstrionTheme.textPrimary, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = description, tint = AstrionTheme.textOnControl)
         }
     }
 

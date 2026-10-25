@@ -32,6 +32,7 @@ import com.custom.astrion.cards.impl.SourceSelectCard
 import com.custom.astrion.cards.impl.SpeakerGroupCard
 import com.custom.astrion.cards.impl.StackCard
 import com.custom.astrion.cards.impl.SwipeStackCard
+import com.custom.astrion.cards.impl.StatusStripCard
 import com.custom.astrion.cards.impl.SwitchCard
 import com.custom.astrion.cards.impl.TvRemoteCard
 import com.custom.astrion.cards.impl.VacuumCard
@@ -103,6 +104,7 @@ class AstrionApp : Application() {
             ClimateCard(),
             CoverCard(),
             LockCard(),
+            StatusStripCard(),
             FanCard(),
             SwitchCard(),
             ClockWeatherCard(),

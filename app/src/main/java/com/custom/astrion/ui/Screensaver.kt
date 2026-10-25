@@ -209,9 +209,10 @@ fun Screensaver(
                     // Faded through the colour, not Modifier.alpha: no extra
                     // layer. The rose night ink is already dim at full alpha.
                     color = if (night) clockInk else clockInk.copy(alpha = 0.62f),
-                    fontFamily = AstrionTheme.readoutFont, fontSize = AstrionTheme.size.clock,
-                    fontWeight = FontWeight.Light,
-                    lineHeight = 120.sp,
+                    fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.clock,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = (-1.5).sp,
+                    lineHeight = 81.sp,
                     style = TextStyle(fontFeatureSettings = "tnum"),
                     maxLines = 1,
                     modifier = Modifier.alignByBaseline(),
@@ -220,9 +221,9 @@ fun Screensaver(
                     Text(
                         Time.format(now, "a").lowercase(Locale.getDefault()),
                         color = faint,
-                        fontFamily = AstrionTheme.readoutFont, fontSize = AstrionTheme.size.displayMd,
-                        fontWeight = FontWeight.Light,
-                        modifier = Modifier.padding(start = 6.dp).alignByBaseline(),
+                        fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.heading,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(start = 5.dp).alignByBaseline(),
                     )
                 }
             }
@@ -327,7 +328,7 @@ private fun ScreensaverName(now: Long, night: Boolean) {
                     .padding(start = 5.dp)
                     .graphicsLayer { alpha = nameAlpha },
                 color = if (night) AstrionTheme.nightInk2 else DayName,
-                fontFamily = AstrionTheme.headingFont,
+                fontFamily = AstrionTheme.brandFont,
                 fontWeight = FontWeight.Normal,
                 fontSize = AstrionTheme.size.titleLarge,
                 letterSpacing = WordmarkTracking,

@@ -92,12 +92,12 @@ class MediaShelvesCard : CardRenderer {
     private data class Shelf(val title: String, val items: List<Item>)
 
     private companion object {
-        // Square album art, a bit over three across the panel.
-        val TILE = 100.dp
+        // Square album art, ~3.8 across the 480px panel (the 1.4 size).
+        val TILE = 85.dp
 
-        // Decode floor for covers: 100dp is ~138px on this panel, so a 640px
+        // Decode floor for covers: 85dp is ~120px on this panel, so a 640px
         // CDN cover decodes at 160px instead of full size.
-        const val ART_PX = 144
+        const val ART_PX = 128
 
         /** Last shelves per card config, kept across page visits. */
         val shelfCache = java.util.concurrent.ConcurrentHashMap<String, List<Shelf>>()

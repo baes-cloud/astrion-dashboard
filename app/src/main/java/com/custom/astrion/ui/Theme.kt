@@ -101,6 +101,8 @@ object AstrionTheme {
     val headingFont: FontFamily @Composable @ReadOnlyComposable get() = typography.headingFont
     /** Antonio: readout numerals (temperatures, volume, brightness, clocks). */
     val readoutFont: FontFamily @Composable @ReadOnlyComposable get() = typography.readoutFont
+    /** Syne: the brand face of the page nameplate, the guide and the screensaver. */
+    val brandFont: FontFamily @Composable @ReadOnlyComposable get() = typography.brandFont
 
     // ---- type roles ---------------------------------------------------------
     val display: TextUnit @Composable @ReadOnlyComposable get() = typography.displaySize

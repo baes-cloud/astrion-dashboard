@@ -10,9 +10,25 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.AcUnit
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MotionPhotosAuto
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.SettingsRemote
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -27,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.ui.AstrionTheme
-import com.custom.astrion.ui.Glyphs
 import com.custom.astrion.ui.HitTarget
 import com.custom.astrion.ui.tap
 import com.custom.astrion.viewmodel.GuidePress
@@ -166,7 +181,7 @@ private fun HomeView(
                 Text(
                     "New here?",
                     color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.title,
-                    fontFamily = AstrionTheme.headingFont, fontWeight = FontWeight.Bold,
+                    fontFamily = AstrionTheme.brandFont, fontWeight = FontWeight.Bold,
                 )
                 Text(
                     "Two minutes on the real buttons. Nothing you press actually happens, so press away.",
@@ -226,7 +241,7 @@ private fun PressKinds() {
                 Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(AstrionTheme.cardBg)
+                    .background(AstrionTheme.cardBgAlt)
                     .padding(horizontal = 10.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -250,7 +265,7 @@ private fun KeyCard(help: KeyHelp, highlight: PressKind? = null) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(AstrionTheme.cardBg)
+            .background(AstrionTheme.cardBgAlt)
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
@@ -295,7 +310,7 @@ private fun TipCard(tip: GuideTip, open: Boolean, onToggle: () -> Unit, extra: @
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(if (open) AstrionTheme.cardBg else AstrionTheme.colors.surfaceSunken),
+            .background(if (open) AstrionTheme.cardBgAlt else AstrionTheme.colors.surfacePrimary),
     ) {
         Row(
             Modifier.fillMaxWidth().tap(onClick = onToggle).padding(horizontal = 12.dp, vertical = 10.dp),
@@ -313,7 +328,7 @@ private fun TipCard(tip: GuideTip, open: Boolean, onToggle: () -> Unit, extra: @
                 fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
             )
             Icon(
-                if (open) Glyphs.up else Glyphs.down,
+                if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
                 contentDescription = if (open) "Close" else "Open",
                 tint = AstrionTheme.textMuted, modifier = Modifier.size(22.dp),
             )
@@ -535,7 +550,7 @@ private fun Waiting(kind: PressKind) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(AstrionTheme.cardBg)
+            .background(AstrionTheme.cardBgAlt)
             .padding(vertical = 22.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -554,7 +569,7 @@ private fun Feedback(catalog: GuideCatalog, press: GuidePress, correct: Boolean,
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(if (correct) AstrionTheme.colors.accentContainer else AstrionTheme.cardBg)
+            .background(if (correct) AstrionTheme.colors.accentContainer else AstrionTheme.cardBgAlt)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -564,7 +579,7 @@ private fun Feedback(catalog: GuideCatalog, press: GuidePress, correct: Boolean,
                     Modifier.size(24.dp).clip(CircleShape).background(AstrionTheme.accentStrong),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Glyphs.check, contentDescription = null, tint = AstrionTheme.textPrimary, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Filled.Check, contentDescription = null, tint = AstrionTheme.colors.onPrimary, modifier = Modifier.size(16.dp))
                 }
                 Spacer(Modifier.width(8.dp))
             }
@@ -576,7 +591,7 @@ private fun Feedback(catalog: GuideCatalog, press: GuidePress, correct: Boolean,
         Text(
             action ?: "That one isn't set up to do anything.",
             color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.title,
-            fontFamily = AstrionTheme.headingFont,
+            fontFamily = AstrionTheme.brandFont,
         )
         if (!correct && wanted != null) {
             val sameKey = press.key in wanted.keys
@@ -612,7 +627,7 @@ private fun PlayView(catalog: GuideCatalog, shown: GuidePress?, onBack: () -> Un
                     Text(
                         "Press or hold any button",
                         color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.title,
-                        fontFamily = AstrionTheme.headingFont, textAlign = TextAlign.Center,
+                        fontFamily = AstrionTheme.brandFont, textAlign = TextAlign.Center,
                     )
                     Text(
                         "and this screen says what it does.",
@@ -644,16 +659,16 @@ private fun Header(title: String, subtitle: String, onClose: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(
                 title, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.displaySm,
-                fontFamily = AstrionTheme.headingFont, fontWeight = FontWeight.Bold,
+                fontFamily = AstrionTheme.brandFont, fontWeight = FontWeight.Bold,
             )
             Text(subtitle, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
         }
         HitTarget(
             visual = 38.dp,
             onClick = onClose,
-            face = Modifier.clip(CircleShape).background(AstrionTheme.raised),
+            face = Modifier.clip(CircleShape).background(AstrionTheme.controlBg),
         ) {
-            Icon(Glyphs.close, contentDescription = "Close", tint = AstrionTheme.textPrimary, modifier = Modifier.size(20.dp))
+            Icon(Icons.Filled.Close, contentDescription = "Close", tint = AstrionTheme.textOnControl, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -685,7 +700,7 @@ private fun KeyCap(help: KeyHelp) {
     Row(
         Modifier
             .clip(RoundedCornerShape(9.dp))
-            .background(AstrionTheme.raised)
+            .background(AstrionTheme.controlBg)
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -718,7 +733,7 @@ private fun Segmented(labels: List<String>, selected: Int, onSelect: (Int) -> Un
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(AstrionTheme.colors.surfaceSunken)
+            .background(AstrionTheme.colors.surfacePrimary)
             .padding(3.dp),
     ) {
         labels.forEachIndexed { i, label ->
@@ -756,7 +771,7 @@ private fun SectionTitle(text: String) {
 private fun BigTitle(text: String) {
     Text(
         text, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.displayXs,
-        fontFamily = AstrionTheme.headingFont, fontWeight = FontWeight.Bold,
+        fontFamily = AstrionTheme.brandFont, fontWeight = FontWeight.Bold,
     )
 }
 
@@ -785,7 +800,7 @@ private fun SecondaryButton(text: String, modifier: Modifier, onClick: () -> Uni
         modifier
             .height(44.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(AstrionTheme.raised)
+            .background(AstrionTheme.controlBg)
             .tap(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -794,19 +809,19 @@ private fun SecondaryButton(text: String, modifier: Modifier, onClick: () -> Uni
 }
 
 private fun tipIcon(name: String): ImageVector = when (name) {
-    "light" -> Glyphs.bulb
-    "music" -> Glyphs.note
-    "tv" -> Glyphs.tv
-    "climate" -> Glyphs.snow
-    "door", "lock" -> Glyphs.lock
-    "auto", "motion" -> Glyphs.motion
-    "voice", "mic" -> Glyphs.mic
-    "help" -> Glyphs.help
-    "plan", "map" -> Glyphs.plan
-    "search" -> Glyphs.search
-    "speakers", "zones" -> Glyphs.speaker
-    "link" -> Glyphs.link
+    "light" -> Icons.Filled.Lightbulb
+    "music" -> Icons.Filled.MusicNote
+    "tv" -> Icons.Filled.Tv
+    "climate" -> Icons.Filled.AcUnit
+    "door", "lock" -> Icons.Filled.Lock
+    "auto", "motion" -> Icons.Filled.MotionPhotosAuto
+    "voice", "mic" -> Icons.Filled.Mic
+    "help" -> Icons.AutoMirrored.Filled.HelpOutline
+    "plan", "map" -> Icons.Filled.Map
+    "search" -> Icons.Filled.Search
+    "speakers", "zones" -> Icons.Filled.Speaker
+    "link" -> Icons.Filled.Link
     "remote", "ir" -> Icons.Filled.SettingsRemote
     "people", "radar" -> Icons.Filled.Radar
-    else -> Glyphs.help
+    else -> Icons.Filled.Info
 }

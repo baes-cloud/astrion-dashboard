@@ -21,6 +21,36 @@ object Glyphs {
     val bulb: ImageVector by lazy { glyph("bulb", P("M9 18h6M10 21h4", INK), P("M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z", INK)) }
     val lock: ImageVector by lazy { glyph("lock", P("M7 10.5h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6a2 2 0 0 1 2 -2z", INK), P("M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5", INK)) }
     val unlock: ImageVector by lazy { glyph("unlock", P("M7 10.5h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6a2 2 0 0 1 2 -2z", INK), P("M8.5 10.5V8a3.5 3.5 0 0 1 6.7-1.4", INK)) }
+    /** A bulb with a walking figure: lights that follow motion. */
+    val automations: ImageVector by lazy {
+        glyph(
+            "automations",
+            P("M7.5 3a4 4 0 0 0-2.4 7.2c.5.4.8 1 .8 1.6v.7h3.2v-.7c0-.6.3-1.2.8-1.6A4 4 0 0 0 7.5 3z", INK),
+            P("M6 15.5h3", INK),
+            P("M15.9 4.5a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0z", INK),
+            P("M17 8l-1.6 4.8 2.4 2.6V20M15.4 12.8L14 15.5M17 8l2.4 2.6 1.8.4M17.8 15.4l-2.6 4.6", INK),
+        )
+    }
+    /** A door with a closed padlock. */
+    val doorLocked: ImageVector by lazy {
+        glyph(
+            "doorLocked",
+            P("M5 21V4.5A1.5 1.5 0 0 1 6.5 3h8A1.5 1.5 0 0 1 16 4.5V11M3 21h10", INK),
+            P("M11.8 12a.8.8 0 1 0 1.6 0a.8.8 0 1 0 -1.6 0z", INK, INK),
+            P("M15.8 15h4.4a1.3 1.3 0 0 1 1.3 1.3v3.4a1.3 1.3 0 0 1 -1.3 1.3h-4.4a1.3 1.3 0 0 1 -1.3 -1.3v-3.4a1.3 1.3 0 0 1 1.3 -1.3z", INK),
+            P("M16 15v-1.5a2 2 0 0 1 4 0V15", INK),
+        )
+    }
+    /** A door with its padlock open. */
+    val doorUnlocked: ImageVector by lazy {
+        glyph(
+            "doorUnlocked",
+            P("M5 21V4.5A1.5 1.5 0 0 1 6.5 3h8A1.5 1.5 0 0 1 16 4.5V11M3 21h10", INK),
+            P("M11.8 12a.8.8 0 1 0 1.6 0a.8.8 0 1 0 -1.6 0z", INK, INK),
+            P("M15.8 15h4.4a1.3 1.3 0 0 1 1.3 1.3v3.4a1.3 1.3 0 0 1 -1.3 1.3h-4.4a1.3 1.3 0 0 1 -1.3 -1.3v-3.4a1.3 1.3 0 0 1 1.3 -1.3z", INK),
+            P("M16 15v-1.5a2 2 0 0 1 3.9-.6", INK),
+        )
+    }
     val motion: ImageVector by lazy { glyph("motion", P("M10 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0z", INK), P("M8 8a5.7 5.7 0 0 0 0 8M16 8a5.7 5.7 0 0 1 0 8M5.2 5.2a9.6 9.6 0 0 0 0 13.6M18.8 5.2a9.6 9.6 0 0 1 0 13.6", INK)) }
     val paused: ImageVector by lazy { glyph("paused", P("M9.5 8v8M14.5 8v8", INK), P("M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0 -17 0z", INK)) }
     val pause: ImageVector by lazy { glyph("pause", P("M9 5.5v13M15 5.5v13", INK)) }
