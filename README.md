@@ -81,6 +81,9 @@ The plan follows the sun. As it drops, a shade darkens the flat, and every light
 - **Lights as they really look.** Each light gets a hot core and a soft tail in its own colour. Cove strips draw as a lit rail with a wash spilling into the room (`glow_line`). Hidden strips halo the furniture they sit behind (`glow_outline`).
 - **Real fixtures.** Lamps, LED bars, downlights, artworks and candles each get their own icon. TVs glow on the plan while they're on.
 - **Blinds** are drawn as far down as they really are. **The mirror ball** throws warm specks around the room while it spins.
+
+  <img src="screenshots/mirror-ball-blinds.gif" width="320" alt="The floorplan with the mirror ball spinning and the blinds half down">
+
 - **Presence and robots.** LD2450 mmWave radar plots people as live dots, and the robot vacuum shows in its current room.
 - **Tap to toggle, long-press for more.** Long-press a light for a bottom sheet with a tall fader, warmth and colour.
 - **Colours you can live with.** `recolor` draws one light colour as another on the plan only, so a scene's mint green doesn't clash with teal LED strips.
