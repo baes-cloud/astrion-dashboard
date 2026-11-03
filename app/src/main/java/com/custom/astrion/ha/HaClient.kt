@@ -286,6 +286,8 @@ class HaClient(
     @Volatile private var awaitingSeed = false
     /** Any seed has been applied since start: the disk cache is out of date. */
     @Volatile private var everSeeded = false
+    /** When the last full snapshot was saved: at most every 6 h, not on every screen wake. */
+    @Volatile private var lastSnapshotSaveMs = 0L
 
     /**
      * Entities the live subscription is limited to; null = every entity.
@@ -989,7 +991,9 @@ class HaClient(
         // The seed is important — publish at once so the first frame has data.
         if (seeded) {
             publish(forceFlowUpdate = true)
-            if (subscribedFilter == null) {
+            val now = System.currentTimeMillis()
+            if (subscribedFilter == null && (lastSnapshotSaveMs == 0L || now - lastSnapshotSaveMs >= 6 * 3600_000L)) {
+                lastSnapshotSaveMs = now
                 scope.launch {
                     cache?.saveSnapshot(snapshot().filterKeys { !isNoisyTelemetryEntity(it) })
                 }

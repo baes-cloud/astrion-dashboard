@@ -1,0 +1,34 @@
+# eMMC bad-block quarantine, bootloop self-heal, and tmpfs cache mount
+# Runs early before/during zygote start to prevent corrupt package_cache or
+# dalvik-cache files from bootlooping system_server, and mounts tmpfs over
+# com.custom.astrion's cache/files once booted to eliminate flash write churn.
+
+on post-fs-data
+    start bootguard_early
+
+on property:init.svc.zygote=restarting
+    start bootguard_heal
+
+on property:sys.boot_completed=1
+    start bootguard_late
+
+service bootguard_early /system/bin/sh /vendor/bin/bootguard.sh early
+    oneshot
+    disabled
+    user root
+    group root system
+    seclabel u:r:su:s0
+
+service bootguard_heal /system/bin/sh /vendor/bin/bootguard.sh heal
+    oneshot
+    disabled
+    user root
+    group root system
+    seclabel u:r:su:s0
+
+service bootguard_late /system/bin/sh /vendor/bin/bootguard.sh late
+    oneshot
+    disabled
+    user root
+    group root system
+    seclabel u:r:su:s0

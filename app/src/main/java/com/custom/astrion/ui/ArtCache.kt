@@ -31,10 +31,10 @@ import java.util.concurrent.atomic.AtomicLong
 object ArtCache {
     private const val TAG = "ArtCache"
 
-    /** ~10–20k covers — far more than any library, with ~4.5 GB left spare. */
-    private const val DISK_MAX = 500L * 1024 * 1024
+    /** Fits the 32 MB tmpfs bootguard.sh mounts over the app's cache dir. */
+    private const val DISK_MAX = 28L * 1024 * 1024
     /** Trim down to this so a full cache doesn't trim on every write. */
-    private const val DISK_TRIM_TO = 450L * 1024 * 1024
+    private const val DISK_TRIM_TO = 20L * 1024 * 1024
     private const val MEMORY_MAX = 24 * 1024 * 1024
 
     private val memory = object : LruCache<String, ImageBitmap>(MEMORY_MAX) {
@@ -78,8 +78,12 @@ object ArtCache {
         var bitmap: ImageBitmap? = null
         try {
             bitmap = withContext(Dispatchers.IO) {
-                readDisk(k)?.let { decode(it, minPx) }
-                    ?: fetch()?.let { bytes -> decode(bytes, minPx)?.also { writeDisk(k, bytes) } }
+                readDisk(k)?.let { bytes ->
+                    decode(bytes, minPx) ?: run {
+                        dir?.let { File(it, k).delete() }
+                        null
+                    }
+                } ?: fetch()?.let { bytes -> decode(bytes, minPx)?.also { writeDisk(k, bytes) } }
             }
             if (bitmap != null) memory.put(mk, bitmap)
         } finally {
@@ -113,11 +117,7 @@ object ArtCache {
     private fun readDisk(k: String): ByteArray? {
         val f = File(dir ?: return null, k)
         if (!f.isFile) return null
-        return runCatching {
-            // lastModified doubles as "last shown", for trimming.
-            f.setLastModified(System.currentTimeMillis())
-            f.readBytes()
-        }.getOrNull()
+        return runCatching { f.readBytes() }.getOrNull()
     }
 
     private fun writeDisk(k: String, bytes: ByteArray) {
@@ -135,6 +135,8 @@ object ArtCache {
 
     @Synchronized
     private fun trim(d: File) {
+        // Oldest written first. Reads no longer touch the mtime (an inode
+        // write per cover shown), so this is FIFO rather than LRU.
         val files = d.listFiles()?.sortedBy { it.lastModified() } ?: return
         var total = files.sumOf { it.length() }
         for (f in files) {

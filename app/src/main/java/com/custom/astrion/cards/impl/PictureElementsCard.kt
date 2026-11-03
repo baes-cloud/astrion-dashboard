@@ -101,9 +101,9 @@ private const val SENT_RING_MS = 1200L
  * A radar dot's moves smaller than this, in percent of the plan on each axis
  * (about 2 px on a remote), are left undrawn: sensor jitter, not walking.
  */
-private const val RMM_STILL_PCT = 0.5f
+private const val RMM_STILL_PCT = 1.0f
 /** Moves at least this far, in percent of the plan, glide; shorter ones step. */
-private const val RMM_GLIDE_PCT = 2f
+private const val RMM_GLIDE_PCT = 5f
 
 class PictureElementsCard : CardRenderer {
     override val type = "picture_elements"

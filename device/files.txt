@@ -6,4 +6,6 @@ timesync.rc                 /vendor/etc/init/timesync.rc          644
 timesync.sh                 /vendor/bin/timesync.sh               755
 tuning/mt6580_tuning.rc     /vendor/etc/init/mt6580_tuning.rc     644
 tuning/init.mt6580_tuning.sh /vendor/bin/init.mt6580_tuning.sh    755
+bootguard.rc                /vendor/etc/init/bootguard.rc         644
+bootguard.sh                /vendor/bin/bootguard.sh              755
 adbfw-off.sh                /data/local/tmp/adbfw-off.sh          755

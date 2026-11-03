@@ -787,12 +787,12 @@
          "limit": 10,
          "rows": [
           {
-           "title": "Random albums",
+           "title": "Recently played",
            "source": "music_assistant",
            "config_entry_id": "01KVF3KES1KSZ0JYSXJ405AKVA",
            "player": "media_player.club_2",
            "media_type": "album",
-           "order_by": "random",
+           "order_by": "last_played_desc",
            "limit": 12,
            "exclude_spotify": true
           },
@@ -1330,7 +1330,7 @@
    "AC",
    "VOICE"
   ],
-  "idle_seconds": 45,
+  "idle_seconds": 30,
   "undocked_idle_seconds": 90,
   "night_brightness": 0.12,
   "undocked_brightness": 0.15,

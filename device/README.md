@@ -10,6 +10,8 @@ live on the device; they are kept here so the only copy isn't on the hardware.
 | `adbfw-off.sh` | `/data/local/tmp/adbfw-off.sh` | Reopens adbd to the whole LAN (recovery) |
 | `timesync.rc` | `/vendor/etc/init/timesync.rc` | Init hook: triggers `timesync` on boot (`sys.boot_completed=1`), daemon loop (`timesync_d`), and on property `debug.astrion.timesync=1` (root only: the app can't set it) |
 | `timesync.sh` | `/vendor/bin/timesync.sh` | Real-time clock & hardware RTC synchronizer against Home Assistant with NTP fallback |
+| `bootguard.rc` | `/vendor/etc/init/bootguard.rc` | Runs `bootguard.sh` at post-fs-data (before system_server), when zygote restarts mid-boot, and at boot completed |
+| `bootguard.sh` | `/vendor/bin/bootguard.sh` | Moves `package_cache` / dalvik-cache files with unreadable eMMC sectors (the `de ad ad de` frame) aside and clears the rest of `package_cache`, so a rotten cache entry can't boot-loop system_server. At boot completed it mounts tmpfs over the app's `cache/` (32 MB, art cache) and `files/` (4 MB, entity snapshot), so the app writes nothing to flash; both start empty after a reboot |
 
 ## Why the firewall exists
 
