@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.6.0 (2026-11-04)
+
+Reliability first: the HA100's eMMC turned out to rot data at rest, and the boot loops on one remote all followed a reboot of a remote that looked frozen. 1.6 makes reboots unnecessary and the flash nearly write-free. (1.5 was a redesign that was shelved; its best parts shipped in 1.4.5.)
+
+- **HA outages heal themselves.** Socket callbacks are matched by connection epoch (with no network, a failure could land before the socket existed and leave the client "Connecting…" forever), and a watchdog reconnects after 45 s opening or authenticating, 90 s without a seed, or 90 s in error. The disk cache no longer overwrites a live seed, which was behind floorplan lights showing "?" after a restart.
+- **Spare the flash.** New `device/bootguard.{rc,sh}`: before `system_server` starts, `package_cache` and dalvik-cache files with unreadable sectors are moved aside and the rest of `package_cache` is cleared; after boot, the app's `cache/` and `files/` go on tmpfs. The art cache is capped at 28 MB, a cover read no longer rewrites its file time, and the full entity snapshot is saved at most every 6 h.
+- **Wi-Fi follows the dock.** New `device/wifips.{rc,sh}`: power save off while charging (pings 42 → 23 ms on average, 205 → 95 ms worst), back on when lifted, for battery. The idea comes from [@dckiller51](https://github.com/dckiller51)'s fork.
+- **Sanytron's launcher stays home.** The manifest ships Astrion's home alias and boot receiver disabled, since the HA100 can boot-loop without `com.aiks.HaRemote`. Hold **Back** to open Astrion. Opt-in steps are in `docs/POWER.md`.
+- **Lighter on the dock.** The mirror ball runs at 8 fps with 48 specks, the ambient bake works at 256 px with a 32 px palette pass, radar dots ignore smaller jitter, and the screensaver starts after 30 s.
+- **Music.** The local albums shelf is now Recently played; loaded shelves are reused for 15 minutes instead of re-queried on every visit; a browse row's `limit` applies too, and `0` shows the whole folder (all 31 favourite songs).
+- **Floorplan.** `recolor` draws one light colour as another on the plan only (`"recolor": [{ "from": "#03FF9A", "to": "#32FFEA" }]`).
+- **Home timer.** A home-page timer that ran out while the CPU slept now fires on the next touch, instead of the touch restarting it.
+- **README** rewritten around a new hero (the four pages on the real remote, Media and Zones fanned behind SOUND; `scripts/make_hero.py` rebuilds it), with a button table and credits.
+
 ## v1.4.6 (2026-10-25)
 
 - **SOUND.** A browse button beside the music search opens the Sonos library, with source logos fitted rather than cropped.
