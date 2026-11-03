@@ -11,7 +11,7 @@ OUT = Path(sys.argv[2])
 SHOTS = REPO / "screenshots"
 FONTS = REPO / "app/src/main/res/font"
 
-W, H = 2640, 1300
+W, H = 2640, 1160
 BG_IN, BG_OUT = (40, 54, 69), (22, 30, 38)
 INK, MUTE, LINE = (241, 236, 234), (169, 186, 182), (58, 74, 88)
 BODY = (13, 19, 25)
@@ -76,27 +76,28 @@ def phone(canvas, shot, x, y, scale, crop_h=None, fade=False, dim=0.0, bezel=20,
 
 
 def remote(canvas, shot, x, y, scale):
-    """The top of a real HA100: silver rim, glossy black front, the screen, then
-    the first keys and the D-pad, fading out. Returns the screen box."""
+    """The top of a real HA100: silver rim, glossy black front, the screen and the
+    first row of keys, fading out. Returns the screen box and body height."""
     img = Image.open(shot).convert("RGB")
     sw, sh = int(img.width * scale), int(img.height * scale)
     img = img.resize((sw, sh), Image.LANCZOS)
-    side, top_m, below, rim = int(sw * 0.15), int(sw * 0.12), int(sw * 0.74), 9
+    side, top_m, below, rim = int(sw * 0.15), int(sw * 0.12), int(sw * 0.36), 9
     bw, bh = sw + side * 2, top_m + sh + below
+    th = bh + 160  # drawn taller and cut, so the bottom corners never show
     pad = 80
-    layer = Image.new("RGBA", (bw + pad * 2, bh + pad * 2), (0, 0, 0, 0))
-    ImageDraw.Draw(layer).rounded_rectangle((pad, pad + 26, pad + bw, pad + bh + 26), 46, fill=(0, 0, 0, 175))
+    layer = Image.new("RGBA", (bw + pad * 2, th + pad * 2), (0, 0, 0, 0))
+    ImageDraw.Draw(layer).rounded_rectangle((pad, pad + 26, pad + bw, pad + th + 26), 46, fill=(0, 0, 0, 175))
     layer = layer.filter(ImageFilter.GaussianBlur(34))
 
-    body = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+    body = Image.new("RGBA", (bw, th), (0, 0, 0, 0))
     # Brushed-aluminium rim: a horizontal sweep from bright edges to a darker middle.
     alu = Image.new("RGB", (bw, 1))
     for i in range(bw):
         t = abs(i / (bw - 1) - 0.5) * 2
         v = int(118 + 92 * t ** 3)
         alu.putpixel((i, 0), (v, v + 4, v + 9))
-    body.paste(alu.resize((bw, bh)), (0, 0), rounded_mask((bw, bh), 48))
-    fw, fh = bw - rim * 2, bh - rim * 2
+    body.paste(alu.resize((bw, th)), (0, 0), rounded_mask((bw, th), 48))
+    fw, fh = bw - rim * 2, th - rim * 2
     front = Image.new("RGBA", (fw, fh), (9, 11, 14, 255))
     fd = ImageDraw.Draw(front)
     sx, sy = side - rim, top_m - rim
@@ -111,34 +112,25 @@ def remote(canvas, shot, x, y, scale):
         x0 = kx + i * (kw + gapk)
         fd.rounded_rectangle((x0, ky, x0 + kw, ky + kh), kh // 2, fill=key, outline=ring, width=2)
         fd.rounded_rectangle((x0 + kw // 2 - 10, ky + kh // 2 - 2, x0 + kw // 2 + 10, ky + kh // 2 + 1), 2, fill=(95, 104, 112, 255))
-    r = int(sw * 0.3)
-    cx, cy = fw // 2, ky + kh + int(sw * 0.07) + r
-    fd.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(14, 17, 21, 255), outline=ring, width=2)
-    for dx, dy in ((0, -1), (1, 0), (-1, 0), (0, 1)):
-        mx, my = cx + dx * int(r * 0.74), cy + dy * int(r * 0.74)
-        fd.ellipse((mx - 4, my - 4, mx + 4, my + 4), fill=(95, 104, 112, 255))
-    rc = int(r * 0.4)
-    fd.ellipse((cx - rc, cy - rc, cx + rc, cy + rc), fill=key, outline=ring, width=2)
-    for sxk in (cx - r - int(sw * 0.13), cx + r + int(sw * 0.13)):
-        fd.ellipse((sxk - 22, cy - 22, sxk + 22, cy + 22), fill=key, outline=ring, width=2)
     # Gloss: a soft diagonal sheen across the glass.
     sheen = Image.new("L", (fw, fh), 0)
     ImageDraw.Draw(sheen).polygon([(0, 0), (int(fw * 0.55), 0), (0, int(fh * 0.42))], fill=22)
     sheen = sheen.filter(ImageFilter.GaussianBlur(40))
     front = Image.composite(Image.new("RGBA", (fw, fh), (255, 255, 255, 255)), front, sheen)
     body.paste(front, (rim, rim), rounded_mask((fw, fh), 40))
+    body = body.crop((0, 0, bw, bh))
 
-    # Fade the bottom out: the remote carries on below the picture.
+    # A short, hard fade at the cut: the remote carries on below the picture.
     fade = Image.new("L", (1, bh), 255)
-    start = top_m + sh + int(sw * 0.3)
+    start = bh - 26
     for i in range(start, bh):
-        fade.putpixel((0, i), max(0, int(255 * (1 - (i - start) / (bh - start)) ** 1.6)))
+        fade.putpixel((0, i), max(0, int(255 * (1 - (i - start) / (bh - start)))))
     fade = fade.resize((bw, bh))
     a = body.getchannel("A")
     body.putalpha(Image.composite(a, Image.new("L", (bw, bh), 0), fade))
-    sl = layer.crop((pad, pad, pad + bw, pad + bh))
     full = Image.new("L", layer.size, 0)
-    full.paste(fade, (pad, pad + 26))
+    full.paste(Image.new("L", (bw + pad * 2, pad + bh - 26), 255), (0, 0))
+    full = full.filter(ImageFilter.GaussianBlur(14))
     layer.putalpha(Image.composite(layer.getchannel("A"), Image.new("L", layer.size, 0), full))
     canvas.alpha_composite(layer, (x - pad, y - pad))
     canvas.alpha_composite(body, (x, y))
@@ -191,7 +183,7 @@ def main():
     for i, ((shot, caption), x) in enumerate(zip(pages, xs)):
         box = remote(canvas, SHOTS / shot, x, y, scale)
         cx = (box[0] + box[2]) / 2 + (fan / 2 - 40 if i == 2 else 0)
-        d.text((cx - d.textlength(caption, font=fcap) / 2, y + box[4] - 20), caption, font=fcap, fill=MUTE)
+        d.text((cx - d.textlength(caption, font=fcap) / 2, y + box[4] + 6), caption, font=fcap, fill=MUTE)
 
     canvas.convert("RGB").save(OUT, optimize=True)
 
