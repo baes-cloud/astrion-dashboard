@@ -2,7 +2,7 @@
 
 This documents what the stock `com.aiks.HaRemote` app actually does internally
 (from decompiling the shipped APK) and why the standalone-app design follows
-from it. Useful if you want to extend this project or add the offline IR path.
+from it. Useful if you want to extend this project.
 
 ## How the stock app works
 
