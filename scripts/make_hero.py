@@ -12,7 +12,7 @@ SHOTS = REPO / "screenshots"
 FONTS = REPO / "app/src/main/res/font"
 
 W, H = 2640, 1160
-BG_IN, BG_OUT = (40, 54, 69), (22, 30, 38)
+BG_OUT = (27, 36, 45)
 INK, MUTE, LINE = (241, 236, 234), (169, 186, 182), (58, 74, 88)
 BODY = (13, 19, 25)
 
@@ -22,11 +22,7 @@ def font(name, size):
 
 
 def background():
-    bg = Image.new("RGB", (W, H), BG_OUT)
-    glow = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(glow).ellipse((W * 0.08, H * 0.05, W * 0.92, H * 1.25), fill=255)
-    glow = glow.filter(ImageFilter.GaussianBlur(260))
-    return Image.composite(Image.new("RGB", (W, H), BG_IN), bg, glow)
+    return Image.new("RGB", (W, H), BG_OUT)
 
 
 def rounded_mask(size, r):
@@ -36,6 +32,7 @@ def rounded_mask(size, r):
 
 
 def shadow(canvas, box, r, blur=38, alpha=170, dy=26):
+    return  # flat look: no drop shadows
     layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
     x0, y0, x1, y1 = box
     ImageDraw.Draw(layer).rounded_rectangle((x0, y0 + dy, x1, y1 + dy), r, fill=(0, 0, 0, alpha))
@@ -86,17 +83,11 @@ def remote(canvas, shot, x, y, scale):
     th = bh + 160  # drawn taller and cut, so the bottom corners never show
     pad = 80
     layer = Image.new("RGBA", (bw + pad * 2, th + pad * 2), (0, 0, 0, 0))
-    ImageDraw.Draw(layer).rounded_rectangle((pad, pad + 26, pad + bw, pad + th + 26), 46, fill=(0, 0, 0, 175))
-    layer = layer.filter(ImageFilter.GaussianBlur(34))
+    ImageDraw.Draw(layer).rounded_rectangle((pad, pad + 26, pad + bw, pad + th + 26), 46, fill=(0, 0, 0, 0))
 
     body = Image.new("RGBA", (bw, th), (0, 0, 0, 0))
-    # Brushed-aluminium rim: a horizontal sweep from bright edges to a darker middle.
-    alu = Image.new("RGB", (bw, 1))
-    for i in range(bw):
-        t = abs(i / (bw - 1) - 0.5) * 2
-        v = int(118 + 92 * t ** 3)
-        alu.putpixel((i, 0), (v, v + 4, v + 9))
-    body.paste(alu.resize((bw, th)), (0, 0), rounded_mask((bw, th), 48))
+    # Aluminium rim, flat.
+    body.paste(Image.new("RGB", (bw, th), (150, 156, 162)), (0, 0), rounded_mask((bw, th), 48))
     fw, fh = bw - rim * 2, th - rim * 2
     front = Image.new("RGBA", (fw, fh), (9, 11, 14, 255))
     fd = ImageDraw.Draw(front)
@@ -112,17 +103,12 @@ def remote(canvas, shot, x, y, scale):
         x0 = kx + i * (kw + gapk)
         fd.rounded_rectangle((x0, ky, x0 + kw, ky + kh), kh // 2, fill=key, outline=ring, width=2)
         fd.rounded_rectangle((x0 + kw // 2 - 10, ky + kh // 2 - 2, x0 + kw // 2 + 10, ky + kh // 2 + 1), 2, fill=(95, 104, 112, 255))
-    # Gloss: a soft diagonal sheen across the glass.
-    sheen = Image.new("L", (fw, fh), 0)
-    ImageDraw.Draw(sheen).polygon([(0, 0), (int(fw * 0.55), 0), (0, int(fh * 0.42))], fill=22)
-    sheen = sheen.filter(ImageFilter.GaussianBlur(40))
-    front = Image.composite(Image.new("RGBA", (fw, fh), (255, 255, 255, 255)), front, sheen)
     body.paste(front, (rim, rim), rounded_mask((fw, fh), 40))
     body = body.crop((0, 0, bw, bh))
 
-    # A short, hard fade at the cut: the remote carries on below the picture.
+    # A hard cut: the remote carries on below the picture.
     fade = Image.new("L", (1, bh), 255)
-    start = bh - 26
+    start = bh
     for i in range(start, bh):
         fade.putpixel((0, i), max(0, int(255 * (1 - (i - start) / (bh - start)))))
     fade = fade.resize((bw, bh))
@@ -170,8 +156,8 @@ def main():
     # The two cards fanned behind BÆOSOUND: drawn first so the remote covers them.
     mini = 0.7
     sx = xs[2]
-    phone(canvas, SHOTS / "sonos-media.png", sx + bw - 110, top - 12, mini, crop_h=500, fade=True, dim=0.10, bezel=12, speaker=False)
-    phone(canvas, SHOTS / "sonos-group.png", sx + bw - 50, top - 12 + 372, mini, crop_h=480, fade=True, dim=0.04, bezel=12, speaker=False)
+    phone(canvas, SHOTS / "sonos-media.png", sx + bw - 110, top - 12, mini, crop_h=500, fade=False, dim=0.10, bezel=12, speaker=False)
+    phone(canvas, SHOTS / "sonos-group.png", sx + bw - 50, top - 12 + 372, mini, crop_h=480, fade=False, dim=0.04, bezel=12, speaker=False)
 
     pages = [
         ("main.png", "Floorplan, scenes and the door"),
