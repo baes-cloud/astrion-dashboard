@@ -1,0 +1,11 @@
+# Wi-Fi power save follows the dock: off while charging (latency), on when lifted (battery)
+
+on property:sys.boot_completed=1
+    start wifips
+
+service wifips /system/bin/sh /vendor/bin/wifips.sh
+    class late_start
+    user root
+    group root system
+    disabled
+    seclabel u:r:su:s0

@@ -40,14 +40,14 @@ data class AmbientScene(
  */
 object SceneBuilder {
     private const val TAG = "Ambient"
-    const val DISPLAY_PX = 400
+    const val DISPLAY_PX = 256
 
     /**
-     * Analysis resolution for the palette. 40px (1600 pixels) still finds a
+     * Analysis resolution for the palette. 32px (1024 pixels) still finds a
      * cover's handful of colours and is the bake's dominant cost on this SoC
      * (per-pixel Oklab + clustering), so it is kept small.
      */
-    const val ANALYSIS_PX = 40
+    const val ANALYSIS_PX = 32
 
     suspend fun build(trackKey: String, artBytes: ByteArray?): AmbientScene = withContext(Dispatchers.Default) {
         val t0 = SystemClock.elapsedRealtime()

@@ -142,11 +142,11 @@ private fun specks(): List<Speck> {
 /** The spotlit ball's colour on the walls: what it throws, not a theme colour. */
 private val SPECK_WARM = Color(255, 236, 190)
 private val SPECK_CORE = 1.6.dp
-private const val SPECKS = 80
+private const val SPECKS = 48
 /** One full turn of the ball. */
 private const val TURN_MS = 36_000
 /** Ticks a second while it turns, for the ball card too. */
-private const val FPS = 15
+private const val FPS = 8
 /** Twinkles per turn. */
 private const val TWINKLES = 9f
 private const val FADE_MS = 600

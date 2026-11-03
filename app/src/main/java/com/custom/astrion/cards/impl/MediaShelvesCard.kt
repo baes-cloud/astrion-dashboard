@@ -104,8 +104,12 @@ class MediaShelvesCard : CardRenderer {
         // CDN cover decodes at 160px instead of full size.
         const val ART_PX = 128
 
+        /** Minimum interval before re-fetching an already-populated shelf on tab revisit. */
+        const val SHELF_TTL_MS = 15 * 60_000L
+
         /** Last shelves per card config, kept across page visits. */
         val shelfCache = java.util.concurrent.ConcurrentHashMap<String, List<Shelf>>()
+        val shelfFetchedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -122,14 +126,16 @@ class MediaShelvesCard : CardRenderer {
         // the shelves at once while they refresh behind them.
         //
         // Keyed on the connection too: shelves still empty when HA came back
-        // load then. "Random albums" is only swapped for a fresh set when the
-        // card is shown again, never under you on a reconnect.
+        // load then.
         val connected = ctx.connected
         val cacheKey = entityId + "|" + rowSpecs.hashCode()
-        // Refreshed on every visit to the page (it stays composed otherwise).
+        // Refreshed on page visit only if empty or older than SHELF_TTL_MS.
         val visits = rememberPageVisits()
         val shelves by produceState(initialValue = shelfCache[cacheKey], entityId, limit, connected, visits) {
             if (!connected) return@produceState
+            val now = android.os.SystemClock.elapsedRealtime()
+            val lastFetch = shelfFetchedAt[cacheKey] ?: 0L
+            if (!value.isNullOrEmpty() && lastFetch > 0L && now - lastFetch < SHELF_TTL_MS) return@produceState
             val results = arrayOfNulls<Shelf>(rowSpecs.size)
             value?.forEach { cached -> rowSpecs.indexOfFirst { it["title"] == cached.title }.takeIf { it >= 0 }?.let { results[it] = cached } }
             coroutineScope {
@@ -138,6 +144,7 @@ class MediaShelvesCard : CardRenderer {
                         val shelf = loadShelf(ctx, entityId, spec, limit)
                         if (shelf != null) results[i] = shelf
                         val ordered = results.filterNotNull()
+                        if (ordered.isNotEmpty()) shelfFetchedAt[cacheKey] = now
                         shelfCache[cacheKey] = ordered
                         value = ordered
                     }
