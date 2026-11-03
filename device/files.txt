@@ -8,4 +8,6 @@ tuning/mt6580_tuning.rc     /vendor/etc/init/mt6580_tuning.rc     644
 tuning/init.mt6580_tuning.sh /vendor/bin/init.mt6580_tuning.sh    755
 bootguard.rc                /vendor/etc/init/bootguard.rc         644
 bootguard.sh                /vendor/bin/bootguard.sh              755
+wifips.rc                   /vendor/etc/init/wifips.rc            644
+wifips.sh                   /vendor/bin/wifips.sh                 755
 adbfw-off.sh                /data/local/tmp/adbfw-off.sh          755

@@ -12,6 +12,7 @@ live on the device; they are kept here so the only copy isn't on the hardware.
 | `timesync.sh` | `/vendor/bin/timesync.sh` | Real-time clock & hardware RTC synchronizer against Home Assistant with NTP fallback |
 | `bootguard.rc` | `/vendor/etc/init/bootguard.rc` | Runs `bootguard.sh` at post-fs-data (before system_server), when zygote restarts mid-boot, and at boot completed |
 | `bootguard.sh` | `/vendor/bin/bootguard.sh` | Moves `package_cache` / dalvik-cache files with unreadable eMMC sectors (the `de ad ad de` frame) aside and clears the rest of `package_cache`, so a rotten cache entry can't boot-loop system_server. At boot completed it mounts tmpfs over the app's `cache/` (32 MB, art cache) and `files/` (4 MB, entity snapshot), so the app writes nothing to flash; both start empty after a reboot |
+| `wifips.rc` / `wifips.sh` | `/vendor/etc/init/wifips.rc`, `/vendor/bin/wifips.sh` | Wi-Fi power save off while the remote charges (pings 42 ms avg / 205 ms max with it on, 23 / 95 ms off), back on when it's lifted, for battery. Re-checked every 20 s because the driver turns it back on after a reconnect |
 
 ## Why the firewall exists
 
