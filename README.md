@@ -1,234 +1,331 @@
-# Astrion Custom (BæoRemote)
+<div align="center">
 
-A native, high-performance Home Assistant dashboard and launcher for the **Sanytron Astrion HA100** smart remote, written from scratch to replace the stock `HaRemote` app.
+<img src="screenshots/hero.png" alt="BÆOREMOTE on the HA100: Main with the floorplan, Vision, Sound with its Media and Zones tabs, and Living" width="100%">
 
-It talks directly to Home Assistant over the standard WebSocket API, renders custom tactile Jetpack Compose UI across four dedicated hardware dashboards, and routes physical buttons with zero vendor cloud dependencies.
+**A fast, native Home Assistant dashboard for the Sanytron Astrion HA100 smart remote.**<br>
+Written from scratch in Kotlin and Jetpack Compose to replace the stock `HaRemote` app.<br>
+No cloud, no WebView, no vendor lock-in.
 
-| BÆOVISION (TV) | BÆOREMOTE (Main) | BÆOSOUND (Media) | BÆOLIVING (Climate) |
-|---|---|---|---|
-| ![BÆOVISION](screenshots/tv-page.png) | ![BÆOREMOTE](screenshots/main.png) | ![BÆOSOUND](screenshots/media-page.png) | ![BÆOLIVING](screenshots/climate.png) |
+[![CI](https://github.com/baes-cloud/astrion-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/baes-cloud/astrion-dashboard/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-v1.6.0-8CBDB5)](CHANGELOG.md)
+![Android 8.1](https://img.shields.io/badge/Android-8.1%20(API%2027)-3DDC84?logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white)
+![Home Assistant](https://img.shields.io/badge/Home%20Assistant-WebSocket%20API-18BCF2?logo=homeassistant&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
----
+[Features](#features) · [Quick start](#quick-start) · [Configuration](#configuration) · [Buttons](#hardware-buttons) · [Under the hood](#under-the-hood) · [Docs](#documentation) · [Credits](#credits)
 
-## The Four Dedicated Hardware Dashboards
-
-The app is built around four primary pages, reachable with dedicated physical shortcut buttons (`CURTAIN`, `LIGHT`, `SCENE`, `AC`) and anchored by the signature fixed-width **BÆO** wordmark footer:
-
-1. **BÆOVISION (`TV`):** What's on the TV, with **Search, Movies, TV and MTV** tiles inside the card that open your Plex server (search as you type, or full poster libraries with sort and watched ticks), a corner button that puts the TV's sound on the Sonos, and Plex shelves (*On Deck*, *Recently Released*…) where one tap wakes the TV, switches it to the Google TV and starts that exact episode or film.
-2. **BÆOREMOTE (`Main`):** Weather, next alarm and event, a **Motion Lights** switch (pauses every motion and presence light automation so lights are manual only), a **mirror ball** that spins while it's on, the **Door** lock, labelled scene pills, and a live floorplan: each light drawn as its fixture (lamp, LED bar, artwork, candles…), TVs that glow while they're on, the robot vacuum and radar presence dots.
-3. **BÆOSOUND (`Media`):** A **Search music** bar, the Club Sonos with its cover over a blurred wash, a volume fader and the queue, four mix shortcuts (GAYFM, Glitterbox…), search across everything in Music Assistant (library and Spotify), Music Assistant shelves, and the Zones tab for joining rooms and BÆOLINK.
-4. **BÆOLIVING (`Climate`):** Air conditioning temperature steppers with target readouts, HVAC/fan modes, and motorized blind controls.
+</div>
 
 ---
 
-### BÆOSOUND (Multi-Room Media Stack)
+## Why this exists
 
-The media dashboard features three dedicated tabs tailored for single-touch music management:
+The HA100 is lovely hardware: a 480×800 touchscreen, real buttons, an IR blaster and a microphone. Its software holds it back.
 
-| Player (Now Playing) | Library | Queue | Media (Shelves & Playlists) | Zones (BÆOLINK Multi-Room) |
-|---|---|---|---|---|
-| ![Sonos Player](screenshots/media-page.png) | ![Library](screenshots/sonos-browser.png) | ![Queue](screenshots/queue.png) | ![Sonos Media](screenshots/sonos-media.png) | ![Sonos Zones](screenshots/sonos-group.png) |
+- The stock app renders only **11 hard-coded card types** from your Lovelace config and **silently drops everything else**.
+- Running a real HA dashboard through Fully Kiosk or the Companion app is far too slow on a 2015-era **MT6580 with 1 GB of RAM**.
 
-* **Player:** The Search music bar and the library button on top, then the cover over a blurred wash, transport controls, a volume fader with mute, and four one-touch mixes.
-* **Library:** The round button beside Search music opens the Sonos library as HA's media browser shows it (favourites, music library, Plex, Spotify, radio) for any room: drill into folders, tap to play now or + to add to that room's queue.
-* **Queue:** Now playing and up next from Music Assistant; when the Sonos is playing something Music Assistant didn't start (a favourite, the radio), its own track.
-* **Media:** Music Assistant shelves: recently played albums from the local collection (Spotify's saved albums are kept out), favourite songs and playlists.
-* **Zones:** Join or drop each room's speaker with its own volume; the **BÆOLINK** switch makes the music follow you from room to room.
+Astrion replaces the whole rendering layer. It still speaks to Home Assistant exactly the way the stock app does, over one standard WebSocket.
 
-### Search: music and Plex
+|  | Stock `HaRemote` | Astrion |
+| --- | --- | --- |
+| Card types | 11, hard-coded | Card registry, configured in JSON |
+| Layout | Taken from Lovelace and filtered | Your own `dashboard.json`, reloaded live |
+| Floorplan | None | Sun-synced, lit rooms, radar, vacuum |
+| Music | Basic player | Music Assistant search, queue, shelves, multi-room |
+| Plex | None | Search, posters and one-tap play on the TV |
+| Screen off the dock | Timeout forced to "never" | Screensaver, then off (measured −6 %/h fixed) |
+| Help for guests | None | Built-in guide with a hands-on walkthrough |
+| HA goes down | Stuck until rebooted | Reconnects on its own, never needs a reboot |
 
-| Music search | Plex search | Plex library | A show |
-|---|---|---|---|
-| ![Music search](screenshots/music-search.png) | ![Plex search](screenshots/plex-search.png) | ![Plex library](screenshots/plex-library.png) | ![Plex show](screenshots/plex-show.png) |
+## How it fits together
 
-* **Music:** `music_search` card. Type an artist, album, song, playlist or station; results come from `music_assistant.search`, so every provider Music Assistant has is included. Tap to play now, **+** to queue.
-* **Plex:** `plex_browse` card (here drawn inside the TV card as its `footer`). Search as you type, or open a whole library as a poster grid (A–Z, recently added, unwatched). Films play with one tap; a show opens to its seasons and episodes. Playback uses the same wake-the-TV + One Touch Play + Plex deep-link route as the shelves.
+```mermaid
+flowchart LR
+    subgraph Remote["HA100 remote"]
+        Keys["Hardware keys"] --> App["Astrion app<br/>(Compose · MVI)"]
+        Touch["Touchscreen"] --> App
+        App --> IR["IR blaster"]
+        Mic["Microphone"] --> App
+    end
+    App <-->|"WebSocket<br/>subscribe_entities · call_service"| HA["Home Assistant"]
+    App -.->|"Assist audio"| HA
+    IR -.->|"infrared"| TV["Samsung TV"]
+    HA --> Sonos["Sonos · Music Assistant"]
+    HA --> GTV["Google TV · Plex"]
+    HA --> Home["Lights · blinds · AC · lock<br/>radar · vacuum · intercom"]
+```
 
----
+## Features
 
-### Help guide (hold ☰)
+### The four pages
 
-| Guide | How do I… | On the TV |
-|---|---|---|
-| ![Guide home](screenshots/guide-home.png) | ![How do I](screenshots/guide-howto.png) | ![TV guide](screenshots/guide-tv.png) |
+Each page has its own hardware key, and you can also swipe sideways to turn the page. The names come from the Bang & Olufsen product line, and a **BÆO** wordmark footer anchors every page.
 
-Holding **Menu ☰** opens a guide for anyone picking the remote up for the first time:
+| | Page | What it does |
+| :---: | --- | --- |
+| <img src="screenshots/main.png" width="140"> | **BÆOREMOTE** · Main<br>`LIGHT` | Weather, next alarm and event, the Motion Lights switch, a spinning mirror ball, the door lock, scene pills and a **live floorplan**. |
+| <img src="screenshots/tv-page.png" width="140"> | **BÆOVISION** · TV<br>`CURTAIN` | Shows what's on the TV. Search, Movies, TV and MTV tiles open your Plex server. Tap a poster on the *On Deck* or *Recently Released* shelf and it wakes the TV, switches to Google TV and starts that exact episode. |
+| <img src="screenshots/media-page.png" width="140"> | **BÆOSOUND** · Media<br>`SCENE` | Music search, the Sonos player with a volume fader, four one-touch mixes, the queue, Music Assistant shelves and multi-room Zones. |
+| <img src="screenshots/climate.png" width="140"> | **BÆOLIVING** · Climate<br>`AC` | Air-conditioning setpoint steppers, HVAC and fan modes, and motorised blinds. |
 
-* **How do I…:** short answers that fold open, most-asked first (lights, music, finding a song, watching a film, talking to it, the floorplan, motion lights, other rooms, the door, a TV that won't respond).
-* **Walkthrough:** asks for real presses on the real buttons, shows the button to find, and says what each one would have done. Nothing is sent to Home Assistant while the guide is open.
-* **Every button:** what press and hold do for each button, read live from `dashboard.json` (a hotkey's optional `label` wins), with the real button glyphs.
-* **On the TV:** the guide's `on_open` / `on_close` hooks put a one-page version on the Serif (via the Bæovision kiosk) and put the TV back afterwards.
+### 🌇 A floorplan that looks like your home right now
 
----
-
-### Dynamic Floorplan & LitRooms Lighting
-
-The floorplan follows the sun and every light in the flat. As the sun drops, a shade darkens the plan, and each light that is on lifts it again with a pool of its own colour and brightness, so the plan looks like the room does.
-
-![The floorplan by day, at dusk and at night, with the living room off, an evening mix, and everything on](screenshots/lit-rooms.png)
+The plan follows the sun. As it drops, a shade darkens the flat, and every light that's on lifts it again with a pool of its own colour and brightness.
 
 | Day | Dusk | Night |
-|---|---|---|
-| ![Floorplan by day](screenshots/floorplan-day.png) | ![Floorplan at dusk](screenshots/floorplan-dusk.png) | ![Floorplan at night](screenshots/floorplan-night.png) |
+| :---: | :---: | :---: |
+| <img src="screenshots/floorplan-day.png" alt="Day"> | <img src="screenshots/floorplan-dusk.png" alt="Dusk"> | <img src="screenshots/floorplan-night.png" alt="Night"> |
 
-* **Sun-synced shading:** the shade eases in through civil twilight, from sun.sun's elevation. Light pools are faint by day and come up with the dark.
-* **Lights as they look:** pools take each light's colour and brightness, with a hot core and a soft tail. The Club LED is a cove strip on a rail under the ceiling, so it draws as a dim rail with a wash of its colour spilling into the room (`glow_line`), stopping at the walls. Hidden strips halo what they sit under or behind (`glow_outline`): the sofa's underglow and the Hue Play bars round the TV. The kitchen strips light the counter.
-* **Screens:** the TV lights up on the plan while it is on, including on the PC input (`also_on`).
-* **Blinds:** the balcony door's blind is drawn over the glass as far down as it really is, a shade lighter than the wall, and darkens with the room at night (`blinds`). The grey blind icon on it toggles it.
-* **Mirror ball:** while it spins, warm specks turn slowly round the main room (`mirror_ball`), on a 15 fps clock that only runs while Main is on screen.
-* **Interactive Control:** Tap any bulb to toggle room lighting, or long-press to open the full-screen brightness and color tuning slider.
-* **mmWave Radar Presence:** Real-time target tracking dots driven by LD2450 sensors plotted over the apartment layout.
+- **Lights as they really look.** Each light gets a hot core and a soft tail in its own colour. Cove strips draw as a lit rail with a wash spilling into the room (`glow_line`). Hidden strips halo the furniture they sit behind (`glow_outline`).
+- **Real fixtures.** Lamps, LED bars, downlights, artworks and candles each get their own icon. TVs glow on the plan while they're on.
+- **Blinds** are drawn as far down as they really are. **The mirror ball** throws warm specks around the room while it spins.
+- **Presence and robots.** LD2450 mmWave radar plots people as live dots, and the robot vacuum shows in its current room.
+- **Tap to toggle, long-press for more.** Long-press a light for a bottom sheet with a tall fader, warmth and colour.
+- **Colours you can live with.** `recolor` draws one light colour as another on the plan only, so a scene's mint green doesn't clash with teal LED strips.
 
----
+### 🎵 Multi-room music with BÆOSOUND
 
-## Screensavers & System Overlays
+| Player | Library | Queue | Media | Zones |
+| :---: | :---: | :---: | :---: | :---: |
+| <img src="screenshots/media-page.png" alt="Player"> | <img src="screenshots/sonos-browser.png" alt="Library"> | <img src="screenshots/queue.png" alt="Queue"> | <img src="screenshots/sonos-media.png" alt="Media"> | <img src="screenshots/sonos-group.png" alt="Zones"> |
 
-| Screensaver (Day) | Screensaver (Night) | Floating Volume OSD |
-|---|---|---|
-| ![Screensaver Day](screenshots/screensaver-day.png) | ![Screensaver Night](screenshots/screensaver-night.png) | ![Volume OSD](screenshots/volume-osd.png) |
+- **Player:** the cover over a blurred wash of its own colours, transport controls, a volume fader with mute, and four one-touch mixes.
+- **Library:** browse the Sonos library the way Home Assistant sees it (favourites, music library, Plex, Spotify, radio). Tap to play now, or **+** to queue.
+- **Queue:** now playing and up next from Music Assistant. It also shows the track when the Sonos plays something Music Assistant didn't start.
+- **Media:** Music Assistant shelves with recently played albums, favourite songs and playlists.
+- **Zones:** join or drop each room's speaker with its own volume. Turn on **BÆOLINK** and the music follows you from room to room.
 
-* **Contextual Screensavers:**
-  * **Day Mode:** Crisp high-contrast mint and slate digits with live weather, temperature, date, and battery indicator.
-  * **Night Mode:** Warm Baby Doll rose radial gradient (`#0C0E10` to `#050607`) with OLED-safe low luminance, upcoming alarm countdowns (within 12 hours), and active media playback art and progress.
-* **Floating Volume Capsule (OSD):** Changing volume or muting on any remote button summons a TV-style floating HUD displaying speaker entity, mute indicator, and an interactive draggable volume slider that smoothly auto-dismisses.
-* **Physical Key Pass-Through:** Configured hardware keys (`VOLUME_UP`, `VOLUME_DOWN`, `MUTE`, `LIGHT`, `CURTAIN`, `SCENE`, `AC`, `VOICE`) wake the screen and immediately execute on the very first press without being swallowed.
+### 🔍 Search everything: music and Plex
 
----
+| Music search | Plex search | Plex library | A show |
+| :---: | :---: | :---: | :---: |
+| <img src="screenshots/music-search.png" alt="Music search"> | <img src="screenshots/plex-search.png" alt="Plex search"> | <img src="screenshots/plex-library.png" alt="Plex library"> | <img src="screenshots/plex-show.png" alt="Plex show"> |
 
-### Doorbell
+- **Music:** type an artist, album, song, playlist or station. Results come from every Music Assistant provider, including your library and Spotify.
+- **Plex:** search as you type, or open a library as a poster grid (A–Z, recently added, unwatched) with watched ticks. Films play in one tap, and shows open to seasons and episodes.
 
-When the building intercom rings, a popup shows who is at the entrance with **Let in**, which calls the lift and opens the main door. It wakes the screen and comes to the front like an alarm, refreshes the snapshot while it is up, and clears when the call ends, after 90 seconds, or on Hide (`doorbell` in `dashboard.json`).
+### 🙋 A guide for guests (hold ☰)
 
-<img src="screenshots/intercom.png" alt="Doorbell popup with the entrance snapshot and Let in" width="240">
+| Guide | How do I… | On the TV |
+| :---: | :---: | :---: |
+| <img src="screenshots/guide-home.png" alt="Guide home"> | <img src="screenshots/guide-howto.png" alt="How do I"> | <img src="screenshots/guide-tv.png" alt="TV guide"> |
 
-### Additional Feature Screenshots
+Hand the remote to anyone and hold **Menu ☰**.
 
-| IR Mode | Light Popup | Vacuum Popup |
-|---|---|---|
-| ![IR Mode](screenshots/ir-mode.png) | ![Light popup](screenshots/light-control.png) | ![Vacuum popup](screenshots/robovac-control.png) |
-| **Washer Done Alert** | **Alarm Ringing** | **Alarm Snoozed** |
-| ![Washer done alert](screenshots/alert-washer.png) | ![Alarm ringing](screenshots/alarm-ringing.png) | ![Alarm snoozed](screenshots/alarm-snoozed.png) |
+- **How do I…** short answers to the most-asked questions, such as lights, music, the door and a TV that won't respond.
+- **Walkthrough:** asks you to press the real buttons and says what each one would do. Nothing is sent to Home Assistant while the guide is open.
+- **Every button:** press and hold actions, read live from `dashboard.json`.
+- **On the TV:** a one-page version appears on the Samsung Serif, which goes back to what it was showing when you close the guide.
 
-![Hold to stop the alarm](screenshots/alarm-hold-to-stop.gif)
+### 🌙 Screensavers, alerts and popups
 
----
+| Screensaver (day) | Screensaver (night) | Volume OSD | Doorbell |
+| :---: | :---: | :---: | :---: |
+| <img src="screenshots/screensaver-day.png" alt="Day screensaver"> | <img src="screenshots/screensaver-night.png" alt="Night screensaver"> | <img src="screenshots/volume-osd.png" alt="Volume OSD"> | <img src="screenshots/intercom.png" alt="Doorbell popup"> |
 
-## Architecture & System Design
+| Alarm ringing | Alarm snoozed | Washer done | IR mode | Light popup | Vacuum |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| <img src="screenshots/alarm-ringing.png" alt="Alarm ringing"> | <img src="screenshots/alarm-snoozed.png" alt="Alarm snoozed"> | <img src="screenshots/alert-washer.png" alt="Washer done"> | <img src="screenshots/ir-mode.png" alt="IR mode"> | <img src="screenshots/light-control.png" alt="Light popup"> | <img src="screenshots/robovac-control.png" alt="Vacuum popup"> |
 
-Astrion is built for the resource-constrained MediaTek MT6580 SoC (4× ARM Cortex-A7 @ 1.3GHz, Mali-400 GPU, 1 GB RAM, Android 8.1 Go Edition):
+<table><tr>
+<td width="260"><img src="screenshots/alarm-hold-to-stop.gif" alt="Hold to stop the alarm"></td>
+<td>
 
-* **Architecture:** Modernized **MVI (Model-View-Intent)** with Kotlin Coroutines, `StateFlow`, and `SharedFlow`. ViewModels (`DashboardViewModel`, `PowerViewModel`, `InputViewModel`) decouple state cleanly from the view layer.
-* **Dependency Injection:** Lightweight **Koin** DI (`ViewModelModule`, `RepositoryModule`, `NetworkModule`, `HardwareModule`).
-* **Design System (Bæo Design System v2.0):** One theme API, `AstrionTheme`, backed by the design system's CompositionLocals. Tokens are grounded in Porter's Paints swatches: Yacht Race for the surfaces, Hailstorm and Gunmetal Grey for accents and selected state, Baby Doll for attention (warnings, the next alarm, mute). Red is for errors only, and warm amber for lights that are on. Every colour and font size is a token (`ui/theme/`); `ThemeLiteralsTest` fails on a literal in the cards, and `AstrionDesignSystemTest` checks there are no duplicate tokens and that text and accents meet WCAG AA (4.5:1).
-* **Fast TV App Launches:** Colored hardware keys (`CUSTOM_1` – `CUSTOM_3`) trigger native non-blocking `media_player.select_source` intents, launching Netflix, Plex, and ABC iview in under 150ms without blocking Home Assistant's ADB connection.
-* **Selective WebSocket State Publishing:** `HaClient` updates its internal store in-place for all entities while filtering Compose snapshot writes and `StateFlow` emissions to observed UI, screensaver, and alarm/alert entities—eliminating main-thread recomposition and GC churn from chatty background sensors.
-* **Dock & Off-Dock Power Management:** Asymmetric dock/undock debounce (`dock_debounce_seconds: 2`, `undock_debounce_seconds: 15`) absorbs pogo-pin contact drops on the dock while allowing the display, `rmm/stream` radar subscription, and entity filter to sleep cleanly when undocked.
-* **Boots into Sanytron's app, hold Back for Astrion:** Sanytron's HaRemote stays the launcher, since the HA100 can boot-loop without it, and a Key Mapper hold on Back opens Astrion. `.HomeAlias` (Astrion as the launcher) and `BootReceiver` (open on boot) ship disabled; enable them per remote if you want Astrion to own the screen (see `docs/POWER.md`).
-* **RTC Drift Prevention:** Root `astrion_timesync` init daemon synchronizes the system clock and hardware RTC from the local Home Assistant HTTP `Date:` header on boot and every 15 minutes (or on demand as root: `setprop debug.astrion.timesync 1`) without requiring external internet NTP access.
+- **Night screensaver:** an OLED-safe Baby Doll rose glow, an alarm countdown when one is due within 12 hours, and the art and progress of whatever is playing.
+- **Hold to stop:** alarms need a deliberate hold, so a sleepy tap only snoozes.
+- **Volume OSD:** any volume or mute press brings up a floating HUD with a draggable slider.
+- **Doorbell:** when the intercom rings, the screen wakes with the entrance snapshot. **Let in** calls the lift and opens the main door.
+- **IR mode:** press ☰ to drive the Samsung TV over infrared, with no network needed.
+- **Voice:** the 🎤 key starts a Home Assistant Assist session.
 
----
+</td>
+</tr></table>
 
-## Build and Install
+## Quick start
 
-### Prerequisites
-* JDK 17
-* Android SDK (API 27+)
-* Remote build script or Gradle: `/home/bae/Documents/claude/remote-build.sh ./gradlew assembleRelease`
+> [!IMPORTANT]
+> You need a Home Assistant instance, a [long-lived access token](https://www.home-assistant.io/docs/authentication/#your-account-profile), JDK 17, the Android SDK (API 27+), and `adb` access to the remote.
 
-### Setup Instructions
-
-1. **Add your Home Assistant details:** Copy `secrets.properties.example` to `secrets.properties` (gitignored):
-   ```properties
-   haUrl=http://<your-ha-ip>:8123
-   haToken=<long-lived access token>
-   ```
-
-2. **Build the release APK:**
-   ```bash
-   /home/bae/Documents/claude/remote-build.sh ./gradlew assembleRelease
-   ```
-
-3. **Install over ADB and compile ahead-of-time (AOT):**
-   ```bash
-   adb install -r app/build/outputs/apk/release/app-release.apk
-   adb shell cmd package compile -m speed -f com.custom.astrion
-   ```
-
-4. **Lock Permissions** (to make Astrion the launcher as well, see `docs/POWER.md`; the default leaves Sanytron's HaRemote as home and opens Astrion with a Key Mapper hold on Back):
-   ```bash
-   adb shell appops set com.custom.astrion WRITE_SETTINGS allow
-   adb shell settings put global ntp_polling_interval 1800000
-   ```
-
----
-
-## Configuration
-
-Layout, buttons, and entities are managed via `/sdcard/astrion/dashboard.json`:
-
-| File | Role |
-|---|---|
-| `/sdcard/astrion/dashboard.json` | Live configuration on the remote |
-| `device/config/dashboard.json` | Bundled default configuration inside the APK |
-| `/sdcard/astrion/device.json` | This remote's own settings (battery sensor name), laid over dashboard.json; see `docs/POWER.md` |
-| `/sdcard/astrion/floorplan.png` | Apartment floorplan image |
-
-Push new configurations over ADB (or `device/install.sh --layout <ip>`); the app reloads within a second:
 ```bash
+# 1. Point the app at Home Assistant (secrets.properties is gitignored)
+cp secrets.properties.example secrets.properties
+#    haUrl=http://<your-ha-ip>:8123
+#    haToken=<long-lived access token>
+
+# 2. Build
+./gradlew assembleRelease
+
+# 3. Install, compile ahead of time, and grant permissions
+adb install -r app/build/outputs/apk/release/app-release.apk
+adb shell cmd package compile -m speed -f com.custom.astrion
+adb shell appops set com.custom.astrion WRITE_SETTINGS allow
+adb shell settings put global ntp_polling_interval 1800000
+
+# 4. Push your layout
 adb push device/config/dashboard.json /sdcard/astrion/dashboard.json
 ```
 
-`trusted_tls_hosts` (top level, optional) lists LAN hosts whose HTTPS certificate is accepted without a name match, for album art from a server reached by IP whose certificate names something else (Plex by IP). Every other host gets the normal check.
+Or let the helper script do steps 3 and 4. It also pushes the device-side init scripts, compiles the app ahead of time and adds it to the Doze whitelist:
 
----
-
-## Physical Hardware Button Mapping
-
-The HA100 physical button matrix:
-
-| Physical Key | Android Keycode | Default Mapping / Action |
-|---|---|---|
-| `LIGHT` | 134 | Navigate to **BÆOREMOTE** (Main Page) |
-| `CURTAIN` | 135 | Navigate to **BÆOVISION** (TV Page) |
-| `SCENE` | 136 | Navigate to **BÆOSOUND** (Media Page) |
-| `AC` | 137 | Navigate to **BÆOLIVING** (Climate Page) |
-| `CUSTOM_1` (Red) | 138 | Launch Netflix (`com.netflix.ninja`) |
-| `CUSTOM_2` (Green) | 139 | Launch Plex (`com.plexapp.android`) |
-| `CUSTOM_3` (Blue) | 140 | Launch ABC iview (`au.net.abc.iview`) |
-| `CUSTOM_4` (Yellow) | 141 | Run TV Ambient Show script |
-| `VOLUME_UP` / `DOWN` | 24 / 25 | Adjust volume + trigger floating Volume OSD |
-| `MUTE` | 91 / 164 | Toggle mute + trigger floating Volume OSD |
-| `MENU` (☰) | 82 | Press: IR Mode (Samsung TV by infrared). **Hold: help guide** |
-| `VOICE` (🎤) | 133 | Trigger Home Assistant Assist satellite session |
-| `D-PAD` & `CENTER` | 19–23 | TV navigation & select commands |
-
----
-
-## Project Structure
-
-All application source code is located under `app/src/main/java/com/custom/astrion/`:
-
-```
-com.custom.astrion/
-├── AstrionApp.kt            # App entry point, Koin DI & Registry initialization
-├── MainActivity.kt          # Window host, gesture router, lifecycle management
-├── BootReceiver.kt          # Automatic relaunch on system boot & recovery
-├── viewmodel/               # DashboardViewModel, PowerViewModel, InputViewModel
-├── di/                      # Koin Dependency Injection modules
-├── ha/                      # Home Assistant WebSocket & HTTP client
-├── cards/                   # CardRegistry and implementation renderers
-├── config/                  # AppConfigRepository and reactive config loader
-├── ui/                      # Dashboard, PageName, Screensaver, VolumePopup, Theme
-├── input/                   # HardwareKeys, KeyDispatcher, and hotkey routing
-├── power/                   # Battery state machine, dock detection, motion wake
-├── voice/                   # Home Assistant Assist satellite audio streaming
-└── ir/                      # Built-in IR blaster transmitter & Samsung codes
+```bash
+device/install.sh --apk app/build/outputs/apk/release/app-release.apk --layout <remote-ip>
 ```
 
----
+> [!NOTE]
+> Sanytron's `HaRemote` stays the launcher by default, because the HA100 can boot-loop without it. Hold **Back** to open Astrion (via Key Mapper). To make Astrion the launcher, see [`docs/POWER.md`](docs/POWER.md).
 
-## Notes & Licensing
+> [!TIP]
+> Some features lean on Home Assistant automations and scripts, such as switching the Sonos to the TV when the TV plays. [`docs/HOME_ASSISTANT.md`](docs/HOME_ASSISTANT.md) has them ready to paste.
 
-* **Licence:** MIT ([`LICENSE`](LICENSE)). Manrope and Syne fonts are used under the SIL Open Font License ([`licenses/`](licenses)).
-* **Wireless ADB Security:** The HA100 firmware runs `userdebug`. See [`device/README.md`](device/README.md) for network lockdown instructions.
-* **Plex for Android TV:** Deep linking uses standard Android intents supported by classic Plex for Android TV (10.x).
+## Configuration
+
+Everything (pages, cards, buttons and entities) lives in one JSON file, and the app reloads it within a second of a change.
+
+| File | Role |
+| --- | --- |
+| `/sdcard/astrion/dashboard.json` | Live configuration on the remote |
+| `device/config/dashboard.json` | Default configuration, bundled in the APK |
+| `/sdcard/astrion/device.json` | Per-remote overrides, such as the battery sensor ([`docs/POWER.md`](docs/POWER.md)) |
+| `/sdcard/astrion/floorplan.png` | Your floorplan image |
+
+<details>
+<summary><b>Example: turn on the ambient now-playing screen</b></summary>
+
+```json
+"ambient": {
+  "enabled": true,
+  "media_players": ["media_player.club", "media_player.the_club_tv"],
+  "rest_clock": true,
+  "show_album": true
+}
+```
+
+When the remote is idle and music is playing, the screensaver becomes a full-screen cover with a backdrop in the album's own colours. See [`docs/ambient-nowplaying.md`](docs/ambient-nowplaying.md).
+</details>
+
+<details>
+<summary><b>Optional: <code>trusted_tls_hosts</code></b></summary>
+
+A top-level list of LAN hosts whose HTTPS certificate is accepted without a name match. Use it for album art from a server you reach by IP, such as Plex. Every other host gets the normal check.
+</details>
+
+## Hardware buttons
+
+The layout in [`device/config/dashboard.json`](device/config/dashboard.json):
+
+| Key | Press | Hold | Double press |
+| --- | --- | --- | --- |
+| `LIGHT` | Main page | All lights off | |
+| `CURTAIN` | TV page | Club blinds open or close | |
+| `SCENE` | Music page | Speakers play the TV's sound | Next track |
+| `AC` | Climate page | Aircon on or off | |
+| 🔴 `CUSTOM_1` | Jellyfin on the TV | Bae lighting scene | Toggles a light |
+| 🟢 `CUSTOM_2` | Plex on the TV | Green lighting scene | Toggles a light |
+| 🔵 `CUSTOM_3` | ABC iview on the TV | Night lights | Toggles a light |
+| 🟡 `CUSTOM_4` | Ambient screen on the TV | Day lights | Toggles a light |
+| `PAGE_UP` / `PAGE_DOWN` | Lights that are on, brighter / dimmer | Blinds open / close | |
+| `VOLUME_UP` / `DOWN` · `MUTE` | Volume and mute, with the OSD | Mute: Android settings | Mute: the stock app |
+| `MENU` ☰ | IR mode | Help guide | TV to the PC (HDMI 2) |
+| `VOICE` 🎤 | Home Assistant Assist | | |
+| D-pad, centre, `HOME`, `BACK`, `POWER` | Drive the Google TV | Centre: play / pause | |
+
+A long press is 0.8 s, and it still counts when it starts on a dark screen. Keys wake the screen and act on the first press. Every mapping, with an optional `label` the guide reads, lives in `hotkeys`, `longHotkeys` and `doubleHotkeys`.
+
+## Under the hood
+
+Astrion is built for a MediaTek MT6580 (4× Cortex-A7 @ 1.3 GHz, Mali-400 GPU, 1 GB RAM) running Android 8.1 Go.
+
+<details>
+<summary><b>Architecture and performance</b></summary>
+
+- **MVI** with Kotlin Coroutines, `StateFlow` and `SharedFlow`. `DashboardViewModel`, `PowerViewModel` and `InputViewModel` keep state out of the views.
+- **Koin DI**, split into ViewModel, Repository, Network and Hardware modules.
+- **Selective state publishing.** `HaClient` keeps every entity up to date but only emits to Compose for entities the UI actually watches, so chatty sensors cost no recomposition. Playhead noise from paused sessions is ignored too.
+- **Fast app launches.** The coloured keys send non-blocking `media_player.select_source` calls and open TV apps in under 150 ms.
+
+</details>
+
+<details>
+<summary><b>Battery and power</b></summary>
+
+- **The screen really turns off off the dock.** The stock app forced the screen timeout to "never", which cost 6 % an hour measured. Astrion holds it at `power.screen_timeout_seconds` and restores it if anything changes it.
+- **Dock-aware debounce** (2 s docking, 15 s undocking) rides out pogo-pin contact drops.
+- **The screensaver redraws once a minute**, not every second.
+- **Device-side tweaks** in [`device/`](device/README.md): Wi-Fi power save that follows the dock, tmpfs caches that spare the flash, and a boot guard against rotten eMMC cache sectors.
+
+</details>
+
+<details>
+<summary><b>Design system: Bæo v2.0</b></summary>
+
+- One `AstrionTheme` API. Every colour and font size is a token in `ui/theme/`.
+- **Palette** from Porter's Paints: Yacht Race surfaces, Hailstorm and Gunmetal Grey accents, Baby Doll for attention. Red is for errors only, and warm amber means a light is on.
+- **Type:** Syne for wordmarks and clocks, Manrope for everything else.
+- **Enforced by tests:** `ThemeLiteralsTest` fails on any hard-coded literal, and `AstrionDesignSystemTest` checks for duplicate tokens and WCAG AA contrast (4.5:1).
+
+</details>
+
+<details>
+<summary><b>Reliability and the flash</b></summary>
+
+- **HA outages heal themselves.** Socket callbacks are matched by connection epoch, and a watchdog reconnects after 45 s stuck opening, 90 s with no seed, or 90 s in error. The disk cache never overwrites live state.
+- **The app writes nothing to flash.** The HA100's eMMC can rot data at rest, so the art cache and entity snapshot live on tmpfs (`bootguard.sh`), the art cache is capped at 28 MB, and reads no longer touch file times.
+- **A rotten cache can't boot-loop it.** Before `system_server` starts, `bootguard.sh` moves aside `package_cache` and dalvik-cache files with unreadable sectors and clears the rest.
+- **Health checks from the admin PC.** A separate `remote_health.py` (not in this repo) checks `/system` against a known-good copy, repairs images, relaunches a stuck app and does clean reboots.
+
+</details>
+
+<details>
+<summary><b>Clock and security</b></summary>
+
+- **No internet NTP needed.** A root `astrion_timesync` daemon sets the system clock and hardware RTC from Home Assistant's HTTP `Date:` header at boot and every 15 minutes.
+- **ADB lockdown.** The firmware is a `userdebug` build, so anyone on the LAN would get a root shell. `adbfw.sh` limits adbd to your workstation by IP and MAC, and fails open so you can't lock yourself out. See [`device/README.md`](device/README.md).
+
+</details>
+
+<details>
+<summary><b>Project structure</b></summary>
+
+```text
+app/src/main/java/com/custom/astrion/
+├── AstrionApp.kt       # Entry point, Koin DI and registry initialisation
+├── MainActivity.kt     # Window host, gesture router, lifecycle
+├── BootReceiver.kt     # Relaunch on boot and recovery
+├── viewmodel/          # Dashboard, Power and Input ViewModels
+├── di/                 # Koin modules
+├── ha/                 # Home Assistant WebSocket and HTTP client
+├── cards/              # CardRegistry and card renderers
+├── config/             # AppConfigRepository and reactive config loader
+├── ui/                 # Pages, screensaver, ambient, volume popup, theme
+├── input/              # Hardware keys, KeyDispatcher, hotkey routing
+├── power/              # Battery state machine, dock detection, motion wake
+├── voice/              # Assist satellite audio streaming
+└── ir/                 # IR blaster and Samsung codes
+```
+
+</details>
+
+## Documentation
+
+| Doc | What's in it |
+| --- | --- |
+| [`CHANGELOG.md`](CHANGELOG.md) | What changed in each release |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | How the stock app works (reverse-engineered) and why Astrion is a standalone app |
+| [`docs/HOME_ASSISTANT.md`](docs/HOME_ASSISTANT.md) | Companion automations, scripts and helpers |
+| [`docs/POWER.md`](docs/POWER.md) | Launcher, boot and battery setup |
+| [`docs/ambient-nowplaying.md`](docs/ambient-nowplaying.md) | The ambient now-playing screen |
+| [`docs/IR_CAPTURE.md`](docs/IR_CAPTURE.md) | Capturing IR codes |
+| [`docs/ALARM_POPUP_SPEC.md`](docs/ALARM_POPUP_SPEC.md) | How the alarm popup behaves |
+| [`device/README.md`](device/README.md) | Device-side scripts, the ADB firewall and install helpers |
+
+## Credits
+
+- **[@dckiller51](https://github.com/dckiller51)** forked this project into [Astrion Custom Dashboard](https://github.com/dckiller51/astrion-custom-dashboard), a configurable take for anyone's home (browser builder, Activities, Harmony, direct Apple TV and Android TV, an IR database), and kindly credits this repo. Turning Wi-Fi power save off is an idea from their `astrion-tweaks.sh`; here it follows the dock. If you want something you can set up without building it yourself, start there.
+- **Sanytron** for the HA100 hardware and its open, root-able firmware.
+- The Home Assistant community thread [HA-Remote Control](https://community.home-assistant.io/t/ha-remote-control/922706), where the early owners worked out how the remote ticks.
+
+## Licence
+
+MIT. See [`LICENSE`](LICENSE). Manrope and Syne are used under the SIL Open Font License (see [`licenses/`](licenses/)). Plex deep links target classic Plex for Android TV (10.x).
