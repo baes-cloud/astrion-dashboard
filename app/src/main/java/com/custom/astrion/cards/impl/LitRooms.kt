@@ -66,6 +66,11 @@ import kotlin.math.pow
  * gets six smaller pools. "glow_strength" brightens (or dims) one light's
  * pools against the rest, for a low strip that should still read as lit.
  * "glow_color" (hex) colours a light HA reports no colour for.
+ *
+ * "recolor" on lit_rooms draws one light colour as another, for a scene
+ * colour that looks wrong on the plan without changing the light itself.
+ * A light within about 40/255 of "from" shows as "to", icon and glow alike.
+ *   "recolor": [{ "from": "#03FF9A", "to": "#32FFEA" }]
  *   { "entity_id": "light.downlights", "left": 65, "top": 28,
  *     "glow_spots": [[24,17],[59,12],[84,18]], "glow_reach": 0.6 }
  *
@@ -157,6 +162,7 @@ internal fun LitRoomsLayer(
     val dayGlow = ((opts["day_glow"] as? Number)?.toFloat() ?: 0.3f).coerceIn(0f, 1f)
     val maxShade = ((opts["shade_alpha"] as? Number)?.toFloat() ?: 0.8f).coerceIn(0f, 1f)
     val roomGlow = ((opts["room_glow"] as? Number)?.toFloat() ?: 0.15f).coerceIn(0f, 1f)
+    val recolor = remember(opts) { parseRecolor(opts) }
     val night = { if (screensaverIsNight(ctx.entities, System.currentTimeMillis())) 1f else 0f }
     val shadeMode = opts["shade"] as? String ?: "sun"
     // Reads only sun.sun, whose elevation HA refreshes every few minutes.
@@ -200,7 +206,7 @@ internal fun LitRoomsLayer(
                     label = "glow",
                 )
                 // "glow_color" for a light HA reports no colour for, like plain on/off candles.
-                val color = parseHexColor(el["glow_color"] as? String) ?: e?.let { lightColor(it) } ?: WARM_WHITE
+                val color = parseHexColor(el["glow_color"] as? String) ?: e?.let { lightColor(it, recolor) } ?: WARM_WHITE
                 val customShape = (el["glow_shape"] as? List<*>).orEmpty().mapNotNull { p ->
                     val xy = (p as? List<*>)?.filterIsInstance<Number>() ?: return@mapNotNull null
                     if (xy.size == 2) xy[0].toFloat() / 100f to xy[1].toFloat() / 100f else null
@@ -490,8 +496,16 @@ private val RAIL_BLOOM = 7.dp
 private fun brightnessOf(e: EntityState): Float =
     e.attrInt("brightness")?.let { (it / 255f).coerceIn(0f, 1f) } ?: 1f
 
-/** The light's real colour: rgb_color, else its colour temperature, else warm white. */
-internal fun lightColor(e: EntityState): Color? {
+/**
+ * The light's colour as the plan draws it: rgb_color, else its colour
+ * temperature, else null; then swapped by any matching "recolor" pair.
+ */
+internal fun lightColor(e: EntityState, recolor: List<Pair<Color, Color>> = emptyList()): Color? {
+    val c = rawLightColor(e) ?: return null
+    return recolor.firstOrNull { (from, _) -> near(c, from) }?.second ?: c
+}
+
+private fun rawLightColor(e: EntityState): Color? {
     (e.attr("rgb_color") as? JsonArray)?.takeIf { it.size >= 3 }?.let { rgb ->
         fun ch(i: Int) = (rgb[i] as? JsonPrimitive)?.content?.toDoubleOrNull()?.toInt()?.coerceIn(0, 255)
         val r = ch(0); val g = ch(1); val b = ch(2)
@@ -499,6 +513,22 @@ internal fun lightColor(e: EntityState): Color? {
     }
     e.attrInt("color_temp_kelvin")?.let { return kelvinToColor(it) }
     return null
+}
+
+/** lit_rooms "recolor": [{ "from": hex, "to": hex }] as colour pairs. */
+internal fun parseRecolor(opts: Map<String, Any?>?): List<Pair<Color, Color>> =
+    (opts?.get("recolor") as? List<*>).orEmpty().mapNotNull { r ->
+        val m = r as? Map<*, *> ?: return@mapNotNull null
+        val from = parseHexColor(m["from"] as? String) ?: return@mapNotNull null
+        val to = parseHexColor(m["to"] as? String) ?: return@mapNotNull null
+        from to to
+    }
+
+private const val RECOLOR_NEAR = 40f / 255f
+
+private fun near(a: Color, b: Color): Boolean {
+    val dr = a.red - b.red; val dg = a.green - b.green; val db = a.blue - b.blue
+    return dr * dr + dg * dg + db * db <= RECOLOR_NEAR * RECOLOR_NEAR
 }
 
 /** Tanner Helland's blackbody approximation, good enough for a glow. */

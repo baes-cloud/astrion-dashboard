@@ -192,6 +192,7 @@ class PictureElementsCard : CardRenderer {
             // rather than be squeezed back into it.
             Box(Modifier.offset(y = imageShift).requiredSize(w, h)) {
             val litRooms = config.options["lit_rooms"] as? Map<String, Any?>
+            val recolor = remember(litRooms) { parseRecolor(litRooms) }
             // The plan and everything painted on it, cached as one layer: it
             // only re-renders when a light, TV or blind changes, so the mirror
             // ball turning on top costs a texture and its specks per frame
@@ -269,7 +270,7 @@ class PictureElementsCard : CardRenderer {
 
                 // With lit rooms the bulb takes the light's own colour, so the
                 // icon matches the glow around it.
-                val glowColor = if (on && litRooms != null) entity?.let { lightColor(it) } else null
+                val glowColor = if (on && litRooms != null) entity?.let { lightColor(it, recolor) } else null
                 val bg = when {
                     elUnavailable -> AstrionTheme.colors.danger.copy(alpha = 0.27f)
                     glowColor != null -> glowColor.copy(alpha = 0.42f)
