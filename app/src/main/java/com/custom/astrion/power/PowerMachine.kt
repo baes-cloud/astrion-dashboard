@@ -20,9 +20,17 @@ object PowerMachine {
     /** How often the screensaver re-checks day/night for its backlight. */
     const val NIGHT_RECHECK_MS = 30_000L
 
-    fun reduce(prev: PowerState, input: PowerInput, cfg: PowerSettings): Step {
+    fun reduce(last: PowerState, input: PowerInput, cfg: PowerSettings): Step {
         val now = input.nowMs
         val effects = mutableListOf<PowerEffect>()
+        // PowerViewModel's timer runs on uptime, which stops while the CPU
+        // sleeps (off the dock with the screen dark), so the home deadline can
+        // pass with no tick. Catch it on the next input, before the touch or
+        // screen-on that woke the remote restarts the timer and leaves it on
+        // whatever page it was last on.
+        val homeOverdue = last.homeDueMs?.let { now >= it } == true
+        if (homeOverdue) effects += PowerEffect.ReturnHome
+        val prev = if (homeOverdue) last.copy(homeDueMs = null) else last
         var s = when (input) {
             is PowerInput.Battery -> prev.copy(
                 pct = input.pct,

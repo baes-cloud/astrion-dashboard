@@ -62,9 +62,14 @@ import kotlinx.coroutines.launch
  *       "rows": [
  *         { "title": "Favourite Songs",
  *           "content_id": "object.item.audioItem.musicTrack",
- *           "content_type": "favorites_folder" }
+ *           "content_type": "favorites_folder",
+ *           "limit": 0 }
  *       ]
  *   } }
+ *
+ * `limit` caps each row (default 10, at most 30); a row's own `limit`
+ * overrides it, and 0 on a browse row shows the whole folder, so every
+ * Sonos favourite is there to swipe through.
  *
  * A row can instead come from Music Assistant's library (e.g. a random pick
  * of albums, like MA's own "Random albums" shelf). A fresh set is fetched each
@@ -253,10 +258,13 @@ class MediaShelvesCard : CardRenderer {
         }
         val cid = spec["content_id"] as? String ?: return null
         val ctype = spec["content_type"] as? String ?: return null
+        // 0 = the whole folder. HA sends it all anyway; LazyRow only builds
+        // the tiles on screen, so 30-odd favourites cost no more to show.
+        val rowLimit = (spec["limit"] as? Number)?.toInt()?.let { if (it <= 0) Int.MAX_VALUE else it } ?: limit
         val result = ctx.client.browseMedia(entityId, cid, ctype) ?: return null
         val items = (result["children"] as? JsonArray)
             ?.mapNotNull { parseItem(it as? JsonObject) }
-            ?.take(limit)
+            ?.take(rowLimit)
             .orEmpty()
         return if (items.isEmpty()) null else Shelf(title, items)
     }
@@ -270,7 +278,8 @@ class MediaShelvesCard : CardRenderer {
         val entry = spec["config_entry_id"] as? String ?: return emptyList()
         val player = spec["player"] as? String ?: return emptyList()
         val mediaType = spec["media_type"] as? String ?: "album"
-        val limit = (spec["limit"] as? Number)?.toInt() ?: defaultLimit
+        // No "all" here: a library runs to thousands, so 0 falls back to the card's.
+        val limit = (spec["limit"] as? Number)?.toInt()?.takeIf { it > 0 } ?: defaultLimit
         // "exclude_spotify": keep Spotify's saved albums out of a row meant for
         // the local collection. MA's answer through HA carries no provider, but
         // Spotify items' artwork is always on Spotify's image CDN. Ask for more

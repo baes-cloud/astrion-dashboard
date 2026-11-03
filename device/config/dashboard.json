@@ -799,12 +799,14 @@
           {
            "title": "Favourite Songs",
            "content_id": "object.item.audioItem.musicTrack",
-           "content_type": "favorites_folder"
+           "content_type": "favorites_folder",
+           "limit": 0
           },
           {
            "title": "Favourite Playlists",
            "content_id": "object.container.playlistContainer",
-           "content_type": "favorites_folder"
+           "content_type": "favorites_folder",
+           "limit": 0
           }
          ]
         }
