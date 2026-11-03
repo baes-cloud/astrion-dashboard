@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRegistry
@@ -154,10 +155,11 @@ fun Dashboard(
             .fillMaxSize()
             .background(AstrionTheme.pageBg),
     ) {
-        // Every page stays composed and only the current one is placed (and so
-        // drawn). This used to be a HorizontalPager holding just the visible
-        // page, so each page key tore one page down and built the next from
-        // scratch — Plex rows, shelves, the floorplan — 0.2–0.5s on this SoC.
+        // Every page stays composed and placed; only the current one is drawn
+        // (the rest sit at alpha 0, see below). This used to be a HorizontalPager
+        // holding just the visible page, so each page key tore one page down
+        // and built the next from scratch — Plex rows, shelves, the floorplan —
+        // 0.2–0.5s on this SoC.
         // Swiping was already off, so the pager added nothing. Memory is not
         // the constraint (≈70 MB of ≈590 MB free).
         // One name slot per page, for a card that names itself (see
@@ -197,16 +199,26 @@ fun Dashboard(
                         LocalPageNameOverride provides nameOverrides[i],
                         LocalNavEpoch provides navEpoch,
                     ) {
+                        // Hidden pages stay placed but invisible (alpha 0 draws
+                        // nothing), so their cached layers survive: unplacing
+                        // them dropped the floorplan's lit-rooms layer, and every
+                        // visit to Main redrew it from scratch (a 150 ms frame).
+                        // The current page sits on top and always registers a
+                        // hit, so taps never reach a page you can't see.
+                        val shown = i == current
                         Box(
                             Modifier
                                 .fillMaxSize()
-                                .unplacedWhen(i != current)
+                                .zIndex(if (shown) 1f else 0f)
                                 .graphicsLayer {
-                                    if (i == current) {
+                                    if (shown) {
                                         alpha = enter.value
                                         translationX = (1f - enter.value) * slidePx * enterFrom
+                                    } else {
+                                        alpha = 0f
                                     }
-                                },
+                                }
+                                .then(if (shown) Modifier.pointerInput(Unit) {} else Modifier),
                         ) {
                             PageContent(page, ctx, sharedHeader)
                         }
