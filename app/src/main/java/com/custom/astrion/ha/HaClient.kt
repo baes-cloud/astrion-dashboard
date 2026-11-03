@@ -71,6 +71,25 @@ class HaClient(
         private const val CONNECT_WAIT_MS = 15_000L
         private const val RECONNECT_MIN_MS = 3_000L
         private const val RECONNECT_MAX_MS = 60_000L
+        private const val WATCHDOG_TICK_MS = 10_000L
+        /** Longer than this opening or authenticating means the attempt is dead. */
+        internal const val STUCK_HANDSHAKE_MS = 45_000L
+        /** Authenticated but no seed for this long: HA is wedged or the reply was lost. */
+        internal const val STUCK_SEED_MS = 90_000L
+        /** In ERROR past the longest backoff: the retry itself went missing. */
+        internal const val STUCK_ERROR_MS = RECONNECT_MAX_MS + 30_000L
+
+        /**
+         * Whether a connection that has sat in [state] for [forMs] needs a
+         * fresh connect. DISCONNECTED is on purpose and AUTH_FAILED is a token
+         * problem a retry won't fix (onNetworkAvailable still retries it).
+         */
+        internal fun isStuck(state: ConnectionState, awaitingSeed: Boolean, forMs: Long): Boolean = when (state) {
+            ConnectionState.CONNECTING, ConnectionState.AUTHENTICATING -> forMs >= STUCK_HANDSHAKE_MS
+            ConnectionState.CONNECTED -> awaitingSeed && forMs >= STUCK_SEED_MS
+            ConnectionState.ERROR -> forMs >= STUCK_ERROR_MS
+            ConnectionState.DISCONNECTED, ConnectionState.AUTH_FAILED -> false
+        }
         /** A call made while offline is sent on reconnect if it is younger than this. */
         private const val QUEUE_MAX_AGE_MS = 30_000L
         private const val QUEUE_MAX = 20
@@ -242,22 +261,31 @@ class HaClient(
     val entities: StateFlow<Map<String, EntityState>> = _entitiesFlow.asStateFlow()
 
     init {
-        scope.launch {
-            cache?.loadInitialSnapshot()?.let { cached ->
-                if (cached.isNotEmpty()) {
-                    entityStore.putAll(cached)
-                    version.incrementAndGet()
-                    changedIds.addAll(cached.keys.filter { entityStates.containsKey(it) })
-                    publish(forceFlowUpdate = true)
-                }
-            }
-        }
+        scope.launch { cache?.loadInitialSnapshot()?.let(::applyCachedSnapshot) }
+        scope.launch { watchConnection() }
+    }
+
+    /**
+     * The disk cache only fills the gap until HA's seed arrives. On the slow
+     * remotes the seed can land first; the cache must never overwrite it, or
+     * the stale copy sticks (and gets saved again as if it were the seed).
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun applyCachedSnapshot(cached: Map<String, EntityState>) {
+        if (cached.isEmpty() || everSeeded) return
+        val applied = cached.filter { (id, state) -> entityStore.putIfAbsent(id, state) == null }.keys
+        if (applied.isEmpty()) return
+        version.incrementAndGet()
+        changedIds.addAll(applied.filter { entityStates.containsKey(it) })
+        publish(forceFlowUpdate = true)
     }
 
     /** Request id of the live subscribe_entities, whose events are diffs. */
     @Volatile private var entitiesSubId = -1
     /** True until the current subscription's first (full-snapshot) event. */
     @Volatile private var awaitingSeed = false
+    /** Any seed has been applied since start: the disk cache is out of date. */
+    @Volatile private var everSeeded = false
 
     /**
      * Entities the live subscription is limited to; null = every entity.
@@ -274,19 +302,22 @@ class HaClient(
     // ---- public API ---------------------------------------------------------
 
     fun connect() {
-        epoch++
+        val conn = ++epoch
         reconnectJob?.cancel()
-        // Retire any previous socket first; the listener ignores callbacks
-        // from sockets other than the current one, so this can't loop.
+        // Retire any previous socket first; its listener belongs to an older
+        // epoch and ignores what it hears, so this can't loop.
         socket?.cancel()
         _connection.value = ConnectionState.CONNECTING
         val wsUrl = toWebSocketUrl(baseUrl)
         Log.i(TAG, "Connecting to $wsUrl")
         val req = Request.Builder().url(wsUrl).build()
-        socket = http.newWebSocket(req, listener)
+        // With no network, onFailure can fire before newWebSocket returns, so
+        // callbacks are matched by epoch, not by comparing with `socket`.
+        socket = http.newWebSocket(req, listener(conn))
     }
 
     fun disconnect() {
+        epoch++
         reconnectJob?.cancel()
         _connection.value = ConnectionState.DISCONNECTED
         socket?.close(1000, "client closing")
@@ -697,19 +728,20 @@ class HaClient(
                 connection.first { it == ConnectionState.CONNECTED }
             } != null
 
-    private val listener = object : WebSocketListener() {
+    /** Callbacks for connection [conn]; anything from an older one is ignored. */
+    private fun listener(conn: Int) = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
-            if (webSocket !== socket) return
+            if (conn != epoch) return
             Log.i(TAG, "Socket open, waiting for auth_required")
             _connection.value = ConnectionState.AUTHENTICATING
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
-            if (webSocket !== socket) return
+            if (conn != epoch) return
             try {
                 val obj = json.parseToJsonElement(text).jsonObject
                 when (obj["type"]?.jsonPrimitive?.content) {
-                    "auth_required" -> sendAuth()
+                    "auth_required" -> sendAuth(webSocket)
                     "auth_ok" -> onAuthOk()
                     "auth_invalid" -> {
                         Log.w(TAG, "auth_invalid: ${obj["message"]}")
@@ -730,14 +762,14 @@ class HaClient(
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-            if (webSocket !== socket) return
+            if (conn != epoch) return
             Log.e(TAG, "Socket failure", t)
             _connection.value = ConnectionState.ERROR
             scheduleReconnect()
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-            if (webSocket !== socket) return
+            if (conn != epoch) return
             Log.w(TAG, "Socket closed $code $reason")
             if (_connection.value != ConnectionState.DISCONNECTED) {
                 // HA closed us (e.g. a restart): scheduleReconnect only acts on ERROR.
@@ -747,13 +779,13 @@ class HaClient(
         }
     }
 
-    private fun sendAuth() {
+    private fun sendAuth(webSocket: WebSocket) {
         val msg = buildJsonObject {
             put("type", "auth")
             put("access_token", token)
         }
         // NOTE: auth message must NOT include an id (HA rejects it otherwise).
-        socket?.send(msg.toString())
+        webSocket.send(msg.toString())
     }
 
     private fun onAuthOk() {
@@ -888,6 +920,7 @@ class HaClient(
         val seeded = awaitingSeed && added != null
         if (seeded) {
             awaitingSeed = false
+            everSeeded = true
             storeMutated = true
             // An unfiltered seed is the complete set: drop anything deleted
             // from HA while we were disconnected. A filtered one only covers
@@ -1004,6 +1037,34 @@ class HaClient(
         reconnectJob = scope.launch {
             kotlinx.coroutines.delay(wait)
             if (_connection.value == ConnectionState.ERROR) connect()
+        }
+    }
+
+    /**
+     * Last line of defence after an HA outage: whatever path left the socket
+     * half-open or the retry lost, reconnect rather than show "Connecting…"
+     * or a frozen snapshot until someone reboots the remote. The clock
+     * restarts on every state change, new connection or new subscription.
+     */
+    private suspend fun watchConnection() {
+        var key: List<Any>? = null
+        var since = 0L
+        while (true) {
+            kotlinx.coroutines.delay(WATCHDOG_TICK_MS)
+            val now = System.nanoTime() / 1_000_000
+            val state = _connection.value
+            val seedWait = awaitingSeed && state == ConnectionState.CONNECTED
+            val current = listOf(state, epoch, entitiesSubId, seedWait)
+            if (current != key) {
+                key = current
+                since = now
+                continue
+            }
+            if (isStuck(state, seedWait, now - since)) {
+                Log.w(TAG, "Watchdog: $state for ${(now - since) / 1000} s (awaiting seed: $seedWait), reconnecting")
+                key = null
+                connect()
+            }
         }
     }
 
