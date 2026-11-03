@@ -123,7 +123,7 @@ Astrion is built for the resource-constrained MediaTek MT6580 SoC (4× ARM Corte
 * **Fast TV App Launches:** Colored hardware keys (`CUSTOM_1` – `CUSTOM_3`) trigger native non-blocking `media_player.select_source` intents, launching Netflix, Plex, and ABC iview in under 150ms without blocking Home Assistant's ADB connection.
 * **Selective WebSocket State Publishing:** `HaClient` updates its internal store in-place for all entities while filtering Compose snapshot writes and `StateFlow` emissions to observed UI, screensaver, and alarm/alert entities—eliminating main-thread recomposition and GC churn from chatty background sensors.
 * **Dock & Off-Dock Power Management:** Asymmetric dock/undock debounce (`dock_debounce_seconds: 2`, `undock_debounce_seconds: 15`) absorbs pogo-pin contact drops on the dock while allowing the display, `rmm/stream` radar subscription, and entity filter to sleep cleanly when undocked.
-* **Boot Persistence & Launcher Recovery:** Configured with `RECEIVE_BOOT_COMPLETED`, automatic `BootReceiver` relaunch, and `.HomeAlias` default launcher locking so the remote always boots straight into Astrion even after low-battery shutdowns.
+* **Boots into Sanytron's app, hold Back for Astrion:** Sanytron's HaRemote stays the launcher, since the HA100 can boot-loop without it, and a Key Mapper hold on Back opens Astrion. `.HomeAlias` (Astrion as the launcher) and `BootReceiver` (open on boot) ship disabled; enable them per remote if you want Astrion to own the screen (see `docs/POWER.md`).
 * **RTC Drift Prevention:** Root `astrion_timesync` init daemon synchronizes the system clock and hardware RTC from the local Home Assistant HTTP `Date:` header on boot and every 15 minutes (or on demand as root: `setprop debug.astrion.timesync 1`) without requiring external internet NTP access.
 
 ---
@@ -154,10 +154,8 @@ Astrion is built for the resource-constrained MediaTek MT6580 SoC (4× ARM Corte
    adb shell cmd package compile -m speed -f com.custom.astrion
    ```
 
-4. **Set as Default Launcher and Lock Permissions:**
+4. **Lock Permissions** (to make Astrion the launcher as well, see `docs/POWER.md`; the default leaves Sanytron's HaRemote as home and opens Astrion with a Key Mapper hold on Back):
    ```bash
-   adb shell pm enable com.custom.astrion/.HomeAlias
-   adb shell cmd package set-home-activity com.custom.astrion/.HomeAlias
    adb shell appops set com.custom.astrion WRITE_SETTINGS allow
    adb shell settings put global ntp_polling_interval 1800000
    ```

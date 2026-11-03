@@ -182,9 +182,11 @@ Keep a **USB cable** handy for the first reboot.
    adb shell cmd package resolve-activity --brief \
      -a android.intent.action.MAIN -c android.intent.category.HOME
    ```
-3. Enable the HOME entry and select it:
+3. Enable the HOME entry and select it (both ship disabled, so a fresh
+   install leaves HaRemote as home):
    ```sh
    adb shell pm enable com.custom.astrion/.HomeAlias
+   adb shell pm enable com.custom.astrion/.BootReceiver
    adb shell cmd package set-home-activity com.custom.astrion/.HomeAlias
    ```
 4. Test it without rebooting: this should bring up the dashboard:
@@ -198,7 +200,9 @@ Keep a **USB cable** handy for the first reboot.
    If it hangs, `boot.txt` (search for `FATAL`, `ANR` and `ActivityManager`)
    says why.
 6. **Undo** at any point: `adb shell pm disable com.custom.astrion/.HomeAlias`
-   (HaRemote becomes the launcher again).
+   and `adb shell pm disable com.custom.astrion/.BootReceiver` (HaRemote
+   becomes the launcher again). Never disable HaRemote itself: with no
+   launcher left the HA100 boot-loops.
 
 Once it boots cleanly and you're happy:
 

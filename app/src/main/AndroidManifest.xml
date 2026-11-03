@@ -73,10 +73,13 @@
             </intent-filter>
         </activity>
 
-        <!-- The home-app entry, enabled so Astrion can act as the dedicated launcher. -->
+        <!-- The home-app entry, off by default: Sanytron's HaRemote stays the
+             launcher (the HA100 boot-loops without it) and holding Back opens
+             Astrion through Key Mapper. Opt in per remote with
+             `pm enable com.custom.astrion/.HomeAlias` (docs/POWER.md). -->
         <activity-alias
             android:name=".HomeAlias"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true"
             android:targetActivity=".MainActivity">
             <intent-filter>
@@ -86,9 +89,11 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- Off by default for the same reason: at boot HaRemote comes up, not
+             Astrion. Enable with `pm enable com.custom.astrion/.BootReceiver`. -->
         <receiver
             android:name=".BootReceiver"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
