@@ -124,4 +124,102 @@ data class AstrionColors(
     /** Date, artist, meta, progress (≈4.8:1). */
     val nightInk2: Color = Color(0xFF9C7570),
     val nightTrack: Color = Color(0xFF1A1D21),
-)
+
+    /** True for a light palette (Sea glass Day): Material gets its light scheme. */
+    val isLight: Boolean = false,
+) {
+    companion object {
+        /**
+         * Sea glass, Night: the Porter's accents on a near-neutral graphite
+         * (#1E2326), so the evening UI isn't navy. Lights that are on are a
+         * soft yellow, not amber.
+         */
+        val SeaGlassNight = AstrionColors(
+            surfaceSunken = Color(0xFF111416),
+            surfacePrimary = Color(0xFF16191B),
+            pinnedTopBg = Color(0xFF181C1F),
+            pinnedBottomBg = Color(0xFF1A1E21),
+            background = Color(0xFF1E2326),
+            surfaceCard = Color(0xFF1B2023),
+            surface = Color(0xFF293034),
+            surfaceVariant = Color(0xFF2D3438),
+            controlSunken = Color(0xFF30373B),
+            raised = Color(0xFF384045),
+            controlBg = Color(0xFF3E474C),
+            controlRaised = Color(0xFF465055),
+            onSurface = Color(0xFFEDF2EF),
+            textSoft = Color(0xFFC6D0CD),
+            textOnControl = Color(0xFFDCE4E1),
+            onSurfaceVariant = Color(0xFFB0BDBA),
+            onSurfaceMuted = Color(0xFFA7B4B1),
+            textMuted = Color(0xFF768683),
+            accentContainer = Color(0xFF263A38),
+            onBlush = Color(0xFF4A2430),
+            blushContainer = Color(0xFF3B2E31),
+            lightOn = Color(0xFFF5D76E),
+            onLightOn = Color(0xFF3A3208),
+            lightOnBright = Color(0xFFFFDE85),
+            danger = Color(0xFFFF9AA5),
+            dangerSoft = Color(0xFFF07F8C),
+            dangerBg = Color(0xFF3A2529),
+            onDanger = Color(0xFF2A0E14),
+            unavailable = Color(0xFF7E8C92),
+            divider = Color(0x333E474C),
+            scrim = Color(0xCC0C0E10),
+            scrimDark = Color(0xF00B0D0F),
+            alarmTop = Color(0xFF2E3639),
+            alarmMid = Color(0xFF22282B),
+            alarmBottom = Color(0xFF171B1D),
+        )
+
+        /**
+         * Sea glass, Day: misty sea-glass white (#EEF3F0), white cards, slate
+         * ink (#23323A), Gunmetal for filled and selected things. Artwork,
+         * the floorplan photo and the docked screensaver stay as they are.
+         */
+        val SeaGlassDay = AstrionColors(
+            surfaceSunken = Color(0xFFD9E3DE),
+            surfacePrimary = Color(0xFFE2EAE6),
+            pinnedTopBg = Color(0xFFEEF3F0),
+            pinnedBottomBg = Color(0xFFEEF3F0),
+            background = Color(0xFFEEF3F0),
+            surfaceCard = Color(0xFFDCE5E1),
+            surface = Color(0xFFFFFFFF),
+            surfaceVariant = Color(0xFFF6F9F7),
+            controlSunken = Color(0xFFD3DED9),
+            raised = Color(0xFFE8EFEB),
+            controlBg = Color(0xFFE2EAE6),
+            controlRaised = Color(0xFFD3DED9),
+            onSurface = Color(0xFF23323A),
+            textSoft = Color(0xFF3C4B52),
+            textOnControl = Color(0xFF2C3B42),
+            onSurfaceVariant = Color(0xFF4E5E62),
+            onSurfaceMuted = Color(0xFF56666A),
+            textMuted = Color(0xFF6E7D80),
+            accent = Color(0xFF3F6F6A),
+            accentBright = Color(0xFF6E9E97),
+            accentMuted = Color(0xFF7FA39D),
+            accentContainer = Color(0xFFDCEBE7),
+            onBlush = Color(0xFF4A2430),
+            blushContainer = Color(0xFFF6E3E0),
+            lightOn = Color(0xFFF5D76E),
+            onLightOn = Color(0xFF3A3208),
+            lightOnBright = Color(0xFFFFDE85),
+            danger = Color(0xFFB03A48),
+            dangerSoft = Color(0xFFC4505E),
+            dangerBg = Color(0xFFF6DCDF),
+            onDanger = Color(0xFFFFFFFF),
+            unavailable = Color(0xFF8A9AA0),
+            hairline = Color(0x1A23323A),
+            hairlineStrong = Color(0x3323323A),
+            glass = Color(0x0D23323A),
+            divider = Color(0x3323323A),
+            scrim = Color(0xD9EEF3F0),
+            scrimDark = Color(0xF0EEF3F0),
+            alarmTop = Color(0xFFE2EAE6),
+            alarmMid = Color(0xFFEEF3F0),
+            alarmBottom = Color(0xFFF6F9F7),
+            isLight = true,
+        )
+    }
+}

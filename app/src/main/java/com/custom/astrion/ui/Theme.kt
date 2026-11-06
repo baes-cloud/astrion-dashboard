@@ -149,8 +149,33 @@ fun weatherLabel(condition: String): String = when (condition) {
  * HA100 is two 1ms pulses, too faint to feel through the case.
  */
 @Composable
-fun AstrionMaterialTheme(content: @Composable () -> Unit) {
-    AstrionDesignSystemTheme(content = content)
+fun AstrionMaterialTheme(night: Boolean = true, content: @Composable () -> Unit) {
+    AstrionDesignSystemTheme(
+        colors = if (night) AstrionColors.SeaGlassNight else AstrionColors.SeaGlassDay,
+        content = content,
+    )
+}
+
+/**
+ * Sea glass Day or Night. HA's `binary_sensor.baeo_night` decides when it
+ * exists (sunset until 07:00, 09:00 on Saturday and Sunday mornings, the same
+ * switch the TV and Hub pages follow). Without it: the sun, plus that wake-up
+ * and bedtime window from the clock.
+ */
+fun baeoThemeIsNight(baeoNight: String?, sun: String?, nowMs: Long): Boolean {
+    if (baeoNight == "on") return true
+    if (baeoNight == "off") return false
+    val t = java.time.Instant.ofEpochMilli(nowMs).atZone(java.time.ZoneId.systemDefault())
+    val h = t.hour + t.minute / 60.0
+    val dow = t.dayOfWeek
+    val wake = if (dow == java.time.DayOfWeek.SATURDAY || dow == java.time.DayOfWeek.SUNDAY) 9 else 7
+    val bed = if (dow == java.time.DayOfWeek.FRIDAY || dow == java.time.DayOfWeek.SATURDAY) 23 else 21
+    if (h < wake || h >= bed) return true
+    return when (sun) {
+        "below_horizon" -> true
+        "above_horizon" -> false
+        else -> h >= 20
+    }
 }
 
 /**

@@ -169,7 +169,7 @@ class ButtonGridCard : CardRenderer {
         val hasIcon = bitmap != null
         val tileColor = parseHexColor(b["color"] as? String)
         val inkColor = parseHexColor(b["text_color"] as? String)
-            ?: tileColor?.let { if (0.2126f * it.red + 0.7152f * it.green + 0.0722f * it.blue > 0.6f) AstrionTheme.colors.surfacePrimary else Color.White }
+            ?: tileColor?.let { if (0.2126f * it.red + 0.7152f * it.green + 0.0722f * it.blue > 0.6f) AstrionTheme.colors.textInverse else Color.White }
             ?: AstrionTheme.colors.onSurface
 
         val height = tileHeight ?: if (hasIcon) 68.dp else 48.dp

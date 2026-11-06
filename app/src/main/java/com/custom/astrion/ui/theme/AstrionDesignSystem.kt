@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
@@ -75,7 +76,7 @@ fun AstrionDesignSystemTheme(
         LocalAstrionStates provides states,
     ) {
         MaterialTheme(
-            colorScheme = darkColorScheme(
+            colorScheme = if (colors.isLight) lightSchemeOf(colors) else darkColorScheme(
                 primary = colors.accentStrong,
                 onPrimary = colors.onPrimary,
                 secondary = colors.accent,
@@ -114,3 +115,19 @@ fun AstrionDesignSystemTheme(
         }
     }
 }
+
+/** The light (Sea glass Day) Material scheme, wired to the same tokens as the dark one. */
+private fun lightSchemeOf(colors: AstrionColors) = lightColorScheme(
+    primary = colors.accentStrong,
+    onPrimary = colors.onPrimary,
+    secondary = colors.accent,
+    background = colors.background,
+    onBackground = colors.onSurface,
+    surface = colors.surface,
+    onSurface = colors.onSurface,
+    surfaceVariant = colors.controlBg,
+    onSurfaceVariant = colors.onSurfaceMuted,
+    surfaceContainer = colors.surfaceVariant,
+    outline = colors.controlBg,
+    error = colors.danger,
+)
