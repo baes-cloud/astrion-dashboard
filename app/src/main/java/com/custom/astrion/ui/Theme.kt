@@ -157,6 +157,16 @@ fun AstrionMaterialTheme(night: Boolean = true, content: @Composable () -> Unit)
 }
 
 /**
+ * Screens that are always dark (the docked screensaver and ambient faces, the
+ * guide, the ringing alarm) keep the Night colours whatever the time of day,
+ * or Day's slate ink lands on black.
+ */
+@Composable
+fun AlwaysNight(content: @Composable () -> Unit) {
+    AstrionDesignSystemTheme(colors = AstrionColors.SeaGlassNight, content = content)
+}
+
+/**
  * Sea glass Day or Night. HA's `binary_sensor.baeo_night` decides when it
  * exists (sunset until 07:00, 09:00 on Saturday and Sunday mornings, the same
  * switch the TV and Hub pages follow). Without it: the sun, plus that wake-up
