@@ -125,8 +125,6 @@ data class AstrionColors(
     val nightInk2: Color = Color(0xFF9C7570),
     val nightTrack: Color = Color(0xFF1A1D21),
 
-    /** True for a light palette (Sea glass Day): Material gets its light scheme. */
-    val isLight: Boolean = false,
 ) {
     companion object {
         /**
@@ -172,56 +170,5 @@ data class AstrionColors(
             alarmBottom = Color(0xFF171B1D),
         )
 
-        /**
-         * Sea glass, Day: a sea-glass ground (#D5E3DD), white cards, near-black
-         * slate ink (#121E24), Gunmetal for filled and selected things. Artwork,
-         * the floorplan photo and the docked screensaver stay as they are.
-         */
-        val SeaGlassDay = AstrionColors(
-            surfaceSunken = Color(0xFFA6C0B6),
-            surfacePrimary = Color(0xFFA9C4B9),
-            pinnedTopBg = Color(0xFFB3CCC2),
-            pinnedBottomBg = Color(0xFFB3CCC2),
-            background = Color(0xFFB3CCC2),
-            surfaceCard = Color(0xFFC9D9D2),
-            surface = Color(0xFFFFFFFF),
-            surfaceVariant = Color(0xFFF3F7F5),
-            controlSunken = Color(0xFFC3D4CD),
-            raised = Color(0xFFE3ECE8),
-            controlBg = Color(0xFFD9E5E0),
-            controlRaised = Color(0xFFC9DAD3),
-            onSurface = Color(0xFF121E24),
-            textSoft = Color(0xFF24343B),
-            textOnControl = Color(0xFF1B2A31),
-            onSurfaceVariant = Color(0xFF2C3D43),
-            onSurfaceMuted = Color(0xFF33444A),
-            textMuted = Color(0xFF46565B),
-            accent = Color(0xFF1F4F48),
-            accentBright = Color(0xFF4F857D),
-            accentStrong = Color(0xFF335A54),
-            accentMuted = Color(0xFF6E968F),
-            accentContainer = Color(0xFFCDE3DD),
-            blush = Color(0xFFE3ACA4),
-            onBlush = Color(0xFF3E1C26),
-            blushContainer = Color(0xFFF4DDD9),
-            lightOn = Color(0xFFF2C744),
-            onLightOn = Color(0xFF2E2700),
-            lightOnBright = Color(0xFFFFDE85),
-            danger = Color(0xFF8E1F31),
-            dangerSoft = Color(0xFFB8404F),
-            dangerBg = Color(0xFFF3D2D6),
-            onDanger = Color(0xFFFFFFFF),
-            unavailable = Color(0xFF7A8B91),
-            hairline = Color(0x2612202A),
-            hairlineStrong = Color(0x4012202A),
-            glass = Color(0x0F12202A),
-            divider = Color(0x4012202A),
-            scrim = Color(0xEBB3CCC2),
-            scrimDark = Color(0xF0B3CCC2),
-            alarmTop = Color(0xFFCBDCD5),
-            alarmMid = Color(0xFFD5E3DD),
-            alarmBottom = Color(0xFFE3ECE8),
-            isLight = true,
-        )
     }
 }

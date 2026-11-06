@@ -54,7 +54,7 @@ fun DashboardScreen(
                 }
             }
 
-            if (powerState.isScreensaverOn) AlwaysNight {
+            if (powerState.isScreensaverOn) {
                 val features = dashboardState.config.features
                 val connected = dashboardState.connectionState == ConnectionState.CONNECTED
                 val charging = powerState.isCharging || powerState.isDocked
@@ -97,14 +97,12 @@ fun DashboardScreen(
                 val catalog = remember(config) {
                     GuideCatalog.from(config) { id -> dashboardVm.client.live[id]?.friendlyName }
                 }
-                AlwaysNight {
-                    GuideOverlay(
-                        catalog = catalog,
-                        pageNames = config.pages.map { it.name },
-                        press = inputState.guidePress,
-                        onClose = { inputVm.onIntent(InputIntent.CloseGuide) },
-                    )
-                }
+                GuideOverlay(
+                    catalog = catalog,
+                    pageNames = config.pages.map { it.name },
+                    press = inputState.guidePress,
+                    onClose = { inputVm.onIntent(InputIntent.CloseGuide) },
+                )
             }
 
             val doorbell = dashboardState.doorbell
@@ -128,7 +126,7 @@ fun DashboardScreen(
             }
 
             val ringing = dashboardState.activeAlarm
-            if (ringing != null && !dashboardState.isAlarmHidden) AlwaysNight {
+            if (ringing != null && !dashboardState.isAlarmHidden) {
                 AlarmOverlay(
                     state = ringing,
                     onSnooze = { dashboardVm.onIntent(DashboardIntent.SnoozeAlarm) },

@@ -24,14 +24,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.custom.astrion.input.HardwareKey
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.LaunchedEffect
-import kotlinx.coroutines.delay
 import com.custom.astrion.ui.AstrionMaterialTheme
-import com.custom.astrion.ui.baeoThemeIsNight
 import com.custom.astrion.ui.DashboardScreen
 import com.custom.astrion.ui.SheetHost
 import com.custom.astrion.ui.ambient.ambientTransportCall
@@ -91,14 +84,7 @@ class MainActivity : ComponentActivity() {
         observeViewModelEffects()
 
         setContent {
-            val client = dashboardVm.client
-            val baeoNight by client.entityState("binary_sensor.baeo_night")
-            val sun by client.entityState("sun.sun")
-            var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-            LaunchedEffect(Unit) {
-                while (true) { delay(60_000); now = System.currentTimeMillis() }
-            }
-            AstrionMaterialTheme(night = baeoThemeIsNight(baeoNight?.state, sun?.state, now)) {
+            AstrionMaterialTheme {
                 DashboardScreen(
                     dashboardVm = dashboardVm,
                     powerVm = powerVm,
