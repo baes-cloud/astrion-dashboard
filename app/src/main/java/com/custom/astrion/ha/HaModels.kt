@@ -50,7 +50,13 @@ data class EntityState(
             ?: emptyList()
 
     val isOn: Boolean get() = state == "on"
-    val isUnavailable: Boolean get() = state == "unavailable" || state == "unknown"
+    /**
+     * "unknown" usually means no data, except for a cover that stopped part
+     * way: the Tuya sheer motor reports unknown (is_closed null) at 6% open
+     * while it's perfectly reachable. A position means it's there.
+     */
+    val isUnavailable: Boolean
+        get() = state == "unavailable" || (state == "unknown" && attributes["current_position"] == null)
 }
 
 /** Snapshot of the whole entity registry, keyed by entity_id. */
