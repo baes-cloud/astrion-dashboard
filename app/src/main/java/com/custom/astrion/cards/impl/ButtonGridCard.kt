@@ -3,7 +3,8 @@ package com.custom.astrion.cards.impl
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -15,11 +16,15 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -34,6 +39,8 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.BottomSheet
+import com.custom.astrion.ui.tap
 import com.custom.astrion.ui.parseHexColor
 import com.custom.astrion.ui.rememberSampledBitmap
 import com.custom.astrion.ui.tightTextStyle
@@ -67,10 +74,91 @@ import com.custom.astrion.ui.tightTextStyle
  * Optional per button: `color` ("#RRGGBB", tile background — e.g. a brand
  * colour for text-only app tiles) and `text_color` (defaults to white or dark
  * ink, whichever reads on `color`).
+ *
+ * `show_state: true` greys the icon out while `entity_id` is off, so a light
+ * button says whether the light is on. `hold: "members"` opens a popup on a
+ * long press with each light in the `entity_id` group, one tap each, plus a
+ * button for all of them (the balcony neon is two lights in one group).
  *   } }
  */
+private val GREYSCALE = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
+
 /** The darker band under each tile that the face sinks into when pressed. */
 private val LIP = 5.dp
+
+/**
+ * Long press on a group light button: each light in the group with a tap to
+ * switch it, and one button for the lot.
+ */
+@Composable
+private fun MembersSheet(ctx: CardContext, groupId: String, title: String?, onClose: () -> Unit) {
+    val group = ctx.entities[groupId]
+    val members = group?.attrStringList("entity_id").orEmpty()
+    val anyOn = members.any { ctx.entities[it]?.isOn == true }
+    BottomSheet(
+        title = title?.takeIf { it.isNotBlank() } ?: group?.friendlyName ?: groupId,
+        subtitle = if (anyOn) "On" else "Off",
+        onDismissRequest = onClose,
+    ) {
+        members.forEach { id ->
+            val e = ctx.entities[id]
+            val on = e?.isOn == true
+            val unavailable = e == null || e.isUnavailable
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (on) AstrionTheme.colors.accentContainer else AstrionTheme.cardBgAlt)
+                    .tap(enabled = !unavailable && ctx.connected) {
+                        ctx.client.callService(ServiceCall(id.substringBefore('.'), "toggle", id))
+                    }
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    e?.friendlyName ?: id,
+                    color = AstrionTheme.textPrimary,
+                    fontSize = AstrionTheme.size.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    when {
+                        unavailable -> "Unavailable"
+                        on -> "On"
+                        else -> "Off"
+                    },
+                    color = if (on) AstrionTheme.accent else AstrionTheme.textSecondary,
+                    fontSize = AstrionTheme.size.body,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+        if (members.size > 1) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(AstrionTheme.accentStrong)
+                    .tap(enabled = ctx.connected) {
+                        ctx.client.callService(ServiceCall(groupId.substringBefore('.'), if (anyOn) "turn_off" else "turn_on", groupId))
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "${if (members.size == 2) "Both" else "All"} ${if (anyOn) "off" else "on"}",
+                    color = Color.White,
+                    fontSize = AstrionTheme.size.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
 
 class ButtonGridCard : CardRenderer {
     override val type = "button_grid"
@@ -130,6 +218,9 @@ class ButtonGridCard : CardRenderer {
                     },
                 ) { index ->
                     val b = buttons[index]
+                    val entityId = b["entity_id"] as? String
+                    val off = b["show_state"] == true && entityId != null && ctx.entities[entityId]?.isOn != true
+                    var membersOpen by remember { mutableStateOf(false) }
                     GridButton(
                         b = b,
                         modifier = Modifier.fillMaxWidth(),
@@ -137,7 +228,14 @@ class ButtonGridCard : CardRenderer {
                         iconSize = iconSize,
                         labelLines = labelLines,
                         flat = flat,
+                        off = off,
+                        onLongClick = if (b["hold"] == "members" && entityId != null) {
+                            { membersOpen = true }
+                        } else null,
                     ) { fire(ctx, b) }
+                    if (membersOpen && entityId != null) {
+                        MembersSheet(ctx, entityId, b["name"] as? String) { membersOpen = false }
+                    }
                 }
             }
         }
@@ -150,6 +248,7 @@ class ButtonGridCard : CardRenderer {
         ctx.client.callService(ServiceCall.fromConfig(service, b["entity_id"] as? String, data))
     }
 
+    @OptIn(ExperimentalFoundationApi::class)
     @Composable
     private fun GridButton(
         b: Map<String, Any?>,
@@ -158,6 +257,8 @@ class ButtonGridCard : CardRenderer {
         iconSize: Dp?,
         labelLines: Int,
         flat: Boolean = false,
+        off: Boolean = false,
+        onLongClick: (() -> Unit)? = null,
         onClick: () -> Unit,
     ) {
         val name = b["name"] as? String
@@ -202,16 +303,33 @@ class ButtonGridCard : CardRenderer {
                     .graphicsLayer { translationY = sink.toPx() }
                     .clip(RoundedCornerShape(14.dp))
                     .background(face)
-                    .clickable(interactionSource = interaction, indication = null) {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onClick()
-                    }
+                    .combinedClickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onClick()
+                        },
+                        onLongClick = onLongClick?.let { hold ->
+                            {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                hold()
+                            }
+                        },
+                    )
                     .padding(6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
                 bitmap?.let { bmp ->
-                    Image(bitmap = bmp, contentDescription = name, modifier = Modifier.size(glyph))
+                    Image(
+                        bitmap = bmp,
+                        contentDescription = name,
+                        modifier = Modifier.size(glyph),
+                        // Off: greyed and faded, so a light button shows its state.
+                        alpha = if (off) 0.45f else 1f,
+                        colorFilter = if (off) GREYSCALE else null,
+                    )
                     if (!name.isNullOrBlank()) Spacer(Modifier.height(if (labelLines > 1) 2.dp else 3.dp))
                 }
                 if (!name.isNullOrBlank()) {

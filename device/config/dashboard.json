@@ -53,7 +53,7 @@
         "type": "switch",
         "options": {
          "entity_id": "input_boolean.light_automations",
-         "name": "Motion Lights",
+         "name": "Automations",
          "style": "row",
          "icon": "motion_sensor",
          "on_label": "On",
