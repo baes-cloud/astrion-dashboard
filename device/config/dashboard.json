@@ -568,7 +568,7 @@
          "mirror_ball": { "entity_id": "fan.mirror_ball", "center": [92, 44], "shape": [[1, 1], [99, 1], [99, 50], [1, 50]] },
          "blinds": [
            { "entity_id": "cover.blinds", "rect": [2, 7.5, 7.5, 41.5], "invert_position": true },
-           { "entity_id": "cover.smart_blinds", "rect": [2, 7.5, 7.5, 41.5], "style": "sheer" }
+           { "entity_id": "cover.sheer_blinds", "rect": [2, 7.5, 7.5, 41.5], "style": "sheer" }
          ],
          "screens": [
           {
@@ -894,7 +894,7 @@
     {
      "type": "cover",
      "options": {
-      "entity_id": "cover.club_sheer_blinds",
+      "entity_id": "cover.sheer_blinds",
       "name": "Sheer"
      }
     }
