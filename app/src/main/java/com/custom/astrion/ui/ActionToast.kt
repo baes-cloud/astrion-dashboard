@@ -22,7 +22,14 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
 /** One short message; [id] makes a repeat of the same text show again. */
-data class ToastMessage(val id: Long, val text: String, val detail: String? = null, val bad: Boolean = false)
+data class ToastMessage(
+    val id: Long,
+    val text: String,
+    val detail: String? = null,
+    val bad: Boolean = false,
+    /** Stays until replaced or cleared by the view model (a call still on its way). */
+    val sticky: Boolean = false,
+)
 
 /**
  * A small pill near the bottom of the screen confirming what a button did,
@@ -33,7 +40,7 @@ data class ToastMessage(val id: Long, val text: String, val detail: String? = nu
 @Composable
 fun ActionToast(message: ToastMessage?, onGone: () -> Unit) {
     LaunchedEffect(message?.id) {
-        if (message != null) {
+        if (message != null && !message.sticky) {
             delay(if (message.bad) 3_500 else 1_600)
             onGone()
         }

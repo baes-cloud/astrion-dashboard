@@ -87,6 +87,21 @@ class PowerMachineTest(private val case: Case) {
                 expect(140_999, screensaver = false)
                 expect(141_000, screensaver = true, brightness = 0.15f)
             },
+            Case("lifting off the dock ends the screensaver and goes home", homes = listOf(50_400L)) {
+                battery(0, 80, plugged = true)
+                expect(45_000, docked = true, screensaver = true)
+                battery(50_000, 80, plugged = false, status = BATTERY_STATUS_DISCHARGING)
+                expect(50_399, screensaver = true)
+                expect(50_400, screensaver = false, docked = true)
+                expect(65_000, docked = false, screensaver = false)
+            },
+            Case("a contact blip on the dock doesn't end the screensaver") {
+                battery(0, 80, plugged = true)
+                expect(45_000, screensaver = true)
+                battery(50_000, 80, plugged = false, status = BATTERY_STATUS_DISCHARGING)
+                battery(50_200, 80, plugged = true)
+                expect(60_000, docked = true, screensaver = true)
+            },
             Case("docked screensaver never narrows the HA subscription") {
                 battery(0, 80, plugged = true)
                 expect(200_000, screensaver = true, narrowed = false)

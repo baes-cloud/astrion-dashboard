@@ -87,6 +87,8 @@ class SwipeStackCard : CardRenderer {
         LaunchedEffect(navEpoch) {
             if (navEpoch > 0 && pagerState.currentPage != 0) pagerState.scrollToPage(0)
         }
+        // Leaving the Zones tab (to Player or Media) gives the volume keys back to the Club.
+        LaunchedEffect(pagerState.currentPage) { com.custom.astrion.input.VolumeFocus.clear() }
 
         // Per-tab device names for the page footer (Media: BÆOSOUND, …,
         // BÆOLINK); without `device_names` the page's own name stands.
@@ -131,7 +133,7 @@ class SwipeStackCard : CardRenderer {
                             // reads larger without a bigger font.
                             Text(
                                 titles[i],
-                                color = if (current) AstrionTheme.textPrimary else AstrionTheme.textMuted,
+                                color = if (current) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
                                 fontSize = AstrionTheme.size.small,
                                 fontWeight = FontWeight.SemiBold,
                                 style = TextStyle(

@@ -118,11 +118,11 @@ class ClimateCard : CardRenderer {
                 ServiceCall.of("climate", "set_fan_mode", entityId, "fan_mode" to f)
             )
         }
-        fun turnOff() {
-            ctx.client.callService(ServiceCall("climate", "turn_off", entityId))
-        }
-
         val isOff = mode == "off"
+        // One power button that turns it on as well as off.
+        fun togglePower() {
+            ctx.client.callService(ServiceCall("climate", if (isOff) "turn_on" else "turn_off", entityId))
+        }
         val unavailable = e == null || e.isUnavailable
         val live = !unavailable && ctx.connected
 
@@ -137,23 +137,35 @@ class ClimateCard : CardRenderer {
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            // Header: name + a dedicated off button.
+            // Header: name over what it's doing, and a power toggle. Off is
+            // a normal state, not an error, so it's neutral; on is teal.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.SemiBold)
+                Column(Modifier.weight(1f)) {
+                    Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.SemiBold)
+                    if (!unavailable) {
+                        Text(
+                            if (isOff) "Off"
+                            else listOfNotNull(mode.humanise(), fanMode?.let { "fan ${it.humanise().lowercase()}" }).joinToString(" · "),
+                            color = if (isOff) AstrionTheme.textSecondary else AstrionTheme.accent,
+                            fontSize = AstrionTheme.size.small,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
                 HitTarget(
-                    visual = 36.dp,
-                    onClick = { turnOff() },
+                    visual = 40.dp,
+                    onClick = { togglePower() },
                     enabled = live,
-                    face = Modifier.clip(CircleShape).background(if (isOff) AstrionTheme.dangerBg else AstrionTheme.controlBg),
+                    face = Modifier.clip(CircleShape).background(if (isOff) AstrionTheme.controlBg else AstrionTheme.accentStrong),
                 ) {
                     Icon(
                         Icons.Filled.PowerSettingsNew,
-                        contentDescription = "Off",
-                        tint = if (isOff) AstrionTheme.colors.dangerSoft else AstrionTheme.colors.textOnControl,
+                        contentDescription = if (isOff) "Turn $name on" else "Turn $name off",
+                        tint = if (isOff) AstrionTheme.textSecondary else Color.White,
                     )
                 }
             }
@@ -213,8 +225,15 @@ class ClimateCard : CardRenderer {
                 }
             }
 
-            // Fan mode chips
+            // Fan mode chips, captioned so "Auto" here isn't read as a mode.
             if (fanModes.isNotEmpty()) {
+                Text(
+                    "Fan",
+                    color = AstrionTheme.textSecondary,
+                    fontSize = AstrionTheme.size.label,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 2.dp, top = 2.dp),
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -264,8 +283,8 @@ class ClimateCard : CardRenderer {
     ) {
         Box(
             modifier = modifier
-                // Raised from 40dp; this is the row that carries mode state.
-                .height(40.dp)
+                // 48dp: the minimum touch height, and the page had the room.
+                .height(48.dp)
                 .clip(RoundedCornerShape(12.dp))
                 // accentStrong is a darkened 0xFF4C6EF5 — white 13sp on the
                 // original measured 4.32:1, the only real contrast failure in

@@ -112,7 +112,7 @@ fun HitTarget(
 }
 
 /** Laid out at [visual] but [hit] big, centred: the difference overhangs. */
-private fun Modifier.overhang(visual: Dp, hit: Dp) = layout { measurable, _ ->
+fun Modifier.overhang(visual: Dp, hit: Dp) = layout { measurable, _ ->
     val v = visual.roundToPx()
     val h = hit.roundToPx()
     val placeable = measurable.measure(Constraints.fixed(h, h))

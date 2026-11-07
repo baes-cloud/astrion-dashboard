@@ -49,7 +49,8 @@ data class AstrionColors(
     val onSurfaceVariant: Color = Color(0xFFAEBFBB),
     val onSurfaceMuted: Color = Color(0xFFA9BAB6),
     /** Faint metadata, timestamps. */
-    val textMuted: Color = Color(0xFF718583),
+    // #718583 failed AA on cards (3.4:1); this is 4.9:1 there and still quieter than secondary.
+    val textMuted: Color = Color(0xFF8FA19E),
     /** Dark text on light tiles. */
     val textInverse: Color = Color(0xFF141414),
     val onPrimary: Color = Color.White,

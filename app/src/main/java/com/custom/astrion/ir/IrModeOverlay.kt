@@ -94,7 +94,7 @@ fun IrModeOverlay(
                 val code = IrBlaster.NAMED_CODES[(b["ir"] as String).uppercase()]
                     ?: IrBlaster.parseHex(b["ir"])
                 toast = if (code != null && blaster.blast(code)) "Sent $name"
-                        else "Failed: $name"
+                        else "$name didn't send. Point it at the TV and try again"
             }
             // Launch an app on the TV over the network.
             b["app"] != null && tvEntity != null -> {
@@ -180,13 +180,13 @@ fun IrModeOverlay(
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "IR MODE",
+                        "TV REMOTE MODE",
                         color = AstrionTheme.blush, fontSize = AstrionTheme.size.heading,
                         fontFamily = AstrionTheme.headingFont,
                         fontWeight = FontWeight.Bold, letterSpacing = 0.06.em,
                     )
                     Text(
-                        "Hardware buttons blast to the TV",
+                        "The buttons work the TV directly, no Wi-Fi needed",
                         color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.label,
                     )
                 }
@@ -218,7 +218,7 @@ fun IrModeOverlay(
             }
 
             Text(
-                "NETWORK CONTROLS",
+                "THESE NEED WI-FI",
                 color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
             )

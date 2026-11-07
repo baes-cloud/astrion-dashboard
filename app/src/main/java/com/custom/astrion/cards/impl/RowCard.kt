@@ -31,9 +31,12 @@ class RowCard : CardRenderer {
     @Composable
     override fun Render(config: CardConfig, ctx: CardContext) {
         val children = (config.options["cards"] as? List<Map<String, Any?>>) ?: emptyList()
+        // "spacing" (dp, default 10): a tight row of four controls on Main
+        // needs every dp for its two labels.
+        val spacing = config.int("spacing", 10).coerceIn(0, 24)
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(spacing.dp),
         ) {
             children.forEach { child ->
                 val childType = child["type"] as? String ?: return@forEach

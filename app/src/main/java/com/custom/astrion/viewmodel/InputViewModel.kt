@@ -9,12 +9,14 @@ import androidx.lifecycle.viewModelScope
 import com.custom.astrion.config.AppConfigRepository
 import com.custom.astrion.config.HotkeyConfig
 import com.custom.astrion.config.JsonPlain
+import com.custom.astrion.guide.Describer
 import com.custom.astrion.guide.PressKind
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.input.KeyDispatcher
+import com.custom.astrion.input.VolumeFocus
 import com.custom.astrion.ir.IrBlaster
 import com.custom.astrion.ui.StrongHaptics
 import kotlinx.coroutines.channels.Channel
@@ -252,7 +254,11 @@ class InputViewModel(
 
     private fun runAction(hk: HotkeyConfig): Boolean {
         val service = hk.service ?: return false
-        val entityId = hk.entityId
+        // A zone picked on the Zones tab takes the volume and mute keys.
+        val isVolumeKey = service == "astrion.toggle_mute" ||
+            service == "media_player.volume_up" || service == "media_player.volume_down" ||
+            service == "media_player.volume_mute"
+        val entityId = if (isVolumeKey) VolumeFocus.target(hk.entityId) else hk.entityId
 
         if (service == "astrion.toggle_mute" || service.contains("volume_") || service.contains("volume")) {
             _uiState.update {
@@ -300,9 +306,33 @@ class InputViewModel(
         val domain = service.substringBefore('.')
         val svc = service.substringAfter('.')
         val data = hk.data.mapValues { JsonPlain.toJson(it.value) }
-        val quiet = domain == "remote" || domain == "androidtv" || svc.startsWith("volume_")
-        client.callService(ServiceCall(domain, svc, entityId, data), confirm = !quiet)
+        // D-pad and plumbing stay silent; a labelled adb command (the colour
+        // keys' "Plex on the TV") is a real action and says so.
+        val quiet = svc.startsWith("volume_") ||
+            ((domain == "remote" || domain == "androidtv") && hk.label == null)
+        client.callService(ServiceCall(domain, svc, entityId, data, label = toastLabel(hk)), confirm = !quiet)
         return true
+    }
+
+    /** VOLUME_UP -> "Volume up": IR mode is for guests, not hex codes. */
+    private fun irKeyName(key: HardwareKey): String = when (key.name) {
+        "DPAD_UP" -> "Up"
+        "DPAD_DOWN" -> "Down"
+        "DPAD_LEFT" -> "Left"
+        "DPAD_RIGHT" -> "Right"
+        "DPAD_CENTER", "OK" -> "OK"
+        else -> key.name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)
+    }
+
+    /** "Jellyfin", "Long lights": the config label, else the guide's own phrase for the key. */
+    private fun toastLabel(hk: HotkeyConfig): String {
+        val phrase = describer.hotkey(hk)
+        // "Runs “Long lights”" reads oddly after a tick; the name alone is enough.
+        return Regex("^Runs “(.+)”$").find(phrase)?.groupValues?.get(1) ?: phrase
+    }
+
+    private val describer = Describer { id ->
+        client.live[id]?.friendlyName?.takeIf { it != id }
     }
 
     fun handleKeyEvent(event: KeyEvent, isScreensaverOn: Boolean): Boolean {
@@ -329,14 +359,14 @@ class InputViewModel(
             if (event.action == KeyEvent.ACTION_DOWN) {
                 val codeHex = _uiState.value.irCodes[key]
                 if (codeHex == null) {
-                    _uiState.update { it.copy(irLastKey = "$key — no IR code mapped") }
+                    _uiState.update { it.copy(irLastKey = "${irKeyName(key)}: not set up for the TV") }
                 } else {
                     viewModelScope.launch {
                         val ok = irBlaster.blastAsync(codeHex, _uiState.value.irRepeat)
                         _uiState.update {
                             it.copy(
-                                irLastKey = if (ok) "$key → 0x${codeHex.toString(16).uppercase()}"
-                                else "$key — transmit FAILED"
+                                irLastKey = if (ok) "Sent: ${irKeyName(key)}"
+                                else "${irKeyName(key)} didn't send. Point it at the TV and try again"
                             )
                         }
                     }
@@ -382,8 +412,8 @@ class InputViewModel(
                         val ok = irBlaster.blastAsync(codeHex, _uiState.value.irRepeat)
                         _uiState.update {
                             it.copy(
-                                irLastKey = if (ok) "${intent.key} → 0x${codeHex.toString(16).uppercase()}"
-                                else "${intent.key} — transmit FAILED"
+                                irLastKey = if (ok) "Sent: ${irKeyName(intent.key)}"
+                                else "${irKeyName(intent.key)} didn't send. Point it at the TV and try again"
                             )
                         }
                     }

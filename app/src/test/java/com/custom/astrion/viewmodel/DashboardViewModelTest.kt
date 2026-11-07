@@ -245,7 +245,7 @@ class DashboardViewModelTest {
 
         val toast = viewModel.uiState.value.toastMessage
         assertNotNull(toast)
-        assertEquals("✓  light.kitchen", toast?.text)
+        assertEquals("✓  Kitchen", toast?.text)
         assertFalse(toast?.bad == true)
     }
 
@@ -257,7 +257,7 @@ class DashboardViewModelTest {
 
         val toast = viewModel.uiState.value.toastMessage
         assertNotNull(toast)
-        assertEquals("Didn't work: light.kitchen", toast?.text)
+        assertEquals("Didn't work: Kitchen", toast?.text)
         assertEquals("Connection refused", toast?.detail)
         assertTrue(toast?.bad == true)
     }
@@ -282,7 +282,44 @@ class DashboardViewModelTest {
 
         val toast = viewModel.uiState.value.toastMessage
         assertNotNull(toast)
-        assertEquals("Not sent: switch.fan", toast?.text)
+        assertEquals("Not sent: Fan", toast?.text)
+        assertTrue(toast?.bad == true)
+    }
+
+    @Test
+    fun callLabelPrefersTheCallsOwnLabel() = runVmTest {
+        val call = ServiceCall("media_player", "select_source", "media_player.tv", label = "Switches to Jellyfin")
+        outcomesFlow.emit(HaClient.CallOutcome(call, HaClient.CallOutcome.Kind.DONE))
+        runCurrent()
+        assertEquals("✓  Switches to Jellyfin", viewModel.uiState.value.toastMessage?.text)
+    }
+
+    @Test
+    fun sentShowsStickyToastThenSaysStillWaiting() = runVmTest {
+        val call = ServiceCall("script", "turn_on", "script.long_lights", label = "Long lights")
+        outcomesFlow.emit(HaClient.CallOutcome(call, HaClient.CallOutcome.Kind.SENT))
+        runCurrent()
+        val sending = viewModel.uiState.value.toastMessage
+        assertEquals("Long lights…", sending?.text)
+        assertTrue(sending?.sticky == true)
+        assertNull(sending?.detail)
+
+        advanceTimeBy(3_100)
+        assertEquals("Still waiting for Home Assistant", viewModel.uiState.value.toastMessage?.detail)
+
+        outcomesFlow.emit(HaClient.CallOutcome(call, HaClient.CallOutcome.Kind.DONE))
+        runCurrent()
+        assertEquals("✓  Long lights", viewModel.uiState.value.toastMessage?.text)
+    }
+
+    @Test
+    fun notSentSaysOffline() = runVmTest {
+        val call = ServiceCall("media_player", "volume_up", "media_player.club")
+        outcomesFlow.emit(HaClient.CallOutcome(call, HaClient.CallOutcome.Kind.NOT_SENT))
+        runCurrent()
+        val toast = viewModel.uiState.value.toastMessage
+        assertEquals("Not sent: Club", toast?.text)
+        assertEquals("Home Assistant is offline", toast?.detail)
         assertTrue(toast?.bad == true)
     }
 

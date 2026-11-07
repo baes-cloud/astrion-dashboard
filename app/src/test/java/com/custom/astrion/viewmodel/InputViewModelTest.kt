@@ -356,7 +356,7 @@ class InputViewModelTest {
         coVerify { irBlaster.blastAsync(0xE0E006F9L, 2) }
         val state = viewModel.uiState.value
         assertNotNull(state.irLastKey)
-        assertTrue(state.irLastKey!!.contains("UP → 0xE0E006F9"))
+        assertTrue(state.irLastKey!!.contains("Sent: Up"))
     }
 
     @Test
@@ -370,7 +370,7 @@ class InputViewModelTest {
         viewModel.handleKeyEvent(event, isScreensaverOn = false)
         runCurrent()
 
-        assertTrue(viewModel.uiState.value.irLastKey!!.contains("DOWN — transmit FAILED"))
+        assertTrue(viewModel.uiState.value.irLastKey!!.contains("Down didn't send"))
     }
 
     @Test
@@ -379,6 +379,6 @@ class InputViewModelTest {
         runCurrent()
 
         coVerify { irBlaster.blastAsync(0xE0E040BFL, 2) }
-        assertTrue(viewModel.uiState.value.irLastKey!!.contains("POWER → 0xE0E040BF"))
+        assertTrue(viewModel.uiState.value.irLastKey!!.contains("Sent: Power"))
     }
 }

@@ -5,10 +5,6 @@ import androidx.compose.animation.core.Animatable
 import com.custom.astrion.config.AlarmOptions
 import com.custom.astrion.ha.EntityMap
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -240,30 +236,12 @@ fun AlarmOverlay(
 /** The alarm glyph, with rings pulsing out of it while it rings. */
 @Composable
 private fun Ripple(ringing: Boolean, tint: Color) {
-    val t = rememberInfiniteTransition(label = "ripple")
-    val p by t.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart),
-        label = "ripple-phase",
-    )
     Box(
         modifier = Modifier
-            .size(64.dp)
-            .drawBehind {
-                if (!ringing) return@drawBehind
-                val base = size.minDimension / 2 * 0.62f
-                for (k in 0..1) {
-                    val q = (p + k * 0.5f) % 1f
-                    drawCircle(
-                        color = tint.copy(alpha = (1f - q) * 0.45f),
-                        radius = base * (1f + q * 0.95f),
-                        style = Stroke(width = 2.dp.toPx()),
-                    )
-                }
-            },
+            .size(64.dp),
         contentAlignment = Alignment.Center,
     ) {
+        if (ringing) PulseRings(tint = tint, periodMs = 1800, baseFraction = 0.62f, growth = 0.95f, maxAlpha = 0.45f)
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -462,7 +440,7 @@ private fun HoldToStop(onDismiss: () -> Unit) {
         }
         // Fixed-height slot so the hint appearing never shifts the buttons.
         Box(Modifier.height(24.dp), contentAlignment = Alignment.Center) {
-            if (hint) Text("Keep holding — stops alarms for today", color = AstrionTheme.danger, fontSize = AstrionTheme.size.label)
+            if (hint) Text("Keep holding: stops alarms for today", color = AstrionTheme.danger, fontSize = AstrionTheme.size.label)
         }
     }
 }

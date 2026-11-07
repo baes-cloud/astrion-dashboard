@@ -164,15 +164,21 @@ class HaClient(
         val kind: Kind,
         val error: String? = null,
     ) {
-        enum class Kind { DONE, FAILED, QUEUED, DROPPED }
+        /**
+         * SENT: on its way, reported only for `confirm` calls so the UI can say
+         * so before HA answers. NOT_SENT: tapped while offline and not safe to
+         * send late (see [ServiceCall.replaysSafely]), so it was dropped.
+         */
+        enum class Kind { SENT, DONE, FAILED, QUEUED, DROPPED, NOT_SENT }
     }
 
     private val _outcomes = MutableSharedFlow<CallOutcome>(extraBufferCapacity = 16)
     /**
-     * Failures always; successes only for calls made with `confirm = true`
+     * Failures always; SENT and DONE only for calls made with `confirm = true`
      * (the hardware keys, which otherwise give no sign anything happened).
      * Calls made while offline are queued and reported as QUEUED, then sent
-     * on reconnect, or DROPPED if HA was away longer than [QUEUE_MAX_AGE_MS].
+     * on reconnect, or DROPPED if HA was away longer than [QUEUE_MAX_AGE_MS];
+     * calls that aren't safe to send late are NOT_SENT straight away.
      */
     val outcomes: SharedFlow<CallOutcome> = _outcomes.asSharedFlow()
 
@@ -393,6 +399,10 @@ class HaClient(
      */
     fun callService(call: ServiceCall, confirm: Boolean = false) {
         if (_connection.value != ConnectionState.CONNECTED) {
+            if (!call.replaysSafely) {
+                _outcomes.tryEmit(CallOutcome(call, CallOutcome.Kind.NOT_SENT))
+                return
+            }
             synchronized(offlineQueue) {
                 offlineQueue.addLast(Queued(System.currentTimeMillis(), call, confirm))
                 while (offlineQueue.size > QUEUE_MAX) offlineQueue.removeFirst()
@@ -426,6 +436,7 @@ class HaClient(
             }
             put("target", target)
         }
+        if (confirm) _outcomes.tryEmit(CallOutcome(call, CallOutcome.Kind.SENT))
         send(msg)
     }
 
@@ -538,6 +549,31 @@ class HaClient(
         pending.remove(id)
         val response = reply?.get("result")?.jsonObject?.get("response")?.jsonObject ?: return null
         return response[entityId]?.jsonObject?.get("forecast") as? JsonArray
+    }
+
+    /**
+     * Fire a service call and wait for HA's answer: true if it accepted it,
+     * false if it refused or the socket is down, null if no answer in time.
+     * For the few buttons that should say what happened before they go away
+     * (the doorbell's Let in), not for everyday taps.
+     */
+    suspend fun callServiceAwait(call: ServiceCall, timeoutMs: Long = 8_000): Boolean? {
+        if (_connection.value != ConnectionState.CONNECTED) return false
+        val id = idCounter.getAndIncrement()
+        val deferred = CompletableDeferred<JsonObject>()
+        pending[id] = deferred
+        val msg = buildJsonObject {
+            put("id", id)
+            put("type", "call_service")
+            put("domain", call.domain)
+            put("service", call.service)
+            if (call.data.isNotEmpty()) put("service_data", JsonObject(call.data))
+            put("target", buildJsonObject { call.entityId?.let { put("entity_id", it) } })
+        }
+        send(msg)
+        val reply = withTimeoutOrNull(timeoutMs) { deferred.await() }
+        pending.remove(id)
+        return reply?.let { it["success"]?.jsonPrimitive?.booleanOrNull == true }
     }
 
     /**
@@ -807,7 +843,7 @@ class HaClient(
             val drained = cache?.drainOfflineCalls(QUEUE_MAX_AGE_MS)
             if (drained != null && drained.isNotEmpty()) {
                 synchronized(offlineQueue) { offlineQueue.clear() }
-                drained.forEach { call ->
+                drained.filter { it.replaysSafely }.forEach { call ->
                     callService(call, confirm = false)
                 }
             } else {

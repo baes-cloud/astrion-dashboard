@@ -1,12 +1,6 @@
 package com.custom.astrion.ui
 
 import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,7 +36,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -315,30 +308,12 @@ fun AlertOverlay(
 
 @Composable
 private fun Glyph(icon: ImageVector, tint: Color, pulsing: Boolean) {
-    val t = rememberInfiniteTransition(label = "alert-ripple")
-    val phase by t.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Restart),
-        label = "alert-ripple-phase",
-    )
     Box(
         modifier = Modifier
-            .size(120.dp)
-            .drawBehind {
-                if (!pulsing) return@drawBehind
-                val base = size.minDimension / 2 * 0.55f
-                for (k in 0..1) {
-                    val q = (phase + k * 0.5f) % 1f
-                    drawCircle(
-                        color = tint.copy(alpha = (1f - q) * 0.5f),
-                        radius = base * (1f + q * 0.8f),
-                        style = Stroke(width = 2.dp.toPx()),
-                    )
-                }
-            },
+            .size(120.dp),
         contentAlignment = Alignment.Center,
     ) {
+        if (pulsing) PulseRings(tint = tint, periodMs = 1600, baseFraction = 0.55f, growth = 0.8f, maxAlpha = 0.5f)
         Box(
             modifier = Modifier
                 .size(72.dp)

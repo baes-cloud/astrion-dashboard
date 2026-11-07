@@ -28,6 +28,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.custom.astrion.input.VolumeFocus
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -181,7 +189,17 @@ class SpeakerGroupCard : CardRenderer {
                 .then(if (height > 0) Modifier.height(height.dp) else Modifier),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            LinkCard(ctx, master, masterName, toggles.firstOrNull(), joined)
+            // Touching the Club card gives the volume keys back to the Club.
+            Box(
+                Modifier.pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        VolumeFocus.clear()
+                    }
+                },
+            ) {
+                LinkCard(ctx, master, masterName, toggles.firstOrNull(), joined)
+            }
             val linkedIds = joined.map { it.first }.toSet()
             val (linked, unlinked) = speakers.filter { it["entity_id"] is String }
                 .partition { (it["entity_id"] as String) in linkedIds }
@@ -375,6 +393,7 @@ class SpeakerGroupCard : CardRenderer {
         val vol = e?.attrDouble("volume_level")?.toFloat()
         val members = e?.attrStringList("group_members") ?: emptyList()
         val grouped = members.contains(master) && members.size > 1
+        val focused = VolumeFocus.selected.collectAsState().value == entityId
         val shape = RoundedCornerShape(18.dp)
         fun toggleGroup() {
             if (grouped) {
@@ -411,6 +430,17 @@ class SpeakerGroupCard : CardRenderer {
                         Modifier.background(AstrionTheme.cardBg)
                     }
                 )
+                // Touching a zone (its fader or its Join) hands it the volume
+                // keys; the touch still does its own job. Watched in the
+                // Initial pass so the fader can't swallow it first.
+                .pointerInput(entityId) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        if (!unavailable) VolumeFocus.select(entityId)
+                    }
+                }
+                // Picked for the volume keys: a blush ring nobody can miss.
+                .then(if (focused) Modifier.border(2.dp, AstrionTheme.blush, shape) else Modifier)
                 .padding(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -421,7 +451,8 @@ class SpeakerGroupCard : CardRenderer {
                 },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 enabled = live,
-                fill = if (grouped) AstrionTheme.blush.copy(alpha = 0.58f) else AstrionTheme.blush.copy(alpha = 0.40f),
+                // The Player fader's Hailstorm: blush at this opacity came out mauve-taupe.
+                fill = if (grouped) AstrionTheme.accent.copy(alpha = 0.58f) else AstrionTheme.accent.copy(alpha = 0.40f),
                 track = AstrionTheme.trackBg,
                 radius = 12.dp,
                 cap = false,

@@ -141,6 +141,9 @@ fun Dashboard(
     // Bumped on every jump by button (or start-page reset), so a page's
     // tabs can go back to their first one: the music key lands on Player.
     var navEpoch by remember { mutableIntStateOf(0) }
+    // A zone picked for the volume keys only holds while you stay on Zones:
+    // any page change hands the keys back to the Club.
+    LaunchedEffect(current) { com.custom.astrion.input.VolumeFocus.clear() }
     LaunchedEffect(navTarget) {
         val t = navTarget ?: return@LaunchedEffect
         if (t in 0 until pageCount) {
@@ -521,9 +524,9 @@ private fun ConnectionBanner(
     }
 
     val label = when (connection) {
-        ConnectionState.AUTH_FAILED -> "Auth failed — check token"
-        ConnectionState.ERROR -> "Connection error — retrying"
-        else -> "Disconnected — controls inactive"
+        ConnectionState.AUTH_FAILED -> "Home Assistant refused the remote's login"
+        ConnectionState.ERROR -> "Can't reach Home Assistant, retrying"
+        else -> "Not connected. Controls are paused"
     }
     Box(
         modifier = Modifier

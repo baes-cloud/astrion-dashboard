@@ -53,7 +53,7 @@
         "type": "switch",
         "options": {
          "entity_id": "input_boolean.light_automations",
-         "name": "Motion Lights",
+         "name": "Automations",
          "style": "row",
          "icon": "motion_sensor",
          "on_label": "On",
@@ -1027,27 +1027,30 @@
   },
   {
    "key": "CUSTOM_1",
-   "service": "media_player.select_source",
+   "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "source": "org.jellyfin.androidtv"
-   }
+    "command": "input keyevent KEYCODE_WAKEUP; monkey -p org.jellyfin.androidtv -c android.intent.category.LEANBACK_LAUNCHER 1; sleep 1; cmd hdmi_control onetouchplay"
+   },
+   "label": "Jellyfin on the TV"
   },
   {
    "key": "CUSTOM_2",
-   "service": "media_player.select_source",
+   "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "source": "com.plexapp.android"
-   }
+    "command": "input keyevent KEYCODE_WAKEUP; monkey -p com.plexapp.android -c android.intent.category.LEANBACK_LAUNCHER 1; sleep 1; cmd hdmi_control onetouchplay"
+   },
+   "label": "Plex on the TV"
   },
   {
    "key": "CUSTOM_3",
-   "service": "media_player.select_source",
+   "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "source": "au.net.abc.iview"
-   }
+    "command": "input keyevent KEYCODE_WAKEUP; monkey -p au.net.abc.iview -c android.intent.category.LEANBACK_LAUNCHER 1; sleep 1; cmd hdmi_control onetouchplay"
+   },
+   "label": "ABC iview on the TV"
   },
   {
    "key": "CUSTOM_4",
@@ -1251,7 +1254,7 @@
    "severity": "alarm",
    "icon": "leak",
    "title": "Water leak",
-   "message": "Leak sensor by the washing machine — since {since}"
+   "message": "Leak sensor by the washing machine, since {since}"
   },
   {
    "id": "intruder",
@@ -1391,7 +1394,7 @@
     "title": "Find a song",
     "icon": "search",
     "steps": [
-     "Press Media and tap Search music, under the four mixes.",
+     "Press Media and tap Search music, above the player.",
      "Type an artist, song, album or radio station.",
      "Tap a result to play it in the Club. Tap + to add it to the queue instead."
     ]
@@ -1445,7 +1448,7 @@
     "title": "Music in other rooms",
     "icon": "speakers",
     "steps": [
-     "Press Media and swipe to Zones.",
+     "Press Media and tap Zones at the top.",
      "Tap a room's link button to play the Club's music there too. Tap again to drop it.",
      "BÆOLINK on: the music follows you from room to room."
     ]
@@ -1454,8 +1457,8 @@
     "title": "Lock or unlock the door",
     "icon": "door",
     "steps": [
-     "On Main, tap the padlock beside Door.",
-     "Hold the padlock tile to keep the door unlocked (it turns red). Hold again to let it lock itself."
+     "On Main, the padlock is beside Door.",
+     "Tap the padlock to lock. Hold it to unlock. Hold the word Door to keep it unlocked (the padlock turns red); hold again to let it lock itself."
     ]
    },
    {

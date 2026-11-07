@@ -34,6 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -161,12 +163,25 @@ class SceneGridCard : CardRenderer {
         // Optimistic: light the tapped pill at once, until HA reports a newer one.
         var tapped by remember { androidx.compose.runtime.mutableStateOf<Pair<String, Long>?>(null) }
         val active = tapped?.takeIf { t -> latest == null || latest.second < t.second }?.first
-            ?: latest?.takeIf { System.currentTimeMillis() - it.second < 12 * 3_600_000L }?.first
+            // Two hours, not twelve: a scene picked in the evening shouldn't
+            // still read "ON" the next morning after everything went off.
+            ?: latest?.takeIf { System.currentTimeMillis() - it.second < 2 * 3_600_000L }?.first
+
+        // Keep the active pill on screen: past the fourth one it sat off the
+        // right edge, so the row looked like nothing was on.
+        val scroll = rememberScrollState()
+        val pillX = remember { HashMap<String, Int>() }
+        val lead = with(androidx.compose.ui.platform.LocalDensity.current) { 16.dp.roundToPx() }
+        androidx.compose.runtime.LaunchedEffect(active) {
+            val x = active?.let { pillX[it] } ?: return@LaunchedEffect
+            val target = (x - lead).coerceAtLeast(0)
+            if (x < scroll.value || x > scroll.value + scroll.viewportSize - lead * 4) scroll.animateScrollTo(target)
+        }
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+                .horizontalScroll(scroll),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             scenes.forEach { scene ->
@@ -177,6 +192,7 @@ class SceneGridCard : CardRenderer {
                 val haptics = LocalHapticFeedback.current
                 Row(
                     modifier = Modifier
+                        .onPlaced { pillX[entityId] = it.positionInParent().x.toInt() }
                         .height(34.dp)
                         .clip(RoundedCornerShape(13.dp))
                         // Inactive sits on the card fill so it still reads

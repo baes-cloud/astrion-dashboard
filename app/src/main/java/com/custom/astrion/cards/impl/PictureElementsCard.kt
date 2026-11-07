@@ -66,6 +66,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.humanise
 import com.custom.astrion.ui.rememberSampledBitmap
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.Glyphs
@@ -303,7 +304,8 @@ class PictureElementsCard : CardRenderer {
                 }
                 Icon(
                     imageVector = icon,
-                    contentDescription = entityId,
+                    // What a screen reader says: the light's name and state, not its id.
+                    contentDescription = entity?.let { "${it.friendlyName}, ${it.state.humanise()}" } ?: entityId,
                     // "color" (hex) for a bare glyph that sits on something pale.
                     tint = parseHexColor(el["color"] as? String)?.takeIf { !elUnavailable } ?: tint,
                     modifier = Modifier
