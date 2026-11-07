@@ -32,6 +32,10 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.custom.astrion.input.VolumeFocus
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -185,7 +189,17 @@ class SpeakerGroupCard : CardRenderer {
                 .then(if (height > 0) Modifier.height(height.dp) else Modifier),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            LinkCard(ctx, master, masterName, toggles.firstOrNull(), joined)
+            // Touching the Club card gives the volume keys back to the Club.
+            Box(
+                Modifier.pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        VolumeFocus.clear()
+                    }
+                },
+            ) {
+                LinkCard(ctx, master, masterName, toggles.firstOrNull(), joined)
+            }
             val focus by VolumeFocus.selected.collectAsState()
             val focusName = focus?.let { f ->
                 speakers.firstOrNull { it["entity_id"] == f }?.get("name") as? String ?: ctx.entities[f]?.friendlyName
@@ -445,6 +459,15 @@ class SpeakerGroupCard : CardRenderer {
                         Modifier.background(AstrionTheme.cardBg)
                     }
                 )
+                // Touching a zone (its fader or its Join) hands it the volume
+                // keys; the touch still does its own job. Watched in the
+                // Initial pass so the fader can't swallow it first.
+                .pointerInput(entityId) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        if (!unavailable) VolumeFocus.select(entityId)
+                    }
+                }
                 // Picked for the volume keys: a blush ring nobody can miss.
                 .then(if (focused) Modifier.border(2.dp, AstrionTheme.blush, shape) else Modifier)
                 .padding(8.dp),
@@ -486,34 +509,9 @@ class SpeakerGroupCard : CardRenderer {
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            // Hands the remote's volume keys to this zone (tap again to give
-            // them back to the Club).
-            Column(
-                modifier = Modifier
-                    .width(52.dp)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (focused) AstrionTheme.blush else AstrionTheme.raised)
-                    .tap(enabled = !unavailable) { VolumeFocus.toggle(entityId) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.VolumeUp,
-                    contentDescription = if (focused) "Volume keys on $label, tap to give back" else "Use the volume keys for $label",
-                    tint = if (focused) AstrionTheme.colors.onBlush else AstrionTheme.textSecondary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(
-                    "Keys",
-                    color = if (focused) AstrionTheme.colors.onBlush else AstrionTheme.textSecondary,
-                    fontSize = AstrionTheme.size.label,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
             Row(
                 modifier = Modifier
-                    .width(78.dp)
+                    .width(86.dp)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(12.dp))
                     // Join matches Unjoin all on the card above; Joined is the
