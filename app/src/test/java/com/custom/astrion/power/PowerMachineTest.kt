@@ -87,7 +87,7 @@ class PowerMachineTest(private val case: Case) {
                 expect(140_999, screensaver = false)
                 expect(141_000, screensaver = true, brightness = 0.15f)
             },
-            Case("lifting off the dock ends the screensaver without a touch") {
+            Case("lifting off the dock ends the screensaver and goes home", homes = listOf(50_400L)) {
                 battery(0, 80, plugged = true)
                 expect(45_000, docked = true, screensaver = true)
                 battery(50_000, 80, plugged = false, status = BATTERY_STATUS_DISCHARGING)

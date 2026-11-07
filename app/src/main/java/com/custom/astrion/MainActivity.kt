@@ -299,6 +299,9 @@ class MainActivity : ComponentActivity() {
             if (event.action == KeyEvent.ACTION_UP) powerVm.onIntent(PowerIntent.ClearSwallowKey)
             return true
         }
+        // Waking from the screensaver lands on the start page. Done here, before
+        // the key runs, so a page key that woke it still takes you to its page.
+        if (wasScreensaver && event.action == KeyEvent.ACTION_DOWN) goHomeAfterScreensaver()
         if (wasScreensaver) {
             val key = HardwareKey.fromKeyCode(event.keyCode)
             if (!dashboardVm.uiState.value.config.features.screensaver.passesThrough(key.name)) {
@@ -326,6 +329,7 @@ class MainActivity : ComponentActivity() {
         val dState = dashboardVm.uiState.value
         val alertOrAlarmShowing = dState.activeAlerts.isNotEmpty() || dState.doorbell != null || (dState.activeAlarm != null && !dState.isAlarmHidden)
         if (wasScreensaver && ev.actionMasked == MotionEvent.ACTION_DOWN && !alertOrAlarmShowing) {
+            goHomeAfterScreensaver()
             powerVm.onIntent(PowerIntent.SetSwallowTouch(true))
             return true
         }
@@ -337,6 +341,14 @@ class MainActivity : ComponentActivity() {
         }
         if (inputVm.handleTouchEvent(ev, wasScreensaver)) return true
         return super.dispatchTouchEvent(ev)
+    }
+
+    /** Start page, sheets closed: what the screensaver should give way to. */
+    private fun goHomeAfterScreensaver() {
+        val input = inputVm.uiState.value
+        if (input.isIrMode || input.isGuideOpen) return
+        sheetHost.dismissAll()
+        dashboardVm.onIntent(DashboardIntent.NavigateToPage(dashboardVm.uiState.value.config.startPage))
     }
 
     override fun onDestroy() {

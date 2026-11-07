@@ -99,8 +99,13 @@ object PowerMachine {
         val lifted = s.liftedAtMs
         if (lifted != null && now - lifted >= cfg.liftWakeMs) {
             // Not [activity]: the dock itself still waits out its own debounce.
-            s = if (s.screensaver && s.screenOn) s.copy(screensaver = false, lastActivityMs = now, liftedAtMs = null)
-            else s.copy(liftedAtMs = null)
+            if (s.screensaver && s.screenOn) {
+                s = s.copy(screensaver = false, lastActivityMs = now, liftedAtMs = null)
+                // Off the screensaver means back on the start page (Bae, 2026-11-07).
+                effects += PowerEffect.ReturnHome
+            } else {
+                s = s.copy(liftedAtMs = null)
+            }
         }
         if (dockDue(s, cfg, now)) {
             s = s.copy(docked = true, peakPct = s.pct)
