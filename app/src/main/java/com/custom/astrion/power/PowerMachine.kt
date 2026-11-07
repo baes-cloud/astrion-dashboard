@@ -37,6 +37,14 @@ object PowerMachine {
                 plugged = input.plugged,
                 status = input.status,
                 plugChangedAtMs = if (input.plugged != prev.plugged) now else prev.plugChangedAtMs,
+                // Lifted off the dock with the screensaver up: end it once the
+                // contact has stayed open for [PowerSettings.liftWakeMs], so the
+                // first touch in the hand works instead of only waking it.
+                liftedAtMs = when {
+                    input.plugged -> null
+                    prev.plugged && prev.screensaver && prev.screenOn -> now
+                    else -> prev.liftedAtMs
+                },
             )
             is PowerInput.Screen -> when {
                 input.on == prev.screenOn -> prev
@@ -88,6 +96,12 @@ object PowerMachine {
     /** Everything that happens by itself once enough time has passed. */
     private fun settle(start: PowerState, cfg: PowerSettings, now: Long, effects: MutableList<PowerEffect>): PowerState {
         var s = start
+        val lifted = s.liftedAtMs
+        if (lifted != null && now - lifted >= cfg.liftWakeMs) {
+            // Not [activity]: the dock itself still waits out its own debounce.
+            s = if (s.screensaver && s.screenOn) s.copy(screensaver = false, lastActivityMs = now, liftedAtMs = null)
+            else s.copy(liftedAtMs = null)
+        }
         if (dockDue(s, cfg, now)) {
             s = s.copy(docked = true, peakPct = s.pct)
             if (!s.screenOn && cfg.screensaverEnabled && cfg.keepScreenOnDocked) effects += PowerEffect.WakeScreen
@@ -124,6 +138,7 @@ object PowerMachine {
 
     /** When [reduce] would next change the state with only time passing; null if never. */
     fun nextDeadline(s: PowerState, cfg: PowerSettings, now: Long): Long? = listOfNotNull(
+        s.liftedAtMs?.let { it + cfg.liftWakeMs },
         (s.plugChangedAtMs + cfg.dockDebounceMs).takeIf { s.plugged && !s.docked },
         (s.plugChangedAtMs + cfg.undockDebounceMs).takeIf { !s.plugged && s.docked },
         cfg.idleMs(s.docked).let { idle ->
@@ -178,6 +193,8 @@ data class PowerState(
     val homeDueMs: Long? = null,
     /** When it last left the dock, while the undocked wake word grace runs. */
     val undockedAtMs: Long? = null,
+    /** Unplugged while the screensaver showed; it ends if it stays unplugged. */
+    val liftedAtMs: Long? = null,
 ) {
     val charging: Boolean get() = status == BatteryManager.BATTERY_STATUS_CHARGING
     val dockDraining: Boolean get() = docked && pct != null && Battery.draining(peakPct, pct)
@@ -239,6 +256,8 @@ data class PowerSettings(
     val wakeWordMode: String = "docked",
     /** How long the wake word keeps listening after it leaves the dock. */
     val wakeWordUndockedMs: Long = 600_000,
+    /** Unplugged this long with the screensaver up = picked up: show the dashboard. */
+    val liftWakeMs: Long = 400,
 ) {
     fun idleMs(docked: Boolean): Long = if (docked) dockedIdleMs else undockedIdleMs
 

@@ -77,8 +77,26 @@ data class ServiceCall(
     val service: String,
     val entityId: String? = null,
     val data: Map<String, JsonElement> = emptyMap(),
+    /** What to call this in a toast ("Jellyfin", "Long lights"); null = the entity's name. */
+    val label: String? = null,
 ) {
+    /**
+     * Safe to send late, after a Wi-Fi blip: it sets a state rather than
+     * stepping or flipping one. Ten queued volume-ups or D-pad presses, or a
+     * toggle that someone already undid by hand, would do the wrong thing when
+     * they all land at once on reconnect. Unlocking is never sent late either.
+     */
+    val replaysSafely: Boolean
+        get() = domain !in NEVER_REPLAY_DOMAINS && service in REPLAY_SERVICES
+
     companion object {
+        private val NEVER_REPLAY_DOMAINS = setOf("script", "remote", "androidtv", "button", "input_button")
+        private val REPLAY_SERVICES = setOf(
+            "turn_on", "turn_off", "lock", "select_source", "select_option",
+            "set_temperature", "set_hvac_mode", "set_fan_mode", "set_value",
+            "open_cover", "close_cover", "set_cover_position", "volume_set",
+        )
+
         /**
          * Build a ServiceCall from plain values (String / Number / Boolean),
          * wrapping them as JSON primitives. Keeps card code readable:

@@ -94,11 +94,11 @@ private fun EdgeArrow(
     visible: Boolean,
     onClick: () -> Unit,
 ) {
-    // Always laid out, so the name stays put at the ends; slightly faded at 0.34f.
+    // Always laid out, so the name stays put at the ends; faded to 0.6 (0.34 was about 1.6:1).
     Box(
         modifier = Modifier
             .size(width = 34.dp, height = PageNameHeight)
-            .graphicsLayer { alpha = if (visible) 0.34f else 0f }
+            .graphicsLayer { alpha = if (visible) 0.6f else 0f }
             .then(if (visible) Modifier.tap(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
     ) {

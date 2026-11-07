@@ -521,9 +521,9 @@ private fun ConnectionBanner(
     }
 
     val label = when (connection) {
-        ConnectionState.AUTH_FAILED -> "Auth failed — check token"
-        ConnectionState.ERROR -> "Connection error — retrying"
-        else -> "Disconnected — controls inactive"
+        ConnectionState.AUTH_FAILED -> "Home Assistant refused the remote's login"
+        ConnectionState.ERROR -> "Can't reach Home Assistant, retrying"
+        else -> "Not connected. Controls are paused"
     }
     Box(
         modifier = Modifier

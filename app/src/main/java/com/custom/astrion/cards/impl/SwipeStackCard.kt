@@ -131,7 +131,7 @@ class SwipeStackCard : CardRenderer {
                             // reads larger without a bigger font.
                             Text(
                                 titles[i],
-                                color = if (current) AstrionTheme.textPrimary else AstrionTheme.textMuted,
+                                color = if (current) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
                                 fontSize = AstrionTheme.size.small,
                                 fontWeight = FontWeight.SemiBold,
                                 style = TextStyle(

@@ -1,6 +1,16 @@
 package com.custom.astrion.cards.impl
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.custom.astrion.ui.MIN_TOUCH
+import com.custom.astrion.ui.overhang
+import kotlinx.coroutines.delay
 import com.custom.astrion.ui.LocalMinuteClock
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,8 +52,13 @@ import com.custom.astrion.ui.tap
  *
  * `hold_entity` hangs a second control off the padlock tile: hold it to toggle
  * a "keep unlocked" flag, and the padlock turns red while that flag is on. The
- * flag is not the lock's state, so it deliberately does not move the bolt —
- * only the colour, the wording and the held gesture change.
+ * flag is not the lock's state, so it deliberately does not move the bolt:
+ * only the colour, the wording and the held gesture change. In `compact` mode
+ * there is no tile, so the hold goes on the name and state instead.
+ *
+ * Compact mode's padlock locks on a tap but only unlocks on a hold (a tap says
+ * "Hold to unlock"): it is small and sits on Main, where a brush shouldn't open
+ * the front door. Its touch area is 48dp whatever it's drawn at.
  *
  * Config shape:
  *   { "type": "lock", "options": {
@@ -89,6 +104,17 @@ class LockCard : CardRenderer {
 
         fun call(service: String) {
             ctx.client.callService(ServiceCall(domain = "lock", service = service, entityId = entityId))
+        }
+
+        // "Hold to unlock" replaces the state line for a moment after a tap on
+        // a locked compact padlock.
+        var hintAt by remember { mutableLongStateOf(0L) }
+        val hint = hintAt != 0L
+        LaunchedEffect(hintAt) {
+            if (hintAt != 0L) {
+                delay(2_000)
+                hintAt = 0L
+            }
         }
 
         Row(
@@ -142,7 +168,15 @@ class LockCard : CardRenderer {
             }
             // Name over state and age: right-aligned in compact mode to the right lock icon
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .then(
+                        if (compact && holdEntity != null) Modifier.holdOnly(enabled = holdLive) {
+                            ctx.client.callService(
+                                ServiceCall(domain = "input_boolean", service = "toggle", entityId = holdEntity)
+                            )
+                        } else Modifier
+                    ),
                 horizontalAlignment = if (compact) Alignment.End else Alignment.Start,
             ) {
                 Text(
@@ -159,7 +193,11 @@ class LockCard : CardRenderer {
                 } else {
                     Text(
                         if (compact) {
-                            if (keepUnlocked) "Held open" else state.humanise()
+                            when {
+                                hint -> "Hold to unlock"
+                                keepUnlocked -> "Held open"
+                                else -> state.humanise()
+                            }
                         } else listOfNotNull(
                             if (keepUnlocked || age == null) state.humanise() else null,
                             if (keepUnlocked) "held open" else age,
@@ -182,10 +220,12 @@ class LockCard : CardRenderer {
                 live = live && !moving,
                 iconOnly = compact,
                 bare = compact && bare,
+                onHint = { hintAt = System.currentTimeMillis() },
             ) { call(if (locked) "unlock" else "lock") }
         }
     }
 
+    @OptIn(ExperimentalFoundationApi::class)
     @Composable
     private fun StateButton(
         state: String,
@@ -194,6 +234,7 @@ class LockCard : CardRenderer {
         live: Boolean,
         iconOnly: Boolean = false,
         bare: Boolean = false,
+        onHint: () -> Unit = {},
         onClick: () -> Unit,
     ) {
         val tint = when {
@@ -202,22 +243,45 @@ class LockCard : CardRenderer {
             else -> AstrionTheme.blush
         }
         if (iconOnly) {
+            val visual = if (bare) 28.dp else 36.dp
+            val haptics = LocalHapticFeedback.current
             Box(
                 modifier = Modifier
-                    .size(if (bare) 28.dp else 36.dp)
+                    .overhang(visual, MIN_TOUCH)
+                    // Tap locks; unlocking needs a hold. A tap on a locked
+                    // padlock only explains that, with no haptic tick.
+                    .combinedClickable(
+                        enabled = live,
+                        onClick = {
+                            if (locked) onHint()
+                            else {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onClick()
+                            }
+                        },
+                        onLongClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onClick()
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+              Box(
+                modifier = Modifier
+                    .size(visual)
                     .then(
                         if (bare) Modifier
                         else Modifier.clip(RoundedCornerShape(12.dp)).background(tint.copy(alpha = 0.16f))
-                    )
-                    .tap(enabled = live, onClick = onClick),
+                    ),
                 contentAlignment = Alignment.Center,
-            ) {
+              ) {
                 Icon(
                     if (locked) Icons.Filled.Lock else Icons.Filled.LockOpen,
-                    contentDescription = if (locked) "Unlock" else "Lock",
+                    contentDescription = if (locked) "Hold to unlock" else "Lock",
                     tint = tint,
                     modifier = Modifier.size(if (bare) 20.dp else 18.dp),
                 )
+              }
             }
             return
         }

@@ -236,15 +236,26 @@ fun LightDetailDialog(
 
                 if (hasColor) {
                     Caption("Colour")
+                    // The light's current colour, to ring the matching swatch
+                    // the way the warmth chips already show theirs.
+                    val current = (e?.attr("rgb_color") as? kotlinx.serialization.json.JsonArray)
+                        ?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content?.toFloatOrNull()?.toInt() }
+                        ?.takeIf { it.size == 3 && on && e?.attrString("color_mode") != "color_temp" }
                     SWATCHES.chunked(6).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             row.forEach { (r, g, b) ->
+                                val picked = current != null &&
+                                    abs(current[0] - r) + abs(current[1] - g) + abs(current[2] - b) < 60
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
                                         .aspectRatio(1f)
                                         .clip(CircleShape)
                                         .background(Color(r, g, b))
+                                        .then(
+                                            if (picked) Modifier.border(2.5.dp, AstrionTheme.textPrimary, CircleShape)
+                                            else Modifier,
+                                        )
                                         .tap { setRgb(r, g, b) },
                                 )
                             }

@@ -153,11 +153,17 @@ class DashboardViewModel(
         viewModelScope.launch {
             client.outcomes.collect { outcome ->
                 val label = callLabel(outcome.call)
+                val now = System.nanoTime()
                 val msg = when (outcome.kind) {
-                    HaClient.CallOutcome.Kind.DONE -> ToastMessage(System.nanoTime(), "✓  $label")
-                    HaClient.CallOutcome.Kind.FAILED -> ToastMessage(System.nanoTime(), "Didn't work: $label", outcome.error, bad = true)
-                    HaClient.CallOutcome.Kind.QUEUED -> ToastMessage(System.nanoTime(), "Offline", "Will send when Home Assistant is back", bad = true)
-                    HaClient.CallOutcome.Kind.DROPPED -> ToastMessage(System.nanoTime(), "Not sent: $label", "Home Assistant was offline too long", bad = true)
+                    HaClient.CallOutcome.Kind.SENT -> {
+                        showSending(ToastMessage(now, "$label…", sticky = true))
+                        return@collect
+                    }
+                    HaClient.CallOutcome.Kind.DONE -> ToastMessage(now, "✓  $label")
+                    HaClient.CallOutcome.Kind.FAILED -> ToastMessage(now, "Didn't work: $label", outcome.error, bad = true)
+                    HaClient.CallOutcome.Kind.QUEUED -> ToastMessage(now, "Offline", "Will send when Home Assistant is back", bad = true)
+                    HaClient.CallOutcome.Kind.DROPPED -> ToastMessage(now, "Not sent: $label", "Home Assistant was offline too long", bad = true)
+                    HaClient.CallOutcome.Kind.NOT_SENT -> ToastMessage(now, "Not sent: $label", "Home Assistant is offline", bad = true)
                 }
                 showToast(msg)
             }
@@ -218,8 +224,34 @@ class DashboardViewModel(
         super.onCleared()
     }
 
+    /** A name a guest would recognise: the call's label, else the entity's friendly name. */
     private fun callLabel(call: ServiceCall): String {
-        return call.entityId ?: "${call.domain}.${call.service}"
+        call.label?.let { return it }
+        val id = call.entityId
+        if (id != null) {
+            client.live[id]?.friendlyName?.takeIf { it != id }?.let { return it }
+            return id.substringAfter('.').replace('_', ' ').replaceFirstChar(Char::uppercase)
+        }
+        return call.service.replace('_', ' ').replaceFirstChar(Char::uppercase)
+    }
+
+    /**
+     * Shown the moment a hardware-key call goes out, so a slow Wi-Fi round
+     * trip doesn't read as "nothing happened" and get pressed again. DONE or
+     * FAILED replaces it; if HA hasn't answered in a few seconds it says so.
+     */
+    private fun showSending(msg: ToastMessage) {
+        toastJob?.cancel()
+        _uiState.update { it.copy(toastMessage = msg) }
+        toastJob = viewModelScope.launch {
+            delay(SLOW_REPLY_MS)
+            _uiState.update {
+                if (it.toastMessage?.id == msg.id) it.copy(toastMessage = msg.copy(detail = "Still waiting for Home Assistant"))
+                else it
+            }
+            delay(SENDING_GIVE_UP_MS)
+            _uiState.update { if (it.toastMessage?.id == msg.id) it.copy(toastMessage = null) else it }
+        }
     }
 
     private fun showToast(msg: ToastMessage) {
@@ -402,5 +434,7 @@ class DashboardViewModel(
 
 /** After a failed wake word run, wait this long before arming again. */
 private const val WAKE_WORD_BACKOFF_MS = 15_000L
+private const val SLOW_REPLY_MS = 3_000L
+private const val SENDING_GIVE_UP_MS = 7_000L
 /** Wanted but not possible (no mic permission, offline): look again this often. */
 private const val WAKE_WORD_RECHECK_MS = 60_000L

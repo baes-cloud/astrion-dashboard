@@ -94,16 +94,16 @@ object DashboardLoader {
         val file = configFile
         if (!file.exists()) {
             return if (writeDefaults()) {
-                Result(default, "Wrote defaults to ${file.path} — edit it and it reloads")
+                Result(default, "Wrote defaults to ${file.path}. Edit it and it reloads")
             } else {
-                Result(default, "Can't access ${file.path} (storage permission?) — using built-in defaults")
+                Result(default, "Can't access ${file.path} (storage permission?), using built-in defaults")
             }
         }
         return try {
             Result(parse(file.readText()), null)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load ${file.path}", e)
-            Result(default, "dashboard.json invalid (${e.message?.take(80)}) — using built-in defaults")
+            Result(default, "dashboard.json invalid (${e.message?.take(80)}), using built-in defaults")
         }
     }
 

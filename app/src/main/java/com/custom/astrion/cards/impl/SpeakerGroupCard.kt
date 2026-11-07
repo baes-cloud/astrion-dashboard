@@ -421,7 +421,8 @@ class SpeakerGroupCard : CardRenderer {
                 },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 enabled = live,
-                fill = if (grouped) AstrionTheme.blush.copy(alpha = 0.58f) else AstrionTheme.blush.copy(alpha = 0.40f),
+                // The Player fader's Hailstorm: blush at this opacity came out mauve-taupe.
+                fill = if (grouped) AstrionTheme.accent.copy(alpha = 0.58f) else AstrionTheme.accent.copy(alpha = 0.40f),
                 track = AstrionTheme.trackBg,
                 radius = 12.dp,
                 cap = false,
