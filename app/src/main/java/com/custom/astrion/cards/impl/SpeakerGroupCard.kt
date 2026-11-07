@@ -200,35 +200,6 @@ class SpeakerGroupCard : CardRenderer {
             ) {
                 LinkCard(ctx, master, masterName, toggles.firstOrNull(), joined)
             }
-            val focus by VolumeFocus.selected.collectAsState()
-            val focusName = focus?.let { f ->
-                speakers.firstOrNull { it["entity_id"] == f }?.get("name") as? String ?: ctx.entities[f]?.friendlyName
-            }
-            if (focus != null && focusName != null) {
-                // Says where the volume keys go now, and how to hand them back.
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(AstrionTheme.blush.copy(alpha = 0.16f))
-                        .tap { VolumeFocus.clear() }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = AstrionTheme.blush, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Volume keys: $focusName",
-                        color = AstrionTheme.textPrimary,
-                        fontSize = AstrionTheme.size.body,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text("Back to $masterName", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small)
-                }
-            }
             val linkedIds = joined.map { it.first }.toSet()
             val (linked, unlinked) = speakers.filter { it["entity_id"] is String }
                 .partition { (it["entity_id"] as String) in linkedIds }
