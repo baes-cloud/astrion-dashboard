@@ -29,6 +29,9 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.BottomSheet
 import com.custom.astrion.ui.Glyphs
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -57,6 +60,22 @@ fun QueueSheet(ctx: CardContext, player: String, speaker: String? = null, onClos
     val sonosTitle = sonos?.attrString("media_title")?.takeIf { it.isNotBlank() && sonos.state in ACTIVE }
     // Refetched when the track changes under the open sheet.
     val nowTitle = ctx.entities[player]?.attrString("media_title")
+    // The Sonos's own queue (`sonos.get_queue`): the whole list when a Sonos
+    // playlist, favourite or the library is playing, which MA can't see, and
+    // when MA's player is unavailable.
+    var sonosQueue by remember(speaker) { mutableStateOf<List<QueueItem>?>(null) }
+    val sonosPos = sonos?.attr("queue_position")?.let { (it as? JsonPrimitive)?.intOrNull }
+    LaunchedEffect(speaker, sonosTitle) {
+        val sp = speaker ?: return@LaunchedEffect
+        val response = ctx.client.callServiceForResponse("sonos", "get_queue", entityId = sp)
+        (response?.get(sp) as? JsonArray)?.let { arr ->
+            sonosQueue = arr.mapNotNull { el ->
+                val o = el as? JsonObject ?: return@mapNotNull null
+                val title = o.str("media_title") ?: return@mapNotNull null
+                QueueItem(title, o.str("media_artist") ?: o.str("media_album_name"), null)
+            }
+        }
+    }
     LaunchedEffect(player, nowTitle, sonosTitle) {
         // One retry: the first ask can land while the socket is still busy
         // reconnecting after the screen wakes. A failed refetch keeps the
@@ -77,9 +96,12 @@ fun QueueSheet(ctx: CardContext, player: String, speaker: String? = null, onClos
         sonosTitle == null || info.active && info.current?.let { sameTrack(it.title, sonosTitle) } == true
     }
     val direct = q == null && sonosTitle != null && !(loading && queue == null)
+    val sonosList = sonosQueue?.takeIf { q == null && it.size > 1 }
     BottomSheet(
-        title = if (direct) "Now playing" else "Up next",
-        subtitle = if (direct) {
+        title = if (direct && sonosList == null) "Now playing" else "Up next",
+        subtitle = if (sonosList != null) {
+            "Track ${sonosPos ?: 1} of ${sonosList.size} · On the Sonos"
+        } else if (direct) {
             listOfNotNull(sonos?.attrString("source")?.takeIf { it.isNotBlank() }, "On the Sonos").joinToString(" · ")
         } else q?.let { info ->
             val pos = info.index?.let { "Track ${it + 1}" }
@@ -89,6 +111,28 @@ fun QueueSheet(ctx: CardContext, player: String, speaker: String? = null, onClos
     ) {
         when {
             q == null && loading -> Note("Asking Music Assistant…")
+            q == null && (sonosQueue?.size ?: 0) > 1 -> {
+                // The Sonos's own list, from the playing track on.
+                val list = sonosQueue.orEmpty()
+                val cur = ((sonosPos ?: 1) - 1).coerceIn(0, list.lastIndex)
+                Caption("NOW PLAYING")
+                QueueRow(list[cur], now = true)
+                val rest = list.drop(cur + 1).take(SONOS_QUEUE_SHOWN)
+                if (rest.isNotEmpty()) {
+                    Caption("UP NEXT")
+                    // The sheet itself doesn't scroll; a long playlist does here.
+                    Column(
+                        Modifier
+                            .heightIn(max = 380.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        rest.forEach { QueueRow(it, now = false) }
+                    }
+                }
+                val more = list.size - cur - 1 - rest.size
+                if (more > 0) Note("And $more more.")
+            }
             q == null -> {
                 // Nothing from MA, or MA isn't what's playing: show the
                 // speaker's own track (or MA's player's, without a speaker).
@@ -122,6 +166,8 @@ fun QueueSheet(ctx: CardContext, player: String, speaker: String? = null, onClos
 }
 
 private val ACTIVE = listOf("playing", "paused")
+/** Rows of a Sonos queue listed after the playing one; the sheet scrolls but each row costs on this chip. */
+private const val SONOS_QUEUE_SHOWN = 30
 
 /**
  * Club and Club 2 name a track differently ("Bouncer" against "Bouncer

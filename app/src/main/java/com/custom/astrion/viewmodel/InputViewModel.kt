@@ -16,6 +16,7 @@ import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.input.KeyDispatcher
+import com.custom.astrion.input.VolumeFocus
 import com.custom.astrion.ir.IrBlaster
 import com.custom.astrion.ui.StrongHaptics
 import kotlinx.coroutines.channels.Channel
@@ -253,7 +254,11 @@ class InputViewModel(
 
     private fun runAction(hk: HotkeyConfig): Boolean {
         val service = hk.service ?: return false
-        val entityId = hk.entityId
+        // A zone picked on the Zones tab takes the volume and mute keys.
+        val isVolumeKey = service == "astrion.toggle_mute" ||
+            service == "media_player.volume_up" || service == "media_player.volume_down" ||
+            service == "media_player.volume_mute"
+        val entityId = if (isVolumeKey) VolumeFocus.target(hk.entityId) else hk.entityId
 
         if (service == "astrion.toggle_mute" || service.contains("volume_") || service.contains("volume")) {
             _uiState.update {
@@ -301,7 +306,10 @@ class InputViewModel(
         val domain = service.substringBefore('.')
         val svc = service.substringAfter('.')
         val data = hk.data.mapValues { JsonPlain.toJson(it.value) }
-        val quiet = domain == "remote" || domain == "androidtv" || svc.startsWith("volume_")
+        // D-pad and plumbing stay silent; a labelled adb command (the colour
+        // keys' "Plex on the TV") is a real action and says so.
+        val quiet = svc.startsWith("volume_") ||
+            ((domain == "remote" || domain == "androidtv") && hk.label == null)
         client.callService(ServiceCall(domain, svc, entityId, data, label = toastLabel(hk)), confirm = !quiet)
         return true
     }

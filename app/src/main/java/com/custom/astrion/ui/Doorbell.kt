@@ -112,6 +112,7 @@ fun DoorbellOverlay(
     camera: EntityState?,
     onLetIn: (AlertAction) -> Unit,
     onHide: () -> Unit,
+    letIn: com.custom.astrion.viewmodel.LetInPhase? = null,
 ) {
     val picture = camera?.attrString("entity_picture")
     var snapshot by remember(ring.token) { mutableStateOf<ImageBitmap?>(null) }
@@ -188,14 +189,26 @@ fun DoorbellOverlay(
                         .fillMaxWidth()
                         .height(60.dp)
                         .clip(RoundedCornerShape(30.dp))
-                        .background(AstrionTheme.accent)
-                        .tap(onClick = { onLetIn(action) }),
+                        .background(
+                            if (letIn == com.custom.astrion.viewmodel.LetInPhase.FAILED) AstrionTheme.colors.dangerBg
+                            else AstrionTheme.accent
+                        )
+                        .tap(
+                            enabled = letIn == null || letIn == com.custom.astrion.viewmodel.LetInPhase.FAILED,
+                            onClick = { onLetIn(action) },
+                        ),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        action.name,
-                        color = AstrionTheme.colors.pinnedTopBg,
+                        when (letIn) {
+                            com.custom.astrion.viewmodel.LetInPhase.SENDING -> "Letting in…"
+                            com.custom.astrion.viewmodel.LetInPhase.DONE -> "✓  Door opening"
+                            com.custom.astrion.viewmodel.LetInPhase.FAILED -> "Didn't work. Try again"
+                            null -> action.name
+                        },
+                        color = if (letIn == com.custom.astrion.viewmodel.LetInPhase.FAILED) AstrionTheme.danger
+                            else AstrionTheme.colors.pinnedTopBg,
                         fontSize = AstrionTheme.size.heading,
                         fontWeight = FontWeight.SemiBold,
                     )

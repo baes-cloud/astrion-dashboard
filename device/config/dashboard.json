@@ -1027,27 +1027,30 @@
   },
   {
    "key": "CUSTOM_1",
-   "service": "media_player.select_source",
+   "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "source": "org.jellyfin.androidtv"
-   }
+    "command": "input keyevent KEYCODE_WAKEUP; monkey -p org.jellyfin.androidtv -c android.intent.category.LEANBACK_LAUNCHER 1; sleep 1; cmd hdmi_control onetouchplay"
+   },
+   "label": "Jellyfin on the TV"
   },
   {
    "key": "CUSTOM_2",
-   "service": "media_player.select_source",
+   "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "source": "com.plexapp.android"
-   }
+    "command": "input keyevent KEYCODE_WAKEUP; monkey -p com.plexapp.android -c android.intent.category.LEANBACK_LAUNCHER 1; sleep 1; cmd hdmi_control onetouchplay"
+   },
+   "label": "Plex on the TV"
   },
   {
    "key": "CUSTOM_3",
-   "service": "media_player.select_source",
+   "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "source": "au.net.abc.iview"
-   }
+    "command": "input keyevent KEYCODE_WAKEUP; monkey -p au.net.abc.iview -c android.intent.category.LEANBACK_LAUNCHER 1; sleep 1; cmd hdmi_control onetouchplay"
+   },
+   "label": "ABC iview on the TV"
   },
   {
    "key": "CUSTOM_4",

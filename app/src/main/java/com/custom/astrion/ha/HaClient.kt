@@ -552,6 +552,31 @@ class HaClient(
     }
 
     /**
+     * Fire a service call and wait for HA's answer: true if it accepted it,
+     * false if it refused or the socket is down, null if no answer in time.
+     * For the few buttons that should say what happened before they go away
+     * (the doorbell's Let in), not for everyday taps.
+     */
+    suspend fun callServiceAwait(call: ServiceCall, timeoutMs: Long = 8_000): Boolean? {
+        if (_connection.value != ConnectionState.CONNECTED) return false
+        val id = idCounter.getAndIncrement()
+        val deferred = CompletableDeferred<JsonObject>()
+        pending[id] = deferred
+        val msg = buildJsonObject {
+            put("id", id)
+            put("type", "call_service")
+            put("domain", call.domain)
+            put("service", call.service)
+            if (call.data.isNotEmpty()) put("service_data", JsonObject(call.data))
+            put("target", buildJsonObject { call.entityId?.let { put("entity_id", it) } })
+        }
+        send(msg)
+        val reply = withTimeoutOrNull(timeoutMs) { deferred.await() }
+        pending.remove(id)
+        return reply?.let { it["success"]?.jsonPrimitive?.booleanOrNull == true }
+    }
+
+    /**
      * Call a service that returns data (`return_response`), e.g.
      * `music_assistant.get_library`. Returns the `response` object, or null on
      * timeout / error.

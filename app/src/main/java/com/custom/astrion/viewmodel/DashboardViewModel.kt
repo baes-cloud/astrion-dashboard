@@ -30,6 +30,8 @@ data class DashboardUiState(
     val activeAlerts: List<ActiveAlert> = emptyList(),
     val hiddenAlertTokens: Set<String> = emptySet(),
     val doorbell: DoorbellRing? = null,
+    /** Where the doorbell's Let in is: null until pressed. */
+    val letIn: LetInPhase? = null,
     val hiddenDoorbellToken: String? = null,
     val toastMessage: ToastMessage? = null,
     val voiceState: VoiceState = VoiceState(),
@@ -295,6 +297,7 @@ class DashboardViewModel(
         if (ring?.token != lastDoorbellToken) {
             lastDoorbellToken = ring?.token
             doorbellJob?.cancel()
+            if (ring != null) _uiState.update { it.copy(letIn = null) }
             if (ring != null) {
                 _effects.trySend(DashboardEffect.WakeScreenForAlarm(isRinging = true))
                 _effects.trySend(DashboardEffect.BringActivityToFront)
@@ -398,11 +401,22 @@ class DashboardViewModel(
                 client.callService(ServiceCall.fromConfig(intent.action.service, intent.action.entityId, intent.action.data))
             }
             is DashboardIntent.LetIn -> {
-                client.callService(ServiceCall.fromConfig(intent.action.service, intent.action.entityId, intent.action.data))
-                _uiState.update { it.copy(hiddenDoorbellToken = it.doorbell?.token, doorbell = null) }
+                if (uiState.value.letIn == LetInPhase.SENDING || uiState.value.letIn == LetInPhase.DONE) return
+                // The popup stays up saying "Letting in…" until HA answers, so
+                // a slow or failed call isn't a popup that vanished anyway.
+                _uiState.update { it.copy(letIn = LetInPhase.SENDING) }
+                viewModelScope.launch {
+                    val call = ServiceCall.fromConfig(intent.action.service, intent.action.entityId, intent.action.data)
+                    val ok = client.callServiceAwait(call) == true
+                    _uiState.update { it.copy(letIn = if (ok) LetInPhase.DONE else LetInPhase.FAILED) }
+                    if (ok) {
+                        delay(LET_IN_SHOW_MS)
+                        _uiState.update { it.copy(hiddenDoorbellToken = it.doorbell?.token, doorbell = null, letIn = null) }
+                    }
+                }
             }
             DashboardIntent.HideDoorbell -> {
-                _uiState.update { it.copy(hiddenDoorbellToken = it.doorbell?.token, doorbell = null) }
+                _uiState.update { it.copy(hiddenDoorbellToken = it.doorbell?.token, doorbell = null, letIn = null) }
             }
             is DashboardIntent.DismissAlert -> {
                 _uiState.update { it.copy(hiddenAlertTokens = it.hiddenAlertTokens + intent.token) }
@@ -432,9 +446,13 @@ class DashboardViewModel(
     }
 }
 
+enum class LetInPhase { SENDING, DONE, FAILED }
+
 /** After a failed wake word run, wait this long before arming again. */
 private const val WAKE_WORD_BACKOFF_MS = 15_000L
 private const val SLOW_REPLY_MS = 3_000L
+/** How long "Door opening" stays up before the doorbell popup closes. */
+private const val LET_IN_SHOW_MS = 2_500L
 private const val SENDING_GIVE_UP_MS = 7_000L
 /** Wanted but not possible (no mic permission, offline): look again this often. */
 private const val WAKE_WORD_RECHECK_MS = 60_000L

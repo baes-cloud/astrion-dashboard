@@ -113,6 +113,7 @@ fun DashboardScreen(
                     camera = doorbell.spec.camera?.let { dashboardVm.client.live[it] },
                     onLetIn = { dashboardVm.onIntent(DashboardIntent.LetIn(it)) },
                     onHide = { dashboardVm.onIntent(DashboardIntent.HideDoorbell) },
+                    letIn = dashboardState.letIn,
                 )
             } else if (dashboardState.activeAlerts.isNotEmpty() && (dashboardState.activeAlarm == null || dashboardState.isAlarmHidden)) {
                 val top = dashboardState.activeAlerts.first()

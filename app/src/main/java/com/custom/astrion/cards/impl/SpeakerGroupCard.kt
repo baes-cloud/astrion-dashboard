@@ -28,6 +28,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.custom.astrion.input.VolumeFocus
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -182,6 +186,35 @@ class SpeakerGroupCard : CardRenderer {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             LinkCard(ctx, master, masterName, toggles.firstOrNull(), joined)
+            val focus by VolumeFocus.selected.collectAsState()
+            val focusName = focus?.let { f ->
+                speakers.firstOrNull { it["entity_id"] == f }?.get("name") as? String ?: ctx.entities[f]?.friendlyName
+            }
+            if (focus != null && focusName != null) {
+                // Says where the volume keys go now, and how to hand them back.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AstrionTheme.blush.copy(alpha = 0.16f))
+                        .tap { VolumeFocus.clear() }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = AstrionTheme.blush, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Volume keys: $focusName",
+                        color = AstrionTheme.textPrimary,
+                        fontSize = AstrionTheme.size.body,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text("Back to $masterName", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small)
+                }
+            }
             val linkedIds = joined.map { it.first }.toSet()
             val (linked, unlinked) = speakers.filter { it["entity_id"] is String }
                 .partition { (it["entity_id"] as String) in linkedIds }
@@ -375,6 +408,7 @@ class SpeakerGroupCard : CardRenderer {
         val vol = e?.attrDouble("volume_level")?.toFloat()
         val members = e?.attrStringList("group_members") ?: emptyList()
         val grouped = members.contains(master) && members.size > 1
+        val focused = VolumeFocus.selected.collectAsState().value == entityId
         val shape = RoundedCornerShape(18.dp)
         fun toggleGroup() {
             if (grouped) {
@@ -411,6 +445,8 @@ class SpeakerGroupCard : CardRenderer {
                         Modifier.background(AstrionTheme.cardBg)
                     }
                 )
+                // Picked for the volume keys: a blush ring nobody can miss.
+                .then(if (focused) Modifier.border(2.dp, AstrionTheme.blush, shape) else Modifier)
                 .padding(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -450,9 +486,34 @@ class SpeakerGroupCard : CardRenderer {
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            // Hands the remote's volume keys to this zone (tap again to give
+            // them back to the Club).
+            Column(
+                modifier = Modifier
+                    .width(52.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (focused) AstrionTheme.blush else AstrionTheme.raised)
+                    .tap(enabled = !unavailable) { VolumeFocus.toggle(entityId) },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.VolumeUp,
+                    contentDescription = if (focused) "Volume keys on $label, tap to give back" else "Use the volume keys for $label",
+                    tint = if (focused) AstrionTheme.colors.onBlush else AstrionTheme.textSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    "Keys",
+                    color = if (focused) AstrionTheme.colors.onBlush else AstrionTheme.textSecondary,
+                    fontSize = AstrionTheme.size.label,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
             Row(
                 modifier = Modifier
-                    .width(86.dp)
+                    .width(78.dp)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(12.dp))
                     // Join matches Unjoin all on the card above; Joined is the
