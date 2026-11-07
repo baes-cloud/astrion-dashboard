@@ -236,10 +236,23 @@ class MediaPlayerCard : CardRenderer {
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         apps.forEach { a ->
-                            AppTile(
-                                a, Modifier.weight(1f), ctx.connected,
-                                inFront = session.frontApp != null && appSource(a) == session.frontApp,
-                            ) { fireService(ctx, a) }
+                            val inFront = session.frontApp != null && appSource(a) == session.frontApp
+                            AppTile(a, Modifier.weight(1f), ctx.connected, inFront = inFront) {
+                                // Already the app on the TV: don't relaunch it (that can
+                                // restart it or drop out of what's playing); just wake the
+                                // Streamer and put the TV on its input.
+                                val tvAdb = a["entity_id"] as? String
+                                if (inFront && tvAdb != null) {
+                                    ctx.client.callService(
+                                        ServiceCall.of(
+                                            "androidtv", "adb_command", tvAdb,
+                                            "command" to "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay",
+                                        )
+                                    )
+                                } else {
+                                    fireService(ctx, a)
+                                }
+                            }
                         }
                     }
                 }

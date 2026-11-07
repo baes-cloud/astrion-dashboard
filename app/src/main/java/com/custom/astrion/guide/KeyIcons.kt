@@ -208,3 +208,91 @@ fun RemoteMap(
         }
     }
 }
+
+/** The HA100's buttons by physical row, top to bottom, left to right. */
+internal val REMOTE_ROWS: List<List<HardwareKey>> = listOf(
+    listOf(HardwareKey.BACK, HardwareKey.HOME, HardwareKey.POWER),
+    listOf(HardwareKey.VOLUME_UP, HardwareKey.CENTER, HardwareKey.PAGE_UP),
+    listOf(HardwareKey.VOLUME_DOWN, HardwareKey.CENTER, HardwareKey.PAGE_DOWN),
+    listOf(HardwareKey.MUTE, HardwareKey.VOICE, HardwareKey.MENU),
+    listOf(HardwareKey.LIGHT, HardwareKey.CURTAIN, HardwareKey.SCENE, HardwareKey.AC),
+    listOf(HardwareKey.CUSTOM_1, HardwareKey.CUSTOM_2, HardwareKey.CUSTOM_3, HardwareKey.CUSTOM_4),
+)
+
+/** The row [key] sits in, as on the remote; null for the ring's arrows. */
+internal fun physicalRow(key: HardwareKey): List<HardwareKey>? =
+    REMOTE_ROWS.firstOrNull { key in it && key != HardwareKey.CENTER }
+
+/** Where that row is, in words someone holding the remote can follow. */
+internal fun rowHint(row: List<HardwareKey>): String = when (REMOTE_ROWS.indexOf(row)) {
+    0 -> "Top row, just under the screen"
+    1, 2 -> "Either side of the big round OK ring"
+    3 -> "Just under the ring: Mute, the mic and Menu"
+    4 -> "The row with pictures, under the mic"
+    5 -> "The bottom row"
+    else -> ""
+}
+
+/**
+ * A small sketch of the whole button block with [highlight] filled in, so
+ * a key can be found by where it is as well as what's printed on it.
+ */
+@Composable
+fun MiniRemote(highlight: Set<HardwareKey>, modifier: Modifier = Modifier, keyHeight: Dp = 9.dp) {
+    val gap = 2.dp
+    val lit = AstrionTheme.accent
+    val dark = AstrionTheme.colors.void
+
+    @Composable
+    fun RowScope.K(key: HardwareKey, weight: Float = 1f, height: Dp = keyHeight) {
+        Box(
+            Modifier
+                .weight(weight)
+                .height(height)
+                .clip(RoundedCornerShape(2.dp))
+                .background(if (key in highlight) lit else dark),
+        )
+    }
+
+    Column(
+        modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(AstrionTheme.colors.surfaceSunken)
+            .padding(4.dp),
+        verticalArrangement = Arrangement.spacedBy(gap),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+            K(HardwareKey.BACK); K(HardwareKey.HOME, 2f); K(HardwareKey.POWER)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(gap)) {
+                Row { K(HardwareKey.VOLUME_UP) }
+                Row { K(HardwareKey.VOLUME_DOWN) }
+            }
+            Box(Modifier.weight(2f), contentAlignment = Alignment.Center) {
+                val ring = highlight.any { it in setOf(HardwareKey.UP, HardwareKey.DOWN, HardwareKey.LEFT, HardwareKey.RIGHT, HardwareKey.CENTER) }
+                Box(
+                    Modifier
+                        .size(keyHeight * 2 + gap)
+                        .clip(CircleShape)
+                        .background(if (ring) lit else dark),
+                )
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(gap)) {
+                Row { K(HardwareKey.PAGE_UP) }
+                Row { K(HardwareKey.PAGE_DOWN) }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+            K(HardwareKey.MUTE); K(HardwareKey.VOICE, 2f); K(HardwareKey.MENU)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+            listOf(HardwareKey.LIGHT, HardwareKey.CURTAIN, HardwareKey.SCENE, HardwareKey.AC).forEach { K(it) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+            listOf(HardwareKey.CUSTOM_1, HardwareKey.CUSTOM_2, HardwareKey.CUSTOM_3, HardwareKey.CUSTOM_4).forEach {
+                K(it, height = keyHeight * 0.7f)
+            }
+        }
+    }
+}

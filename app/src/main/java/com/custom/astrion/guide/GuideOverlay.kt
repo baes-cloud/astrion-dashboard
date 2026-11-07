@@ -1,7 +1,13 @@
 package com.custom.astrion.guide
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -34,11 +40,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import com.custom.astrion.input.HardwareKey
@@ -401,7 +409,7 @@ private fun tourSteps(catalog: GuideCatalog): List<TourStep> {
     )
     if (has(HardwareKey.LIGHT, PressKind.TAP)) out += TourStep(
         setOf(HardwareKey.LIGHT), PressKind.TAP, "Page buttons",
-        "The four buttons with pictures jump straight to a page. Press ${name(HardwareKey.LIGHT)}.",
+        "The four buttons with pictures jump straight to a page. On the screen, swipe sideways or tap the ‹ › arrows at the bottom to do the same.\n\nPress ${name(HardwareKey.LIGHT)}.",
         "Press ${name(HardwareKey.LIGHT)}.",
     )
     if (has(HardwareKey.LIGHT, PressKind.HOLD)) out += TourStep(
@@ -460,7 +468,7 @@ private fun TourView(
                     BigTitle("Welcome")
                     Body("This remote runs the house: lights, music, the TV, the aircon and the front door.")
                     Body(
-                        "The screen works like a phone. Swipe left or right to change page" +
+                        "The screen works like a phone. Swipe left or right, or tap the ‹ › arrows at the bottom, to change page" +
                             (if (pageNames.isNotEmpty()) " (${pageNames.joinToString(" · ")})" else "") +
                             " and tap things to switch them.",
                     )
@@ -513,11 +521,77 @@ private fun TourView(
 }
 
 /**
- * Just the button(s) the step wants, drawn big with their real glyph and
- * name. The colour step shows all four, since any of them will do.
+ * The button(s) the step wants, shown in their real row as it sits on the
+ * remote, with the wanted one lit and its neighbours dimmed, and a sketch of
+ * the whole remote saying where that row is. Someone hunting for "Light"
+ * finds the row of four picture buttons, then the bulb in it.
  */
 @Composable
 private fun StepKeys(catalog: GuideCatalog, keys: Set<HardwareKey>) {
+    val row = keys.firstNotNullOfOrNull { physicalRow(it) }
+    if (row == null) {
+        LoneKeys(catalog, keys)
+        return
+    }
+    val pulse by rememberInfiniteTransition(label = "step-key").animateFloat(
+        initialValue = 0.45f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "step-key",
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            row.forEach { key ->
+                val lit = key in keys
+                val wide = key == HardwareKey.HOME || key == HardwareKey.VOICE || key == HardwareKey.CENTER
+                Column(
+                    Modifier.weight(if (wide) 1.6f else 1f).alpha(if (lit) 1f else 0.42f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(if (keyColour(key) != null) 40.dp else 54.dp)
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(AstrionTheme.colors.void)
+                            .then(
+                                if (lit) Modifier.border(2.5.dp, AstrionTheme.accent.copy(alpha = pulse), RoundedCornerShape(11.dp))
+                                else Modifier
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        KeyIcon(key, 28.dp, if (lit) AstrionTheme.accent else AstrionTheme.textOnControl)
+                    }
+                    Text(
+                        catalog.forKey(key)?.name ?: key.name.lowercase().replaceFirstChar(Char::uppercase),
+                        color = if (lit) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
+                        fontSize = AstrionTheme.size.label,
+                        fontWeight = if (lit) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(AstrionTheme.colors.void.copy(alpha = 0.35f))
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            MiniRemote(keys, Modifier.width(66.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("WHERE", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.Bold, letterSpacing = 0.12.em)
+                Text(rowHint(row), color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+/** Keys that don't sit in a simple row (the ring's arrows): drawn big on their own. */
+@Composable
+private fun LoneKeys(catalog: GuideCatalog, keys: Set<HardwareKey>) {
     val many = keys.size > 1
     Row(
         Modifier.fillMaxWidth(),

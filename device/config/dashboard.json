@@ -1030,7 +1030,7 @@
    "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "command": "input keyevent KEYCODE_WAKEUP; monkey -p org.jellyfin.androidtv -c android.intent.category.LEANBACK_LAUNCHER 1; sleep 1; cmd hdmi_control onetouchplay"
+    "command": "input keyevent KEYCODE_WAKEUP; dumpsys activity recents | grep -m1 'Recent #0' | grep -q org.jellyfin.androidtv || monkey -p org.jellyfin.androidtv -c android.intent.category.LEANBACK_LAUNCHER 1; sleep 1; cmd hdmi_control onetouchplay"
    },
    "label": "Jellyfin on the TV"
   },
@@ -1039,7 +1039,7 @@
    "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "command": "input keyevent KEYCODE_WAKEUP; monkey -p com.plexapp.android -c android.intent.category.LEANBACK_LAUNCHER 1; sleep 1; cmd hdmi_control onetouchplay"
+    "command": "input keyevent KEYCODE_WAKEUP; dumpsys activity recents | grep -m1 'Recent #0' | grep -q com.plexapp.android || monkey -p com.plexapp.android -c android.intent.category.LEANBACK_LAUNCHER 1; sleep 1; cmd hdmi_control onetouchplay"
    },
    "label": "Plex on the TV"
   },
@@ -1048,7 +1048,7 @@
    "service": "androidtv.adb_command",
    "entityId": "media_player.club_android_tv_10_0_0_248_club_tv",
    "data": {
-    "command": "input keyevent KEYCODE_WAKEUP; monkey -p au.net.abc.iview -c android.intent.category.LEANBACK_LAUNCHER 1; sleep 1; cmd hdmi_control onetouchplay"
+    "command": "input keyevent KEYCODE_WAKEUP; dumpsys activity recents | grep -m1 'Recent #0' | grep -q au.net.abc.iview || monkey -p au.net.abc.iview -c android.intent.category.LEANBACK_LAUNCHER 1; sleep 1; cmd hdmi_control onetouchplay"
    },
    "label": "ABC iview on the TV"
   },
