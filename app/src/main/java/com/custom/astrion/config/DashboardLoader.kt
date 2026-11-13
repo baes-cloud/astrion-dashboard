@@ -4,6 +4,8 @@ import android.content.res.AssetManager
 import android.os.Environment
 import android.util.Log
 import com.custom.astrion.cards.CardConfig
+import com.custom.astrion.cards.CardRegistry
+import com.custom.astrion.input.HardwareKey
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -61,6 +63,15 @@ object DashboardLoader {
 
     data class Result(val config: AppConfig, val notice: String?)
 
+    /**
+     * The last dashboard.json that parsed, kept so a typo in the next edit
+     * leaves the remote on the layout it had rather than dropping it to the
+     * bundled one (someone else's flat, if this isn't the author's remote).
+     * In memory only: after a restart a broken file still means the bundled
+     * layout.
+     */
+    @Volatile private var lastGood: AppConfig? = null
+
     /** The bundled layout's text, written out verbatim as the first config file. */
     private var bundledText: String? = null
 
@@ -99,12 +110,49 @@ object DashboardLoader {
                 Result(default, "Can't access ${file.path} (storage permission?), using built-in defaults")
             }
         }
-        return try {
-            Result(parse(file.readText()), null)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to load ${file.path}", e)
-            Result(default, "dashboard.json invalid (${e.message?.take(80)}), using built-in defaults")
+        return loadLayoutText({ file.readText() }, file.path)
+    }
+
+    /** [loadLayout] once the file is known to exist; apart for tests. */
+    internal fun loadLayoutText(read: () -> String, path: String = CONFIG_NAME): Result = try {
+        val config = parse(read())
+        lastGood = config
+        Result(config, warnings(config).takeIf { it.isNotEmpty() }?.joinToString("; ")?.let { "dashboard.json: $it" })
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to load $path", e)
+        val why = e.message?.take(80)
+        lastGood?.let { Result(it, "dashboard.json invalid ($why), keeping the last layout that worked") }
+            ?: Result(default, "dashboard.json invalid ($why), using built-in defaults")
+    }
+
+    internal fun forgetLastGood() { lastGood = null }
+
+    /**
+     * Things in a layout that parsed but won't do what was meant, for the
+     * notice banner: a card that couldn't be read, a card type nothing
+     * renders, a hotkey on a key the remote doesn't have. Each of these used
+     * to be dropped or drawn as a red box with no word about why.
+     */
+    internal fun warnings(config: AppConfig, knownTypes: Set<String> = CardRegistry.known()): List<String> {
+        val out = mutableListOf<String>()
+        config.pages.forEach { page ->
+            page.cards.forEachIndexed { i, card ->
+                when {
+                    card.type == INVALID_CARD ->
+                        out += "${page.name} card ${i + 1}: ${card.string("error") ?: "can't be read"}"
+                    // Before the registry is filled (and in unit tests) nothing is known.
+                    knownTypes.isNotEmpty() && card.type !in knownTypes ->
+                        out += "${page.name} card ${i + 1}: unknown type \"${card.type}\""
+                }
+            }
         }
+        val keys = HardwareKey.entries.map { it.name }.toSet() - HardwareKey.UNKNOWN.name
+        listOf("hotkeys" to config.hotkeys, "longHotkeys" to config.longHotkeys, "doubleHotkeys" to config.doubleHotkeys)
+            .forEach { (list, bindings) ->
+                bindings.map { it.key }.filter { it.uppercase() !in keys }.distinct()
+                    .forEach { out += "$list: no key called \"$it\"" }
+            }
+        return if (out.size <= MAX_WARNINGS) out else out.take(MAX_WARNINGS) + "and ${out.size - MAX_WARNINGS} more"
     }
 
     /**
@@ -135,14 +183,14 @@ object DashboardLoader {
     internal fun parse(text: String): AppConfig {
         return when (val root = json.parseToJsonElement(text)) {
             is JsonArray -> AppConfig(
-                pages = listOf(PageConfig("Main", root.map { parseCard(it as JsonObject) })),
+                pages = listOf(PageConfig("Main", root.map(::parseCardOrInvalid))),
             )
             is JsonObject -> {
                 val pagesArr = root["pages"] as? JsonArray ?: error("missing \"pages\" array")
                 val pages = pagesArr.map { p ->
                     val obj = p as? JsonObject ?: error("each page must be an object")
                     val name = (obj["name"] as? JsonPrimitive)?.content ?: "Page"
-                    val cards = (obj["cards"] as? JsonArray)?.map { parseCard(it as JsonObject) } ?: emptyList()
+                    val cards = (obj["cards"] as? JsonArray)?.map(::parseCardOrInvalid) ?: emptyList()
                     val deviceName = (obj["device_name"] as? JsonPrimitive)?.content
                     PageConfig(name, cards, deviceName)
                 }
@@ -165,6 +213,16 @@ object DashboardLoader {
             }
             else -> error("top level must be an object or array")
         }
+    }
+
+    /**
+     * One unreadable card (not an object, no "type") becomes a placeholder
+     * that says so, instead of throwing the whole layout away with it.
+     */
+    private fun parseCardOrInvalid(el: kotlinx.serialization.json.JsonElement): CardConfig = try {
+        parseCard(el as? JsonObject ?: error("a card must be an object"))
+    } catch (e: Exception) {
+        CardConfig(INVALID_CARD, mapOf("error" to (e.message ?: "can't be read")))
     }
 
     private fun parseCard(obj: JsonObject): CardConfig {
@@ -215,6 +273,9 @@ object DashboardLoader {
         false
     }
 
+    /** The type of the placeholder a card that couldn't be parsed becomes. */
+    const val INVALID_CARD = "invalid"
+    private const val MAX_WARNINGS = 4
     private const val BUNDLED_ASSET = "dashboard.json"
     const val CONFIG_NAME = "dashboard.json"
     const val DEVICE_NAME = "device.json"

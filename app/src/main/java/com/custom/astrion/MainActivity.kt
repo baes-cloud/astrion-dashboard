@@ -22,7 +22,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.ui.AstrionMaterialTheme
 import com.custom.astrion.ui.DashboardScreen
@@ -111,9 +110,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Collected for as long as the Activity exists, not only while it is
+     * started: with the screen off the Activity may be stopped, and that is
+     * exactly when an alarm, the doorbell, a pick-up or the wake word has to
+     * get through and light the screen. Under repeatOnLifecycle(STARTED)
+     * those effects waited in their channel until something else woke it.
+     */
     private fun observeViewModelEffects() {
         lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
+            run {
                 launch {
                     powerVm.uiState.collectLatest { state ->
                         if (state.keepScreenOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

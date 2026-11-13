@@ -7,22 +7,29 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
+import android.os.PowerManager
+import android.util.Log
 
 /**
  * An otherwise empty foreground service, run while MainActivity exists.
  *
- * The HA connection, and with it the work alarm and alerts, lives in
- * MainActivity. With the remote off the dock and the screen off, an app with
- * nothing in the foreground is first in line for the low-memory killer on a
- * 1 GB device — and a killed app can't ring. A foreground service keeps the
- * process at foreground priority. (Doze's network cut-off is handled
- * separately, by the battery-optimisation exemption MainActivity asks for.)
+ * The HA connection belongs to the process (AstrionApp), the alarm and alert
+ * watching to MainActivity's ViewModels. With the remote off the dock and the
+ * screen off, an app with nothing in the foreground is first in line for the
+ * low-memory killer on a 1 GB device — and a killed app can't ring. A
+ * foreground service keeps the process at foreground priority. (Doze's
+ * network cut-off is handled separately, by the battery-optimisation
+ * exemption MainActivity asks for.)
  *
- * Not sticky: the connection lives in the Activity, so a service restarted on
- * its own would only show a notification with nothing behind it.
+ * Sticky: if the process is killed anyway, Android restarts the service (with
+ * a null intent), which starts the process and with it the HA connection. The
+ * alarm watching needs MainActivity, so that restart brings it back too, but
+ * only with the screen off: nobody is looking at another app then, and that
+ * is when an alarm would otherwise be missed.
  */
 class KeepAliveService : Service() {
     companion object {
+        private const val TAG = "KeepAliveService"
         private const val CHANNEL = "ha_connection"
         private const val NOTIFICATION_ID = 1
     }
@@ -36,7 +43,20 @@ class KeepAliveService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         promoteToForeground()
-        return START_NOT_STICKY
+        if (intent == null) relaunchIfScreenOff()
+        return START_STICKY
+    }
+
+    private fun relaunchIfScreenOff() {
+        val pm = getSystemService(PowerManager::class.java) ?: return
+        if (pm.isInteractive) return
+        Log.w(TAG, "Restarted after a kill with the screen off: bringing MainActivity back")
+        runCatching {
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            )
+        }.onFailure { Log.w(TAG, "Couldn't relaunch MainActivity", it) }
     }
 
     private fun promoteToForeground() {

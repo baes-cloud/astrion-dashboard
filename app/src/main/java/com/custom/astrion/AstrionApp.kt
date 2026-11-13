@@ -137,6 +137,10 @@ class AstrionApp : Application() {
                 override fun onAvailable(network: Network) {
                     client.onNetworkAvailable()
                 }
+
+                override fun onLost(network: Network) {
+                    client.onNetworkLost()
+                }
             })
         }
     }

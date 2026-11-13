@@ -111,6 +111,19 @@ The app reads both files at start-up, before anything else runs, and watches
 the folder: saving or pushing either file applies it within a second, no
 restart needed.
 
+device.json can also say where Home Assistant is, in place of the URL and
+token compiled in from `secrets.properties`:
+
+```json
+{ "ha": { "url": "http://192.0.2.10:8123", "token": "<long-lived access token>" } }
+```
+
+Either key may be left out. It is read when the app starts, so restart the
+app after changing it (`adb shell am force-stop com.custom.astrion`), and on
+a first install it only applies once the storage permission has been granted.
+The file sits on shared storage, so give the remote a token for its own,
+non-admin Home Assistant user.
+
 ### Battery in Home Assistant
 
 With `report_entity` set, the remote posts its battery to HA (`POST
