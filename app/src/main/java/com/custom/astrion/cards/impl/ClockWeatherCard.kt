@@ -164,14 +164,14 @@ class ClockWeatherCard : CardRenderer {
             ) {
             // Current info.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(emojiFor(condition), fontSize = if (dense) AstrionTheme.size.displaySm else AstrionTheme.size.displayXl)
+                Text(emojiFor(condition), fontSize = if (dense) AstrionTheme.size.displayMd else AstrionTheme.size.displayXl)
                 Spacer(Modifier.width(if (dense) 10.dp else 12.dp))
                 Column(Modifier.weight(1f)) {
                     if (showTime) {
                         Text(
                             Time.format(now, timePattern),
                             color = AstrionTheme.colors.onSurface,
-                            fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.displayLg,
+                            fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.displayXl,
                             fontWeight = FontWeight.Light,
                         )
                     }
@@ -182,7 +182,7 @@ class ClockWeatherCard : CardRenderer {
                         Text(
                             Time.format(now, "EEE, d MMM"),
                             color = if (dense) AstrionTheme.colors.onSurface else AstrionTheme.colors.onSurfaceMuted,
-                            fontSize = if (dense) AstrionTheme.size.bodyLarge else AstrionTheme.size.small,
+                            fontSize = if (dense) AstrionTheme.size.body else AstrionTheme.size.label,
                             fontWeight = if (dense) FontWeight.Medium else FontWeight.Normal,
                         )
                     } else {
@@ -190,7 +190,7 @@ class ClockWeatherCard : CardRenderer {
                         Text(
                             weatherLabel(condition),
                             color = AstrionTheme.colors.onSurface,
-                            fontSize = AstrionTheme.size.bodyLarge,
+                            fontSize = AstrionTheme.size.body,
                             fontWeight = FontWeight.Medium,
                         )
                     }
@@ -199,7 +199,7 @@ class ClockWeatherCard : CardRenderer {
                     Text(
                         temp?.let { "${trim(it)}°" } ?: "—",
                         color = AstrionTheme.colors.onSurface,
-                        fontSize = if (dense) AstrionTheme.size.title else AstrionTheme.size.displayXs,
+                        fontSize = if (dense) AstrionTheme.size.emphasis else AstrionTheme.size.displayXs,
                         fontWeight = FontWeight.SemiBold,
                     )
                     if (showDate) {
@@ -314,7 +314,7 @@ class ClockWeatherCard : CardRenderer {
                         color = AstrionTheme.textPrimary,
                         // Manrope Bold, not Syne: the BæoRemote system keeps
                         // Syne for names and headings.
-                        fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.displaySm,
+                        fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.displayMd,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                     )
@@ -398,7 +398,7 @@ class ClockWeatherCard : CardRenderer {
         val lowFrac = (((f.low ?: weekMin) - weekMin) / span).toFloat().coerceIn(0f, 1f)
         val highFrac = (((f.high ?: (weekMin + span)) - weekMin) / span).toFloat().coerceIn(0f, 1f)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("${whole(f.low)}°", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small)
+            Text("${whole(f.low)}°", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
             Spacer(Modifier.width(5.dp))
             Box(
                 modifier = Modifier
@@ -422,7 +422,7 @@ class ClockWeatherCard : CardRenderer {
                 }
             }
             Spacer(Modifier.width(5.dp))
-            Text("${whole(f.high)}°", color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.Medium)
+            Text("${whole(f.high)}°", color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.Medium)
         }
     }
 
@@ -430,7 +430,7 @@ class ClockWeatherCard : CardRenderer {
 
     @Composable
     private fun ForecastRow(f: Forecast, weekMin: Double, span: Double, dense: Boolean = false) {
-        val rowText = if (dense) AstrionTheme.size.label else AstrionTheme.size.small
+        val rowText = if (dense) AstrionTheme.size.label else AstrionTheme.size.label
         val lowFrac = (((f.low ?: weekMin) - weekMin) / span).toFloat().coerceIn(0f, 1f)
         val highFrac = (((f.high ?: (weekMin + span)) - weekMin) / span).toFloat().coerceIn(0f, 1f)
 

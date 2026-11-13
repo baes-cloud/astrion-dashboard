@@ -229,13 +229,13 @@ private fun SearchPanel(
                 Spacer(Modifier.width(10.dp))
                 Box(Modifier.weight(1f)) {
                     if (query.isEmpty()) {
-                        Text(placeholder, color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.bodyLarge)
+                        Text(placeholder, color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.body)
                     }
                     BasicTextField(
                         value = query,
                         onValueChange = { query = it },
                         singleLine = true,
-                        textStyle = TextStyle(color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.bodyLarge),
+                        textStyle = TextStyle(color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body),
                         cursorBrush = SolidColor(AstrionTheme.accent),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
@@ -268,7 +268,7 @@ private fun SearchPanel(
                 Text(
                     k.label,
                     color = if (on) AstrionTheme.colors.onPrimary else AstrionTheme.textSecondary,
-                    fontSize = AstrionTheme.size.small,
+                    fontSize = AstrionTheme.size.label,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
@@ -280,7 +280,7 @@ private fun SearchPanel(
         }
 
         queued?.let {
-            Text(it, color = AstrionTheme.accent, fontSize = AstrionTheme.size.small)
+            Text(it, color = AstrionTheme.accent, fontSize = AstrionTheme.size.label)
             LaunchedEffect(it) { delay(2500); queued = null }
         }
 
@@ -320,7 +320,7 @@ private fun SearchPanel(
 @Composable
 private fun Hint(text: String) {
     Text(
-        text, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small,
+        text, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label,
         modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 4.dp),
     )
 }

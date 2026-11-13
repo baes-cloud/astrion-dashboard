@@ -222,7 +222,7 @@ fun Screensaver(
                     Text(
                         Time.format(now, "a").lowercase(Locale.getDefault()),
                         color = faint,
-                        fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.heading,
+                        fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.titleLarge,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(start = 5.dp).alignByBaseline(),
                     )
@@ -232,26 +232,26 @@ fun Screensaver(
             // Date · weather · the remote's own charge. The battery lives here,
             // not at the bottom, to keep the name's clear field empty.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(Time.format(now, "EEEE d MMMM"), color = ink, fontSize = AstrionTheme.size.bodyLarge, maxLines = 1)
+                Text(Time.format(now, "EEEE d MMMM"), color = ink, fontSize = AstrionTheme.size.body, maxLines = 1)
                 if (weather != null && !weather.isUnavailable) {
                     val temp = weather.attrDouble("temperature")
-                    Text("  ·  ", color = faint, fontSize = AstrionTheme.size.bodyLarge)
+                    Text("  ·  ", color = faint, fontSize = AstrionTheme.size.body)
                     Text(
                         weatherEmoji(weather.state),
-                        fontSize = AstrionTheme.size.bodyLarge,
+                        fontSize = AstrionTheme.size.body,
                         // Emoji ignore the text colour; fade them instead so a
                         // bright sun doesn't glare out of a dark room.
                         modifier = Modifier.alpha(if (night) 0.45f else 0.7f),
                     )
                     if (temp != null) {
                         Spacer(Modifier.width(5.dp))
-                        Text("${Math.round(temp)}°", color = ink, fontSize = AstrionTheme.size.bodyLarge)
+                        Text("${Math.round(temp)}°", color = ink, fontSize = AstrionTheme.size.body)
                     }
                 }
                 if (batteryPct != null) {
                     val batteryWarn = dockFault || (!charging && batteryPct <= 20)
                     val batteryColor = if (batteryWarn) accent else ink
-                    Text("  ·  ", color = faint, fontSize = AstrionTheme.size.bodyLarge)
+                    Text("  ·  ", color = faint, fontSize = AstrionTheme.size.body)
                     Icon(
                         when {
                             dockFault -> Icons.Filled.Warning
@@ -263,7 +263,7 @@ fun Screensaver(
                         modifier = Modifier.size(14.dp),
                     )
                     Spacer(Modifier.width(2.dp))
-                    Text("$batteryPct%", color = batteryColor, fontSize = AstrionTheme.size.bodyLarge, maxLines = 1)
+                    Text("$batteryPct%", color = batteryColor, fontSize = AstrionTheme.size.body, maxLines = 1)
                 }
             }
 
@@ -464,10 +464,10 @@ private fun FactRow(f: Fact, tint: Color, faint: Color, charging: Boolean = true
         if (f.countdownTo != null) {
             Spacer(Modifier.width(7.dp))
             val now = rememberSecondTick(enabled = charging)
-            Text(formatCountdown((f.countdownTo - now).coerceAtLeast(0)), color = faint, fontSize = AstrionTheme.size.bodyLarge, maxLines = 1)
+            Text(formatCountdown((f.countdownTo - now).coerceAtLeast(0)), color = faint, fontSize = AstrionTheme.size.body, maxLines = 1)
         } else if (f.detail != null) {
             Spacer(Modifier.width(7.dp))
-            Text(f.detail, color = faint, fontSize = AstrionTheme.size.bodyLarge, maxLines = 1)
+            Text(f.detail, color = faint, fontSize = AstrionTheme.size.body, maxLines = 1)
         }
     }
 }
@@ -671,7 +671,7 @@ private fun NowPlaying(
                     Text(
                         subtitle,
                         color = currentSubtitleInk,
-                        fontSize = AstrionTheme.size.bodyLarge,
+                        fontSize = AstrionTheme.size.body,
                         fontWeight = if (isPlaying) FontWeight.Normal else FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

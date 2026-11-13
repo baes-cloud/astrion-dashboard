@@ -57,7 +57,7 @@ class LightCard : CardRenderer {
                 Text(
                     if (isOn) "On" else "Off",
                     color = fg.copy(alpha = 0.7f),
-                    fontSize = AstrionTheme.size.small,
+                    fontSize = AstrionTheme.size.label,
                 )
             }
         }

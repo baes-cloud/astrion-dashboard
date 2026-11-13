@@ -146,7 +146,7 @@ fun DoorbellOverlay(
             Text(
                 "DOORBELL",
                 color = AstrionTheme.colors.accentBright,
-                fontSize = AstrionTheme.size.small,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 3.sp,
             )
@@ -209,7 +209,7 @@ fun DoorbellOverlay(
                         },
                         color = if (letIn == com.custom.astrion.viewmodel.LetInPhase.FAILED) AstrionTheme.danger
                             else AstrionTheme.colors.pinnedTopBg,
-                        fontSize = AstrionTheme.size.heading,
+                        fontSize = AstrionTheme.size.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
@@ -218,7 +218,7 @@ fun DoorbellOverlay(
             Text(
                 "Hide",
                 color = AstrionTheme.colors.textSoft,
-                fontSize = AstrionTheme.size.bodyLarge,
+                fontSize = AstrionTheme.size.body,
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
                     .tap(onClick = onHide)

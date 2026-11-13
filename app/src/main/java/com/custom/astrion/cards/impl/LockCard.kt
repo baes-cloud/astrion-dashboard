@@ -308,7 +308,7 @@ class LockCard : CardRenderer {
                     else -> "Unlocked"
                 },
                 color = tint,
-                fontSize = AstrionTheme.size.small,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.SemiBold,
             )
         }

@@ -722,7 +722,7 @@ class PictureElementsCard : CardRenderer {
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("${i + 1}", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.Bold)
+                    Text("${i + 1}", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -788,7 +788,7 @@ class PictureElementsCard : CardRenderer {
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Text("$label$id", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.Bold)
+            Text("$label$id", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.Bold)
         }
     }
 

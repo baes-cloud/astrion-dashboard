@@ -243,7 +243,7 @@ fun AlertOverlay(
             Text(
                 when (spec.severity) { "alarm" -> "ALERT"; "warning" -> "HEADS UP"; else -> "FYI" },
                 color = p.accent,
-                fontSize = AstrionTheme.size.small,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 3.sp,
             )
@@ -264,7 +264,7 @@ fun AlertOverlay(
             }
             if (moreCount > 0) {
                 Spacer(Modifier.height(10.dp))
-                Text("+$moreCount more", color = AstrionTheme.colors.textMuted, fontSize = AstrionTheme.size.small)
+                Text("+$moreCount more", color = AstrionTheme.colors.textMuted, fontSize = AstrionTheme.size.label)
             }
             Spacer(Modifier.weight(1f))
 
@@ -286,7 +286,7 @@ fun AlertOverlay(
                     Text(
                         action.name,
                         color = if (primary) p.ink else AstrionTheme.colors.onSurface,
-                        fontSize = AstrionTheme.size.heading,
+                        fontSize = AstrionTheme.size.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
@@ -296,7 +296,7 @@ fun AlertOverlay(
             Text(
                 "Hide",
                 color = AstrionTheme.colors.textSoft,
-                fontSize = AstrionTheme.size.bodyLarge,
+                fontSize = AstrionTheme.size.body,
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
                     .tap(onClick = onHide)

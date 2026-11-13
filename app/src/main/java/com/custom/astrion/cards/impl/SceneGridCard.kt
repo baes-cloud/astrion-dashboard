@@ -231,7 +231,7 @@ class SceneGridCard : CardRenderer {
                     Text(
                         name,
                         color = if (isActive) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
-                        fontSize = AstrionTheme.size.small,
+                        fontSize = AstrionTheme.size.label,
                         fontWeight = FontWeight.Medium,
                         letterSpacing = 0.3.sp,
                         maxLines = 1,
@@ -414,8 +414,8 @@ class SceneGridCard : CardRenderer {
                     color = fg,
                     fontSize = when {
                         name.length > 10 -> AstrionTheme.size.label
-                        name.length > 7 -> AstrionTheme.size.small
-                        else -> AstrionTheme.size.bodyLarge
+                        name.length > 7 -> AstrionTheme.size.label
+                        else -> AstrionTheme.size.body
                     },
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,

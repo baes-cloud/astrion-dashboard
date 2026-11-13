@@ -238,7 +238,7 @@ class ClockHeaderCard : CardRenderer {
         Text(
             text,
             color = color,
-            fontSize = AstrionTheme.size.small,
+            fontSize = AstrionTheme.size.label,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp,
             maxLines = 1,

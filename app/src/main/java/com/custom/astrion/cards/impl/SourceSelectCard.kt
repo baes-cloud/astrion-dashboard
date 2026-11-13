@@ -68,7 +68,7 @@ class SourceSelectCard : CardRenderer {
                     Text(
                         current ?: if (sources.isEmpty()) "No sources (device off?)" else "Select source…",
                         color = AstrionTheme.colors.onSurface,
-                        fontSize = AstrionTheme.size.bodyLarge,
+                        fontSize = AstrionTheme.size.body,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

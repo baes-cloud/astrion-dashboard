@@ -349,16 +349,16 @@ class SwitchCard : CardRenderer {
             Spacer(Modifier.width(if (compact) 8.dp else 12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    name, color = AstrionTheme.textPrimary, fontSize = if (compact) AstrionTheme.size.small else AstrionTheme.size.emphasis,
+                    name, color = AstrionTheme.textPrimary, fontSize = if (compact) AstrionTheme.size.label else AstrionTheme.size.emphasis,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 if (compact) {
                     // State is carried by the tile colour and the icon tint.
                 } else if (unavailable) {
-                    UnavailableLabel(AstrionTheme.size.small)
+                    UnavailableLabel(AstrionTheme.size.label)
                 } else {
-                    Text(if (on) "On" else "Off", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small)
+                    Text(if (on) "On" else "Off", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
                 }
             }
         }

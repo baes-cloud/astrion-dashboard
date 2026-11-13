@@ -32,8 +32,8 @@ class AstrionDesignSystemTest {
         assertEquals(34.sp, typography.display.fontSize)
         assertEquals(40.sp, typography.display.lineHeight)
 
-        assertEquals(17.sp, typography.title.fontSize)
-        assertEquals(22.sp, typography.title.lineHeight)
+        assertEquals(16.sp, typography.title.fontSize)
+        assertEquals(20.sp, typography.title.lineHeight)
 
         assertEquals(14.sp, typography.body.fontSize)
         assertEquals(18.sp, typography.body.lineHeight)
@@ -94,9 +94,8 @@ class AstrionDesignSystemTest {
     fun typeSizesAscend() {
         val s = typography.sizes
         val scale = listOf(
-            s.micro, s.label, s.small, s.body, s.bodyLarge, s.emphasis, s.title,
-            s.titleLarge, s.heading, s.headingLarge, s.displayXs, s.displaySm, s.displayMd, s.displayLg,
-            s.displayXl, s.readout, s.clock, s.alarmClock, s.restClock,
+            s.micro, s.label, s.body, s.emphasis, s.titleLarge, s.displayXs, s.displayMd,
+            s.displayXl, s.readout, s.readoutLarge, s.clock, s.alarmClock, s.restClock,
         ).map { it.value }
         assertEquals(scale.sorted(), scale)
         assertEquals(scale.distinct(), scale)
@@ -106,7 +105,7 @@ class AstrionDesignSystemTest {
     @Test
     fun noTextBelowTheFloor() {
         val s = typography.sizes
-        val readable = listOf(s.label, s.small, s.body, s.bodyLarge, s.emphasis, s.title)
+        val readable = listOf(s.label, s.body, s.emphasis)
         readable.forEach { assertTrue("$it below the floor", it.value >= MIN_TEXT.value) }
         val styles = listOf(
             typography.label, typography.body, typography.title, typography.bodySmall,

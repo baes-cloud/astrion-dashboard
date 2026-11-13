@@ -145,13 +145,13 @@ class ClimateCard : CardRenderer {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.SemiBold)
+                    Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.emphasis, fontWeight = FontWeight.SemiBold)
                     if (!unavailable) {
                         Text(
                             if (isOff) "Off"
                             else listOfNotNull(mode.humanise(), fanMode?.let { "fan ${it.humanise().lowercase()}" }).joinToString(" · "),
                             color = if (isOff) AstrionTheme.textSecondary else AstrionTheme.accent,
-                            fontSize = AstrionTheme.size.small,
+                            fontSize = AstrionTheme.size.label,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
@@ -182,12 +182,12 @@ class ClimateCard : CardRenderer {
                     // an unreachable aircon used to look like a working one
                     // showing a dash. Say so instead.
                     if (unavailable) {
-                        UnavailableLabel(AstrionTheme.size.small)
+                        UnavailableLabel(AstrionTheme.size.label)
                     } else {
                         Text(
                             current?.let { "Now ${trim(it)}°" } ?: "",
                             color = AstrionTheme.textSecondary,
-                            fontSize = AstrionTheme.size.small,
+                            fontSize = AstrionTheme.size.label,
                         )
                     }
                 }
@@ -309,7 +309,7 @@ class ClimateCard : CardRenderer {
             Text(
                 label,
                 color = if (selected) Color.White else AstrionTheme.textSecondary,
-                fontSize = AstrionTheme.size.small,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.Medium,
             )
         }

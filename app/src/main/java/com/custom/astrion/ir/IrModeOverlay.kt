@@ -181,7 +181,7 @@ fun IrModeOverlay(
                 Column(Modifier.weight(1f)) {
                     Text(
                         "TV REMOTE MODE",
-                        color = AstrionTheme.blush, fontSize = AstrionTheme.size.heading,
+                        color = AstrionTheme.blush, fontSize = AstrionTheme.size.titleLarge,
                         fontFamily = AstrionTheme.headingFont,
                         fontWeight = FontWeight.Bold, letterSpacing = 0.06.em,
                     )
@@ -241,7 +241,7 @@ fun IrModeOverlay(
                         ) {
                             Text(
                                 b["name"] as? String ?: "?",
-                                color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small,
+                                color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.label,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 textAlign = TextAlign.Center,
@@ -265,7 +265,7 @@ fun IrModeOverlay(
             ) {
                 Text(
                     "Exit IR Mode",
-                    color = AstrionTheme.danger, fontSize = AstrionTheme.size.bodyLarge, fontWeight = FontWeight.SemiBold,
+                    color = AstrionTheme.danger, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.SemiBold,
                 )
             }
         }

@@ -35,7 +35,7 @@ object AstrionTheme {
         @Composable @ReadOnlyComposable get() = LocalAstrionColors.current
     val typography: AstrionTypography
         @Composable @ReadOnlyComposable get() = LocalAstrionTypography.current
-    /** Font sizes: `fontSize = AstrionTheme.size.small`. */
+    /** Font sizes: `fontSize = AstrionTheme.size.label`. */
     val size: AstrionTypeSizes
         @Composable @ReadOnlyComposable get() = LocalAstrionTypography.current.sizes
     val surfaces: AstrionSurfaces

@@ -119,7 +119,7 @@ private fun MembersSheet(ctx: CardContext, groupId: String, title: String?, onCl
                 Text(
                     e?.friendlyName ?: id,
                     color = AstrionTheme.textPrimary,
-                    fontSize = AstrionTheme.size.bodyLarge,
+                    fontSize = AstrionTheme.size.body,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
@@ -152,7 +152,7 @@ private fun MembersSheet(ctx: CardContext, groupId: String, title: String?, onCl
                 Text(
                     "${if (members.size == 2) "Both" else "All"} ${if (anyOn) "off" else "on"}",
                     color = Color.White,
-                    fontSize = AstrionTheme.size.bodyLarge,
+                    fontSize = AstrionTheme.size.body,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -339,7 +339,7 @@ class ButtonGridCard : CardRenderer {
                         name,
                         style = if (labelLines > 1) tightTextStyle(13.sp) else LocalTextStyle.current,
                         color = inkColor,
-                        fontSize = if (hasIcon) (if (labelLines > 1) AstrionTheme.size.label else AstrionTheme.size.label) else if (name.length > 8) AstrionTheme.size.small else AstrionTheme.size.bodyLarge,
+                        fontSize = if (hasIcon) (if (labelLines > 1) AstrionTheme.size.label else AstrionTheme.size.label) else if (name.length > 8) AstrionTheme.size.label else AstrionTheme.size.body,
                         fontWeight = if (tileColor != null && !hasIcon) FontWeight.Bold else FontWeight.Medium,
                         maxLines = labelLines,
                         overflow = TextOverflow.Ellipsis,
