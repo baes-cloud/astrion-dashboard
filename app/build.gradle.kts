@@ -129,6 +129,8 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation("app.cash.turbine:turbine:1.2.0")
     testImplementation("io.mockk:mockk:1.13.16")
+    // A real websocket for HaClient to talk to (ha/HaClientSocketTest).
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("io.insert-koin:koin-test:4.0.2")
     testImplementation("io.insert-koin:koin-test-junit4:4.0.2")
 }

@@ -48,6 +48,7 @@ fun DashboardScreen(
                             configNotice = dashboardState.configNotice,
                             navTarget = dashboardState.navTarget,
                             onNavHandled = { dashboardVm.onIntent(DashboardIntent.NavTargetHandled) },
+                            onPageShown = { dashboardVm.onIntent(DashboardIntent.PageShown(it)) },
                         )
                         sheetHost.Host()
                     }

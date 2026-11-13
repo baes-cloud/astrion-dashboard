@@ -93,6 +93,14 @@ class HaClient(
         /** A call made while offline is sent on reconnect if it is younger than this. */
         private const val QUEUE_MAX_AGE_MS = 30_000L
         private const val QUEUE_MAX = 20
+        /** What a request waiting on a socket that dropped is answered with. */
+        private val SOCKET_LOST = buildJsonObject {
+            put("success", false)
+            put("error", buildJsonObject {
+                put("code", "socket_lost")
+                put("message", "Connection to Home Assistant dropped")
+            })
+        }
         private val PLAYHEAD_ATTRS = setOf("media_position", "media_position_updated_at")
 
         /**
@@ -309,12 +317,19 @@ class HaClient(
 
     // ---- public API ---------------------------------------------------------
 
+    /**
+     * Synchronized with [disconnect]: the main thread, the network callback,
+     * the reconnect job and the watchdog all call this, and two overlapping
+     * calls could each bump [epoch] and each leave a live socket behind.
+     */
+    @Synchronized
     fun connect() {
         val conn = ++epoch
         reconnectJob?.cancel()
         // Retire any previous socket first; its listener belongs to an older
         // epoch and ignores what it hears, so this can't loop.
         socket?.cancel()
+        failPending()
         _connection.value = ConnectionState.CONNECTING
         val wsUrl = toWebSocketUrl(baseUrl)
         Log.i(TAG, "Connecting to $wsUrl")
@@ -324,12 +339,42 @@ class HaClient(
         socket = http.newWebSocket(req, listener(conn))
     }
 
+    @Synchronized
     fun disconnect() {
         epoch++
         reconnectJob?.cancel()
         _connection.value = ConnectionState.DISCONNECTED
         socket?.close(1000, "client closing")
         socket = null
+        failPending()
+    }
+
+    /**
+     * The socket is gone, so no reply to anything sent on it will come:
+     * answer every waiting request now (as a failure) rather than leave each
+     * caller to sit out its own 8 to 10 s timeout.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun failPending() {
+        if (pending.isEmpty()) return
+        val ids = pending.keys.toList()
+        ids.forEach { id -> pending.remove(id)?.complete(SOCKET_LOST) }
+    }
+
+    /**
+     * The network went away: on this Wi-Fi-only remote the socket is dead,
+     * but nothing would notice until the next ping failed (up to 30 s of
+     * taps into a live-looking screen). Fail it now; the usual backoff and
+     * [onNetworkAvailable] bring it back.
+     */
+    fun onNetworkLost() {
+        when (_connection.value) {
+            ConnectionState.CONNECTED, ConnectionState.CONNECTING, ConnectionState.AUTHENTICATING -> {
+                Log.w(TAG, "Network lost, dropping the socket")
+                socket?.cancel()
+            }
+            else -> {}
+        }
     }
 
     /**
@@ -407,9 +452,6 @@ class HaClient(
                 offlineQueue.addLast(Queued(System.currentTimeMillis(), call, confirm))
                 while (offlineQueue.size > QUEUE_MAX) offlineQueue.removeFirst()
             }
-            scope.launch {
-                cache?.enqueueOfflineCall(call, confirm)
-            }
             _outcomes.tryEmit(CallOutcome(call, CallOutcome.Kind.QUEUED))
             return
         }
@@ -474,7 +516,7 @@ class HaClient(
     private fun sameHost(a: String, b: String): Boolean = runCatching {
         val x = java.net.URI(a)
         val y = java.net.URI(b)
-        x.host.equals(y.host, ignoreCase = true) && x.port == y.port
+        x.host != null && x.host.equals(y.host, ignoreCase = true) && x.port == y.port
     }.getOrDefault(false)
 
     /**
@@ -734,12 +776,17 @@ class HaClient(
         return sock.send(frame.toByteString(0, length))
     }
 
-    /** Absolute URL for an HA-relative path, with the bearer token attached. */
+    /** Absolute URL for an HA-relative path. */
     fun authedUrl(path: String): String =
         if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
 
-    /** The long-lived token, for callers that must build their own authed request. */
-    fun bearerToken(): String = token
+    /**
+     * Request headers for [url] (as [authedUrl] returns it): the bearer token
+     * when it points at HA itself, nothing when it is an absolute URL on some
+     * other host, which must never see the long-lived token.
+     */
+    fun authHeadersFor(url: String): Map<String, String> =
+        if (sameHost(url, baseUrl)) mapOf("Authorization" to "Bearer $token") else emptyMap()
 
     /** Play a specific media item on a player. */
     fun playMedia(entityId: String, contentId: String, contentType: String) {
@@ -777,44 +824,73 @@ class HaClient(
         override fun onMessage(webSocket: WebSocket, text: String) {
             if (conn != epoch) return
             try {
-                val obj = json.parseToJsonElement(text).jsonObject
-                when (obj["type"]?.jsonPrimitive?.content) {
-                    "auth_required" -> sendAuth(webSocket)
-                    "auth_ok" -> onAuthOk()
-                    "auth_invalid" -> {
-                        Log.w(TAG, "auth_invalid: ${obj["message"]}")
-                        _connection.value = ConnectionState.AUTH_FAILED
+                // One message, or several in an array (coalesce_messages).
+                when (val el = json.parseToJsonElement(text)) {
+                    is JsonArray -> el.forEach { m ->
+                        // One bad message mustn't take the rest of its frame with it.
+                        try {
+                            (m as? JsonObject)?.let { handleMessage(webSocket, it) }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "onMessage handler error", e)
+                        }
                     }
-                    "result" -> {
-                        // Route replies to the command awaiting this id, if any.
-                        val id = obj["id"]?.jsonPrimitive?.intOrNull
-                        id?.let { pending.remove(it) }?.complete(obj)
-                        id?.let { resultHandlers.remove(it) }?.invoke(obj)
-                    }
-                    "event" -> onEvent(obj)
-                    "pong" -> { /* heartbeat ok */ }
+                    is JsonObject -> handleMessage(webSocket, el)
+                    else -> {}
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "onMessage parse error", e)
             }
         }
 
+        private fun handleMessage(webSocket: WebSocket, obj: JsonObject) {
+            when (obj["type"]?.jsonPrimitive?.content) {
+                "auth_required" -> sendAuth(webSocket)
+                "auth_ok" -> onAuthOk()
+                "auth_invalid" -> {
+                    Log.w(TAG, "auth_invalid: ${obj["message"]}")
+                    _connection.value = ConnectionState.AUTH_FAILED
+                }
+                "result" -> routeResult(obj)
+                "event" -> onEvent(obj)
+                "pong" -> { /* heartbeat ok */ }
+            }
+        }
+
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             if (conn != epoch) return
             Log.e(TAG, "Socket failure", t)
+            failPending()
             _connection.value = ConnectionState.ERROR
             scheduleReconnect()
+        }
+
+        /**
+         * HA is closing the socket (a restart). OkHttp only reports onClosed
+         * once our side has closed too, so without this the connection sat
+         * half-closed, looking CONNECTED, until a ping went unanswered.
+         */
+        override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+            webSocket.close(1000, null)
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
             if (conn != epoch) return
             Log.w(TAG, "Socket closed $code $reason")
+            failPending()
             if (_connection.value != ConnectionState.DISCONNECTED) {
                 // HA closed us (e.g. a restart): scheduleReconnect only acts on ERROR.
                 _connection.value = ConnectionState.ERROR
                 scheduleReconnect()
             }
         }
+    }
+
+    /** Route a reply to the command awaiting its id, if any. */
+    @androidx.annotation.VisibleForTesting
+    internal fun routeResult(obj: JsonObject) {
+        val id = obj["id"]?.jsonPrimitive?.intOrNull ?: return
+        pending.remove(id)?.complete(obj)
+        resultHandlers.remove(id)?.invoke(obj)
     }
 
     private fun sendAuth(webSocket: WebSocket) {
@@ -832,28 +908,31 @@ class HaClient(
         _connection.value = ConnectionState.CONNECTED
         // Replies to calls on the old socket will never come.
         resultHandlers.clear()
+        // Lets HA send several messages in one frame (a JSON array) when they
+        // are ready together: fewer radio wake-ups and fewer reads. An HA too
+        // old to know the command answers with an error and carries on.
+        send(buildJsonObject {
+            put("id", idCounter.getAndIncrement())
+            put("type", "supported_features")
+            put("features", buildJsonObject { put("coalesce_messages", 1) })
+        })
         subscribeEntities()
         resubscribeForeground()
         flushOfflineQueue()
     }
 
-    /** Send what was tapped while offline, if it's still recent enough to mean it. */
-    private fun flushOfflineQueue() {
-        scope.launch {
-            val drained = cache?.drainOfflineCalls(QUEUE_MAX_AGE_MS)
-            if (drained != null && drained.isNotEmpty()) {
-                synchronized(offlineQueue) { offlineQueue.clear() }
-                drained.filter { it.replaysSafely }.forEach { call ->
-                    callService(call, confirm = false)
-                }
-            } else {
-                val queued = synchronized(offlineQueue) { offlineQueue.toList().also { offlineQueue.clear() } }
-                val now = System.currentTimeMillis()
-                queued.forEach { q ->
-                    if (now - q.at <= QUEUE_MAX_AGE_MS) callService(q.call, q.confirm)
-                    else _outcomes.tryEmit(CallOutcome(q.call, CallOutcome.Kind.DROPPED))
-                }
-            }
+    /**
+     * Send what was tapped while offline, if it's still recent enough to mean
+     * it. The queue lives in memory only: a call is worth sending for 30 s,
+     * so a copy on disk could never outlive the process usefully, and keeping
+     * two copies lost the confirm flag and the DROPPED report.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun flushOfflineQueue(now: Long = System.currentTimeMillis()) {
+        val queued = synchronized(offlineQueue) { offlineQueue.toList().also { offlineQueue.clear() } }
+        queued.forEach { q ->
+            if (now - q.at <= QUEUE_MAX_AGE_MS) callService(q.call, q.confirm)
+            else _outcomes.tryEmit(CallOutcome(q.call, CallOutcome.Kind.DROPPED))
         }
     }
 

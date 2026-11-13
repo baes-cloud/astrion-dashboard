@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+Fixes from a full code review. Nothing here changes how a page looks.
+
+- **A dropped socket is noticed at once.** When HA closes the connection (a restart), the client now closes its side too; before, the socket sat half-closed and looked connected until a ping went unanswered. Losing Wi-Fi drops the socket straight away instead of waiting up to 30 s for that ping. Requests waiting on a socket that drops (the doorbell's Let in, a library browse, the forecast) are answered immediately rather than after their 8 to 10 s timeout.
+- **Wake-ups reach a stopped Activity.** Alarm, doorbell, pick-up and wake-word effects are collected for the Activity's whole life, not only while it is started, so one that arrives with the screen off no longer waits in a queue.
+- **The keep-alive service is sticky.** If Android kills the process, the service restarts it and the HA connection; with the screen off it also brings MainActivity back, so the alarm watching returns.
+- **Offline taps.** The queue is kept in memory only. The copy on disk could lose a tap when two came close together, dropped the confirmation of a queued call and never said when one was dropped.
+- **Fewer, larger frames.** The client asks HA to coalesce messages, so several updates ready together arrive in one frame.
+- **`connect()` is synchronised** against the reconnect job, the watchdog and the network callback calling it at once.
+- **A slip in dashboard.json costs less.** A file that won't parse keeps the last layout that worked; a card that can't be read becomes a placeholder that says why instead of discarding the layout; unknown card types and hotkey names are listed in the notice banner.
+- **HA URL and token per remote.** `"ha": { "url", "token" }` in device.json overrides the values compiled in (`docs/POWER.md`).
+- **The token stays home.** A spoken reply whose URL points at another host is fetched without the HA token. `allowBackup` is off.
+- **One current page.** The ViewModel's `currentPage` now follows swipes, and pages are keyed by position and name so a reload can't hand one page's state to another.
+- **Tests.** `HaClientSocketTest` runs the client against a real websocket (MockWebServer).
+
 ## v1.6.0 (2026-11-04)
 
 Reliability first: the HA100's eMMC turned out to rot data at rest, and the boot loops on one remote all followed a reboot of a remote that looked frozen. 1.6 makes reboots unnecessary and the flash nearly write-free. (1.5 was a redesign that was shelved; its best parts shipped in 1.4.5.)

@@ -472,7 +472,7 @@ class VoiceSession(
             mp.setDataSource(
                 context,
                 android.net.Uri.parse(client.authedUrl(url)),
-                mapOf("Authorization" to "Bearer ${client.bearerToken()}"),
+                client.authHeadersFor(client.authedUrl(url)),
             )
             mp.setOnCompletionListener { finish() }
             mp.setOnErrorListener { _, what, extra ->

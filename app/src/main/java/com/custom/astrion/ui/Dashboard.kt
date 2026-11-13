@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -126,6 +127,8 @@ fun Dashboard(
     /** Page index requested by a hardware button; consumed via onNavHandled. */
     navTarget: Int? = null,
     onNavHandled: () -> Unit = {},
+    /** The page on screen changed, by button or by swipe. */
+    onPageShown: (Int) -> Unit = {},
 ) {
     // Built once per client, NOT per recomposition. See CardContext's docs —
     // rebuilding this was recomposing every card on every page on every HA
@@ -144,6 +147,10 @@ fun Dashboard(
     // A zone picked for the volume keys only holds while you stay on Zones:
     // any page change hands the keys back to the Club.
     LaunchedEffect(current) { com.custom.astrion.input.VolumeFocus.clear() }
+    // A swipe turns the page here, without going through the ViewModel:
+    // report it, so its currentPage is the page actually on screen.
+    val pageShown by rememberUpdatedState(onPageShown)
+    LaunchedEffect(current) { pageShown(current) }
     LaunchedEffect(navTarget) {
         val t = navTarget ?: return@LaunchedEffect
         if (t in 0 until pageCount) {
@@ -196,7 +203,9 @@ fun Dashboard(
                 .pageSwipe(pageCount) { dir -> current = (current + dir).mod(pageCount) },
         ) {
             config.pages.forEachIndexed { i, page ->
-                key(i) {
+                // By position and name: a reload that renames or reorders pages
+                // must not hand one page's scroll and tab state to another.
+                key(i, page.name) {
                     CompositionLocalProvider(
                         LocalPageVisible provides (i == current),
                         LocalPageNameOverride provides nameOverrides[i],
@@ -483,8 +492,10 @@ private fun RenderCard(cardConfig: CardConfig, ctx: CardContext) {
     val renderer = CardRegistry.get(cardConfig.type)
     if (renderer != null) {
         renderer.Render(cardConfig, ctx)
+    } else if (cardConfig.type == com.custom.astrion.config.DashboardLoader.INVALID_CARD) {
+        UnknownCard("This card can't be read: ${cardConfig.string("error").orEmpty()}")
     } else {
-        UnknownCard(cardConfig.type)
+        UnknownCard("Unknown card type: ${cardConfig.type}")
     }
 }
 
@@ -567,7 +578,7 @@ private fun ConfigNoticeBanner(text: String) {
 }
 
 @Composable
-private fun UnknownCard(type: String) {
+private fun UnknownCard(message: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -576,7 +587,7 @@ private fun UnknownCard(type: String) {
             .padding(14.dp),
     ) {
         Text(
-            "Unknown card type: $type",
+            message,
             color = AstrionTheme.colors.danger,
             fontSize = AstrionTheme.label,
         )
