@@ -21,7 +21,7 @@ Design round 1, chosen from mockups:
 - **Climate.** Mode and Fan speed are captioned segmented rows on a sunken track (Fan only reads Fan, to fit). Power is a pill that says On or Off; the fan tile uses the same one.
 - **Low battery.** At 15% and below, off the dock, the header's percentage, outline and fill all turn Baby Doll. Only the fill used to change, and at 10% that is two pixels.
 - **Music player.** A title too long for its line scrolls through once when the track changes. A progress line with elapsed and total time sits under the artist; the cover is 26 dp shorter while it shows, so the page still fits.
-- **Footer.** The page arrows are full strength and 48 dp wide.
+- **Footer.** The page arrows are full strength and 48 dp wide, and a hairline under the wordmark, one segment per page, shows which page you are on.
 - **Floorplan.** Every icon is hit through a 48 dp area, and where two areas overlap the tap goes to the nearest icon.
 - **Type scale.** Fourteen interface sizes become seven (12, 14, 16, 18, 22, 28, 34): 13, 15, 17, 19, 20, 26 and 32 sp each moved to a neighbour. The three clocks keep their own sizes.
 
