@@ -1,10 +1,12 @@
 package com.custom.astrion.ui
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +25,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -79,13 +85,51 @@ fun PageName(
                 .height(PageNameHeight),
             contentAlignment = Alignment.Center,
         ) {
-            Wordmark14(name = name)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(PageRuleGap),
+            ) {
+                Wordmark14(name = name)
+                if (hasPages) PageRule(count = count, current = current)
+            }
         }
         EdgeArrow(Glyphs.fwd, "Next page", visible = hasPages) {
             onGo((current + 1).mod(count))
         }
     }
 }
+
+/**
+ * Which page this is, as a hairline under the wordmark: one segment per page,
+ * this page's lit. The arrows say there are other pages; this says how many
+ * and where you are among them, without taking a line of its own.
+ */
+@Composable
+private fun PageRule(count: Int, current: Int) {
+    val on = AstrionTheme.accent
+    val off = AstrionTheme.colors.controlRaised
+    Row(
+        modifier = Modifier.semantics { contentDescription = "Page ${current + 1} of $count" },
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        // Narrower segments when there are many pages, so the rule never
+        // grows wider than the wordmark above it.
+        val segment = (PageRuleWidth / count - 4.dp).coerceIn(8.dp, 38.dp)
+        repeat(count) { i ->
+            val color by animateColorAsState(if (i == current) on else off, tween(FADE_MS), label = "pageRule")
+            Box(
+                Modifier
+                    .size(width = segment, height = 2.dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(color),
+            )
+        }
+    }
+}
+
+private val PageRuleGap = 5.dp
+/** The rule's full width: about the wordmark's own. */
+private val PageRuleWidth = 168.dp
 
 @Composable
 private fun EdgeArrow(
@@ -94,15 +138,17 @@ private fun EdgeArrow(
     visible: Boolean,
     onClick: () -> Unit,
 ) {
-    // Always laid out, so the name stays put at the ends; faded to 0.6 (0.34 was about 1.6:1).
+    // Always laid out, so the name stays put at the ends. Full strength and
+    // 48dp wide: at 0.6 alpha the arrows were about 3:1 on the page, and a
+    // 34dp strip at the screen edge was easy to miss with a thumb.
     Box(
         modifier = Modifier
-            .size(width = 34.dp, height = PageNameHeight)
-            .graphicsLayer { alpha = if (visible) 0.6f else 0f }
+            .size(width = MIN_TOUCH, height = PageNameHeight)
+            .graphicsLayer { alpha = if (visible) 1f else 0f }
             .then(if (visible) Modifier.tap(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = if (visible) label else null, tint = AstrionTheme.textMuted, modifier = Modifier.size(19.dp))
+        Icon(icon, contentDescription = if (visible) label else null, tint = AstrionTheme.textSecondary, modifier = Modifier.size(22.dp))
     }
 }
 

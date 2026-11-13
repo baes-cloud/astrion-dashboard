@@ -1,6 +1,8 @@
 package com.custom.astrion.cards.impl
 
 import com.custom.astrion.ui.parseHexColor
+import com.custom.astrion.ui.MIN_TOUCH
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
@@ -245,7 +247,15 @@ class PictureElementsCard : CardRenderer {
             // 36dp: a touch smaller than the 40dp it was, so the plan shows more.
             val iconBox = 36.dp
 
-            elements.forEach { el ->
+            // Every icon is hit through a 48dp area, whatever it is drawn at
+            // (36dp, some of them a few dp apart). Where two areas overlap,
+            // the tap goes to the icon whose centre is closest to the finger,
+            // not to whichever happened to be drawn last.
+            val centres = remember(elements) { HashMap<Int, Offset>() }
+            val taps = remember(elements) { HashMap<Int, () -> Unit>() }
+            val holds = remember(elements) { HashMap<Int, () -> Unit>() }
+
+            elements.forEachIndexed { index, el ->
                 val leftPct = (el["left"] as? Number)?.toFloat() ?: 50f
                 val topPct = (el["top"] as? Number)?.toFloat() ?: 50f
                 val entityId = el["entity_id"] as? String
@@ -302,54 +312,75 @@ class PictureElementsCard : CardRenderer {
                         sent = false
                     }
                 }
-                Icon(
-                    imageVector = icon,
-                    // What a screen reader says: the light's name and state, not its id.
-                    contentDescription = entity?.let { "${it.friendlyName}, ${it.state.humanise()}" } ?: entityId,
-                    // "color" (hex) for a bare glyph that sits on something pale.
-                    tint = parseHexColor(el["color"] as? String)?.takeIf { !elUnavailable } ?: tint,
-                    modifier = Modifier
-                        .offset(x = x.coerceAtLeast(0.dp), y = y.coerceAtLeast(0.dp))
-                        .size(box)
-                        .clip(shape)
-                        .background(if (bare) Color.Transparent else bg)
-                        .then(
-                            if (sent) Modifier.border(2.dp, AstrionTheme.accent.copy(alpha = 0.85f), shape)
-                            else Modifier
-                        )
-                        .pointerInput(entityId, service) {
-                            detectTapGestures(
-                                // Long-press a light icon → colour/brightness popup
-                                // (same dialog as the bubble_light card).
-                                onLongPress = if (entityId?.startsWith("light.") == true) {
-                                    { _ ->
-                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        detailEntity = entityId
-                                    }
-                                } else null,
-                                onTap = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    sent = true
-                                    when {
-                                        entityId != null -> ctx.client.toggle(entityId)
-                                        service != null -> {
-                                            val domain = service.substringBefore('.')
-                                            val svc = service.substringAfter('.')
-                                            val targets = (el["targets"] as? List<*>)?.filterIsInstance<String>().orEmpty()
-                                            if (targets.isEmpty()) {
-                                                ctx.client.callService(ServiceCall(domain, svc))
-                                            } else {
-                                                targets.forEach { t ->
-                                                    ctx.client.callService(ServiceCall(domain, svc, entityId = t))
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                            )
+                // Where the icon really is (it is kept on the plan at the edges),
+                // and the tap area around it, in dp from the plan's corner.
+                val ax = x.coerceAtLeast(0.dp)
+                val ay = y.coerceAtLeast(0.dp)
+                val hit = maxOf(box, MIN_TOUCH)
+                val hx = (ax + box / 2 - hit / 2).coerceAtLeast(0.dp)
+                val hy = (ay + box / 2 - hit / 2).coerceAtLeast(0.dp)
+                centres[index] = Offset((ax + box / 2).value, (ay + box / 2).value)
+                taps[index] = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    sent = true
+                    when {
+                        entityId != null -> ctx.client.toggle(entityId)
+                        service != null -> {
+                            val domain = service.substringBefore('.')
+                            val svc = service.substringAfter('.')
+                            val targets = (el["targets"] as? List<*>)?.filterIsInstance<String>().orEmpty()
+                            if (targets.isEmpty()) {
+                                ctx.client.callService(ServiceCall(domain, svc))
+                            } else {
+                                targets.forEach { t ->
+                                    ctx.client.callService(ServiceCall(domain, svc, entityId = t))
+                                }
+                            }
                         }
-                        .padding(6.dp),
-                )
+                    }
+                }
+                if (entityId?.startsWith("light.") == true) {
+                    // Long-press a light icon → colour/brightness popup
+                    // (same dialog as the bubble_light card).
+                    holds[index] = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        detailEntity = entityId
+                    }
+                } else {
+                    holds.remove(index)
+                }
+                Box(
+                    Modifier
+                        .offset(x = hx, y = hy)
+                        .size(hit)
+                        .pointerInput(index, hx, hy) {
+                            fun target(at: Offset): Int =
+                                nearestElement(centres, hx.value + at.x / density, hy.value + at.y / density) ?: index
+                            detectTapGestures(
+                                // A hold on something with no popup still acts, as it did.
+                                onLongPress = { at -> target(at).let { (holds[it] ?: taps[it])?.invoke() } },
+                                onTap = { at -> taps[target(at)]?.invoke() },
+                            )
+                        },
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        // What a screen reader says: the light's name and state, not its id.
+                        contentDescription = entity?.let { "${it.friendlyName}, ${it.state.humanise()}" } ?: entityId,
+                        // "color" (hex) for a bare glyph that sits on something pale.
+                        tint = parseHexColor(el["color"] as? String)?.takeIf { !elUnavailable } ?: tint,
+                        modifier = Modifier
+                            .offset(x = ax - hx, y = ay - hy)
+                            .size(box)
+                            .clip(shape)
+                            .background(if (bare) Color.Transparent else bg)
+                            .then(
+                                if (sent) Modifier.border(2.dp, AstrionTheme.accent.copy(alpha = 0.85f), shape)
+                                else Modifier
+                            )
+                            .padding(6.dp),
+                    )
+                }
             }
 
             // Radar overlays: plot mmWave target dots (e.g. LD2450) on the plan.
@@ -691,7 +722,7 @@ class PictureElementsCard : CardRenderer {
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("${i + 1}", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.Bold)
+                    Text("${i + 1}", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -757,7 +788,7 @@ class PictureElementsCard : CardRenderer {
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Text("$label$id", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.Bold)
+            Text("$label$id", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.Bold)
         }
     }
 
@@ -807,3 +838,13 @@ private fun fixtureGlyph(key: String?): androidx.compose.ui.graphics.vector.Imag
     "roller_blind", "blind" -> Glyphs.rollerBlind
     else -> null
 }
+
+/**
+ * The element whose centre is closest to ([x], [y]), all in the same units;
+ * null if there are none. Ties go to the lower index, so the answer doesn't
+ * depend on map order.
+ */
+internal fun nearestElement(centres: Map<Int, Offset>, x: Float, y: Float): Int? =
+    centres.entries.minWithOrNull(
+        compareBy<Map.Entry<Int, Offset>>({ (it.value.x - x) * (it.value.x - x) + (it.value.y - y) * (it.value.y - y) }, { it.key })
+    )?.key

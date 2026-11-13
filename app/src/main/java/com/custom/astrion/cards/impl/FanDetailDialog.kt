@@ -115,14 +115,14 @@ fun FanDetailDialog(entityId: String, name: String, config: CardConfig, ctx: Car
                 Column(Modifier.weight(1f)) {
                     Text(
                         name, color = AstrionTheme.textPrimary, fontFamily = AstrionTheme.headingFont,
-                        fontSize = AstrionTheme.size.headingLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        fontSize = AstrionTheme.size.displayXs, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         listOfNotNull(
                             if (level > 0) "Speed $level of $speeds" else "Off",
                             temperature?.let { "${it.roundToInt()}° here" },
                         ).joinToString(" · "),
-                        color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small,
+                        color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label,
                     )
                     if (fault) Text("The fan reports a fault", color = AstrionTheme.danger, fontSize = AstrionTheme.size.label)
                 }
@@ -273,6 +273,6 @@ private fun Chip(
             Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
         }
-        Text(label, color = ink, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(label, color = ink, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }

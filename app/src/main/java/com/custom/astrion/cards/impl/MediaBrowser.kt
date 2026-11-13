@@ -145,7 +145,7 @@ fun MediaBrowser(client: HaClient, rooms: List<BrowseRoom>, onClose: () -> Unit)
             Text(
                 level.title,
                 color = AstrionTheme.textPrimary,
-                fontSize = AstrionTheme.size.title,
+                fontSize = AstrionTheme.size.emphasis,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -167,7 +167,7 @@ fun MediaBrowser(client: HaClient, rooms: List<BrowseRoom>, onClose: () -> Unit)
                     Text(
                         r.name,
                         color = if (on) AstrionTheme.colors.onPrimary else AstrionTheme.textSecondary,
-                        fontSize = AstrionTheme.size.small,
+                        fontSize = AstrionTheme.size.label,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
                             .clip(RoundedCornerShape(16.dp))
@@ -186,7 +186,7 @@ fun MediaBrowser(client: HaClient, rooms: List<BrowseRoom>, onClose: () -> Unit)
         }
 
         note?.let {
-            Text(it, color = AstrionTheme.accent, fontSize = AstrionTheme.size.small)
+            Text(it, color = AstrionTheme.accent, fontSize = AstrionTheme.size.label)
             LaunchedEffect(it) { delay(2500); note = null }
         }
 
@@ -297,7 +297,7 @@ private fun Art(client: HaClient, item: MediaItem) {
 @Composable
 private fun Hint(text: String) {
     Text(
-        text, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small,
+        text, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label,
         modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 4.dp),
     )
 }

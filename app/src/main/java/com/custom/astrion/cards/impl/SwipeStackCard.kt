@@ -134,7 +134,7 @@ class SwipeStackCard : CardRenderer {
                             Text(
                                 titles[i],
                                 color = if (current) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
-                                fontSize = AstrionTheme.size.small,
+                                fontSize = AstrionTheme.size.label,
                                 fontWeight = FontWeight.SemiBold,
                                 style = TextStyle(
                                     shadow = if (current) {

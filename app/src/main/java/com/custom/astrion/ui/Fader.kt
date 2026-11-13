@@ -150,7 +150,7 @@ fun Fader(
                 color = AstrionTheme.textPrimary,
                 fontFamily = AstrionTheme.bodyFont,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = AstrionTheme.size.bodyLarge,
+                fontSize = AstrionTheme.size.body,
                 maxLines = 1,
             )
         }

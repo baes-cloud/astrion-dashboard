@@ -225,7 +225,7 @@ private fun QueueRow(item: QueueItem, now: Boolean) {
             Text(
                 "${s / 60}:${(s % 60).toString().padStart(2, '0')}",
                 color = AstrionTheme.textMuted,
-                fontSize = AstrionTheme.size.small,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.SemiBold,
             )
         }
@@ -246,7 +246,7 @@ private fun Caption(text: String) {
 
 @Composable
 private fun Note(text: String) {
-    Text(text, color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.small, modifier = Modifier.padding(4.dp))
+    Text(text, color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.label, modifier = Modifier.padding(4.dp))
 }
 
 private class QueueItem(val title: String, val artist: String?, val seconds: Int?)

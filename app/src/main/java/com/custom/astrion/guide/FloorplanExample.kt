@@ -115,6 +115,6 @@ private fun Legend(n: Int, text: String) {
     Row(verticalAlignment = Alignment.Top) {
         Box(Modifier.padding(top = 1.dp).size(20.dp)) { Badge(n) }
         Spacer(Modifier.width(8.dp))
-        Text(text, color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.size.small, modifier = Modifier.weight(1f))
+        Text(text, color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.size.label, modifier = Modifier.weight(1f))
     }
 }

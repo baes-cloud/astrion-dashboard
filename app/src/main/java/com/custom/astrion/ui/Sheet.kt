@@ -160,7 +160,7 @@ fun BottomSheet(
                     Text(
                         title,
                         color = AstrionTheme.textPrimary,
-                        fontSize = AstrionTheme.size.title,
+                        fontSize = AstrionTheme.size.emphasis,
                         fontWeight = FontWeight.ExtraBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -169,7 +169,7 @@ fun BottomSheet(
                         Text(
                             subtitle,
                             color = AstrionTheme.textSecondary,
-                            fontSize = AstrionTheme.size.small,
+                            fontSize = AstrionTheme.size.label,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )

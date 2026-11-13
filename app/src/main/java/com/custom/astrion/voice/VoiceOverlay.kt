@@ -123,7 +123,7 @@ fun VoiceOverlay(
             Text(
                 phaseLabel(state.phase),
                 color = accentColor(state.phase),
-                fontSize = AstrionTheme.size.bodyLarge,
+                fontSize = AstrionTheme.size.body,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp,
             )
@@ -145,7 +145,7 @@ fun VoiceOverlay(
             state.error?.let {
                 Text(
                     it,
-                    color = AstrionTheme.colors.dangerSoft, fontSize = AstrionTheme.size.small,
+                    color = AstrionTheme.colors.dangerSoft, fontSize = AstrionTheme.size.label,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                 )
             }

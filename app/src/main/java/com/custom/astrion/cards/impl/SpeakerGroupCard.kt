@@ -135,7 +135,7 @@ class SpeakerGroupCard : CardRenderer {
                 Text(
                     title,
                     color = AstrionTheme.textSecondary,
-                    fontSize = AstrionTheme.size.small,
+                    fontSize = AstrionTheme.size.label,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.sp,
                 )
@@ -266,7 +266,7 @@ class SpeakerGroupCard : CardRenderer {
                     baeoWordmark(toggle?.get("name") as? String ?: "BÆOLINK"),
                     color = AstrionTheme.textPrimary,
                     fontFamily = AstrionTheme.headingFont,
-                    fontSize = AstrionTheme.size.title,
+                    fontSize = AstrionTheme.size.emphasis,
                     letterSpacing = WordmarkTracking,
                     maxLines = 1,
                 )
@@ -501,7 +501,7 @@ class SpeakerGroupCard : CardRenderer {
                 Text(
                     if (grouped) "Joined" else "Join",
                     color = if (grouped) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
-                    fontSize = AstrionTheme.size.small,
+                    fontSize = AstrionTheme.size.label,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -640,7 +640,7 @@ class SpeakerGroupCard : CardRenderer {
                     Text(
                         label,
                         color = AstrionTheme.textPrimary,
-                        fontSize = AstrionTheme.size.bodyLarge,
+                        fontSize = AstrionTheme.size.body,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -713,7 +713,7 @@ class SpeakerGroupCard : CardRenderer {
             Text(
                 if (grouped) "Leave" else "Join",
                 color = if (grouped) AstrionTheme.accent else AstrionTheme.textMuted,
-                fontSize = AstrionTheme.size.small,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.SemiBold,
             )
         }
@@ -740,7 +740,7 @@ class SpeakerGroupCard : CardRenderer {
             Text(
                 "Master",
                 color = AstrionTheme.textMuted,
-                fontSize = AstrionTheme.size.small,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.SemiBold,
             )
         }

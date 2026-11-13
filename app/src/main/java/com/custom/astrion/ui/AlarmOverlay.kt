@@ -165,7 +165,7 @@ fun AlarmOverlay(
             Text(
                 if (state.ringing) "WAKE UP" else "SNOOZING",
                 color = light,
-                fontSize = AstrionTheme.size.small,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 3.sp,
             )
@@ -189,7 +189,7 @@ fun AlarmOverlay(
                     modifier = Modifier.alignByBaseline(),
                 )
             }
-            Text(Time.format(now, "EEEE, d MMMM"), color = InkSoft, fontSize = AstrionTheme.size.bodyLarge)
+            Text(Time.format(now, "EEEE, d MMMM"), color = InkSoft, fontSize = AstrionTheme.size.body)
 
             Spacer(Modifier.weight(0.5f))
 
@@ -285,7 +285,7 @@ private fun ShiftCard(state: AlarmUiState) {
             Text(
                 state.title ?: "Work",
                 color = Ink,
-                fontSize = AstrionTheme.size.title,
+                fontSize = AstrionTheme.size.emphasis,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -293,7 +293,7 @@ private fun ShiftCard(state: AlarmUiState) {
             Text(
                 listOfNotNull(state.place, state.startsAt?.let { "starts $it" }).joinToString("  ·  "),
                 color = InkSoft,
-                fontSize = AstrionTheme.size.small,
+                fontSize = AstrionTheme.size.label,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -369,7 +369,7 @@ private fun PillButton(
     ) {
         Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(10.dp))
-        Text(label, color = ink, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.Bold)
+        Text(label, color = ink, fontSize = AstrionTheme.size.emphasis, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -435,7 +435,7 @@ private fun HoldToStop(onDismiss: () -> Unit) {
             ) {
                 Icon(Icons.Filled.AlarmOff, contentDescription = null, tint = AstrionTheme.danger, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("Hold to stop", color = AstrionTheme.danger, fontSize = AstrionTheme.size.heading, fontWeight = FontWeight.SemiBold)
+                Text("Hold to stop", color = AstrionTheme.danger, fontSize = AstrionTheme.size.titleLarge, fontWeight = FontWeight.SemiBold)
             }
         }
         // Fixed-height slot so the hint appearing never shifts the buttons.

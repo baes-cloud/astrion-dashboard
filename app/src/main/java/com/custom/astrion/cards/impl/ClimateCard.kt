@@ -6,7 +6,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -22,7 +21,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.custom.astrion.ui.HitTarget
+import androidx.compose.ui.unit.sp
+import com.custom.astrion.ui.PowerPill
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -145,29 +145,18 @@ class ClimateCard : CardRenderer {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.title, fontWeight = FontWeight.SemiBold)
+                    Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.emphasis, fontWeight = FontWeight.SemiBold)
                     if (!unavailable) {
                         Text(
                             if (isOff) "Off"
                             else listOfNotNull(mode.humanise(), fanMode?.let { "fan ${it.humanise().lowercase()}" }).joinToString(" · "),
                             color = if (isOff) AstrionTheme.textSecondary else AstrionTheme.accent,
-                            fontSize = AstrionTheme.size.small,
+                            fontSize = AstrionTheme.size.label,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
                 }
-                HitTarget(
-                    visual = 40.dp,
-                    onClick = { togglePower() },
-                    enabled = live,
-                    face = Modifier.clip(CircleShape).background(if (isOff) AstrionTheme.controlBg else AstrionTheme.accentStrong),
-                ) {
-                    Icon(
-                        Icons.Filled.PowerSettingsNew,
-                        contentDescription = if (isOff) "Turn $name on" else "Turn $name off",
-                        tint = if (isOff) AstrionTheme.textSecondary else Color.White,
-                    )
-                }
+                PowerPill(on = !isOff, name = name, enabled = live) { togglePower() }
             }
 
             // Setpoint with steppers
@@ -193,12 +182,12 @@ class ClimateCard : CardRenderer {
                     // an unreachable aircon used to look like a working one
                     // showing a dash. Say so instead.
                     if (unavailable) {
-                        UnavailableLabel(AstrionTheme.size.small)
+                        UnavailableLabel(AstrionTheme.size.label)
                     } else {
                         Text(
                             current?.let { "Now ${trim(it)}°" } ?: "",
                             color = AstrionTheme.textSecondary,
-                            fontSize = AstrionTheme.size.small,
+                            fontSize = AstrionTheme.size.label,
                         )
                     }
                 }
@@ -208,15 +197,16 @@ class ClimateCard : CardRenderer {
                 }
             }
 
-            // HVAC mode chips
-            if (modes.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    modes.take(4).forEach { m ->
+            // Two segmented rows, each captioned: the rows used to be two
+            // identical lines of chips, and "Auto" could be a mode or a speed.
+            // "off" is the power pill's job, so it isn't a segment.
+            val shownModes = modes.filter { it != "off" }.take(4)
+            if (shownModes.isNotEmpty()) {
+                RowCaption("Mode")
+                Segmented {
+                    shownModes.forEach { m ->
                         ModeChip(
-                            label = m.humanise(),
+                            label = modeLabel(m),
                             selected = m == mode,
                             modifier = Modifier.weight(1f),
                             enabled = live,
@@ -225,19 +215,9 @@ class ClimateCard : CardRenderer {
                 }
             }
 
-            // Fan mode chips, captioned so "Auto" here isn't read as a mode.
             if (fanModes.isNotEmpty()) {
-                Text(
-                    "Fan",
-                    color = AstrionTheme.textSecondary,
-                    fontSize = AstrionTheme.size.label,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(start = 2.dp, top = 2.dp),
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
+                RowCaption("Fan speed")
+                Segmented {
                     fanModes.forEach { f ->
                         ModeChip(
                             label = f.humanise(),
@@ -273,6 +253,39 @@ class ClimateCard : CardRenderer {
         }
     }
 
+    /** Four across a 349 dp panel: the long HA names don't fit a segment. */
+    private fun modeLabel(mode: String): String = when (mode) {
+        "fan_only" -> "Fan"
+        "heat_cool" -> "Auto"
+        else -> mode.humanise()
+    }
+
+    @Composable
+    private fun RowCaption(text: String) {
+        Text(
+            text.uppercase(),
+            color = AstrionTheme.textSecondary,
+            fontSize = AstrionTheme.size.label,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.sp,
+            modifier = Modifier.padding(start = 2.dp, top = 1.dp),
+        )
+    }
+
+    /** One control, not four buttons: the segments share a sunken track. */
+    @Composable
+    private fun Segmented(content: @Composable RowScope.() -> Unit) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(AstrionTheme.trackBg)
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            content = content,
+        )
+    }
+
     @Composable
     private fun ModeChip(
         label: String,
@@ -283,20 +296,20 @@ class ClimateCard : CardRenderer {
     ) {
         Box(
             modifier = modifier
-                // 48dp: the minimum touch height, and the page had the room.
-                .height(48.dp)
-                .clip(RoundedCornerShape(12.dp))
+                // 42dp in a 3dp track: a 48dp row to hit.
+                .height(42.dp)
+                .clip(RoundedCornerShape(11.dp))
                 // accentStrong is a darkened 0xFF4C6EF5 — white 13sp on the
                 // original measured 4.32:1, the only real contrast failure in
                 // the app, and it was on the selected chip.
-                .background(if (selected) AstrionTheme.accentStrong else AstrionTheme.controlSunken)
+                .background(if (selected) AstrionTheme.accentStrong else Color.Transparent)
                 .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 label,
                 color = if (selected) Color.White else AstrionTheme.textSecondary,
-                fontSize = AstrionTheme.size.small,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.Medium,
             )
         }

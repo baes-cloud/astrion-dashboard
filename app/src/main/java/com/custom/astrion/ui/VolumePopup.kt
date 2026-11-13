@@ -217,7 +217,7 @@ fun VolumePopup(
                             color = AstrionTheme.textPrimary,
                             fontFamily = AstrionTheme.headingFont,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = AstrionTheme.size.small,
+                            fontSize = AstrionTheme.size.label,
                             maxLines = 1,
                         )
                         Text(

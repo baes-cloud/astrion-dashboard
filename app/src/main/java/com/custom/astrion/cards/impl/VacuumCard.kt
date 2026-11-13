@@ -141,7 +141,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.emphasis, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f))
-        Text(prettyVacuumLabel(state), color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.small)
+        Text(prettyVacuumLabel(state), color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.label)
     }
 
     // Map (includes the robot, rooms, path — rendered by the integration).
@@ -189,7 +189,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("Cleaning mode", color = AstrionTheme.colors.onSurfaceMuted, fontSize = AstrionTheme.size.label)
-                    Text(fanSpeed?.let(::prettyVacuumLabel) ?: "—", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.bodyLarge)
+                    Text(fanSpeed?.let(::prettyVacuumLabel) ?: "—", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.body)
                 }
                 Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = AstrionTheme.colors.textOnControl)
             }

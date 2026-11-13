@@ -231,7 +231,7 @@ class PlexCard : CardRenderer {
         Text(
             text,
             color = AstrionTheme.textSecondary,
-            fontSize = AstrionTheme.size.small,
+            fontSize = AstrionTheme.size.label,
             fontWeight = FontWeight.Medium,
         )
     }

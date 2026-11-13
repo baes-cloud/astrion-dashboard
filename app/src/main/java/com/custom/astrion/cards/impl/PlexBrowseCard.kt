@@ -109,7 +109,7 @@ class PlexBrowseCard : CardRenderer {
                     Spacer(Modifier.height(3.dp))
                     Text(
                         b["name"] as? String ?: "",
-                        color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.small,
+                        color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.label,
                         fontWeight = FontWeight.SemiBold, maxLines = 1,
                     )
                 }
@@ -252,7 +252,7 @@ private fun PlexBrowser(
         }
         status?.let {
             Text(
-                it, color = AstrionTheme.colors.onPrimary, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.SemiBold,
+                it, color = AstrionTheme.colors.onPrimary, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AstrionTheme.accentStrong)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             )
@@ -475,10 +475,10 @@ private fun SearchView(target: PlexTarget, onOpen: (Entry) -> Unit) {
             Icon(Icons.Filled.Search, contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(10.dp))
             Box(Modifier.weight(1f)) {
-                if (query.isEmpty()) Text("Films, shows, episodes…", color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.bodyLarge)
+                if (query.isEmpty()) Text("Films, shows, episodes…", color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.body)
                 BasicTextField(
                     value = query, onValueChange = { query = it }, singleLine = true,
-                    textStyle = TextStyle(color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.bodyLarge),
+                    textStyle = TextStyle(color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body),
                     cursorBrush = SolidColor(AstrionTheme.accent),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
@@ -540,7 +540,7 @@ private fun Chips(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) 
             Text(
                 label,
                 color = if (on) AstrionTheme.colors.onPrimary else AstrionTheme.textSecondary,
-                fontSize = AstrionTheme.size.small, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                fontSize = AstrionTheme.size.label, fontWeight = FontWeight.SemiBold, maxLines = 1,
                 modifier = Modifier.clip(RoundedCornerShape(18.dp)).background(if (on) AstrionTheme.accentStrong else AstrionTheme.raised)
                     .tap { onSelect(i) }.padding(horizontal = 14.dp, vertical = 9.dp),
             )
@@ -550,5 +550,5 @@ private fun Chips(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) 
 
 @Composable
 private fun Note(text: String) {
-    Text(text, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small, modifier = Modifier.padding(vertical = 14.dp, horizontal = 4.dp))
+    Text(text, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, modifier = Modifier.padding(vertical = 14.dp, horizontal = 4.dp))
 }
