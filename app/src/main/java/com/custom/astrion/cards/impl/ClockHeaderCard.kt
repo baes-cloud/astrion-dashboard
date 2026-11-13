@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
@@ -162,22 +163,32 @@ class ClockHeaderCard : CardRenderer {
         }
         if (pct < 0) return
 
+        // Low and not on the dock: the percentage, the outline and the fill
+        // all turn to the attention colour. Only the fill used to change,
+        // and at 10% the fill is a sliver two pixels wide.
+        val low = !charging && pct <= LOW_BATTERY_PCT
         val fill = when {
             charging -> AstrionTheme.good
-            pct <= 15 -> AstrionTheme.danger
+            low -> AstrionTheme.blush
             else -> AstrionTheme.textPrimary
         }
-        val outline = AstrionTheme.textSecondary
+        val outline = if (low) AstrionTheme.blush else AstrionTheme.textSecondary
         val bolt = AstrionTheme.pinnedTopBg
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            HeaderText("$pct%")
+            HeaderText("$pct%", if (low) AstrionTheme.blush else AstrionTheme.textPrimary)
             Canvas(
                 Modifier
                     .size(width = 22.dp, height = 11.dp)
-                    .semantics { contentDescription = if (charging) "Battery $pct%, charging" else "Battery $pct%" },
+                    .semantics {
+                        contentDescription = when {
+                            charging -> "Battery $pct%, charging"
+                            low -> "Battery low, $pct%"
+                            else -> "Battery $pct%"
+                        }
+                    },
             ) {
                 val stroke = 1.2.dp.toPx()
                 val nubW = 2.dp.toPx()
@@ -223,10 +234,10 @@ class ClockHeaderCard : CardRenderer {
     }
 
     @Composable
-    private fun HeaderText(text: String) {
+    private fun HeaderText(text: String, color: Color = AstrionTheme.textPrimary) {
         Text(
             text,
-            color = AstrionTheme.textPrimary,
+            color = color,
             fontSize = AstrionTheme.size.small,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp,
@@ -235,3 +246,6 @@ class ClockHeaderCard : CardRenderer {
         )
     }
 }
+
+/** At or below this, off the dock, the header's battery turns to the attention colour. */
+private const val LOW_BATTERY_PCT = 15

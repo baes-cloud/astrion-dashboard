@@ -1,5 +1,8 @@
 package com.custom.astrion.cards.impl
 
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.runtime.key
+import androidx.compose.ui.unit.Dp
 import android.graphics.Bitmap
 import com.custom.astrion.ui.parseHexColor
 import androidx.compose.foundation.Image
@@ -401,7 +404,7 @@ class MediaPlayerCard : CardRenderer {
      * position report. It ticks each second only while playing and on screen.
      */
     @Composable
-    private fun SessionProgress(ctx: CardContext, entityId: String) {
+    private fun SessionProgress(ctx: CardContext, entityId: String, topGap: Dp = 8.dp) {
         val p = ctx.entity(entityId) ?: return
         val duration = p.attrDouble("media_duration")?.takeIf { it > 0 } ?: return
         val position = p.attrDouble("media_position") ?: return
@@ -417,7 +420,7 @@ class MediaPlayerCard : CardRenderer {
         }
         val pos = (if (ticking && reportedAt != null) position + (now - reportedAt) / 1000.0 else position)
             .coerceIn(0.0, duration)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(topGap))
         Box(
             Modifier
                 .fillMaxWidth()
@@ -599,24 +602,35 @@ class MediaPlayerCard : CardRenderer {
                     }
                 }
                 // Single clear album cover in focus over the blurred backdrop.
-                FocusedAlbumArt(art = art, maxHeight = 150.dp, maxWidth = 290.dp)
+                // A track with a known length gets a progress line under its
+                // artist; the cover gives up that much height, so the page
+                // still fits one screen.
+                val hasProgress = e != null && (e.attrDouble("media_duration") ?: 0.0) > 0 &&
+                    e.attrDouble("media_position") != null
+                FocusedAlbumArt(art = art, maxHeight = if (hasProgress) 124.dp else 150.dp, maxWidth = 290.dp)
 
             // Centered now-playing track title + artist.
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
-                    title,
-                    color = AstrionTheme.textPrimary,
-                    fontFamily = AstrionTheme.headingFont,
-                    fontSize = AstrionTheme.size.title,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                // A title too long for the line scrolls through once when the
+                // track changes, then rests: it used to be cut with "…", and
+                // a DJ set's name is mostly its second half.
+                key(title) {
+                    Text(
+                        title,
+                        color = AstrionTheme.textPrimary,
+                        fontFamily = AstrionTheme.headingFont,
+                        fontSize = AstrionTheme.size.title,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .basicMarquee(iterations = 1, initialDelayMillis = 1_500),
+                    )
+                }
                 Text(
                     artist,
                     color = AstrionTheme.textSecondary,
@@ -626,6 +640,7 @@ class MediaPlayerCard : CardRenderer {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (hasProgress) SessionProgress(ctx, entityId, topGap = 6.dp)
             }
             // Clean 3-button transport row + integrated glass/blend volume bar inside the card.
             if (showControls) {

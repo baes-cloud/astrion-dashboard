@@ -94,15 +94,17 @@ private fun EdgeArrow(
     visible: Boolean,
     onClick: () -> Unit,
 ) {
-    // Always laid out, so the name stays put at the ends; faded to 0.6 (0.34 was about 1.6:1).
+    // Always laid out, so the name stays put at the ends. Full strength and
+    // 48dp wide: at 0.6 alpha the arrows were about 3:1 on the page, and a
+    // 34dp strip at the screen edge was easy to miss with a thumb.
     Box(
         modifier = Modifier
-            .size(width = 34.dp, height = PageNameHeight)
-            .graphicsLayer { alpha = if (visible) 0.6f else 0f }
+            .size(width = MIN_TOUCH, height = PageNameHeight)
+            .graphicsLayer { alpha = if (visible) 1f else 0f }
             .then(if (visible) Modifier.tap(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = if (visible) label else null, tint = AstrionTheme.textMuted, modifier = Modifier.size(19.dp))
+        Icon(icon, contentDescription = if (visible) label else null, tint = AstrionTheme.textSecondary, modifier = Modifier.size(22.dp))
     }
 }
 

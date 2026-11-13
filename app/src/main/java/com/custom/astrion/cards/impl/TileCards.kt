@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.custom.astrion.ui.HitTarget
+import com.custom.astrion.ui.PowerPill
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -266,18 +267,8 @@ class FanCard : CardRenderer {
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 CircleBtn(Icons.Filled.Remove, "$name slower", live && shownSpeed != null, size = 38.dp) { nudge(-1) }
                 CircleBtn(Icons.Filled.Add, "$name faster", live, size = 38.dp) { nudge(1) }
-                HitTarget(
-                    visual = 38.dp,
-                    onClick = { ctx.client.toggle(entityId) },
-                    enabled = live,
-                    face = Modifier.clip(CircleShape).background(if (on) AstrionTheme.accentStrong else AstrionTheme.controlBg),
-                ) {
-                    Icon(
-                        Icons.Filled.PowerSettingsNew,
-                        contentDescription = if (on) "Turn $name off" else "Turn $name on",
-                        tint = if (on) Color.White else AstrionTheme.textOnControl,
-                    )
-                }
+                // The same pill as the aircon above it, at this row's 38dp.
+                PowerPill(on = on, name = name, enabled = live, height = 38.dp) { ctx.client.toggle(entityId) }
             }
         }
 
