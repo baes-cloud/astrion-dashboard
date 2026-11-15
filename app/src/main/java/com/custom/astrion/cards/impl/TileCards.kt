@@ -110,7 +110,7 @@ class CoverCard : CardRenderer {
                 .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(18.dp))
                 .background(AstrionTheme.cardBgAlt)
-                .padding(start = 14.dp, end = 9.dp, top = 9.dp, bottom = 9.dp),
+                .padding(start = 14.dp, end = 12.dp, top = 9.dp, bottom = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -163,7 +163,8 @@ class CoverCard : CardRenderer {
             }
             Row(
                 modifier = if (fill) Modifier.fillMaxHeight() else Modifier,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 CoverBtn(Icons.Filled.KeyboardArrowUp, "Open $name", live, fill) { call(openService) }
                 CoverBtn(Icons.Filled.Stop, "Stop $name", live, fill) { call("stop_cover") }
@@ -187,14 +188,16 @@ class CoverCard : CardRenderer {
     ) {
         Box(
             modifier = Modifier
-                .width(64.dp)
-                .then(if (fill) Modifier.fillMaxHeight() else Modifier.height(50.dp))
-                .clip(RoundedCornerShape(16.dp))
+                .width(58.dp)
+                // Filling the card made them slabs; capped, they sit centred
+                // with some air above and below.
+                .height(if (fill) 54.dp else 50.dp)
+                .clip(RoundedCornerShape(15.dp))
                 .background(AstrionTheme.controlBg)
                 .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = description, tint = AstrionTheme.textOnControl, modifier = Modifier.size(30.dp))
+            Icon(icon, contentDescription = description, tint = AstrionTheme.textOnControl, modifier = Modifier.size(27.dp))
         }
     }
 }
