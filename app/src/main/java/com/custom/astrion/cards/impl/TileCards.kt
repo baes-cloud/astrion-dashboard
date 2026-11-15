@@ -58,6 +58,9 @@ import kotlinx.coroutines.delay
  * Uses cover.open_cover / cover.close_cover / cover.stop_cover.
  *
  * Config: CardConfig("cover", mapOf("entity_id" to "cover.living_room", "name" to "Curtains"))
+ *
+ * `"pin": "fill"` shares the page's spare height between the covers that ask
+ * for it: the buttons grow to match and the page stops scrolling.
  */
 class CoverCard : CardRenderer {
     override val type = "cover"
@@ -91,56 +94,107 @@ class CoverCard : CardRenderer {
         val openService = if (invertButtons) "close_cover" else "open_cover"
         val closeService = if (invertButtons) "open_cover" else "close_cover"
 
+        // "pin": "fill" hands the card a share of the page's spare height
+        // (see PageContent): the three buttons grow into it, so on the
+        // Climate page the blinds are thumb-sized and the page ends exactly
+        // at the footer, with nothing to scroll.
+        val fill = config.options["pin"] == "fill"
+        // How far open, as a fraction, for the bar under the name. A blind
+        // that reports no position is drawn fully open or shut.
+        val openFraction = position?.let { it.coerceIn(0, 100) / 100f } ?: if (open) 1f else 0f
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .then(if (fill) Modifier.fillMaxHeight() else Modifier)
                 .dimIfUnavailable(unavailable)
                 .clip(RoundedCornerShape(18.dp))
                 .background(AstrionTheme.cardBgAlt)
-                // 55dp tall: three blinds, the fan and the aircon fill the
-                // Climate page exactly, without scrolling.
-                .padding(horizontal = 12.dp, vertical = 8.5.dp),
+                .padding(start = 14.dp, end = 9.dp, top = 9.dp, bottom = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(AstrionTheme.raised),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (open) Icons.Filled.Blinds else Icons.Outlined.Blinds,
-                    contentDescription = if (open) "$name, open" else "$name, closed",
-                    tint = when {
-                        unavailable -> AstrionTheme.unavailable
-                        open -> AstrionTheme.blush
-                        else -> AstrionTheme.colors.textSoft
-                    },
-                )
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    name,
-                    color = AstrionTheme.textPrimary,
-                    fontSize = AstrionTheme.size.body,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    // Was maxLines=1 with no overflow, so a long name simply clipped.
-                    overflow = TextOverflow.Ellipsis,
-                )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (open) Icons.Filled.Blinds else Icons.Outlined.Blinds,
+                        contentDescription = if (open) "$name, open" else "$name, closed",
+                        tint = when {
+                            unavailable -> AstrionTheme.unavailable
+                            open -> AstrionTheme.blush
+                            else -> AstrionTheme.colors.textSoft
+                        },
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        name,
+                        color = AstrionTheme.textPrimary,
+                        fontSize = AstrionTheme.size.emphasis,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        // Was maxLines=1 with no overflow, so a long name simply clipped.
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 if (unavailable) {
                     UnavailableLabel(AstrionTheme.size.label)
                 } else {
-                    Text(stateLabel, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
+                    Text(stateLabel, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, maxLines = 1)
+                    // Position at a glance: the blush run is the open part.
+                    Box(
+                        Modifier
+                            .padding(top = 4.dp, end = 12.dp)
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(AstrionTheme.trackBg),
+                    ) {
+                        if (openFraction > 0f) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth(openFraction)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(AstrionTheme.blush),
+                            )
+                        }
+                    }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                CircleBtn(Icons.Filled.KeyboardArrowUp, "Open $name", live, size = 38.dp) { call(openService) }
-                CircleBtn(Icons.Filled.Stop, "Stop $name", live, size = 38.dp) { call("stop_cover") }
-                CircleBtn(Icons.Filled.KeyboardArrowDown, "Close $name", live, size = 38.dp) { call(closeService) }
+            Row(
+                modifier = if (fill) Modifier.fillMaxHeight() else Modifier,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                CoverBtn(Icons.Filled.KeyboardArrowUp, "Open $name", live, fill) { call(openService) }
+                CoverBtn(Icons.Filled.Stop, "Stop $name", live, fill) { call("stop_cover") }
+                CoverBtn(Icons.Filled.KeyboardArrowDown, "Close $name", live, fill) { call(closeService) }
             }
+        }
+    }
+
+    /**
+     * One of the three blind buttons: a wide rounded key rather than the
+     * 38dp circle it used to be, which was a small thing to hit with a
+     * thumb from the sofa. With [fill] it is as tall as the card allows.
+     */
+    @Composable
+    private fun CoverBtn(
+        icon: ImageVector,
+        description: String,
+        enabled: Boolean,
+        fill: Boolean,
+        onClick: () -> Unit,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(64.dp)
+                .then(if (fill) Modifier.fillMaxHeight() else Modifier.height(50.dp))
+                .clip(RoundedCornerShape(16.dp))
+                .background(AstrionTheme.controlBg)
+                .tap(enabled = enabled, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = description, tint = AstrionTheme.textOnControl, modifier = Modifier.size(30.dp))
         }
     }
 }

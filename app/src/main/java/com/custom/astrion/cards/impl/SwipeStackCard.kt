@@ -64,6 +64,9 @@ import kotlinx.coroutines.launch
  * A tab can hold several cards: { "type": "column", "options": {
  *   "spacing": 10, "cards": [ ... ] } }.
  *
+ * `"pin": "fill"` gives the tabs whatever height the page has left, so the
+ * page fits the screen exactly and doesn't scroll.
+ *
  * `height` is in dp and fixes the swipe area. Left at 0 the pager sizes to its
  * content, which makes the whole page jump as you drag between children of
  * different heights.
@@ -78,6 +81,10 @@ class SwipeStackCard : CardRenderer {
         if (children.isEmpty()) return
         val titles = config.stringList("titles")
         val height = config.int("height", 0)
+        // "pin": "fill" (see PageContent): the tabs take exactly the height
+        // the page has left, so the page itself never scrolls; a child that
+        // can fit itself to a given height (media_shelves) does.
+        val fill = config.options["pin"] == "fill"
 
         val pagerState = rememberPagerState(pageCount = { children.size })
         val scope = rememberCoroutineScope()
@@ -99,7 +106,10 @@ class SwipeStackCard : CardRenderer {
             SideEffect { nameOverride.value = tabName }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            modifier = if (fill) Modifier.fillMaxSize() else Modifier,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             if (titles.size >= children.size) {
                 // Segmented tab bar ("Player | Media"): says what's behind each
                 // page and, unlike a swipe, always gets through children built
@@ -212,7 +222,11 @@ class SwipeStackCard : CardRenderer {
 
             HorizontalPager(
                 state = pagerState,
-                modifier = if (height > 0) Modifier.height(height.dp) else Modifier,
+                modifier = when {
+                    fill -> Modifier.weight(1f)
+                    height > 0 -> Modifier.height(height.dp)
+                    else -> Modifier
+                },
                 // Shorter tabs sit at the top rather than centred in the pager.
                 verticalAlignment = Alignment.Top,
                 // With tabs, a swipe belongs to the dashboard (page to page).

@@ -25,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
@@ -35,6 +37,7 @@ import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.rememberPageVisits
 import com.custom.astrion.ui.tap
+import com.custom.astrion.ui.tightTextStyle
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -100,6 +103,15 @@ class MediaShelvesCard : CardRenderer {
         // Square album art, ~3.8 across the 480px panel (was 92dp).
         val TILE = 85.dp
 
+        /** Below this the art is too small to read; the shelves scroll instead. */
+        val MIN_TILE = 64.dp
+
+        // The parts of a shelf that aren't art: heading, gaps, two caption lines.
+        val LABEL_LINE = 20.sp
+        val CAPTION_LINE = 13.sp
+        val LABEL_GAP = 6.dp
+        val CAPTION_GAP = 4.dp
+
         // Decode floor for covers: 85dp is ~120px on this panel, so a 640px
         // CDN cover decodes at 160px instead of full size.
         const val ART_PX = 128
@@ -153,25 +165,37 @@ class MediaShelvesCard : CardRenderer {
             if (value == null) value = emptyList()
         }
 
-        // Scroll inside a fixed-height parent (swipe_stack "height"); with no
+        // Inside a fixed-height parent (swipe_stack "height" or "pin": "fill")
+        // the art shrinks a little so every row fits and nothing scrolls; a
+        // nudge of a few pixels read as a page that had more below. Only when
+        // the rows can't fit at a sensible size do the shelves scroll. With no
         // fixed height the page itself scrolls, and nesting would crash.
         BoxWithConstraints {
+            val topPad = config.int("top_padding", 0).dp
+            val rowGap = config.int("row_spacing", 12).dp
+            val rowCount = shelves?.size ?: 0
+            val fitTile: Dp? = if (constraints.hasBoundedHeight && rowCount > 0) {
+                val chrome = with(LocalDensity.current) { LABEL_LINE.toDp() + CAPTION_LINE.toDp() * 2 } + LABEL_GAP + CAPTION_GAP
+                (maxHeight - topPad - rowGap * (rowCount - 1)) / rowCount - chrome
+            } else null
+            val fits = fitTile != null && fitTile >= MIN_TILE
+            val tile = if (fits) minOf(TILE, fitTile!!) else TILE
             Column(
-                modifier = (if (constraints.hasBoundedHeight) Modifier.verticalScroll(rememberScrollState()) else Modifier)
-                    .padding(top = config.int("top_padding", 0).dp),
+                modifier = (if (constraints.hasBoundedHeight && !fits) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                    .padding(top = topPad),
                 // "top_padding" (dp) sets the first row off the tab bar;
                 // "row_spacing" (dp) spreads fewer rows over the tab.
-                verticalArrangement = Arrangement.spacedBy(config.int("row_spacing", 12).dp),
+                verticalArrangement = Arrangement.spacedBy(rowGap),
             ) {
                 when {
                     shelves == null -> ShelfLabel("Loading…")
                     shelves!!.isEmpty() -> ShelfLabel("Nothing to show")
                     else -> shelves!!.forEach { shelf ->
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(LABEL_GAP)) {
                             ShelfLabel(shelf.title)
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 items(shelf.items) { item ->
-                                    Tile(ctx, item) {
+                                    Tile(ctx, item, tile) {
                                         if (item.maPlayer != null) {
                                             ctx.client.callService(
                                                 ServiceCall.of(
@@ -206,11 +230,15 @@ class MediaShelvesCard : CardRenderer {
             color = AstrionTheme.textPrimary,
             fontSize = AstrionTheme.size.emphasis,
             fontWeight = FontWeight.SemiBold,
+            // Fixed line box, so the fit-to-height sum above is exact.
+            style = tightTextStyle(LABEL_LINE),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 
     @Composable
-    private fun Tile(ctx: CardContext, item: Item, onClick: () -> Unit) {
+    private fun Tile(ctx: CardContext, item: Item, tile: Dp, onClick: () -> Unit) {
         // The page is recomposed from scratch on every visit and LazyRow drops
         // tiles scrolled off-screen; ArtCache keeps that from refetching covers.
         var art by remember(item.thumb) { mutableStateOf(item.thumb?.let { ArtCache.peek(it, ART_PX) }) }
@@ -223,10 +251,10 @@ class MediaShelvesCard : CardRenderer {
         // Art with a caption underneath: covers alone don't say which playlist
         // is which.
         Column(
-            modifier = Modifier.width(TILE).tap(onClick = onClick),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.width(tile).tap(onClick = onClick),
+            verticalArrangement = Arrangement.spacedBy(CAPTION_GAP),
         ) {
-            val mod = Modifier.size(TILE).clip(RoundedCornerShape(8.dp))
+            val mod = Modifier.size(tile).clip(RoundedCornerShape(8.dp))
             if (art != null) {
                 Image(art!!, contentDescription = null, modifier = mod, contentScale = ContentScale.Crop)
             } else {
@@ -248,7 +276,7 @@ class MediaShelvesCard : CardRenderer {
                 item.title,
                 color = AstrionTheme.textSecondary,
                 fontSize = AstrionTheme.size.label,
-                lineHeight = 13.sp,
+                style = tightTextStyle(CAPTION_LINE),
                 minLines = 2,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

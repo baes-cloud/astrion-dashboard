@@ -693,6 +693,7 @@
     {
      "type": "swipe_stack",
      "options": {
+      "pin": "fill",
       "titles": [
        "Player",
        "Media",
@@ -866,18 +867,6 @@
      }
     },
     {
-     "type": "fan",
-     "options": {
-      "entity_id": "fan.fann",
-      "name": "Fan",
-      "swing_entity": "switch.fann_vertical_oscillation",
-      "timer_entity": "select.fann_timer",
-      "timer_left_entity": "sensor.fann_time_remaining",
-      "temperature_entity": "sensor.fann_temperature",
-      "problem_entity": "binary_sensor.fann_problem"
-     }
-    },
-    {
      "type": "section",
      "options": {
       "title": "Blinds"
@@ -888,14 +877,16 @@
      "options": {
       "entity_id": "cover.blinds",
       "name": "Sofa",
-      "invert_position": true
+      "invert_position": true,
+      "pin": "fill"
      }
     },
     {
      "type": "cover",
      "options": {
       "entity_id": "cover.club_sheer_blinds",
-      "name": "Sheer"
+      "name": "Sheer",
+      "pin": "fill"
      }
     }
    ]
@@ -1023,7 +1014,7 @@
   {
    "key": "AC",
    "page": "Climate",
-   "label": "Aircon, fan and blinds"
+   "label": "Aircon and blinds"
   },
   {
    "key": "CUSTOM_1",
@@ -1439,7 +1430,7 @@
     "title": "Aircon and blinds",
     "icon": "climate",
     "steps": [
-     "Press Climate for the aircon, fan and blinds.",
+     "Press Climate for the aircon and blinds.",
      "Hold Climate to turn the aircon on or off from any page.",
      "Hold Page ▲ or Page ▼ to open or close the blinds."
     ]
