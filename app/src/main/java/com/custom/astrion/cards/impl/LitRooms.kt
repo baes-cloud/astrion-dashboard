@@ -426,9 +426,13 @@ private fun DrawScope.halo(g: Glow, paths: List<Path?>, color: Color, alpha: Flo
 
 /** How far a hidden strip's halo spreads, as a fraction of the plan's short side. */
 private const val OUTLINE_DEPTH = 0.06f
-/** The halo's strokes, as fractions of its depth, close together near the edge; each adds [HALO_RING_ALPHA]. */
-private val HALO_RINGS = FloatArray(14) { i -> ((i + 1) / 14f).let { it * it } }
-private const val HALO_RING_ALPHA = 0.11f
+/**
+ * The halo's strokes, as fractions of its depth, close together near the edge;
+ * each adds [HALO_RING_ALPHA]. Many faint strokes rather than a few strong
+ * ones, so the fade reads as a glow instead of stepped bands.
+ */
+private val HALO_RINGS = FloatArray(GLOW_STEPS) { i -> ((i + 1) / GLOW_STEPS.toFloat()).let { it * it } }
+private const val HALO_RING_ALPHA = 0.04f
 /** A halo lifts less of the shade than a pool: it is a glow on the floor, not a lit room. */
 private const val HALO_CUT = 0.55f
 /** Halo strokes up to this fraction of its depth also fall on the shape, feathering its edge. */
@@ -484,11 +488,17 @@ private fun List<Pair<Float, Float>>.toOpenPath(w: Float, h: Float): Path? {
 
 /** How far a cove strip's wash spreads, as a fraction of the plan's short side. */
 private const val WASH_DEPTH = 0.27f
+/**
+ * Strokes per wash or halo. 14 left visible bands across the fade (Bae,
+ * 2026-11-18); 32 fainter ones blend into a smooth glow.
+ */
+private const val GLOW_STEPS = 32
 /** The wash's strokes, as fractions of its depth, close together near the strip; each adds [WASH_RING_ALPHA]. */
-private val WASH_RINGS = FloatArray(14) { i -> ((i + 1) / 14f).pow(2.2f) }
-private const val WASH_RING_ALPHA = 0.12f
+private val WASH_RINGS = FloatArray(GLOW_STEPS) { i -> ((i + 1) / GLOW_STEPS.toFloat()).pow(2.2f) }
+/** Builds to about 75% at the strip, a touch softer than the old 83%. */
+private const val WASH_RING_ALPHA = 0.042f
 /** The wash's Screen highlight: a strip lights its ceiling harder than a lamp's pool. */
-private const val WASH_SHINE = 0.35f
+private const val WASH_SHINE = 0.28f
 private val RAIL = 2.5.dp
 private val RAIL_BLOOM = 7.dp
 
