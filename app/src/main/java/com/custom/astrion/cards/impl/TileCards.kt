@@ -50,6 +50,9 @@ import com.custom.astrion.ui.UnavailableLabel
 import com.custom.astrion.ui.dimIfUnavailable
 import com.custom.astrion.ui.humanise
 import com.custom.astrion.ui.tap
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.delay
 
 /**
@@ -350,6 +353,9 @@ private const val FAN_ECHO_MS = 5_000L
  *   "off_attention": true     tint the off state warm, for a switch whose
  *                             NORMAL state is on (e.g. pausing automations)
  *   "icon_off"                a different icon while off
+ *   "hold": true              only a hold toggles it; a tap just says
+ *                             "Hold to …" for a moment (stops a stray tap
+ *                             pausing the automations)
  */
 class SwitchCard : CardRenderer {
     override val type = "switch"
@@ -442,6 +448,23 @@ private fun RowStyle(
         else -> if (offAttention) AstrionTheme.blush else AstrionTheme.colors.textSoft
     }
     val bare = config.bool("bare", true)
+    val holdOnly = config.bool("hold", false)
+    // Hold-only: a tap shows the hint in place of the state word for a moment.
+    var hint by remember(entityId) { mutableStateOf(false) }
+    LaunchedEffect(hint) { if (hint) { delay(HOLD_HINT_MS); hint = false } }
+    val haptics = LocalHapticFeedback.current
+    val holdWord = if (on) config.string("off_label") ?: "Off" else config.string("on_label") ?: "On"
+    val toggleOn = if (holdOnly) {
+        Modifier.combinedClickable(
+            enabled = live,
+            onClick = { hint = true },
+            onLongClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                hint = false
+                ctx.client.toggle(entityId)
+            },
+        )
+    } else Modifier.tap(enabled = live) { ctx.client.toggle(entityId) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -452,7 +475,7 @@ private fun RowStyle(
                     .clip(RoundedCornerShape(18.dp))
                     .background(if (!on && offAttention) AstrionTheme.blush.copy(alpha = 0.12f) else AstrionTheme.cardBgAlt)
             )
-            .tap(enabled = live) { ctx.client.toggle(entityId) }
+            .then(toggleOn)
             .padding(horizontal = if (bare) 2.dp else 10.dp, vertical = if (bare) 1.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -467,7 +490,7 @@ private fun RowStyle(
         ) {
             Icon(
                 shownIcon,
-                contentDescription = "$name, $stateWord",
+                contentDescription = if (holdOnly) "$name, $stateWord. Hold to set ${holdWord.lowercase()}" else "$name, $stateWord",
                 tint = tint,
                 modifier = Modifier.size(if (bare) 20.dp else 18.dp),
             )
@@ -492,8 +515,8 @@ private fun RowStyle(
                     UnavailableLabel(AstrionTheme.size.label)
                 } else {
                     Text(
-                        stateWord,
-                        color = if (!on && offAttention) AstrionTheme.blush else AstrionTheme.textSecondary,
+                        if (hint) "Hold to set ${holdWord.lowercase()}" else stateWord,
+                        color = if (hint) AstrionTheme.textPrimary else if (!on && offAttention) AstrionTheme.blush else AstrionTheme.textSecondary,
                         fontSize = AstrionTheme.size.label,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -504,6 +527,9 @@ private fun RowStyle(
         }
     }
 }
+
+/** How long a hold-only switch shows "Hold to …" after a tap. */
+private const val HOLD_HINT_MS = 2_500L
 
 /** Map a switch card's `icon` option name to a Material icon. */
 private fun switchIcon(name: String?): ImageVector = when (name) {

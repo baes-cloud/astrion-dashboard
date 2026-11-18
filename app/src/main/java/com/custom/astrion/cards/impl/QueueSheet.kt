@@ -142,7 +142,9 @@ fun QueueSheet(ctx: CardContext, player: String, speaker: String? = null, onClos
                     Caption("NOW PLAYING")
                     QueueRow(QueueItem(title, p.attrString("media_artist") ?: p.attrString("media_album_name"), null), now = true)
                     Note(
-                        if (direct && queue != null) "Playing on the Sonos directly, not from Music Assistant, so there's no queue to show."
+                        // MA answers "no active queue" with an error (null
+                        // here) when the Sonos plays something it didn't start.
+                        if (direct) "Playing on the Sonos directly, not from Music Assistant, so there's no queue to show."
                         else "Music Assistant didn't send the queue. Close and reopen to try again."
                     )
                 } else {
