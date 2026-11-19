@@ -90,35 +90,108 @@ class PlexBrowseCard : CardRenderer {
             if (value == null) value = target.machineId()
         }
         var open by remember { mutableStateOf<Map<String, Any?>?>(null) }
-        // Inside the TV card (`flush`): smaller, glassy tiles over its artwork wash.
+        var drawerOpen by remember { mutableStateOf(false) }
+        // Inside the TV card (`flush`): smaller tiles over its artwork wash.
+        // `"style": "drawer"`: single slim on-demand matte bar that keeps Page 1 uncluttered.
         val flush = config.bool("flush")
+        val drawer = config.string("style") == "drawer"
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(if (flush) 6.dp else 8.dp)) {
-            buttons.forEach { b ->
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .height(if (flush) 50.dp else 58.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (flush) AstrionTheme.colors.void.copy(alpha = 0.35f) else AstrionTheme.cardBgAlt)
-                        .tap { open = b },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
+        if (drawer) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(AstrionTheme.controlSunken)
+                    .tap { drawerOpen = true }
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(buttonIcon(b), contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(if (flush) 19.dp else 22.dp))
-                    Spacer(Modifier.height(3.dp))
+                    Icon(Icons.Filled.Search, contentDescription = null, tint = AstrionTheme.textSecondary, modifier = Modifier.size(17.dp))
                     Text(
-                        b["name"] as? String ?: "",
-                        color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.label,
-                        fontWeight = FontWeight.SemiBold, maxLines = 1,
+                        config.string("label") ?: "Browse Plex library",
+                        color = AstrionTheme.textSecondary,
+                        fontSize = AstrionTheme.size.body,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
                     )
+                }
+                Icon(com.custom.astrion.ui.Glyphs.fwd, contentDescription = null, tint = AstrionTheme.textMuted, modifier = Modifier.size(16.dp))
+            }
+            if (drawerOpen) {
+                com.custom.astrion.ui.BottomSheet(
+                    title = "Plex library",
+                    subtitle = "Choose a library or search",
+                    onDismissRequest = { drawerOpen = false },
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        buttons.forEach { b ->
+                            Column(
+                                Modifier
+                                    .weight(1f)
+                                    .height(62.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(AstrionTheme.controlBg)
+                                    .tap { drawerOpen = false; open = b },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Icon(buttonIcon(b), contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(21.dp))
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    b["name"] as? String ?: "",
+                                    color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.label,
+                                    fontWeight = FontWeight.SemiBold, maxLines = 1,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(if (flush) 6.dp else 8.dp)) {
+                buttons.forEach { b ->
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .height(if (flush) 50.dp else 58.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (flush) AstrionTheme.colors.void.copy(alpha = 0.35f) else AstrionTheme.cardBg)
+                            .tap { open = b },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(buttonIcon(b), contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(if (flush) 19.dp else 22.dp))
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            b["name"] as? String ?: "",
+                            color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.label,
+                            fontWeight = FontWeight.SemiBold, maxLines = 1,
+                        )
+                    }
                 }
             }
         }
 
         open?.let { b ->
-            InWindowDialog(onDismissRequest = { open = null }) {
-                PlexBrowser(ctx, target, machineId, b) { open = null }
+            val first: Screen = if (b["kind"] == "search") Screen.Search
+            else Screen.Library(b["section"]?.toString() ?: "1", b["name"] as? String ?: "Library")
+            val stack = remember(b) { mutableStateListOf(first) }
+            InWindowDialog(
+                onDismissRequest = { open = null },
+                onBack = {
+                    if (stack.size > 1) {
+                        stack.removeAt(stack.lastIndex)
+                        true
+                    } else false
+                },
+            ) {
+                PlexBrowser(ctx, target, machineId, stack) { open = null }
             }
         }
     }
@@ -191,13 +264,9 @@ private fun PlexBrowser(
     ctx: CardContext,
     target: PlexTarget,
     machineId: String?,
-    button: Map<String, Any?>,
+    stack: androidx.compose.runtime.snapshots.SnapshotStateList<Screen>,
     onClose: () -> Unit,
 ) {
-    val first: Screen = if (button["kind"] == "search") Screen.Search
-    else Screen.Library(button["section"]?.toString() ?: "1", button["name"] as? String ?: "Library")
-    // A small back stack: library → show, search → show.
-    val stack = remember { mutableStateListOf(first) }
     var status by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
@@ -310,8 +379,8 @@ private fun LibraryGrid(target: PlexTarget, section: String, onOpen: (Entry) -> 
         loadMore()
         if (grid.layoutInfo.totalItemsCount > 0) grid.scrollToItem(0)
     }
-    // Near the end of what's loaded: fetch the next page.
-    val nearEnd by remember { derivedStateOf { (grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) > entries.size - 12 } }
+    // Near the end of what's loaded: fetch the next page (keyed on sort & entries so switching sort never stalls).
+    val nearEnd by remember(sort, entries) { derivedStateOf { (grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) > entries.size - 12 } }
     LaunchedEffect(nearEnd, entries.size) { if (nearEnd && entries.isNotEmpty()) loadMore() }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

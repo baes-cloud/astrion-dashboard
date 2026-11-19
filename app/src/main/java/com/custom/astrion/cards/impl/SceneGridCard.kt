@@ -4,16 +4,16 @@ import androidx.compose.animation.core.animateDpAsState
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.parseHexColor
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
+import com.custom.astrion.ui.components.BaeoSectionHeader
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.MusicNote
@@ -45,8 +45,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
@@ -87,10 +85,8 @@ class SceneGridCard : CardRenderer {
         val title = config.string("title")
 
         if (config.string("style") == "pill") {
-            // `"label": "Scenes"`: a small centred caption between two short
-            // hairlines above the pills, so the row reads as its own thing.
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                config.string("label")?.let { SceneCaption(it) }
+                config.string("label")?.let { BaeoSectionHeader(it) }
                 PillRow(scenes, ctx)
             }
             return
@@ -125,50 +121,16 @@ class SceneGridCard : CardRenderer {
     }
 
     @Composable
-    private fun SceneCaption(text: String) {
-        // Tight on top, with a tiny bit of breathing room below before the pills.
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .layout { measurable, constraints ->
-                    val p = measurable.measure(constraints)
-                    val trimTop = 5.dp.roundToPx()
-                    layout(p.width, (p.height - trimTop).coerceAtLeast(0)) { p.place(0, -trimTop) }
-                },
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val line = AstrionTheme.textMuted.copy(alpha = 0.3f)
-            Box(Modifier.width(32.dp).height(1.dp).background(line))
-            Text(
-                text.uppercase(),
-                color = AstrionTheme.textMuted,
-                fontSize = AstrionTheme.size.label,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 0.18.em,
-                style = com.custom.astrion.ui.tightTextStyle(12.sp),
-                modifier = Modifier.padding(horizontal = 8.dp),
-            )
-            Box(Modifier.width(32.dp).height(1.dp).background(line))
-        }
-    }
-
-    @Composable
     private fun PillRow(scenes: List<Map<String, Any?>>, ctx: CardContext) {
         fun activatedAt(id: String): Long? = ctx.entities[id]?.state?.let { iso ->
             runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
         }
         val ids = scenes.mapNotNull { it["entity_id"] as? String }
         val latest = ids.mapNotNull { id -> activatedAt(id)?.let { id to it } }.maxByOrNull { it.second }
-        // Optimistic: light the tapped pill at once, until HA reports a newer one.
         var tapped by remember { androidx.compose.runtime.mutableStateOf<Pair<String, Long>?>(null) }
         val active = tapped?.takeIf { t -> latest == null || latest.second < t.second }?.first
-            // Two hours, not twelve: a scene picked in the evening shouldn't
-            // still read "ON" the next morning after everything went off.
             ?: latest?.takeIf { System.currentTimeMillis() - it.second < 2 * 3_600_000L }?.first
 
-        // Keep the active pill on screen: past the fourth one it sat off the
-        // right edge, so the row looked like nothing was on.
         val scroll = rememberScrollState()
         val pillX = remember { HashMap<String, Int>() }
         val lead = with(androidx.compose.ui.platform.LocalDensity.current) { 16.dp.roundToPx() }
@@ -178,79 +140,81 @@ class SceneGridCard : CardRenderer {
             if (x < scroll.value || x > scroll.value + scroll.viewportSize - lead * 4) scroll.animateScrollTo(target)
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(scroll),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            scenes.forEach { scene ->
-                val entityId = scene["entity_id"] as? String ?: return@forEach
-                val color = parseHexColor(scene["color"] as? String) ?: AstrionTheme.colors.accentBright
-                val name = scene["name"] as? String ?: ctx.entities[entityId]?.friendlyName ?: entityId
-                val isActive = entityId == active
-                val haptics = LocalHapticFeedback.current
-                Row(
-                    modifier = Modifier
-                        .onPlaced { pillX[entityId] = it.positionInParent().x.toInt() }
-                        .height(34.dp)
-                        .clip(RoundedCornerShape(13.dp))
-                        // Inactive sits on the card fill so it still reads
-                        // as a pill against the page; active is sunken, tinted
-                        // with the scene colour below.
-                        .background(if (isActive) AstrionTheme.controlSunken else AstrionTheme.cardBg)
-                        .then(if (isActive) Modifier.background(color.copy(alpha = 0.10f)) else Modifier)
-                        .then(
-                            if (isActive) Modifier.border(1.dp, AstrionTheme.colors.hairline, RoundedCornerShape(13.dp))
-                            else Modifier
-                        )
-                        .clickable {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            tapped = entityId to System.currentTimeMillis()
-                            ctx.client.callService(
-                                ServiceCall(domain = entityId.substringBefore('.'), service = "turn_on", entityId = entityId)
-                            )
-                        }
-                        .padding(horizontal = 13.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // Glowing dot. No coloured shadows on Android 8.1, so the
-                    // glow is a few fading rings drawn behind it.
-                    Box(
+        Box(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(scroll),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                scenes.forEach { scene ->
+                    val entityId = scene["entity_id"] as? String ?: return@forEach
+                    val color = parseHexColor(scene["color"] as? String) ?: AstrionTheme.colors.accentBright
+                    val name = scene["name"] as? String ?: ctx.entities[entityId]?.friendlyName ?: entityId
+                    val isActive = entityId == active
+                    val haptics = LocalHapticFeedback.current
+                    Row(
                         modifier = Modifier
-                            .size(if (isActive) 11.dp else 10.dp)
-                            .drawBehind {
-                                if (isActive) for (i in 4 downTo 1) {
-                                    drawCircle(color.copy(alpha = 0.10f), radius = size.minDimension / 2 + i * 2.dp.toPx())
-                                }
+                            .onPlaced { pillX[entityId] = it.positionInParent().x.toInt() }
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(if (isActive) AstrionTheme.surfaceElevated else AstrionTheme.cardBg)
+                            .then(if (isActive) Modifier.background(color.copy(alpha = 0.16f)) else Modifier)
+                            .clickable(enabled = ctx.connected) {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                tapped = entityId to System.currentTimeMillis()
+                                ctx.client.callService(
+                                    ServiceCall(domain = entityId.substringBefore('.'), service = "turn_on", entityId = entityId)
+                                )
                             }
-                            .clip(CircleShape)
-                            .background(if (isActive) color else color.copy(alpha = 0.8f)),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        name,
-                        color = if (isActive) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
-                        fontSize = AstrionTheme.size.label,
-                        fontWeight = FontWeight.Medium,
-                        letterSpacing = 0.3.sp,
-                        maxLines = 1,
-                        softWrap = false,
-                    )
-                    // Colour is never the only signal: the active pill says so.
-                    if (isActive) {
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(if (isActive) color else color.copy(alpha = 0.85f)),
+                        )
+                        Spacer(Modifier.width(7.dp))
                         Text(
-                            "ON",
-                            modifier = Modifier.padding(start = 2.dp),
-                            color = AstrionTheme.accent,
+                            name,
+                            color = if (isActive) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
                             fontSize = AstrionTheme.size.label,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.16.em,
+                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
                             maxLines = 1,
                             softWrap = false,
                         )
+                        if (isActive) {
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "ON",
+                                color = AstrionTheme.onAccent,
+                                fontSize = AstrionTheme.size.micro,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(AstrionTheme.accent)
+                                    .padding(horizontal = 5.dp, vertical = 1.dp),
+                            )
+                        }
                     }
                 }
+            }
+            if (scroll.canScrollForward) {
+                Box(
+                    Modifier
+                        .align(Alignment.CenterEnd)
+                        .width(24.dp)
+                        .height(38.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(AstrionTheme.pageBg.copy(alpha = 0f), AstrionTheme.pageBg)
+                            )
+                        ),
+                )
             }
         }
     }

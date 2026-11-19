@@ -160,13 +160,19 @@ fun BottomSheet(
     title: String,
     onDismissRequest: () -> Unit,
     subtitle: String? = null,
+    onBack: (() -> Boolean)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    InWindowDialog(onDismissRequest = onDismissRequest, bottom = true) {
+    InWindowDialog(onDismissRequest = onDismissRequest, bottom = true, onBack = onBack) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .clip(
+                    RoundedCornerShape(
+                        topStart = AstrionTheme.surfaces.dialogCornerRadius,
+                        topEnd = AstrionTheme.surfaces.dialogCornerRadius,
+                    )
+                )
                 .background(AstrionTheme.cardBg)
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -174,9 +180,9 @@ fun BottomSheet(
             Box(
                 Modifier
                     .align(Alignment.CenterHorizontally)
-                    .size(width = 32.dp, height = 3.dp)
+                    .size(width = 34.dp, height = 3.dp)
                     .clip(CircleShape)
-                    .background(AstrionTheme.colors.hairlineStrong),
+                    .background(AstrionTheme.colors.controlRaised),
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -198,15 +204,19 @@ fun BottomSheet(
                         )
                     }
                 }
-                Box(
-                    Modifier
-                        .size(36.dp)
+                HitTarget(
+                    visual = 36.dp,
+                    onClick = onDismissRequest,
+                    face = Modifier
                         .clip(CircleShape)
-                        .background(AstrionTheme.raised)
-                        .tap(onClick = onDismissRequest),
-                    contentAlignment = Alignment.Center,
+                        .background(AstrionTheme.controlBg),
                 ) {
-                    Icon(Glyphs.close, contentDescription = "Close", tint = AstrionTheme.textSecondary, modifier = Modifier.size(17.dp))
+                    Icon(
+                        Glyphs.close,
+                        contentDescription = "Close",
+                        tint = AstrionTheme.textOnControl,
+                        modifier = Modifier.size(17.dp),
+                    )
                 }
             }
             content()

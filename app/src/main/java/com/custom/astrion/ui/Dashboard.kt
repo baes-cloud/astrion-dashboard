@@ -281,6 +281,9 @@ fun Dashboard(
 /** Counts button jumps to a page; see SwipeStackCard. 0 = none yet. */
 val LocalNavEpoch = compositionLocalOf { 0 }
 
+/** Opens the in-window TV Remote (IR) overlay from cards such as the TV Cinema console. */
+val LocalOpenIrMode = compositionLocalOf<(() -> Unit)?> { null }
+
 private const val PAGE_ENTER_MS = 220
 
 /**

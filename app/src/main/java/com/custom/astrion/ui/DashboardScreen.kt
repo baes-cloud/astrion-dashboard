@@ -36,6 +36,7 @@ fun DashboardScreen(
 
     CompositionLocalProvider(
         LocalSheetHost provides sheetHost,
+        LocalOpenIrMode provides { inputVm.onIntent(InputIntent.ToggleIrMode) },
         LocalBatteryState provides BatteryReadout(
             pct = powerState.batteryPct,
             charging = powerState.isCharging || powerState.isDocked,

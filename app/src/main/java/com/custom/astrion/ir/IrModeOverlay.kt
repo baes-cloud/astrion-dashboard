@@ -24,7 +24,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
@@ -189,14 +188,14 @@ fun IrModeOverlay(
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "TV REMOTE MODE",
-                        color = AstrionTheme.blush, fontSize = AstrionTheme.size.titleLarge,
+                        "TV remote mode",
+                        color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.titleLarge,
                         fontFamily = AstrionTheme.headingFont,
-                        fontWeight = FontWeight.Bold, letterSpacing = 0.06.em,
+                        fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        "The buttons work the TV directly, no Wi-Fi needed",
-                        color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.label,
+                        "Buttons control the Samsung TV directly over IR",
+                        color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label,
                     )
                 }
             }
@@ -266,15 +265,15 @@ fun IrModeOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(46.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(AstrionTheme.dangerBg)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(AstrionTheme.controlBg)
                     .tap(onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    "Exit IR Mode",
-                    color = AstrionTheme.danger, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.SemiBold,
+                    "Exit TV remote mode",
+                    color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.SemiBold,
                 )
             }
         }

@@ -1,7 +1,17 @@
 package com.custom.astrion.cards.impl
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -18,41 +28,46 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.custom.astrion.ui.PowerPill
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.Glyphs
+import com.custom.astrion.ui.MIN_TOUCH
+import com.custom.astrion.ui.PowerPill
 import com.custom.astrion.ui.UnavailableLabel
+import com.custom.astrion.ui.components.BaeoSectionHeader
+import com.custom.astrion.ui.components.BaeoSegmentItem
+import com.custom.astrion.ui.components.BaeoSegmentedBar
 import com.custom.astrion.ui.dimIfUnavailable
 import com.custom.astrion.ui.humanise
 import com.custom.astrion.ui.tap
 import kotlinx.coroutines.delay
+import kotlin.math.max
+import kotlin.math.min
 
 /**
- * Climate / thermostat card.
+ * Climate / thermostat card (Bæo v3.0 Matte Tonal).
  *
- * Big setpoint readout with +/- steppers, current temperature, and a row of
- * HVAC mode chips read live from the entity's `hvac_modes` attribute.
+ * Borderless mode-tinted matte card (`accentContainer` Cool, `warmSurface` Heat,
+ * `cardBg` Off), Manrope 400 tabular setpoint readout with 48dp steppers,
+ * outdoor temperature context, zero-GPU thermal delta scale, and recessed
+ * segmented bars for HVAC mode and fan speed.
  *
- * Uses:
- *   climate.set_temperature { entity_id, temperature }
- *   climate.set_hvac_mode   { entity_id, hvac_mode }
- *
- * Config shape:
- *   CardConfig("climate", mapOf(
- *       "entity_id" to "climate.lounge",
- *       "step" to 0.5,          // optional, default 0.5
- *   ))
+ * Keeps `climate.aircon` fan_mode controls inline; does not introduce a separate
+ * fan card.
  */
-/** Quiet time after the last setpoint tap before it's sent. */
 private const val SETPOINT_SETTLE_MS = 900L
-/** How long the local setpoint overrides HA's while waiting for the echo. */
 private const val SETPOINT_ECHO_MS = 6_000L
 
 class ClimateCard : CardRenderer {
@@ -62,13 +77,11 @@ class ClimateCard : CardRenderer {
     override fun Render(config: CardConfig, ctx: CardContext) {
         val entityId = config.string("entity_id") ?: return
         val e = ctx.entities[entityId]
-        // Prefer the entity's real step; a 1° aircon ignores 0.5° changes and
-        // the down button looks broken (25.5 rounds back to 26).
         val step = e?.attrDouble("target_temp_step")
             ?: (config.options["step"] as? Number)?.toDouble()
             ?: 1.0
-        val minT = e?.attrDouble("min_temp")
-        val maxT = e?.attrDouble("max_temp")
+        val minT = e?.attrDouble("min_temp") ?: 16.0
+        val maxT = e?.attrDouble("max_temp") ?: 30.0
 
         val target = e?.attrDouble("temperature")
         val current = e?.attrDouble("current_temperature")
@@ -78,32 +91,31 @@ class ClimateCard : CardRenderer {
         val fanMode = e?.attrString("fan_mode")
         val fanModes = config.stringList("fan_modes").ifEmpty { listOf("low", "medium", "high", "auto") }
 
+        val weatherId = config.string("weather_entity") ?: "weather.forecast_home"
+        val outdoor = ctx.entities[weatherId]?.attrDouble("temperature")
+
         fun setTemp(t: Double) {
-            val clamped = t.coerceIn(minT ?: t, maxT ?: t)
+            val clamped = t.coerceIn(minT, maxT)
             ctx.client.callService(
                 ServiceCall.of("climate", "set_temperature", entityId, "temperature" to clamped)
             )
         }
-        // Setpoint taps settle locally and go to HA once they stop. Each tap
-        // used to send its own set_temperature, computed from HA's last echo:
-        // three quick taps sent the same +1 three times, and the bursts
-        // tripped the Fujitsu cloud's rate limit (16 "429"s in 10 days).
+
+        // Setpoint taps settle locally to avoid Fujitsu cloud 429 rate-limits.
         var pendingTarget by remember(entityId) { mutableStateOf<Double?>(null) }
         LaunchedEffect(pendingTarget) {
             val t = pendingTarget ?: return@LaunchedEffect
             delay(SETPOINT_SETTLE_MS)
             setTemp(t)
-            // If HA never echoes it (rejected, or rounded), stop overriding.
             delay(SETPOINT_ECHO_MS)
             pendingTarget = null
         }
-        // HA has caught up (or the taps came back to where it was): show HA's value.
         LaunchedEffect(target) {
             if (pendingTarget != null && target == pendingTarget) pendingTarget = null
         }
         fun nudge(delta: Double) {
             val from = pendingTarget ?: target ?: return
-            val next = (from + delta).let { t -> t.coerceIn(minT ?: t, maxT ?: t) }
+            val next = (from + delta).coerceIn(minT, maxT)
             pendingTarget = if (next == target) null else next
         }
         val shownTarget = pendingTarget ?: target
@@ -119,112 +131,163 @@ class ClimateCard : CardRenderer {
             )
         }
         val isOff = mode == "off"
-        // One power button that turns it on as well as off.
+        val isHeat = mode == "heat"
         fun togglePower() {
             ctx.client.callService(ServiceCall("climate", if (isOff) "turn_on" else "turn_off", entityId))
         }
         val unavailable = e == null || e.isUnavailable
         val live = !unavailable && ctx.connected
 
+        val targetBg = when {
+            unavailable || isOff -> AstrionTheme.cardBg
+            isHeat -> AstrionTheme.warmSurface
+            mode == "cool" || mode == "dry" || mode == "heat_cool" || mode == "auto" -> AstrionTheme.accentContainer
+            else -> AstrionTheme.cardBg
+        }
+        val cardBg by animateColorAsState(targetBg, tween(240), label = "climateBg")
+        val modeInk = when {
+            isOff -> AstrionTheme.textSecondary
+            isHeat -> AstrionTheme.warmHeat
+            else -> AstrionTheme.accent
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .dimIfUnavailable(unavailable)
-                .clip(RoundedCornerShape(20.dp))
-                .background(AstrionTheme.cardBg)
-                // Tightened so the Climate page (this card plus three blinds)
-                // fits one screen without scrolling, under the clock band.
+                .clip(RoundedCornerShape(AstrionTheme.surfaces.cardCornerRadius))
+                .background(cardBg)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            // Header: name over what it's doing, and a power toggle. Off is
-            // a normal state, not an error, so it's neutral; on is teal.
+            // Header: title, live status (or pending setpoint feedback), power pill.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.emphasis, fontWeight = FontWeight.SemiBold)
-                    if (!unavailable) {
+                    Text(
+                        text = name,
+                        color = AstrionTheme.textPrimary,
+                        fontSize = AstrionTheme.size.emphasis,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (unavailable) {
+                        UnavailableLabel(AstrionTheme.size.label)
+                    } else {
+                        val subtitle = when {
+                            pendingTarget != null -> "Setting ${trim(pendingTarget!!)}°…"
+                            isOff -> "Off"
+                            else -> listOfNotNull(
+                                modeLabel(mode),
+                                fanMode?.let { "${it.humanise()} fan" },
+                            ).joinToString(" · ")
+                        }
                         Text(
-                            if (isOff) "Off"
-                            else listOfNotNull(mode.humanise(), fanMode?.let { "fan ${it.humanise().lowercase()}" }).joinToString(" · "),
-                            color = if (isOff) AstrionTheme.textSecondary else AstrionTheme.accent,
+                            text = subtitle,
+                            color = if (pendingTarget != null) AstrionTheme.blush else modeInk,
                             fontSize = AstrionTheme.size.label,
                             fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
-                PowerPill(on = !isOff, name = name, enabled = live) { togglePower() }
+                PowerPill(on = !isOff, name = name, enabled = live, height = 36.dp) { togglePower() }
             }
 
-            // Setpoint with steppers
+            // Setpoint readout + 48dp matte circular steppers.
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .dimIfUnavailable(unavailable),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Stepper(Icons.Filled.Remove, "Lower target temperature", live) {
+                Stepper(Icons.Filled.Remove, "Lower target temperature", live && shownTarget != null) {
                     nudge(-step)
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        shownTarget?.let { "${trim(it)}°" } ?: "—",
+                        text = shownTarget?.let { "${trim(it)}°" } ?: "—",
                         color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
-                        // Syne's bold cut is very wide and odd in numerals;
-                        // the lighter cut matches the weather temperature.
-                        fontFamily = AstrionTheme.headingFont, fontSize = AstrionTheme.size.readout,
-                        fontWeight = FontWeight.Light,
+                        fontFamily = AstrionTheme.readoutFont,
+                        fontSize = AstrionTheme.size.readout,
+                        fontWeight = FontWeight.Normal,
+                        style = TextStyle(fontFeatureSettings = "tnum"),
+                        maxLines = 1,
                     )
-                    // The steppers silently no-op when there is no target, so
-                    // an unreachable aircon used to look like a working one
-                    // showing a dash. Say so instead.
-                    if (unavailable) {
-                        UnavailableLabel(AstrionTheme.size.label)
-                    } else {
+                    val meta = buildList {
+                        current?.let { add("Now ${trim(it)}°") }
+                        outdoor?.let { add("Out ${trim(it)}°") }
+                    }.joinToString(" · ")
+                    if (meta.isNotEmpty() && !unavailable) {
                         Text(
-                            current?.let { "Now ${trim(it)}°" } ?: "",
+                            text = meta,
                             color = AstrionTheme.textSecondary,
                             fontSize = AstrionTheme.size.label,
+                            style = TextStyle(fontFeatureSettings = "tnum"),
+                            maxLines = 1,
                         )
                     }
                 }
 
-                Stepper(Icons.Filled.Add, "Raise target temperature", live) {
+                Stepper(Icons.Filled.Add, "Raise target temperature", live && shownTarget != null) {
                     nudge(step)
                 }
             }
 
-            // Two segmented rows, each captioned: the rows used to be two
-            // identical lines of chips, and "Auto" could be a mode or a speed.
-            // "off" is the power pill's job, so it isn't a segment.
+            // Zero-GPU thermal delta scale (current vs target across minT..maxT).
+            if (!unavailable && (current != null || shownTarget != null)) {
+                ThermalDeltaScale(
+                    minTemp = minT,
+                    maxTemp = maxT,
+                    current = current,
+                    target = shownTarget,
+                    deltaColor = if (isHeat) AstrionTheme.warmHeat else AstrionTheme.accent,
+                    active = !isOff,
+                )
+            }
+
+            // HVAC Mode segmented bar (1-tap wakes unit directly into the chosen mode).
             val shownModes = modes.filter { it != "off" }.take(4)
             if (shownModes.isNotEmpty()) {
-                RowCaption("Mode")
-                Segmented {
+                BaeoSectionHeader("Mode")
+                BaeoSegmentedBar(modifier = Modifier.dimIfUnavailable(unavailable)) {
                     shownModes.forEach { m ->
-                        ModeChip(
+                        val isSelected = m == mode
+                        val selBg = if (m == "heat") AstrionTheme.blushContainer else AstrionTheme.accentStrong
+                        val selInk = if (m == "heat") AstrionTheme.warmHeat else AstrionTheme.colors.onPrimary
+                        BaeoSegmentItem(
                             label = modeLabel(m),
-                            selected = m == mode,
-                            modifier = Modifier.weight(1f),
+                            selected = isSelected,
+                            icon = modeIcon(m),
                             enabled = live,
-                        ) { setMode(m) }
+                            height = 40.dp,
+                            selectedBg = selBg,
+                            selectedInk = selInk,
+                            onClick = { setMode(m) },
+                        )
                     }
                 }
             }
 
+            // Climate fan_mode segmented bar (kept inline on climate.aircon).
             if (fanModes.isNotEmpty()) {
-                RowCaption("Fan speed")
-                Segmented {
+                BaeoSectionHeader("Fan speed")
+                BaeoSegmentedBar(modifier = Modifier.dimIfUnavailable(unavailable)) {
                     fanModes.forEach { f ->
-                        ModeChip(
+                        val isSelected = !isOff && fanMode?.equals(f, ignoreCase = true) == true
+                        BaeoSegmentItem(
                             label = f.humanise(),
-                            selected = fanMode?.equals(f, ignoreCase = true) == true,
-                            modifier = Modifier.weight(1f),
+                            selected = isSelected,
                             enabled = live,
-                        ) { setFan(f) }
+                            height = 40.dp,
+                            onClick = { setFan(f) },
+                        )
                     }
                 }
             }
@@ -232,18 +295,32 @@ class ClimateCard : CardRenderer {
     }
 
     private fun trim(d: Double): String =
-        if (d == d.toLong().toDouble()) d.toLong().toString() else d.toString()
+        if (d == d.toLong().toDouble()) d.toLong().toString() else String.format("%.1f", d)
+
+    private fun modeLabel(mode: String): String = when (mode) {
+        "fan_only" -> "Fan"
+        "heat_cool" -> "Auto"
+        else -> mode.humanise()
+    }
+
+    private fun modeIcon(mode: String): ImageVector? = when (mode) {
+        "cool" -> Glyphs.cool
+        "heat" -> Glyphs.heat
+        "fan_only" -> Glyphs.fan
+        "dry" -> Glyphs.drop
+        else -> null
+    }
 
     @Composable
     private fun Stepper(
-        icon: androidx.compose.ui.graphics.vector.ImageVector,
-        description: String? = null,
-        enabled: Boolean = true,
+        icon: ImageVector,
+        description: String,
+        enabled: Boolean,
         onClick: () -> Unit,
     ) {
         Box(
             modifier = Modifier
-                .size(46.dp)
+                .size(MIN_TOUCH)
                 .clip(CircleShape)
                 .background(AstrionTheme.controlBg)
                 .tap(enabled = enabled, onClick = onClick),
@@ -253,65 +330,58 @@ class ClimateCard : CardRenderer {
         }
     }
 
-    /** Four across a 349 dp panel: the long HA names don't fit a segment. */
-    private fun modeLabel(mode: String): String = when (mode) {
-        "fan_only" -> "Fan"
-        "heat_cool" -> "Auto"
-        else -> mode.humanise()
-    }
-
     @Composable
-    private fun RowCaption(text: String) {
-        Text(
-            text.uppercase(),
-            color = AstrionTheme.textSecondary,
-            fontSize = AstrionTheme.size.label,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(start = 2.dp, top = 1.dp),
-        )
-    }
-
-    /** One control, not four buttons: the segments share a sunken track. */
-    @Composable
-    private fun Segmented(content: @Composable RowScope.() -> Unit) {
-        Row(
+    private fun ThermalDeltaScale(
+        minTemp: Double,
+        maxTemp: Double,
+        current: Double?,
+        target: Double?,
+        deltaColor: Color,
+        active: Boolean,
+    ) {
+        val track = AstrionTheme.trackBg
+        val marker = AstrionTheme.textSecondary
+        val dot = if (active) deltaColor else AstrionTheme.textMuted
+        val span = (maxTemp - minTemp).coerceAtLeast(1.0)
+        Canvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(AstrionTheme.trackBg)
-                .padding(3.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-            content = content,
-        )
-    }
-
-    @Composable
-    private fun ModeChip(
-        label: String,
-        selected: Boolean,
-        modifier: Modifier,
-        enabled: Boolean = true,
-        onClick: () -> Unit,
-    ) {
-        Box(
-            modifier = modifier
-                // 42dp in a 3dp track: a 48dp row to hit.
-                .height(42.dp)
-                .clip(RoundedCornerShape(11.dp))
-                // accentStrong is a darkened 0xFF4C6EF5 — white 13sp on the
-                // original measured 4.32:1, the only real contrast failure in
-                // the app, and it was on the selected chip.
-                .background(if (selected) AstrionTheme.accentStrong else Color.Transparent)
-                .tap(enabled = enabled, onClick = onClick),
-            contentAlignment = Alignment.Center,
+                .height(10.dp)
+                .padding(horizontal = 2.dp),
         ) {
-            Text(
-                label,
-                color = if (selected) Color.White else AstrionTheme.textSecondary,
-                fontSize = AstrionTheme.size.label,
-                fontWeight = FontWeight.Medium,
-            )
+            val barH = 4.dp.toPx()
+            val y = (size.height - barH) / 2f
+            val r = CornerRadius(barH / 2f, barH / 2f)
+            drawRoundRect(color = track, topLeft = Offset(0f, y), size = Size(size.width, barH), cornerRadius = r)
+
+            val curX = current?.let { (((it - minTemp) / span).coerceIn(0.0, 1.0) * size.width).toFloat() }
+            val tgtX = target?.let { (((it - minTemp) / span).coerceIn(0.0, 1.0) * size.width).toFloat() }
+
+            if (active && curX != null && tgtX != null) {
+                val left = min(curX, tgtX)
+                val width = max(barH, max(curX, tgtX) - left)
+                drawRoundRect(
+                    color = deltaColor.copy(alpha = 0.50f),
+                    topLeft = Offset(left, y),
+                    size = Size(width, barH),
+                    cornerRadius = r,
+                )
+            }
+            if (curX != null) {
+                drawRoundRect(
+                    color = marker,
+                    topLeft = Offset((curX - 1.dp.toPx()).coerceIn(0f, size.width - 2.dp.toPx()), 1.dp.toPx()),
+                    size = Size(2.dp.toPx(), size.height - 2.dp.toPx()),
+                    cornerRadius = CornerRadius(1.dp.toPx(), 1.dp.toPx()),
+                )
+            }
+            if (tgtX != null) {
+                drawCircle(
+                    color = dot,
+                    radius = 4.dp.toPx(),
+                    center = Offset(tgtX.coerceIn(4.dp.toPx(), size.width - 4.dp.toPx()), size.height / 2f),
+                )
+            }
         }
     }
 }

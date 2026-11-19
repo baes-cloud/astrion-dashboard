@@ -54,8 +54,9 @@ fun NowPlayingAmbient(
             modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dim },
         )
 
-        Column(Modifier.fillMaxSize().padding(horizontal = 40.dp)) {
-            Spacer(Modifier.height(72.dp))
+        // Aligned to Backdrop.kt's 480×800 px geometry (40px / 1.375 = 29dp, 72px / 1.375 = 52dp).
+        Column(Modifier.fillMaxSize().padding(horizontal = 29.dp)) {
+            Spacer(Modifier.height(52.dp))
             // Cover: 400 px square, 8 px corners, nothing framing it.
             Image(
                 bitmap = scene.cover,

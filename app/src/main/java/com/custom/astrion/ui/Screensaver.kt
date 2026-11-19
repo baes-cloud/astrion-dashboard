@@ -45,7 +45,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -64,7 +63,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.impl.artKey
 import com.custom.astrion.cards.impl.nextAlarmMs
-import com.custom.astrion.cards.impl.weatherEmoji
 import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.HaClient
@@ -236,12 +234,10 @@ fun Screensaver(
                 if (weather != null && !weather.isUnavailable) {
                     val temp = weather.attrDouble("temperature")
                     Text("  ·  ", color = faint, fontSize = AstrionTheme.size.body)
-                    Text(
-                        weatherEmoji(weather.state),
-                        fontSize = AstrionTheme.size.body,
-                        // Emoji ignore the text colour; fade them instead so a
-                        // bright sun doesn't glare out of a dark room.
-                        modifier = Modifier.alpha(if (night) 0.45f else 0.7f),
+                    WeatherGlyph(
+                        condition = weather.state,
+                        tint = ink,
+                        modifier = Modifier.size(16.dp),
                     )
                     if (temp != null) {
                         Spacer(Modifier.width(5.dp))
@@ -288,6 +284,13 @@ fun Screensaver(
                     ink = ink, faint = faint, accent = accent,
                     modifier = Modifier.padding(horizontal = 8.dp),
                     charging = charging,
+                )
+            } else {
+                Text(
+                    "Hold ☰ for button guide",
+                    color = faint.copy(alpha = 0.65f),
+                    fontSize = AstrionTheme.size.micro,
+                    maxLines = 1,
                 )
             }
         }
@@ -566,6 +569,7 @@ private fun alertIcon(name: String?): ImageVector = when (name) {
 
 /** "TV" / "TV Audio" is a Sonos saying it is carrying the TV, not a title. */
 private val PLACEHOLDER_TITLES = setOf("TV", "TV Audio")
+private val PAREN_SUFFIX = Regex("""\s*\([^)]*\)\s*$""")
 
 private fun EntityState.playingTitle(): String? =
     attrString("media_title")?.takeIf { it.isNotBlank() && it !in PLACEHOLDER_TITLES }
@@ -677,8 +681,9 @@ private fun NowPlaying(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                val cleanPlayer = e.friendlyName.replace(PAREN_SUFFIX, "").trim().ifEmpty { e.friendlyName }
                 Text(
-                    listOfNotNull(album, e.friendlyName).joinToString(" · "),
+                    listOfNotNull(album, cleanPlayer).joinToString(" · "),
                     color = currentMetaInk,
                     fontSize = AstrionTheme.size.label,
                     maxLines = 1,

@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -33,6 +34,7 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalPageVisible
+import com.custom.astrion.ui.WeatherGlyph
 import com.custom.astrion.ui.weatherLabel
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
@@ -137,19 +139,19 @@ class ClockWeatherCard : CardRenderer {
             // and low alpha rather than a blur pass — same trick as the media
             // card's art background.
             if (watermark > 0) {
-                Text(
-                    emojiFor(condition),
-                    fontSize = watermark.sp,
+                WeatherGlyph(
+                    condition = condition,
+                    tint = AstrionTheme.textMuted.copy(alpha = 0.14f),
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .offset(x = (watermark / 4.4f).dp, y = (-6).dp)
-                        .alpha(0.13f),
+                        .size(watermark.dp),
                 )
             }
 
             if (dense) {
                 DenseContent(
-                    condition, temp, forecast, now, config.int("chip_days", 5).coerceIn(0, 6),
+                    condition, temp, forecast, now, config.int("chip_days", 4).coerceIn(0, 6),
                     // Bare, the text lines up with the header above it rather
                     // than sitting inset inside an edge that isn't there.
                     padH = if (bare) 0.dp else 10.dp,
@@ -164,7 +166,11 @@ class ClockWeatherCard : CardRenderer {
             ) {
             // Current info.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(emojiFor(condition), fontSize = if (dense) AstrionTheme.size.displayMd else AstrionTheme.size.displayXl)
+                WeatherGlyph(
+                    condition = condition,
+                    tint = AstrionTheme.accent,
+                    modifier = Modifier.size(if (dense) 26.dp else 34.dp),
+                )
                 Spacer(Modifier.width(if (dense) 10.dp else 12.dp))
                 Column(Modifier.weight(1f)) {
                     if (showTime) {
@@ -307,7 +313,11 @@ class ClockWeatherCard : CardRenderer {
                 verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(emojiFor(condition), fontSize = AstrionTheme.size.displayXs)
+                    WeatherGlyph(
+                        condition = condition,
+                        tint = AstrionTheme.accent,
+                        modifier = Modifier.size(24.dp),
+                    )
                     Spacer(Modifier.width(6.dp))
                     Text(
                         temp?.let { "${whole(it)}°" } ?: "—",
@@ -316,6 +326,7 @@ class ClockWeatherCard : CardRenderer {
                         // Syne for names and headings.
                         fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.displayMd,
                         fontWeight = FontWeight.Bold,
+                        style = TextStyle(fontFeatureSettings = "tnum"),
                         maxLines = 1,
                     )
                     Spacer(Modifier.width(7.dp))
@@ -369,10 +380,14 @@ class ClockWeatherCard : CardRenderer {
                         Column(
                             modifier = Modifier.weight(1f),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
                         ) {
                             Text(f.day, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, maxLines = 1)
-                            Text(emojiFor(f.condition), fontSize = AstrionTheme.size.emphasis)
+                            WeatherGlyph(
+                                condition = f.condition,
+                                tint = AstrionTheme.textOnControl,
+                                modifier = Modifier.size(18.dp),
+                            )
                             Text(
                                 buildAnnotatedString {
                                     withStyle(SpanStyle(color = AstrionTheme.textPrimary, fontWeight = FontWeight.Medium)) {
@@ -383,6 +398,7 @@ class ClockWeatherCard : CardRenderer {
                                     }
                                 },
                                 fontSize = AstrionTheme.size.label,
+                                style = TextStyle(fontFeatureSettings = "tnum"),
                                 maxLines = 1,
                             )
                         }
@@ -439,8 +455,9 @@ class ClockWeatherCard : CardRenderer {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(f.day, color = AstrionTheme.colors.onSurfaceMuted, fontSize = rowText, modifier = Modifier.width(40.dp))
-            Text(emojiFor(f.condition), fontSize = if (dense) AstrionTheme.size.emphasis else AstrionTheme.size.titleLarge, textAlign = TextAlign.Center,
-                modifier = Modifier.width(30.dp))
+            Box(Modifier.width(30.dp), contentAlignment = Alignment.Center) {
+                WeatherGlyph(condition = f.condition, tint = AstrionTheme.textOnControl, modifier = Modifier.size(18.dp))
+            }
             Text(
                 f.low?.let { "${trim(it)}°" } ?: "",
                 color = AstrionTheme.colors.onSurfaceMuted, fontSize = rowText, textAlign = TextAlign.End,
@@ -515,8 +532,6 @@ class ClockWeatherCard : CardRenderer {
 
     private fun trim(d: Double): String =
         if (d == d.toLong().toDouble()) d.toLong().toString() else String.format(Locale.US, "%.1f", d)
-
-    private fun emojiFor(condition: String): String = weatherEmoji(condition)
 }
 
 /**

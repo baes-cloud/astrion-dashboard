@@ -1,7 +1,6 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -190,7 +189,6 @@ private fun QueueRow(item: QueueItem, now: Boolean) {
             .fillMaxWidth()
             .clip(shape)
             .background(if (now) AstrionTheme.colors.accentContainer else AstrionTheme.raised)
-            .then(if (now) Modifier.border(1.dp, AstrionTheme.accentStrong, shape) else Modifier)
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
