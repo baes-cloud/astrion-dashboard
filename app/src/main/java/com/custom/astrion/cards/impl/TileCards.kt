@@ -52,6 +52,10 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -72,9 +76,12 @@ import com.custom.astrion.ui.tap
 import kotlinx.coroutines.delay
 
 /**
- * Cover / blind card: name and state, then one row of keys. On the left,
- * 25% and 50% set the blind to that much open (honouring `invert_position`);
- * after a small gap, open, stop and close. No drawing and no slider (Bae).
+ * Cover / blind card. A window drawing on the left shows how far the blind is
+ * down. Beside it: the name with the position in fainter text, then two
+ * segmented groups that match the Mode and Fan speed bars above them:
+ * 25% and 50% (that much open, honouring `invert_position`), and, after a gap,
+ * raise, stop and lower. The arrow for the way it is moving lights while it
+ * moves, so the keys double as the status. No slider (Bae).
  */
 class CoverCard : CardRenderer {
     override val type = "cover"
@@ -88,18 +95,23 @@ class CoverCard : CardRenderer {
         val live = !unavailable && ctx.connected
         val invertPosition = config.bool("invert_position", false)
         val invertButtons = config.bool("invert_buttons", false)
+        val sheer = config.string("style") == "sheer" ||
+            name.contains("sheer", ignoreCase = true) || entityId.contains("sheer", ignoreCase = true)
 
         val rawPosition = e?.attrInt("current_position")
         val position = rawPosition?.let { if (invertPosition) 100 - it else it }
         val rawState = e?.state.orEmpty()
         val moving = rawState == "opening" || rawState == "closing"
+        // Which way it is going on screen (an inverted motor reports the opposite).
+        val goingUp = moving && ((rawState == "opening") != invertPosition)
+        val goingDown = moving && !goingUp
         val open = when {
             position != null -> position > 0
             else -> (rawState == "open") != invertPosition
         }
         val stateLabel = when {
-            rawState == "opening" -> if (invertPosition) "Closing…" else "Opening…"
-            rawState == "closing" -> if (invertPosition) "Opening…" else "Closing…"
+            goingUp -> "Opening…"
+            goingDown -> "Closing…"
             position != null -> when (position) {
                 0 -> "Closed"
                 100 -> "Open"
@@ -107,167 +119,182 @@ class CoverCard : CardRenderer {
             }
             else -> if (open) "Open" else "Closed"
         }
+        val closedFrac = (1f - (position?.coerceIn(0, 100) ?: if (open) 100 else 0) / 100f).coerceIn(0f, 1f)
 
         fun call(service: String) {
             ctx.client.callService(ServiceCall(domain = "cover", service = service, entityId = entityId))
         }
         fun setOpenPct(openPct: Int) {
             val haPos = if (invertPosition) 100 - openPct else openPct
-            ctx.client.callService(
-                ServiceCall.of("cover", "set_cover_position", entityId, "position" to haPos)
-            )
+            ctx.client.callService(ServiceCall.of("cover", "set_cover_position", entityId, "position" to haPos))
         }
         val openService = if (invertButtons) "close_cover" else "open_cover"
         val closeService = if (invertButtons) "open_cover" else "close_cover"
         val fill = config.options["pin"] == "fill"
 
-        val sheer = config.string("style") == "sheer" ||
-            name.contains("sheer", ignoreCase = true) || entityId.contains("sheer", ignoreCase = true)
-        val closedFrac = (1f - (position?.coerceIn(0, 100) ?: if (open) 100 else 0) / 100f).coerceIn(0f, 1f)
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (fill) Modifier.fillMaxHeight() else Modifier)
                 .clip(RoundedCornerShape(AstrionTheme.surfaces.cardCornerRadius))
                 .background(AstrionTheme.cardBg)
-                .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Name on top, where it has the whole width; the position beside it, fainter.
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = name,
-                    color = AstrionTheme.textPrimary,
-                    fontSize = AstrionTheme.size.body,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                Spacer(Modifier.width(8.dp))
-                if (unavailable) {
-                    UnavailableLabel(AstrionTheme.size.micro)
-                } else {
+            BlindWindow(
+                closedFraction = closedFrac,
+                sheer = sheer,
+                modifier = Modifier
+                    .size(width = 38.dp, height = 58.dp)
+                    .dimIfUnavailable(unavailable),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = stateLabel,
-                        color = if (moving) AstrionTheme.accent else AstrionTheme.textMuted,
-                        fontSize = AstrionTheme.size.micro,
-                        fontWeight = FontWeight.Medium,
+                        text = name,
+                        color = AstrionTheme.textPrimary,
+                        fontSize = AstrionTheme.size.body,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        modifier = Modifier.padding(bottom = 1.dp),
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
+                    Spacer(Modifier.width(8.dp))
+                    if (unavailable) {
+                        UnavailableLabel(AstrionTheme.size.micro)
+                    } else {
+                        Text(
+                            text = stateLabel,
+                            color = if (moving) AstrionTheme.accent else AstrionTheme.textMuted,
+                            fontSize = AstrionTheme.size.micro,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            modifier = Modifier.padding(bottom = 1.dp),
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().dimIfUnavailable(unavailable),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    BlindTrough(Modifier.weight(2f)) {
+                        BlindKey("$name 25% open", live, selected = !moving && position == 25, text = "25%") { setOpenPct(25) }
+                        BlindKey("$name 50% open", live, selected = !moving && position == 50, text = "50%") { setOpenPct(50) }
+                    }
+                    // The gap that sets the presets apart from the main keys.
+                    Spacer(Modifier.width(8.dp))
+                    BlindTrough(Modifier.weight(3f)) {
+                        BlindKey("Open $name", live, selected = goingUp, icon = Icons.Filled.KeyboardArrowUp) { call(openService) }
+                        BlindKey("Stop $name", live, selected = false, icon = Icons.Filled.Stop, iconSize = 15.dp) { call("stop_cover") }
+                        BlindKey("Close $name", live, selected = goingDown, icon = Icons.Filled.KeyboardArrowDown) { call(closeService) }
+                    }
                 }
             }
-            Row(
-                modifier = Modifier.fillMaxWidth().dimIfUnavailable(unavailable),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BlindIcon(
-                    closedFraction = closedFrac,
-                    sheer = sheer,
-                    modifier = Modifier.size(width = 24.dp, height = 32.dp),
-                )
-                Spacer(Modifier.weight(1f))
-                PctBtn(25, name, live, active = !moving && position == 25) { setOpenPct(25) }
-                Spacer(Modifier.width(5.dp))
-                PctBtn(50, name, live, active = !moving && position == 50) { setOpenPct(50) }
-                // The gap that sets the presets apart from the main keys.
-                Spacer(Modifier.width(12.dp))
-                CoverBtn(Icons.Filled.KeyboardArrowUp, "Open $name", live, active = false) { call(openService) }
-                Spacer(Modifier.width(5.dp))
-                CoverBtn(Icons.Filled.Stop, "Stop $name", live, active = moving) { call("stop_cover") }
-                Spacer(Modifier.width(5.dp))
-                CoverBtn(Icons.Filled.KeyboardArrowDown, "Close $name", live, active = false) { call(closeService) }
+        }
+    }
+
+    /** A sunken track holding a few keys, like the Mode and Fan speed bars. */
+    @Composable
+    private fun BlindTrough(modifier: Modifier, content: @Composable RowScope.() -> Unit) {
+        Row(
+            modifier = modifier
+                .clip(RoundedCornerShape(13.dp))
+                .background(AstrionTheme.colors.surfacePrimary)
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content,
+        )
+    }
+
+    @Composable
+    private fun RowScope.BlindKey(
+        description: String,
+        enabled: Boolean,
+        selected: Boolean,
+        text: String? = null,
+        icon: ImageVector? = null,
+        iconSize: Dp = 22.dp,
+        onClick: () -> Unit,
+    ) {
+        val interaction = remember { MutableInteractionSource() }
+        val pressed by interaction.collectIsPressedAsState()
+        val bg = when {
+            selected -> AstrionTheme.accentStrong
+            pressed -> AstrionTheme.controlBg
+            else -> Color.Transparent
+        }
+        val ink = if (selected) AstrionTheme.colors.onPrimary else AstrionTheme.textOnControl
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(bg)
+                .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
+                .semantics { contentDescription = description },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (icon != null) {
+                Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(iconSize))
+            } else if (text != null) {
+                Text(text, color = ink, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
         }
     }
 
     /**
-     * A small window: a thin frame, and the blind drawn down from the top as far
-     * as it really is, in the accent sea-green. Slats for a blackout, pleats for
-     * a sheer, a brighter hem where it ends.
+     * The window: a thin frame on a sill, a faint pane, and the blind drawn down
+     * from the top as far as it really is in the accent sea-green, with slats
+     * for a blackout or pleats for a sheer and a brighter hem where it ends.
      */
     @Composable
-    private fun BlindIcon(closedFraction: Float, sheer: Boolean, modifier: Modifier = Modifier) {
-        val frame = AstrionTheme.textMuted.copy(alpha = 0.7f)
+    private fun BlindWindow(closedFraction: Float, sheer: Boolean, modifier: Modifier = Modifier) {
+        val frame = AstrionTheme.textMuted.copy(alpha = 0.75f)
         val accent = AstrionTheme.accent
         Canvas(modifier) {
             val sw = 1.5.dp.toPx()
-            val r = CornerRadius(5.dp.toPx(), 5.dp.toPx())
-            drawRoundRect(color = frame, cornerRadius = r, style = Stroke(width = sw),
-                topLeft = Offset(sw / 2, sw / 2), size = Size(size.width - sw, size.height - sw))
-            val inset = 3.5.dp.toPx()
-            val w = size.width - inset * 2
-            val h = size.height - inset * 2
+            val sillH = 2.5.dp.toPx()
+            val frameH = size.height - sillH - 2.dp.toPx()
+            val inX = 4.dp.toPx()
+            val r = CornerRadius(6.dp.toPx(), 6.dp.toPx())
+            // Pane, frame and sill.
+            drawRoundRect(color = accent.copy(alpha = 0.06f), topLeft = Offset(inX, 0f),
+                size = Size(size.width - inX * 2, frameH), cornerRadius = r)
+            drawRoundRect(color = frame, topLeft = Offset(inX + sw / 2, sw / 2),
+                size = Size(size.width - inX * 2 - sw, frameH - sw), cornerRadius = r, style = Stroke(sw))
+            drawRoundRect(color = frame, topLeft = Offset(0f, size.height - sillH),
+                size = Size(size.width, sillH), cornerRadius = CornerRadius(sillH / 2, sillH / 2))
+            // The blind.
+            val pad = 3.5.dp.toPx()
+            val x0 = inX + pad
+            val w = size.width - (inX + pad) * 2
+            val y0 = pad
+            val h = frameH - pad * 2
             val drop = (h * closedFraction).coerceIn(0f, h)
-            val hemH = 2.dp.toPx()
+            val hemH = 2.5.dp.toPx()
             if (drop > hemH) {
-                drawRect(color = accent.copy(alpha = if (sheer) 0.16f else 0.32f),
-                    topLeft = Offset(inset, inset), size = Size(w, drop))
+                drawRect(color = accent.copy(alpha = if (sheer) 0.16f else 0.30f), topLeft = Offset(x0, y0), size = Size(w, drop))
                 if (sheer) {
-                    val n = 3
-                    for (i in 1..n) {
-                        val x = inset + w * i / (n + 1)
-                        drawLine(accent.copy(alpha = 0.45f), Offset(x, inset), Offset(x, inset + drop - hemH), 1.dp.toPx())
+                    for (i in 1..3) {
+                        val x = x0 + w * i / 4
+                        drawLine(accent.copy(alpha = 0.45f), Offset(x, y0), Offset(x, y0 + drop - hemH), 1.dp.toPx())
                     }
                 } else {
-                    val step = 4.dp.toPx()
-                    var y = inset + step
-                    while (y < inset + drop - hemH) {
-                        drawLine(accent.copy(alpha = 0.5f), Offset(inset, y), Offset(inset + w, y), 1.dp.toPx())
+                    val step = 5.dp.toPx()
+                    var y = y0 + step
+                    while (y < y0 + drop - hemH) {
+                        drawLine(accent.copy(alpha = 0.45f), Offset(x0, y), Offset(x0 + w, y), 1.dp.toPx())
                         y += step
                     }
                 }
             }
-            // The hem: where the blind ends (at the top when it's fully up).
-            drawRoundRect(color = accent, topLeft = Offset(inset - 1.dp.toPx(), inset + (drop - hemH).coerceAtLeast(0f)),
+            drawRoundRect(color = accent, topLeft = Offset(x0 - 1.dp.toPx(), y0 + (drop - hemH).coerceAtLeast(0f)),
                 size = Size(w + 2.dp.toPx(), hemH), cornerRadius = CornerRadius(hemH / 2, hemH / 2))
-        }
-    }
-
-    @Composable
-    private fun PctBtn(pct: Int, name: String, enabled: Boolean, active: Boolean, onClick: () -> Unit) {
-        Box(
-            modifier = Modifier
-                .size(width = 44.dp, height = 40.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(if (active) AstrionTheme.accentContainer else AstrionTheme.controlBg)
-                .tap(enabled = enabled, onClick = onClick)
-                .semantics { contentDescription = "$name $pct% open" },
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "$pct%",
-                color = if (active) AstrionTheme.accent else AstrionTheme.textOnControl,
-                fontSize = AstrionTheme.size.label,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-            )
-        }
-    }
-
-    @Composable
-    private fun CoverBtn(
-        icon: ImageVector,
-        description: String,
-        enabled: Boolean,
-        active: Boolean,
-        onClick: () -> Unit,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 42.dp, height = 40.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(if (active) AstrionTheme.accentContainer else AstrionTheme.controlBg)
-                .tap(enabled = enabled, onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                icon,
-                contentDescription = description,
-                tint = if (active) AstrionTheme.accent else AstrionTheme.textOnControl,
-                modifier = Modifier.size(21.dp),
-            )
         }
     }
 }
