@@ -90,11 +90,13 @@ class MediaShelvesCard : CardRenderer {
 
     private companion object {
         val TILE = 84.dp
-        val MIN_TILE = 60.dp
+        val MIN_TILE = 56.dp
         val LABEL_LINE = 18.sp
         val CAPTION_LINE = 13.sp
         val LABEL_GAP = 5.dp
         val CAPTION_GAP = 4.dp
+        /** Vertical padding inside the tinted band behind each shelf heading. */
+        val HEADER_BAND_PAD = 3.dp
         val MINI_BAR_HEIGHT = 46.dp
         const val ART_PX = 128
         const val SHELF_TTL_MS = 15 * 60_000L
@@ -180,7 +182,9 @@ class MediaShelvesCard : CardRenderer {
                 val rowGap = config.int("row_spacing", 10).dp
                 val rowCount = shelves?.size ?: 0
                 val fitTile: Dp? = if (constraints.hasBoundedHeight && rowCount > 0) {
-                    val chrome = with(LocalDensity.current) { LABEL_LINE.toDp() + CAPTION_LINE.toDp() * 2 } + LABEL_GAP + CAPTION_GAP
+                    val chrome = with(LocalDensity.current) { LABEL_LINE.toDp() + CAPTION_LINE.toDp() } + LABEL_GAP + CAPTION_GAP + HEADER_BAND_PAD * 2 +
+                        // One caption line renders taller than its sp on API 27 (font padding).
+                        4.dp
                     (maxHeight - topPad - rowGap * (rowCount - 1)) / rowCount - chrome
                 } else null
                 val fits = fitTile != null && fitTile >= MIN_TILE
@@ -197,7 +201,7 @@ class MediaShelvesCard : CardRenderer {
                         shelves!!.isEmpty() -> StatusNote("Nothing to show right now")
                         else -> shelves!!.forEach { shelf ->
                             Column(verticalArrangement = Arrangement.spacedBy(LABEL_GAP)) {
-                                BaeoSectionHeader(shelf.title)
+                                ShelfHeader(shelf.title)
                                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     items(
                                         items = shelf.items,
@@ -352,6 +356,29 @@ class MediaShelvesCard : CardRenderer {
         )
     }
 
+    /** Shelf heading on a full-width tinted band with an accent tick, so each shelf reads as its own section. */
+    @Composable
+    private fun ShelfHeader(text: String) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(AstrionTheme.surfaceElevated)
+                .padding(vertical = HEADER_BAND_PAD),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .padding(start = 8.dp, end = 6.dp)
+                    .width(3.dp)
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(AstrionTheme.accent),
+            )
+            BaeoSectionHeader(text, color = AstrionTheme.textPrimary)
+        }
+    }
+
     @Composable
     private fun Tile(
         ctx: CardContext,
@@ -407,8 +434,7 @@ class MediaShelvesCard : CardRenderer {
                 fontSize = AstrionTheme.size.label,
                 fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Normal,
                 style = tightTextStyle(CAPTION_LINE),
-                minLines = 2,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }

@@ -2,6 +2,7 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
@@ -230,7 +231,10 @@ class SpeakerGroupCard : CardRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(shape)
-                .background(if (on) AstrionTheme.accentContainer else AstrionTheme.cardBg)
+                // Between v2 and v3 (Bae): v3's layout on a plain card, with v2's
+                // thin accent outline marking it on instead of a full green wash.
+                .background(AstrionTheme.cardBg)
+                .then(if (on) Modifier.border(1.dp, AstrionTheme.accent.copy(alpha = 0.45f), shape) else Modifier)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -251,7 +255,7 @@ class SpeakerGroupCard : CardRenderer {
                     maxLines = 1,
                 )
                 Text(
-                    if (on) "Music follows you" else "Music stays put",
+                    if (on) "On · follows you" else "Off · stays put",
                     color = if (on) AstrionTheme.accent else AstrionTheme.textSecondary,
                     fontSize = AstrionTheme.size.label,
                     fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
@@ -413,7 +417,8 @@ class SpeakerGroupCard : CardRenderer {
                 },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 enabled = live,
-                fill = if (grouped) AstrionTheme.accentStrong else AstrionTheme.accentFillQuiet,
+                // Bae: keep the pink volume in Zones.
+                fill = if (grouped) AstrionTheme.blush.copy(alpha = 0.55f) else AstrionTheme.blush.copy(alpha = 0.38f),
                 track = AstrionTheme.trackBg,
                 radius = 12.dp,
                 muted = muted,

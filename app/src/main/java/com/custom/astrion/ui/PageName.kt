@@ -199,7 +199,7 @@ private fun Wordmark14(name: String?) {
             Text(
                 text = shownPrefix,
                 modifier = Modifier.graphicsLayer { alpha = prefixFade.value },
-                color = AstrionTheme.textPrimary,
+                color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
                 fontFamily = AstrionTheme.headingFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = AstrionTheme.size.emphasis,
@@ -222,9 +222,9 @@ private fun Wordmark14(name: String?) {
                         shownSuffix.forEach { char ->
                             Text(
                                 text = char.toString(),
-                                color = AstrionTheme.textMuted,
+                                color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
                                 fontFamily = AstrionTheme.headingFont,
-                                fontWeight = FontWeight.Normal,
+                                fontWeight = FontWeight.Thin,
                                 fontSize = AstrionTheme.size.emphasis,
                                 maxLines = 1,
                             )
@@ -234,9 +234,9 @@ private fun Wordmark14(name: String?) {
                     Text(
                         text = shownSuffix,
                         modifier = Modifier.graphicsLayer { alpha = suffixFade.value },
-                        color = AstrionTheme.textMuted,
+                        color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
                         fontFamily = AstrionTheme.headingFont,
-                        fontWeight = FontWeight.Normal,
+                        fontWeight = FontWeight.Thin,
                         fontSize = AstrionTheme.size.emphasis,
                         maxLines = 1,
                     )
@@ -249,9 +249,9 @@ private fun Wordmark14(name: String?) {
             modifier = Modifier
                 .padding(start = 5.dp)
                 .graphicsLayer { alpha = suffixFade.value },
-            color = AstrionTheme.textMuted,
+            color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
             fontFamily = AstrionTheme.headingFont,
-            fontWeight = FontWeight.Normal,
+            fontWeight = FontWeight.Thin,
             fontSize = AstrionTheme.size.emphasis,
             letterSpacing = WordmarkTracking,
             maxLines = 1,

@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -207,7 +208,7 @@ fun Dashboard(
             enter.animateTo(1f, tween(PAGE_ENTER_MS))
             lastPage = current
         }
-        val slidePx = with(LocalDensity.current) { 16.dp.toPx() }
+        val slidePx = with(LocalDensity.current) { 10.dp.toPx() }
         Box(
             Modifier
                 .fillMaxSize()
@@ -237,6 +238,10 @@ fun Dashboard(
                                     if (shown) {
                                         alpha = enter.value
                                         translationX = (1f - enter.value) * slidePx * enterFrom
+                                        // Alpha on each draw, not via an offscreen copy of the
+                                        // whole page every frame: on the Mali-400 that copy is
+                                        // what made page changes stutter.
+                                        compositingStrategy = CompositingStrategy.ModulateAlpha
                                     } else {
                                         alpha = 0f
                                     }
@@ -284,7 +289,7 @@ val LocalNavEpoch = compositionLocalOf { 0 }
 /** Opens the in-window TV Remote (IR) overlay from cards such as the TV Cinema console. */
 val LocalOpenIrMode = compositionLocalOf<(() -> Unit)?> { null }
 
-private const val PAGE_ENTER_MS = 220
+private const val PAGE_ENTER_MS = 160
 
 /**
  * A sideways swipe anywhere on a page turns it: [onTurn] gets +1 for the next

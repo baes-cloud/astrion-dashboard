@@ -52,7 +52,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -422,19 +421,20 @@ class PictureElementsCard : CardRenderer {
             }
         }
 
-        // Solid matte floorplan discs: live light color / butter-amber with dark
-        // icon when ON, calm matte slate disc with light icon when OFF.
+        // Translucent discs (Bae preferred these to v3's solid ones): a soft
+        // wash of the light's own colour when on, so the icon matches the glow.
         val glowColor = if (on && hasLitRooms) entity?.let { lightColor(it, recolor) } else null
-        val litDisc = glowColor ?: AstrionTheme.on
         val bg = when {
-            elUnavailable -> AstrionTheme.dangerBg
-            on -> litDisc
-            else -> AstrionTheme.cardBg.copy(alpha = 0.88f)
+            elUnavailable -> AstrionTheme.colors.danger.copy(alpha = 0.27f)
+            glowColor != null -> glowColor.copy(alpha = 0.42f)
+            on -> AstrionTheme.colors.lightOn.copy(alpha = 0.4f)
+            else -> Color.Black.copy(alpha = 0.2f)
         }
         val tint = when {
-            elUnavailable -> AstrionTheme.danger
-            on -> if (litDisc.luminance() > 0.32f) AstrionTheme.onBg else AstrionTheme.textPrimary
-            else -> AstrionTheme.textOnControl
+            elUnavailable -> AstrionTheme.colors.danger
+            glowColor != null -> androidx.compose.ui.graphics.lerp(glowColor, Color.White, 0.65f)
+            on -> AstrionTheme.colors.lightOnBright
+            else -> AstrionTheme.colors.onSurface
         }
         val icon = when {
             isPower -> Icons.Filled.PowerSettingsNew
@@ -467,7 +467,7 @@ class PictureElementsCard : CardRenderer {
                     .clip(shape)
                     .background(if (bare) Color.Transparent else bg)
                     .then(
-                        if (sent) Modifier.border(2.dp, AstrionTheme.accent, shape)
+                        if (sent) Modifier.border(2.dp, AstrionTheme.accent.copy(alpha = 0.85f), shape)
                         else Modifier
                     )
                     .padding(6.dp),

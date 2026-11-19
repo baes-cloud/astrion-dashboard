@@ -89,7 +89,7 @@ import kotlinx.coroutines.withContext
  * Borderless Matte Media Player & TV Console Hero (Bæo v3.0):
  *  - `"full"` (Media Tab 0): velvety ARGB_8888 artwork wash with >= 0.64 dark
  *    scrim, top utility row (bare Search + Active-Zone Bridge Pill + bare Queue),
- *    borderless album art capped <= 144dp, scrubbable seek bar (+ -30s/+30s skip),
+ *    borderless album art capped <= 144dp, scrubbable seek bar,
  *    bare Prev/Next flanking a solid matte Hailstorm Play/Pause circle, and a
  *    smooth borderless Fader.
  *  - `"tv"` (TV Cinema Console): borderless artwork hero with `also_on` PC HDMI 2
@@ -638,12 +638,6 @@ class MediaPlayerCard : CardRenderer {
                 fontSize = AstrionTheme.size.micro,
                 style = TextStyle(fontFeatureSettings = "tnum"),
             )
-            if (interactive && enabled && duration >= 180.0) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SkipPill("−30s") { seekTo(livePos - 30.0) }
-                    SkipPill("+30s") { seekTo(livePos + 30.0) }
-                }
-            }
             Text(
                 formatMediaTime(duration),
                 color = AstrionTheme.textSecondary,
@@ -651,22 +645,6 @@ class MediaPlayerCard : CardRenderer {
                 style = TextStyle(fontFeatureSettings = "tnum"),
             )
         }
-    }
-
-    @Composable
-    private fun SkipPill(label: String, onClick: () -> Unit) {
-        Text(
-            text = label,
-            color = AstrionTheme.textOnControl,
-            fontSize = AstrionTheme.size.micro,
-            fontWeight = FontWeight.SemiBold,
-            style = TextStyle(fontFeatureSettings = "tnum"),
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(AstrionTheme.colors.surfacePrimary.copy(alpha = 0.65f))
-                .tap(onClick = onClick)
-                .padding(horizontal = 8.dp, vertical = 2.dp),
-        )
     }
 
     @Composable

@@ -154,20 +154,24 @@ class PlexBrowseCard : CardRenderer {
                 }
             }
         } else {
+            val tileH = config.int("tile_height", if (flush) 50 else 58).coerceIn(40, 120)
+            val title = config.string("title")
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            if (title != null) com.custom.astrion.ui.components.BaeoSectionHeader(title)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(if (flush) 6.dp else 8.dp)) {
                 buttons.forEach { b ->
                     Column(
                         Modifier
                             .weight(1f)
-                            .height(if (flush) 50.dp else 58.dp)
+                            .height(tileH.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(if (flush) AstrionTheme.colors.void.copy(alpha = 0.35f) else AstrionTheme.cardBg)
                             .tap { open = b },
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
-                        Icon(buttonIcon(b), contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(if (flush) 19.dp else 22.dp))
-                        Spacer(Modifier.height(3.dp))
+                        Icon(buttonIcon(b), contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(if (flush) 19.dp else if (tileH >= 70) 28.dp else 22.dp))
+                        Spacer(Modifier.height(if (tileH >= 70) 6.dp else 3.dp))
                         Text(
                             b["name"] as? String ?: "",
                             color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.label,
@@ -175,6 +179,7 @@ class PlexBrowseCard : CardRenderer {
                         )
                     }
                 }
+            }
             }
         }
 
