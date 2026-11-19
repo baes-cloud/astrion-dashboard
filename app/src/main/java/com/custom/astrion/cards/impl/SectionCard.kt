@@ -60,7 +60,7 @@ class SectionCard : CardRenderer {
         }
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             BaeoSectionHeader(title)
             Row(
@@ -88,7 +88,7 @@ class SectionCard : CardRenderer {
                     Row(
                         modifier = Modifier
                             .weight(1f)
-                            .height(38.dp)
+                            .height(34.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(bg)
                             .tap(enabled = ctx.connected && calls.isNotEmpty()) {

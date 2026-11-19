@@ -138,9 +138,9 @@ class CoverCard : CardRenderer {
                 .then(if (fill) Modifier.fillMaxHeight() else Modifier)
                 .clip(RoundedCornerShape(AstrionTheme.surfaces.cardCornerRadius))
                 .background(AstrionTheme.cardBg)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 11.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // Miniature architectural window visualizer (shows dropped blind curtain).
             BlindWindowVisualizer(
@@ -148,13 +148,13 @@ class CoverCard : CardRenderer {
                 sheer = sheer,
                 unavailable = unavailable,
                 modifier = Modifier
-                    .width(32.dp)
-                    .height(if (fill) 58.dp else 54.dp),
+                    .width(30.dp)
+                    .height(if (fill) 52.dp else 50.dp),
             )
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -165,18 +165,18 @@ class CoverCard : CardRenderer {
                         Text(
                             text = name,
                             color = AstrionTheme.textPrimary,
-                            fontSize = AstrionTheme.size.emphasis,
+                            fontSize = AstrionTheme.size.body,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                         if (unavailable) {
-                            UnavailableLabel(AstrionTheme.size.label)
+                            UnavailableLabel(AstrionTheme.size.micro)
                         } else {
                             Text(
                                 text = stateLabel,
                                 color = if (moving) AstrionTheme.blush else AstrionTheme.textSecondary,
-                                fontSize = AstrionTheme.size.label,
+                                fontSize = AstrionTheme.size.micro,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -202,16 +202,16 @@ class CoverCard : CardRenderer {
                     enabled = live,
                     fill = fabricFill,
                     track = AstrionTheme.trackBg,
-                    radius = 10.dp,
+                    radius = 9.dp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(30.dp)
+                        .height(26.dp)
                         .dimIfUnavailable(unavailable),
                 ) {
                     Text(
-                        text = if (sheer) "Sheer" else "Open",
+                        text = if (sheer) "Sheer" else "Position",
                         color = AstrionTheme.textSecondary,
-                        fontSize = AstrionTheme.size.label,
+                        fontSize = AstrionTheme.size.micro,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
                     )
@@ -278,8 +278,8 @@ class CoverCard : CardRenderer {
     ) {
         Box(
             modifier = Modifier
-                .size(width = 38.dp, height = 34.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .size(width = 36.dp, height = 30.dp)
+                .clip(RoundedCornerShape(9.dp))
                 .background(if (active) AstrionTheme.blushContainer else AstrionTheme.controlBg)
                 .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
@@ -288,7 +288,7 @@ class CoverCard : CardRenderer {
                 icon,
                 contentDescription = description,
                 tint = if (active) AstrionTheme.blush else AstrionTheme.textOnControl,
-                modifier = Modifier.size(21.dp),
+                modifier = Modifier.size(19.dp),
             )
         }
     }
@@ -537,31 +537,31 @@ private fun RowStyle(
             .clip(RoundedCornerShape(14.dp))
             .background(pillBg)
             .then(toggleOn)
-            .padding(horizontal = 10.dp),
+            .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             shownIcon,
             contentDescription = if (holdOnly) "$name, $stateWord. $holdActionPhrase" else "$name, $stateWord",
             tint = tint,
-            modifier = Modifier.size(19.dp),
+            modifier = Modifier.size(17.dp),
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(6.dp))
         Column(Modifier.weight(1f)) {
             val stateFirst = config.bool("state_first", false)
             val title: @Composable () -> Unit = {
                 Text(
                     name,
                     color = AstrionTheme.textPrimary,
-                    fontSize = AstrionTheme.size.body,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = AstrionTheme.size.label,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
             val state: @Composable () -> Unit = {
                 if (unavailable) {
-                    UnavailableLabel(AstrionTheme.size.label)
+                    UnavailableLabel(AstrionTheme.size.micro)
                 } else {
                     Text(
                         if (hint) holdActionPhrase else stateWord,
@@ -570,7 +570,7 @@ private fun RowStyle(
                             pausedWarning -> AstrionTheme.blush
                             else -> AstrionTheme.textSecondary
                         },
-                        fontSize = AstrionTheme.size.label,
+                        fontSize = AstrionTheme.size.micro,
                         fontWeight = if (pausedWarning || hint) FontWeight.SemiBold else FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

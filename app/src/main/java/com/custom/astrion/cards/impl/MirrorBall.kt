@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -23,34 +25,39 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalPageVisible
 import com.custom.astrion.ui.parseHexColor
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
-import kotlinx.coroutines.delay
 
 /**
- * The mirror ball's specks drifting round the room while it spins: a field
- * of small soft spots turning slowly about the ball, thick near it and
- * thinning out, each twinkling a little, clipped to "shape" (percent of the
- * plan, like icons). Ticks at FPS, and only while the ball is on and seen.
- *   "mirror_ball": { "entity_id": "fan.mirror_ball", "center": [92, 44],
- *                    "shape": [[1,1],[99,1],[99,50],[1,50]], "color": "#FFECBE" }
+ * Mirror ball specks drifting round the room while spinning.
+ *
+ * Step 5a GPU optimization: `derivedStateOf` avoids recomposing during fades,
+ * and [drawWithCache] caches room clip [Path] and max corner reach once per
+ * layout size instead of reallocating every 8 fps tick.
  */
 @Composable
 internal fun MirrorBallLayer(opts: Map<*, *>, ctx: CardContext) {
     val id = opts["entity_id"] as? String ?: return
     val on = ctx.entities[id]?.isOn == true
     val level = animateFloatAsState(if (on) 1f else 0f, tween(FADE_MS), label = "mirrorBall")
-    if (!on && level.value < 0.01f) return
-    val center = (opts["center"] as? List<*>)?.filterIsInstance<Number>()?.takeIf { it.size == 2 }
-        ?.let { it[0].toFloat() / 100f to it[1].toFloat() / 100f } ?: (0.5f to 0.5f)
-    val shape = (opts["shape"] as? List<*>).orEmpty().mapNotNull { p ->
-        (p as? List<*>)?.filterIsInstance<Number>()?.takeIf { it.size == 2 }
-            ?.let { it[0].toFloat() / 100f to it[1].toFloat() / 100f }
-    }.takeIf { it.size >= 3 }
+    val visible by remember(on) { derivedStateOf { on || level.value >= 0.01f } }
+    if (!visible) return
+
+    val center = remember(opts) {
+        (opts["center"] as? List<*>)?.filterIsInstance<Number>()?.takeIf { it.size == 2 }
+            ?.let { it[0].toFloat() / 100f to it[1].toFloat() / 100f } ?: (0.5f to 0.5f)
+    }
+    val shape = remember(opts) {
+        (opts["shape"] as? List<*>).orEmpty().mapNotNull { p ->
+            (p as? List<*>)?.filterIsInstance<Number>()?.takeIf { it.size == 2 }
+                ?.let { it[0].toFloat() / 100f to it[1].toFloat() / 100f }
+        }.takeIf { it.size >= 3 }
+    }
     val color = parseHexColor(opts["color"] as? String) ?: SPECK_WARM
     val minX = shape?.minOf { it.first } ?: 0f
     val maxX = shape?.maxOf { it.first } ?: 1f
@@ -61,54 +68,56 @@ internal fun MirrorBallLayer(opts: Map<*, *>, ctx: CardContext) {
     }
     val specks = remember { specks() }
     val clock = rememberBallClock(LocalPageVisible.current && LocalDashboardShowing.current)
+
     Box(
         Modifier
             .fillMaxSize()
-            .drawBehind {
-                val k = level.value
+            .drawWithCache {
                 val c = Offset(center.first * size.width, center.second * size.height)
-                // Far enough to reach every corner of the room from the ball.
                 val reach = (shape ?: listOf(0f to 0f, 1f to 0f, 1f to 1f, 0f to 1f))
                     .maxOf { (x, y) -> hypot(x * size.width - c.x, y * size.height - c.y) }
-                val t = (clock.value % TURN_MS) / TURN_MS.toFloat()
                 val core = SPECK_CORE.toPx()
-                val draw = {
-                    specks.forEach { s ->
-                        val a = s.angle + t * 2f * PI.toFloat()
-                        val twinkle = 0.65f + 0.35f * sin(s.phase + t * 2f * PI.toFloat() * TWINKLES)
-                        val alpha = k * s.bright * twinkle * (1f - 0.55f * s.r)
-                        if (alpha >= 0.02f) {
-                            val p = c + Offset(cos(a), sin(a)) * (s.r * reach)
-                            val radius = core * s.size
-                            drawCircle(color.copy(alpha = alpha * 0.3f), radius * 2.5f, p)
-                            drawCircle(color.copy(alpha = alpha), radius, p)
-                        }
-                    }
-                }
-                if (isAxisAlignedRect) {
-                    clipRect(minX * size.width, minY * size.height, maxX * size.width, maxY * size.height) { draw() }
-                } else if (shape != null) {
-                    val path = Path().apply {
+                val clipPolygon = if (!isAxisAlignedRect && shape != null) {
+                    Path().apply {
                         moveTo(shape[0].first * size.width, shape[0].second * size.height)
                         for (i in 1 until shape.size) lineTo(shape[i].first * size.width, shape[i].second * size.height)
                         close()
                     }
-                    clipPath(path) { draw() }
-                } else {
-                    draw()
+                } else null
+                val rectL = minX * size.width
+                val rectT = minY * size.height
+                val rectR = maxX * size.width
+                val rectB = maxY * size.height
+
+                onDrawBehind {
+                    val k = level.value
+                    if (k < 0.01f) return@onDrawBehind
+                    val t = (clock.value % TURN_MS) / TURN_MS.toFloat()
+                    val twoPiT = t * 2f * PI.toFloat()
+                    val draw = {
+                        specks.forEach { s ->
+                            val a = s.angle + twoPiT
+                            val twinkle = 0.65f + 0.35f * sin(s.phase + twoPiT * TWINKLES)
+                            val alpha = k * s.bright * twinkle * (1f - 0.55f * s.r)
+                            if (alpha >= 0.02f) {
+                                val dist = s.r * reach
+                                val p = Offset(c.x + cos(a) * dist, c.y + sin(a) * dist)
+                                val radius = core * s.size
+                                drawCircle(color.copy(alpha = alpha * 0.3f), radius * 2.5f, p)
+                                drawCircle(color.copy(alpha = alpha), radius, p)
+                            }
+                        }
+                    }
+                    when {
+                        isAxisAlignedRect -> clipRect(rectL, rectT, rectR, rectB) { draw() }
+                        clipPolygon != null -> clipPath(clipPolygon) { draw() }
+                        else -> draw()
+                    }
                 }
             },
     )
 }
 
-/**
- * The frame clock in ms, for the ball and its specks: it ticks [FPS] times a
- * second while [live] and stands still otherwise (another page, the
- * screensaver, screen off), where an infinite transition would keep asking
- * for frames all night. A slow turn needs no more, and every frame redraws the
- * whole screen on the remotes. Each caller wakes on the same grid of the
- * clock, so the ball and its specks share one frame rather than taking two.
- */
 @Composable
 internal fun rememberBallClock(live: Boolean): State<Long> {
     val now = remember { mutableLongStateOf(0L) }
@@ -125,7 +134,6 @@ internal fun rememberBallClock(live: Boolean): State<Long> {
 
 private class Speck(val angle: Float, val r: Float, val size: Float, val bright: Float, val phase: Float)
 
-/** A fixed scatter, denser near the ball the way a real ball's spots are. */
 private fun specks(): List<Speck> {
     val rnd = Random(7)
     return List(SPECKS) {
@@ -139,14 +147,10 @@ private fun specks(): List<Speck> {
     }
 }
 
-/** The spotlit ball's colour on the walls: what it throws, not a theme colour. */
 private val SPECK_WARM = Color(255, 236, 190)
 private val SPECK_CORE = 1.6.dp
 private const val SPECKS = 48
-/** One full turn of the ball. */
 private const val TURN_MS = 36_000
-/** Ticks a second while it turns, for the ball card too. */
 private const val FPS = 8
-/** Twinkles per turn. */
 private const val TWINKLES = 9f
 private const val FADE_MS = 600

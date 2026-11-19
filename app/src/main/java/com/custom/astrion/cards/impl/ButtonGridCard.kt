@@ -317,7 +317,7 @@ class ButtonGridCard : CardRenderer {
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.Center)
-                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                    .padding(horizontal = if (labelLines > 1) 3.dp else 6.dp, vertical = 3.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -329,7 +329,7 @@ class ButtonGridCard : CardRenderer {
                             tint = iconTint,
                             modifier = Modifier.size(glyphDp),
                         )
-                        if (!name.isNullOrBlank()) Spacer(Modifier.height(if (labelLines > 1) 3.dp else 4.dp))
+                        if (!name.isNullOrBlank()) Spacer(Modifier.height(if (labelLines > 1) 2.dp else 4.dp))
                     }
                     bitmap != null -> {
                         Image(
@@ -345,10 +345,14 @@ class ButtonGridCard : CardRenderer {
                 if (!name.isNullOrBlank()) {
                     Text(
                         text = name,
-                        style = if (labelLines > 1) tightTextStyle(13.sp) else LocalTextStyle.current,
+                        style = if (labelLines > 1) tightTextStyle(12.sp) else LocalTextStyle.current,
                         color = inkColor,
-                        fontSize = if (hasVisual || name.length > 8) AstrionTheme.size.label else AstrionTheme.size.body,
-                        fontWeight = if (active || customTileColor != null) FontWeight.SemiBold else FontWeight.Medium,
+                        fontSize = when {
+                            labelLines > 1 -> AstrionTheme.size.micro
+                            hasVisual || name.length > 8 -> AstrionTheme.size.label
+                            else -> AstrionTheme.size.body
+                        },
+                        fontWeight = if (active || customTileColor != null || labelLines > 1) FontWeight.SemiBold else FontWeight.Medium,
                         maxLines = labelLines,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,

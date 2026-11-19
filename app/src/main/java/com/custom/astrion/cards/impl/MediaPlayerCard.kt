@@ -1153,7 +1153,7 @@ private fun resolveTvSession(
             frontApp = frontPkg,
         )
     }
-    if (!tvOn && alsoOnMatch != null) {
+    if (alsoOnMatch != null) {
         val src = alsoOnMatch["is"]?.toString()?.uppercase() ?: "HDMI"
         val title = (alsoOnMatch["title"] as? String) ?: (alsoOnMatch["name"] as? String) ?: "PC · $src"
         val subtitle = (alsoOnMatch["subtitle"] as? String) ?: "External input"

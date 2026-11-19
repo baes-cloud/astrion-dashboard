@@ -49,7 +49,6 @@
         {
           "type": "row",
           "options": {
-            "spacing": 6,
             "cards": [
               {
                 "type": "switch",
@@ -60,36 +59,13 @@
                   "icon": "motion_sensor",
                   "on_label": "On",
                   "off_label": "Paused",
-                  "off_attention": true,
-                  "hold": true
+                  "off_attention": true
                 },
-                "weight": 1.17
-              },
-              {
-                "type": "button_grid",
-                "width": 48,
-                "options": {
-                  "columns": 1,
-                  "style": "flat",
-                  "tile_height": 48,
-                  "icon_size": 24,
-                  "spacing": 2,
-                  "buttons": [
-                    {
-                      "name": "",
-                      "icon": "/sdcard/astrion/icons/grindr.png",
-                      "service": "light.toggle",
-                      "entity_id": "light.neon",
-                      "show_state": true,
-                      "hold": "members",
-                      "active_tone": "ochre"
-                    }
-                  ]
-                }
+                "weight": 1.3
               },
               {
                 "type": "mirror_ball",
-                "width": 48,
+                "width": 44,
                 "options": {
                   "entity_id": "fan.mirror_ball",
                   "size": 28,
@@ -104,9 +80,10 @@
                   "hold_entity": "input_boolean.front_door_keep_unlocked",
                   "compact": true
                 },
-                "weight": 0.83
+                "weight": 0.7
               }
-            ]
+            ],
+            "spacing": 5
           }
         },
         {
@@ -180,14 +157,32 @@
                       "color": "#7A7472"
                     },
                     {
-                      "entity_id": "light.xxxmas",
+                      "entity_id": "light.hue_play",
                       "left": 16,
                       "top": 9,
+                      "glow_outline": [
+                        [
+                          23.6,
+                          8.2
+                        ],
+                        [
+                          38.8,
+                          8.2
+                        ],
+                        [
+                          38.8,
+                          11.2
+                        ],
+                        [
+                          23.6,
+                          11.2
+                        ]
+                      ],
                       "glow_reach": 1.1,
                       "glow_spots": [
                         [
-                          16,
-                          10
+                          13,
+                          15
                         ]
                       ],
                       "icon": "xmas_tree"
@@ -588,12 +583,6 @@
                           "light.wardrobes"
                         ]
                       }
-                    ],
-                    "recolor": [
-                      {
-                        "from": "#03FF9A",
-                        "to": "#32FFEA"
-                      }
                     ]
                   },
                   "rmm": {
@@ -649,7 +638,7 @@
                       "invert_position": true
                     },
                     {
-                      "entity_id": "cover.sheer_blinds",
+                      "entity_id": "cover.smart_blinds",
                       "rect": [
                         2,
                         7.5,
@@ -930,7 +919,7 @@
                       "type": "button_grid",
                       "options": {
                         "columns": 4,
-                        "tile_height": 56,
+                        "tile_height": 60,
                         "icon_size": 18,
                         "spacing": 7,
                         "buttons": [
@@ -1382,12 +1371,12 @@
     {
       "key": "PAGE_UP",
       "service": "script.open_blinds",
-      "label": "Raises the blinds"
+      "label": "Opens the blinds"
     },
     {
       "key": "PAGE_DOWN",
       "service": "script.close_blinds",
-      "label": "Lowers the blinds"
+      "label": "Closes the blinds"
     },
     {
       "key": "LIGHT",
@@ -1538,8 +1527,7 @@
   "voice": {
     "pipeline": null,
     "image_dir": "/sdcard/astrion/voice",
-    "wake_word_undocked_minutes": 2,
-    "wake_word": "off"
+    "wake_word_undocked_minutes": 2
   },
   "alarm": {
     "ringing_entity": "input_boolean.work_alarm_ringing",
@@ -1681,6 +1669,7 @@
       "MUTE"
     ],
     "voice": {
+      "wake_word": "Hey Pikachu",
       "examples": [
         "Turn on the kitchen light",
         "Goodnight",
@@ -1714,7 +1703,7 @@
         "title": "Find a song",
         "icon": "search",
         "steps": [
-          "Press Media and tap the Search icon on Player, or open the Media tab.",
+          "Press Media and tap Search music, above the player.",
           "Type an artist, song, album or radio station.",
           "Tap a result to play it in the Club. Tap + to add it to the queue instead."
         ]
@@ -1724,7 +1713,7 @@
         "icon": "tv",
         "steps": [
           "Press TV/Plex (curtain).",
-          "Use Watch & Inputs to launch Jellyfin, Plex, iview, or PC HDMI 2, or open Browse Plex library at the bottom.",
+          "In the TV card, tap Search to find a film or show, or Movies, TV or MTV to browse.",
           "Tap one and it plays on the TV.",
           "Red, green and blue open Jellyfin, Plex and iview. Arrows, OK, Home and Back work like the TV's own remote."
         ]
@@ -1733,8 +1722,8 @@
         "title": "Talk to it",
         "icon": "voice",
         "steps": [
-          "Press the mic button, then just talk.",
-          "Press it again to stop.",
+          "On the dock, say “Hey Pikachu”. It beeps, then just talk.",
+          "Off the dock, press the mic button first.",
           "Plain sentences and questions are fine."
         ]
       },
@@ -1752,7 +1741,7 @@
         "steps": [
           "Radar sensors (not cameras) feel movement. Each person is a teal dot on the map.",
           "Walk into a room and its light comes on. Leave, and it goes off a few minutes later.",
-          "Want them left alone? Hold Automations on Main to pause them. Hold again to resume."
+          "Want them left alone? Tap Motion Lights on Main. Tap it again to go back to normal."
         ]
       },
       {
@@ -1761,7 +1750,7 @@
         "steps": [
           "Press Climate for the aircon and blinds.",
           "Hold Climate to turn the aircon on or off from any page.",
-          "Hold Page ▲ to raise the blinds, Page ▼ to lower them."
+          "Hold Page ▲ or Page ▼ to open or close the blinds."
         ]
       },
       {

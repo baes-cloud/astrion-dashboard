@@ -104,7 +104,7 @@ class LockCard : CardRenderer {
                 .clip(RoundedCornerShape(if (compact) 14.dp else AstrionTheme.surfaces.cardCornerRadius))
                 .background(pillBg)
                 .padding(
-                    horizontal = if (compact) 10.dp else 12.dp,
+                    horizontal = if (compact) 8.dp else 12.dp,
                     vertical = if (compact) 0.dp else 8.dp,
                 ),
             verticalAlignment = Alignment.CenterVertically,
@@ -153,14 +153,14 @@ class LockCard : CardRenderer {
                 Text(
                     name,
                     color = AstrionTheme.textPrimary,
-                    fontSize = AstrionTheme.size.body,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = if (compact) AstrionTheme.size.label else AstrionTheme.size.body,
+                    fontWeight = if (compact) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = if (compact) TextAlign.End else TextAlign.Start,
                 )
                 if (unavailable) {
-                    UnavailableLabel(AstrionTheme.size.label)
+                    UnavailableLabel(if (compact) AstrionTheme.size.micro else AstrionTheme.size.label)
                 } else {
                     Text(
                         if (compact) {
@@ -178,7 +178,7 @@ class LockCard : CardRenderer {
                             attention -> AstrionTheme.blush
                             else -> AstrionTheme.textSecondary
                         },
-                        fontSize = AstrionTheme.size.label,
+                        fontSize = if (compact) AstrionTheme.size.micro else AstrionTheme.size.label,
                         fontWeight = if (attention || hint) FontWeight.SemiBold else FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -187,7 +187,7 @@ class LockCard : CardRenderer {
                 }
             }
 
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(if (compact) 4.dp else 6.dp))
             StateButton(
                 state = state,
                 locked = locked,
@@ -222,8 +222,8 @@ class LockCard : CardRenderer {
             val haptics = LocalHapticFeedback.current
             Box(
                 modifier = Modifier
-                    .size(width = 34.dp, height = 44.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(width = 26.dp, height = 44.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .combinedClickable(
                         enabled = live,
                         onClick = {

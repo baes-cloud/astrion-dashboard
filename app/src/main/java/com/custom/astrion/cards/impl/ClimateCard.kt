@@ -156,8 +156,8 @@ class ClimateCard : CardRenderer {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(AstrionTheme.surfaces.cardCornerRadius))
                 .background(cardBg)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
+                .padding(horizontal = 13.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             // Header: title, live status (or pending setpoint feedback), power pill.
             Row(
@@ -195,7 +195,7 @@ class ClimateCard : CardRenderer {
                         )
                     }
                 }
-                PowerPill(on = !isOff, name = name, enabled = live, height = 36.dp) { togglePower() }
+                PowerPill(on = !isOff, name = name, enabled = live, height = 34.dp) { togglePower() }
             }
 
             // Setpoint readout + 48dp matte circular steppers.
@@ -215,7 +215,7 @@ class ClimateCard : CardRenderer {
                         text = shownTarget?.let { "${trim(it)}°" } ?: "—",
                         color = if (unavailable) AstrionTheme.unavailable else AstrionTheme.textPrimary,
                         fontFamily = AstrionTheme.readoutFont,
-                        fontSize = AstrionTheme.size.readout,
+                        fontSize = AstrionTheme.size.displayXl,
                         fontWeight = FontWeight.Normal,
                         style = TextStyle(fontFeatureSettings = "tnum"),
                         maxLines = 1,
@@ -266,7 +266,7 @@ class ClimateCard : CardRenderer {
                             selected = isSelected,
                             icon = modeIcon(m),
                             enabled = live,
-                            height = 40.dp,
+                            height = 36.dp,
                             selectedBg = selBg,
                             selectedInk = selInk,
                             onClick = { setMode(m) },
@@ -285,7 +285,7 @@ class ClimateCard : CardRenderer {
                             label = f.humanise(),
                             selected = isSelected,
                             enabled = live,
-                            height = 40.dp,
+                            height = 36.dp,
                             onClick = { setFan(f) },
                         )
                     }
