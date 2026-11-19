@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -150,8 +151,8 @@ class CoverCard : CardRenderer {
             )
             Spacer(Modifier.width(12.dp))
             Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f).then(if (fill) Modifier.fillMaxHeight() else Modifier),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
@@ -177,19 +178,24 @@ class CoverCard : CardRenderer {
                         )
                     }
                 }
+                // The keys take the rest of the card's height (at least 44dp).
                 Row(
-                    modifier = Modifier.fillMaxWidth().dimIfUnavailable(unavailable),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (fill) Modifier.weight(1f) else Modifier.height(48.dp))
+                        .heightIn(min = 44.dp)
+                        .dimIfUnavailable(unavailable),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    BlindTrough(Modifier.weight(2f)) {
+                    BlindTrough(Modifier.weight(1.7f).fillMaxHeight()) {
                         BlindKey("$name 25% open", live, selected = !moving && position == 25, text = "25%") { setOpenPct(25) }
                         BlindKey("$name 50% open", live, selected = !moving && position == 50, text = "50%") { setOpenPct(50) }
                     }
                     // The gap that sets the presets apart from the main keys.
                     Spacer(Modifier.width(8.dp))
-                    BlindTrough(Modifier.weight(3f)) {
+                    BlindTrough(Modifier.weight(3.3f).fillMaxHeight()) {
                         BlindKey("Open $name", live, selected = goingUp, icon = Icons.Filled.KeyboardArrowUp) { call(openService) }
-                        BlindKey("Stop $name", live, selected = false, icon = Icons.Filled.Stop, iconSize = 15.dp) { call("stop_cover") }
+                        BlindKey("Stop $name", live, selected = false, icon = Icons.Filled.Stop, iconSize = 18.dp) { call("stop_cover") }
                         BlindKey("Close $name", live, selected = goingDown, icon = Icons.Filled.KeyboardArrowDown) { call(closeService) }
                     }
                 }
@@ -218,7 +224,7 @@ class CoverCard : CardRenderer {
         selected: Boolean,
         text: String? = null,
         icon: ImageVector? = null,
-        iconSize: Dp = 22.dp,
+        iconSize: Dp = 30.dp,
         onClick: () -> Unit,
     ) {
         val interaction = remember { MutableInteractionSource() }
@@ -232,7 +238,7 @@ class CoverCard : CardRenderer {
         Box(
             modifier = Modifier
                 .weight(1f)
-                .height(40.dp)
+                .fillMaxHeight()
                 .clip(RoundedCornerShape(10.dp))
                 .background(bg)
                 .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
