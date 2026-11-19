@@ -427,6 +427,7 @@
                   "stretch": true,
                   "lit_rooms": {
                     "shade": "sun",
+                    "baked_glow_masks": true,
                     "rooms": [
                       {
                         "name": "Club and kitchen",

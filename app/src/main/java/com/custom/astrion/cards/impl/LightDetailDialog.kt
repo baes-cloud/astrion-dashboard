@@ -118,7 +118,11 @@ fun LightDetailDialog(
 
     BottomSheet(
         title = name,
-        subtitle = if (members.isNotEmpty()) "${members.size} lights" else null,
+        subtitle = when (members.size) {
+            0 -> null
+            1 -> "1 light"
+            else -> "${members.size} lights"
+        },
         onDismissRequest = onClose,
     ) {
         Row(
