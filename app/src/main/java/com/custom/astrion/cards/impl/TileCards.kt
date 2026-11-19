@@ -1,6 +1,5 @@
 package com.custom.astrion.cards.impl
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -44,13 +43,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -60,7 +63,6 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
-import com.custom.astrion.ui.Fader
 import com.custom.astrion.ui.HitTarget
 import com.custom.astrion.ui.PowerPill
 import com.custom.astrion.ui.UnavailableLabel
@@ -68,16 +70,11 @@ import com.custom.astrion.ui.dimIfUnavailable
 import com.custom.astrion.ui.humanise
 import com.custom.astrion.ui.tap
 import kotlinx.coroutines.delay
-import kotlin.math.roundToInt
 
 /**
- * Cover / blind card (Bæo v3.0 Matte Tonal):
- *  - Miniature architectural window curtain visualizer (`32×56dp`) showing live
- *    fabric drop (`blindSolidFill` + blush hem for blackout, vertically pleated
- *    `blindSheerFill` when `"style": "sheer"`).
- *  - Smooth borderless relative-drag [Fader] sending `cover.set_cover_position`
- *    (honoring `invert_position`) plus a compact borderless matte rocker
- *    (`▲ | ■ | ▼`, highlighting `■` in `blushContainer` while moving).
+ * Cover / blind card: name and state, then one row of keys. On the left,
+ * 25% and 50% set the blind to that much open (honouring `invert_position`);
+ * after a small gap, open, stop and close. No drawing and no slider (Bae).
  */
 class CoverCard : CardRenderer {
     override val type = "cover"
@@ -91,9 +88,6 @@ class CoverCard : CardRenderer {
         val live = !unavailable && ctx.connected
         val invertPosition = config.bool("invert_position", false)
         val invertButtons = config.bool("invert_buttons", false)
-        val sheer = config.string("style") == "sheer" ||
-            name.contains("sheer", ignoreCase = true) ||
-            entityId.contains("sheer", ignoreCase = true)
 
         val rawPosition = e?.attrInt("current_position")
         val position = rawPosition?.let { if (invertPosition) 100 - it else it }
@@ -117,8 +111,7 @@ class CoverCard : CardRenderer {
         fun call(service: String) {
             ctx.client.callService(ServiceCall(domain = "cover", service = service, entityId = entityId))
         }
-        fun setOpenFraction(openFrac: Float) {
-            val openPct = (openFrac.coerceIn(0f, 1f) * 100f).roundToInt()
+        fun setOpenPct(openPct: Int) {
             val haPos = if (invertPosition) 100 - openPct else openPct
             ctx.client.callService(
                 ServiceCall.of("cover", "set_cover_position", entityId, "position" to haPos)
@@ -126,145 +119,130 @@ class CoverCard : CardRenderer {
         }
         val openService = if (invertButtons) "close_cover" else "open_cover"
         val closeService = if (invertButtons) "open_cover" else "close_cover"
-
         val fill = config.options["pin"] == "fill"
-        val openFraction = position?.let { it.coerceIn(0, 100) / 100f } ?: if (open) 1f else 0f
-        val closedFraction = (1f - openFraction).coerceIn(0f, 1f)
-        val fabricFill = if (sheer) AstrionTheme.blindSheerFill else AstrionTheme.blindSolidFill
 
-        Row(
+        val sheer = config.string("style") == "sheer" ||
+            name.contains("sheer", ignoreCase = true) || entityId.contains("sheer", ignoreCase = true)
+        val closedFrac = (1f - (position?.coerceIn(0, 100) ?: if (open) 100 else 0) / 100f).coerceIn(0f, 1f)
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (fill) Modifier.fillMaxHeight() else Modifier)
                 .clip(RoundedCornerShape(AstrionTheme.surfaces.cardCornerRadius))
                 .background(AstrionTheme.cardBg)
-                .padding(horizontal = 11.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
         ) {
-            // Miniature architectural window visualizer (shows dropped blind curtain).
-            BlindWindowVisualizer(
-                closedFraction = closedFraction,
-                sheer = sheer,
-                unavailable = unavailable,
-                modifier = Modifier
-                    .width(30.dp)
-                    .height(if (fill) 52.dp else 50.dp),
-            )
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = name,
-                            color = AstrionTheme.textPrimary,
-                            fontSize = AstrionTheme.size.body,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (unavailable) {
-                            UnavailableLabel(AstrionTheme.size.micro)
-                        } else {
-                            Text(
-                                text = stateLabel,
-                                color = if (moving) AstrionTheme.blush else AstrionTheme.textSecondary,
-                                fontSize = AstrionTheme.size.micro,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.dimIfUnavailable(unavailable),
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        CoverBtn(Icons.Filled.KeyboardArrowUp, "Open $name", live, active = false) { call(openService) }
-                        CoverBtn(Icons.Filled.Stop, "Stop $name", live, active = moving) { call("stop_cover") }
-                        CoverBtn(Icons.Filled.KeyboardArrowDown, "Close $name", live, active = false) { call(closeService) }
-                    }
-                }
-
-                // Direct smooth drag fader for exact blind positioning.
-                Fader(
-                    value = if (unavailable) null else openFraction,
-                    onCommit = ::setOpenFraction,
-                    enabled = live,
-                    fill = fabricFill,
-                    track = AstrionTheme.trackBg,
-                    radius = 9.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(26.dp)
-                        .dimIfUnavailable(unavailable),
-                ) {
+            // Name on top, where it has the whole width; the position beside it, fainter.
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = name,
+                    color = AstrionTheme.textPrimary,
+                    fontSize = AstrionTheme.size.body,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Spacer(Modifier.width(8.dp))
+                if (unavailable) {
+                    UnavailableLabel(AstrionTheme.size.micro)
+                } else {
                     Text(
-                        text = if (sheer) "Sheer" else "Position",
-                        color = AstrionTheme.textSecondary,
+                        text = stateLabel,
+                        color = if (moving) AstrionTheme.accent else AstrionTheme.textMuted,
                         fontSize = AstrionTheme.size.micro,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
+                        modifier = Modifier.padding(bottom = 1.dp),
                     )
                 }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().dimIfUnavailable(unavailable),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BlindIcon(
+                    closedFraction = closedFrac,
+                    sheer = sheer,
+                    modifier = Modifier.size(width = 24.dp, height = 32.dp),
+                )
+                Spacer(Modifier.weight(1f))
+                PctBtn(25, name, live, active = !moving && position == 25) { setOpenPct(25) }
+                Spacer(Modifier.width(5.dp))
+                PctBtn(50, name, live, active = !moving && position == 50) { setOpenPct(50) }
+                // The gap that sets the presets apart from the main keys.
+                Spacer(Modifier.width(12.dp))
+                CoverBtn(Icons.Filled.KeyboardArrowUp, "Open $name", live, active = false) { call(openService) }
+                Spacer(Modifier.width(5.dp))
+                CoverBtn(Icons.Filled.Stop, "Stop $name", live, active = moving) { call("stop_cover") }
+                Spacer(Modifier.width(5.dp))
+                CoverBtn(Icons.Filled.KeyboardArrowDown, "Close $name", live, active = false) { call(closeService) }
             }
         }
     }
 
+    /**
+     * A small window: a thin frame, and the blind drawn down from the top as far
+     * as it really is, in the accent sea-green. Slats for a blackout, pleats for
+     * a sheer, a brighter hem where it ends.
+     */
     @Composable
-    private fun BlindWindowVisualizer(
-        closedFraction: Float,
-        sheer: Boolean,
-        unavailable: Boolean,
-        modifier: Modifier = Modifier,
-    ) {
-        val well = AstrionTheme.trackBg
-        val fabric = if (sheer) AstrionTheme.blindSheerFill else AstrionTheme.blindSolidFill
-        val hem = if (sheer) AstrionTheme.textMuted else AstrionTheme.blush
-        val pleat = AstrionTheme.textPrimary.copy(alpha = 0.14f)
-        val windowGlow = AstrionTheme.accent.copy(alpha = 0.10f)
-        Canvas(
-            modifier = modifier
-                .dimIfUnavailable(unavailable)
-                .clip(RoundedCornerShape(8.dp)),
-        ) {
-            val r = CornerRadius(8.dp.toPx(), 8.dp.toPx())
-            drawRoundRect(color = well, cornerRadius = r)
-            // Soft daylight tint in the uncovered pane below the blind.
-            drawRoundRect(color = windowGlow, cornerRadius = r)
-            val dropH = (size.height * closedFraction.coerceIn(0f, 1f))
-                .coerceAtLeast(if (closedFraction > 0.02f) 6.dp.toPx() else 0f)
-            if (dropH > 0f) {
-                drawRect(color = fabric, topLeft = Offset.Zero, size = Size(size.width, dropH))
+    private fun BlindIcon(closedFraction: Float, sheer: Boolean, modifier: Modifier = Modifier) {
+        val frame = AstrionTheme.textMuted.copy(alpha = 0.7f)
+        val accent = AstrionTheme.accent
+        Canvas(modifier) {
+            val sw = 1.5.dp.toPx()
+            val r = CornerRadius(5.dp.toPx(), 5.dp.toPx())
+            drawRoundRect(color = frame, cornerRadius = r, style = Stroke(width = sw),
+                topLeft = Offset(sw / 2, sw / 2), size = Size(size.width - sw, size.height - sw))
+            val inset = 3.5.dp.toPx()
+            val w = size.width - inset * 2
+            val h = size.height - inset * 2
+            val drop = (h * closedFraction).coerceIn(0f, h)
+            val hemH = 2.dp.toPx()
+            if (drop > hemH) {
+                drawRect(color = accent.copy(alpha = if (sheer) 0.16f else 0.32f),
+                    topLeft = Offset(inset, inset), size = Size(w, drop))
                 if (sheer) {
-                    val pleats = 4
-                    val stepX = size.width / (pleats + 1)
-                    for (i in 1..pleats) {
-                        val x = stepX * i
-                        drawLine(
-                            color = pleat,
-                            start = Offset(x, 0f),
-                            end = Offset(x, dropH),
-                            strokeWidth = 1.dp.toPx(),
-                        )
+                    val n = 3
+                    for (i in 1..n) {
+                        val x = inset + w * i / (n + 1)
+                        drawLine(accent.copy(alpha = 0.45f), Offset(x, inset), Offset(x, inset + drop - hemH), 1.dp.toPx())
+                    }
+                } else {
+                    val step = 4.dp.toPx()
+                    var y = inset + step
+                    while (y < inset + drop - hemH) {
+                        drawLine(accent.copy(alpha = 0.5f), Offset(inset, y), Offset(inset + w, y), 1.dp.toPx())
+                        y += step
                     }
                 }
-                val hemH = 2.dp.toPx()
-                drawRect(
-                    color = hem,
-                    topLeft = Offset(0f, (dropH - hemH).coerceAtLeast(0f)),
-                    size = Size(size.width, hemH),
-                )
             }
+            // The hem: where the blind ends (at the top when it's fully up).
+            drawRoundRect(color = accent, topLeft = Offset(inset - 1.dp.toPx(), inset + (drop - hemH).coerceAtLeast(0f)),
+                size = Size(w + 2.dp.toPx(), hemH), cornerRadius = CornerRadius(hemH / 2, hemH / 2))
+        }
+    }
+
+    @Composable
+    private fun PctBtn(pct: Int, name: String, enabled: Boolean, active: Boolean, onClick: () -> Unit) {
+        Box(
+            modifier = Modifier
+                .size(width = 44.dp, height = 40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (active) AstrionTheme.accentContainer else AstrionTheme.controlBg)
+                .tap(enabled = enabled, onClick = onClick)
+                .semantics { contentDescription = "$name $pct% open" },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "$pct%",
+                color = if (active) AstrionTheme.accent else AstrionTheme.textOnControl,
+                fontSize = AstrionTheme.size.label,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+            )
         }
     }
 
@@ -278,17 +256,17 @@ class CoverCard : CardRenderer {
     ) {
         Box(
             modifier = Modifier
-                .size(width = 36.dp, height = 30.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(if (active) AstrionTheme.blushContainer else AstrionTheme.controlBg)
+                .size(width = 42.dp, height = 40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (active) AstrionTheme.accentContainer else AstrionTheme.controlBg)
                 .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 icon,
                 contentDescription = description,
-                tint = if (active) AstrionTheme.blush else AstrionTheme.textOnControl,
-                modifier = Modifier.size(19.dp),
+                tint = if (active) AstrionTheme.accent else AstrionTheme.textOnControl,
+                modifier = Modifier.size(21.dp),
             )
         }
     }

@@ -435,6 +435,8 @@ class MediaShelvesCard : CardRenderer {
                 style = tightTextStyle(CAPTION_LINE),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                // The tile's rounded clip was shaving the first letter's edge.
+                modifier = Modifier.padding(horizontal = 2.dp),
             )
         }
     }
