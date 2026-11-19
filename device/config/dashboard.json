@@ -871,7 +871,7 @@
                 "icon": "music_video"
               }
             ],
-            "style": "drawer",
+            "style": "panel",
             "label": "Browse Plex library"
           }
         }
@@ -1018,7 +1018,7 @@
                           }
                         ],
                         "pin": "fill",
-                        "mini_player": true
+                        "mini_player": false
                       }
                     }
                   ]
@@ -1155,7 +1155,7 @@
               {
                 "name": "Shut",
                 "icon": "moon",
-                "tone": "blush",
+                "tone": "accent",
                 "match": [
                   {
                     "entity_id": "cover.blinds",

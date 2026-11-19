@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+(nothing yet)
+
+## v1.7.0 (2026-11-20)
+
+A matte redesign, chosen element by element on the real remote, and a faster, lighter app.
+
+**Looks**
+- Matte, borderless cards with no glass. Floorplan lights keep the soft see-through discs, the weather keeps its colour icons and five days.
+- TV page: app tiles with logos and a dot for the matching colour key, a Samsung TV row, and Plex as its own panel instead of a poster wall.
+- Media tab: shelf names marked with a small accent bar, one-line titles, and all three shelves fit without scrolling. Zones volume is blush again.
+- Blinds: a window drawing that shows how far each blind is down, then 25% and 50%, then raise, stop and lower. The arrow for the way it's moving lights while it moves.
+- The footer rule is fainter and as wide as the wordmark. The footer arrows step through Player, Media and Zones.
+
+**Speed and memory** (measured on an HA100)
+- Worst 1% of frames: 250 ms to 73-89 ms. App memory: 115 MB to 71 MB. Graphics memory: 29 MB to 14 MB.
+- Floorplan glows are drawn once into small masks instead of every frame (`"baked_glow_masks": true` on `lit_rooms`).
+- Album thumbnails decode at half the memory; big art and backgrounds keep full colour.
+- A page change fades with per-draw alpha instead of copying the whole page each frame.
+- File and image work moved off the UI thread.
+
+**Fixes**
+- The volume popup's slider called a service HA doesn't have, so dragging did nothing. It now sets the volume.
+- The TV card shows "PC · HDMI 2 · Active" when the TV is on the PC's input (`also_on`).
+- Back closes the top sheet or dialog first.
+- The connection banner sits under the clock and says when HA was last heard from.
+- A read-only `/data` (failing flash) is detected, shown, and reported to HA as `storage_ro`.
+- HA client: separate locks for connecting and publishing, sends that fail are answered at once, and the stuck-connection timer counts deep sleep.
+- Plex library paging, Zones names cut short, and "1 lights" fixed.
+
+**Config**
+- `plex_browse` takes `"style": "panel"` (or `"drawer"`), `title` and `tile_height`.
+- `media_shelves` takes `"mini_player": false`.
+- Section presets take a `tone`; `button_grid` buttons take `key_dot` (red, green, yellow, blue).
+
+## Earlier unreleased work
+
 Fixes from a full code review. Nothing here changes how a page looks.
 
 - **A dropped socket is noticed at once.** When HA closes the connection (a restart), the client now closes its side too; before, the socket sat half-closed and looked connected until a ping went unanswered. Losing Wi-Fi drops the socket straight away instead of waiting up to 30 s for that ping. Requests waiting on a socket that drops (the doorbell's Let in, a library browse, the forecast) are answered immediately rather than after their 8 to 10 s timeout.

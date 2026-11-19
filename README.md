@@ -65,10 +65,10 @@ Each page has its own hardware key, and you can also swipe sideways to turn the 
 
 | | Page | What it does |
 | :---: | --- | --- |
-| <img src="screenshots/main.png" width="140"> | **BÆOREMOTE** · Main<br>`LIGHT` | Weather, next alarm and event, the Motion Lights switch, a spinning mirror ball, the door lock, scene pills and a **live floorplan**. |
-| <img src="screenshots/tv-page.png" width="140"> | **BÆOVISION** · TV<br>`CURTAIN` | Shows what's on the TV. Search, Movies, TV and MTV tiles open your Plex server. Tap a poster on the *On Deck* or *Recently Released* shelf and it wakes the TV, switches to Google TV and starts that exact episode. |
-| <img src="screenshots/media-page.png" width="140"> | **BÆOSOUND** · Media<br>`SCENE` | Music search, the Sonos player with a volume fader, four one-touch mixes, the queue, Music Assistant shelves and multi-room Zones. |
-| <img src="screenshots/climate.png" width="140"> | **BÆOLIVING** · Climate<br>`AC` | Air-conditioning setpoint steppers, HVAC and fan modes, and motorised blinds. |
+| <img src="screenshots/main.png" width="140"> | **BÆOREMOTE** · Main<br>`LIGHT` | Weather with a five-day forecast, next alarm and event, the Automations switch (hold to pause), a spinning mirror ball, the door lock, scene pills and a **live floorplan**. |
+| <img src="screenshots/tv-page.png" width="140"> | **BÆOVISION** · TV<br>`CURTAIN` | What's on the TV (including the PC on its HDMI input), its power and speaker volume, app tiles with logos and dots that match the colour keys, a row for the Samsung itself, and a Plex panel: Search, Movies, TV and MTV open your Plex server, and a tap on anything wakes the TV and starts it on Google TV. |
+| <img src="screenshots/media-page.png" width="140"> | **BÆOSOUND** · Media<br>`SCENE` | Three tabs: the Sonos player (search, queue, a link to Zones, four one-touch mixes), Music Assistant shelves that fit the screen, and multi-room Zones with BÆOLINK. The footer arrows step through the tabs too. |
+| <img src="screenshots/climate.png" width="140"> | **BÆOLIVING** · Climate<br>`AC` | Air-conditioning setpoint, the room and outside temperatures, HVAC and fan modes, one-tap Open, Sheer and Shut, and each blind with 25%, 50%, raise, stop and lower. |
 
 ### 🌇 A floorplan that looks like your home right now
 

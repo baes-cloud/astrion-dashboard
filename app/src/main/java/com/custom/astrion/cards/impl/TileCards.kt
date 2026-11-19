@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -116,7 +116,7 @@ class CoverCard : CardRenderer {
             position != null -> when (position) {
                 0 -> "Closed"
                 100 -> "Open"
-                else -> "$position% open"
+                else -> "$position%"
             }
             else -> if (open) "Open" else "Closed"
         }
@@ -150,54 +150,57 @@ class CoverCard : CardRenderer {
                     .dimIfUnavailable(unavailable),
             )
             Spacer(Modifier.width(12.dp))
-            Column(
-                modifier = Modifier.weight(1f).then(if (fill) Modifier.fillMaxHeight() else Modifier),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+            // Name and presets on the left; raise, stop and lower as one tall
+            // block on the right, as high as the name and presets together.
+            Row(
+                modifier = Modifier.weight(1f).height(IntrinsicSize.Min),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        text = name,
-                        color = AstrionTheme.textPrimary,
-                        fontSize = AstrionTheme.size.body,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    if (unavailable) {
-                        UnavailableLabel(AstrionTheme.size.micro)
-                    } else {
-                        Text(
-                            text = stateLabel,
-                            color = if (moving) AstrionTheme.accent else AstrionTheme.textMuted,
-                            fontSize = AstrionTheme.size.micro,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            modifier = Modifier.padding(bottom = 1.dp),
-                        )
-                    }
-                }
-                // The keys take the rest of the card's height (at least 44dp).
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(if (fill) Modifier.weight(1f) else Modifier.height(48.dp))
-                        .heightIn(min = 44.dp)
-                        .dimIfUnavailable(unavailable),
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    BlindTrough(Modifier.weight(1.7f).fillMaxHeight()) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = name,
+                            color = AstrionTheme.textPrimary,
+                            fontSize = AstrionTheme.size.body,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        if (unavailable) {
+                            UnavailableLabel(AstrionTheme.size.micro)
+                        } else {
+                            Text(
+                                text = stateLabel,
+                                color = if (moving) AstrionTheme.accent else AstrionTheme.textMuted,
+                                fontSize = AstrionTheme.size.micro,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(bottom = 1.dp),
+                            )
+                        }
+                    }
+                    BlindTrough(Modifier.fillMaxWidth().height(44.dp).dimIfUnavailable(unavailable)) {
                         BlindKey("$name 25% open", live, selected = !moving && position == 25, text = "25%") { setOpenPct(25) }
                         BlindKey("$name 50% open", live, selected = !moving && position == 50, text = "50%") { setOpenPct(50) }
                     }
-                    // The gap that sets the presets apart from the main keys.
-                    Spacer(Modifier.width(8.dp))
-                    BlindTrough(Modifier.weight(3.3f).fillMaxHeight()) {
-                        BlindKey("Open $name", live, selected = goingUp, icon = Icons.Filled.KeyboardArrowUp) { call(openService) }
-                        BlindKey("Stop $name", live, selected = false, icon = Icons.Filled.Stop, iconSize = 18.dp) { call("stop_cover") }
-                        BlindKey("Close $name", live, selected = goingDown, icon = Icons.Filled.KeyboardArrowDown) { call(closeService) }
-                    }
+                }
+                // The gap that sets the presets apart from the main keys.
+                Spacer(Modifier.width(10.dp))
+                BlindTrough(
+                    Modifier
+                        .width(138.dp)
+                        .fillMaxHeight()
+                        .dimIfUnavailable(unavailable),
+                ) {
+                    BlindKey("Open $name", live, selected = goingUp, icon = Icons.Filled.KeyboardArrowUp) { call(openService) }
+                    BlindKey("Stop $name", live, selected = false, icon = Icons.Filled.Stop, iconSize = 18.dp) { call("stop_cover") }
+                    BlindKey("Close $name", live, selected = goingDown, icon = Icons.Filled.KeyboardArrowDown) { call(closeService) }
                 }
             }
         }
