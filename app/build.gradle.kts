@@ -48,8 +48,8 @@ android {
         // headroom while covering the device; targetSdk stays modern.
         minSdk = 26
         targetSdk = 34
-        versionCode = 18
-        versionName = "1.6.0"
+        versionCode = 19
+        versionName = "1.7.0"
 
         buildConfigField("String", "HA_URL", "\"${secret("haUrl", "http://YOUR_HA_IP:8123")}\"")
         buildConfigField("String", "HA_TOKEN", "\"${secret("haToken", "YOUR_LONG_LIVED_ACCESS_TOKEN")}\"")
@@ -129,6 +129,8 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation("app.cash.turbine:turbine:1.2.0")
     testImplementation("io.mockk:mockk:1.13.16")
+    // A real websocket for HaClient to talk to (ha/HaClientSocketTest).
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("io.insert-koin:koin-test:4.0.2")
     testImplementation("io.insert-koin:koin-test-junit4:4.0.2")
 }

@@ -14,7 +14,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,7 +24,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
@@ -68,6 +69,7 @@ fun IrModeOverlay(
     val tvEntity = options["tv_entity"] as? String
     val remoteEntity = options["remote_entity"] as? String
     var toast by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     fun press(b: Map<String, Any?>) {
         val name = b["name"] as? String ?: "?"
@@ -93,8 +95,14 @@ fun IrModeOverlay(
             b["ir"] != null -> {
                 val code = IrBlaster.NAMED_CODES[(b["ir"] as String).uppercase()]
                     ?: IrBlaster.parseHex(b["ir"])
-                toast = if (code != null && blaster.blast(code)) "Sent $name"
-                        else "$name didn't send. Point it at the TV and try again"
+                if (code == null) {
+                    toast = "$name didn't send. Point it at the TV and try again"
+                } else {
+                    scope.launch {
+                        toast = if (blaster.blastAsync(code)) "Sent $name"
+                                else "$name didn't send. Point it at the TV and try again"
+                    }
+                }
             }
             // Launch an app on the TV over the network.
             b["app"] != null && tvEntity != null -> {
@@ -180,14 +188,14 @@ fun IrModeOverlay(
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "TV REMOTE MODE",
-                        color = AstrionTheme.blush, fontSize = AstrionTheme.size.heading,
+                        "TV remote mode",
+                        color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.titleLarge,
                         fontFamily = AstrionTheme.headingFont,
-                        fontWeight = FontWeight.Bold, letterSpacing = 0.06.em,
+                        fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        "The buttons work the TV directly, no Wi-Fi needed",
-                        color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.label,
+                        "Buttons control the Samsung TV directly over IR",
+                        color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label,
                     )
                 }
             }
@@ -241,7 +249,7 @@ fun IrModeOverlay(
                         ) {
                             Text(
                                 b["name"] as? String ?: "?",
-                                color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small,
+                                color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.label,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 textAlign = TextAlign.Center,
@@ -257,15 +265,15 @@ fun IrModeOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(46.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(AstrionTheme.dangerBg)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(AstrionTheme.controlBg)
                     .tap(onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    "Exit IR Mode",
-                    color = AstrionTheme.danger, fontSize = AstrionTheme.size.bodyLarge, fontWeight = FontWeight.SemiBold,
+                    "Exit TV remote mode",
+                    color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.SemiBold,
                 )
             }
         }

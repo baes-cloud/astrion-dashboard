@@ -2,7 +2,6 @@ package com.custom.astrion.ui
 
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -160,11 +159,11 @@ private data class Palette(
 @Composable
 @ReadOnlyComposable
 private fun paletteFor(severity: String): Palette = when (severity) {
-    "alarm" -> Palette(AstrionTheme.colors.dangerBg, AstrionTheme.colors.void, AstrionTheme.colors.danger, AstrionTheme.colors.dangerSoft, AstrionTheme.colors.danger, Color.White)
+    "alarm" -> Palette(AstrionTheme.colors.dangerBg, AstrionTheme.colors.void, AstrionTheme.colors.danger, AstrionTheme.colors.dangerSoft, AstrionTheme.colors.danger, AstrionTheme.onDanger)
     "warning" -> Palette(AstrionTheme.colors.blushContainer, AstrionTheme.colors.surfacePrimary, AstrionTheme.colors.blush, AstrionTheme.colors.blush, AstrionTheme.colors.blush, AstrionTheme.colors.onBlush)
     else -> Palette(
         AstrionTheme.colors.accentContainer, AstrionTheme.colors.pinnedTopBg, AstrionTheme.colors.accentBright,
-        AstrionTheme.accent, AstrionTheme.accent, AstrionTheme.colors.pinnedTopBg,
+        AstrionTheme.accent, AstrionTheme.accent, AstrionTheme.onAccent,
         radial = listOf(AstrionTheme.colors.accentMuted, AstrionTheme.colors.accentContainer, AstrionTheme.colors.pinnedTopBg),
     )
 }
@@ -243,7 +242,7 @@ fun AlertOverlay(
             Text(
                 when (spec.severity) { "alarm" -> "ALERT"; "warning" -> "HEADS UP"; else -> "FYI" },
                 color = p.accent,
-                fontSize = AstrionTheme.size.small,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 3.sp,
             )
@@ -264,7 +263,7 @@ fun AlertOverlay(
             }
             if (moreCount > 0) {
                 Spacer(Modifier.height(10.dp))
-                Text("+$moreCount more", color = AstrionTheme.colors.textMuted, fontSize = AstrionTheme.size.small)
+                Text("+$moreCount more", color = AstrionTheme.colors.textMuted, fontSize = AstrionTheme.size.label)
             }
             Spacer(Modifier.weight(1f))
 
@@ -277,7 +276,7 @@ fun AlertOverlay(
                         .clip(RoundedCornerShape(30.dp))
                         .then(
                             if (primary) Modifier.background(Brush.horizontalGradient(listOf(p.buttonHi, p.buttonLo)))
-                            else Modifier.background(AstrionTheme.colors.hairline).border(1.dp, AstrionTheme.colors.hairlineStrong, RoundedCornerShape(30.dp))
+                            else Modifier.background(AstrionTheme.controlBg)
                         )
                         .tap(onClick = { onAction(action) }),
                     horizontalArrangement = Arrangement.Center,
@@ -286,7 +285,7 @@ fun AlertOverlay(
                     Text(
                         action.name,
                         color = if (primary) p.ink else AstrionTheme.colors.onSurface,
-                        fontSize = AstrionTheme.size.heading,
+                        fontSize = AstrionTheme.size.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
@@ -296,7 +295,7 @@ fun AlertOverlay(
             Text(
                 "Hide",
                 color = AstrionTheme.colors.textSoft,
-                fontSize = AstrionTheme.size.bodyLarge,
+                fontSize = AstrionTheme.size.body,
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
                     .tap(onClick = onHide)

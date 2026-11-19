@@ -1,19 +1,32 @@
 package com.custom.astrion.cards.impl
 
 import android.graphics.Bitmap
-import com.custom.astrion.ui.parseHexColor
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.DropdownMenu
@@ -24,8 +37,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -37,14 +52,18 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
+import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.ServiceCall
@@ -53,44 +72,29 @@ import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.Fader
 import com.custom.astrion.ui.Glyphs
 import com.custom.astrion.ui.HitTarget
+import com.custom.astrion.ui.InWindowDialog
 import com.custom.astrion.ui.LocalDashboardShowing
 import com.custom.astrion.ui.LocalPageVisible
 import com.custom.astrion.ui.formatMediaTime
+import com.custom.astrion.ui.parseHexColor
 import com.custom.astrion.ui.parseIsoMs
+import com.custom.astrion.ui.rememberSampledBitmap
 import com.custom.astrion.ui.tap
 import com.custom.astrion.ui.tightTextStyle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /**
- * Media player card with two layouts:
- *  - "compact" (default): a single row — round album art, title/artist, and
- *    prev / play-pause / next / vol- / vol+ controls. Blurred art background.
- *  - "full": a big square album art on top, title/artist, then transport and
- *    volume rows. For the dedicated Media page.
- *
- * Album art is loaded from the entity's `entity_picture` (auth'd fetch). Since
- * Modifier.blur is a no-op on this API 26 device, the blurred background is a
- * heavily downscaled copy upscaled to fill the card.
- *
- * Config:
- *   { "type": "media_player", "options": { "entity_id": "media_player.club",
- *       "variant": "full" } }   // omit variant for compact
- *
- * "tv" variant (the TV page): what's on the TV, as information only. No
- * transport or volume buttons and no service calls except the app tiles: the
- * hardware keys and the TV's own remote do the controlling. Artwork keeps its
- * own shape (a Plex poster is 2:3), with the title, episode, status and
- * progress beside it, and a row of `apps` launcher tiles underneath:
- *   { "variant": "tv",
- *     "entity_id": "media_player.<the TV's ADB entity>",   // on/off and the app in front
- *     "art_entities": [ "media_player.plex_…", "media_player.<cast entity>" ],
- *     "placeholder": "/sdcard/astrion/serif_tv.png",       // shown while the TV is off
- *     "apps": [ { "name": "Plex", "icon": "/sdcard/astrion/icons/logo_plex.png", "color": "#E5A00D",
- *                 "service": "media_player.select_source", "entity_id": "…",
- *                 "data": { "source": "com.plexapp.android" } }, … ] }
- * An app with an `icon` (PNG path) shows just that logo; otherwise a tinted
- * `badge` letter over its name, or its name as a `wordmark`. The tile of the
- * app in front (matched on `data.source`) is outlined.
+ * Borderless Matte Media Player & TV Console Hero (Bæo v3.0):
+ *  - `"full"` (Media Tab 0): velvety ARGB_8888 artwork wash with >= 0.64 dark
+ *    scrim, top utility row (bare Search + Active-Zone Bridge Pill + bare Queue),
+ *    borderless album art capped <= 144dp, scrubbable seek bar,
+ *    bare Prev/Next flanking a solid matte Hailstorm Play/Pause circle, and a
+ *    smooth borderless Fader.
+ *  - `"tv"` (TV Cinema Console): borderless artwork hero with `also_on` PC HDMI 2
+ *    support, matte TV Power button, optional embedded Club audio Fader +
+ *    explicit "TV Audio" matte pill, and real HA attributes only.
  */
 class MediaPlayerCard : CardRenderer {
     override val type = "media_player"
@@ -110,13 +114,7 @@ class MediaPlayerCard : CardRenderer {
         val playing = e?.state == "playing"
         val unavailable = e == null || e.isUnavailable
         val live = !unavailable && ctx.connected
-        // When the speaker is just carrying the TV feed its own metadata is
-        // useless — media_title is literally "TV" / "TV Audio". If a tv_entity
-        // is configured, borrow the show/film title and poster from the TV's
-        // own player instead.
-        // Several entities can describe the same TV session and only some carry
-        // the title (the Plex client entity has it; the Android-TV one doesn't),
-        // so take a list and prefer whichever actually has a title right now.
+
         val tvEntities = config.stringList("tv_entities")
             .ifEmpty { listOfNotNull(config.string("tv_entity")) }
         val onTvSource = e?.attrString("source") == "TV" ||
@@ -134,7 +132,6 @@ class MediaPlayerCard : CardRenderer {
             ?: e?.attrString("media_title")?.takeIf { it.isNotBlank() }
             ?: e?.friendlyName ?: entityId
         val artist = if (tv != null) {
-            // For a show: the series name under the episode title.
             tv.attrString("media_series_title")
                 ?: tv.attrString("app_name")
                 ?: e?.attrString("source")
@@ -156,14 +153,35 @@ class MediaPlayerCard : CardRenderer {
         val speakerName = config.string("name")
             ?: e?.friendlyName?.takeIf { it.isNotBlank() }
             ?: "Club"
+        val searchEntryId = config.string("search_entry_id")
+        val linkToggleEntity = config.string("link_toggle_entity") ?: "input_boolean.music_follows_me"
         var queueOpen by remember { mutableStateOf(false) }
+        var searchOpen by remember { mutableStateOf(false) }
+        val switchTab = LocalTabSwitcher.current
 
         val showControls = config.bool("show_controls", true)
         ArtBackdrop(art, bottomShade = full) {
             if (full) {
                 FullContent(
-                    ctx, e, entityId, speakerName, title, artist, playing, art, ::mp, topButtons, sourceEntity, live,
+                    ctx = ctx,
+                    e = e,
+                    entityId = entityId,
+                    speakerName = speakerName,
+                    linkToggleEntity = linkToggleEntity,
+                    title = title,
+                    artist = artist,
+                    playing = playing,
+                    art = art,
+                    mp = ::mp,
+                    topButtons = topButtons,
+                    sourceEntity = sourceEntity,
+                    enabled = live,
                     showControls = showControls,
+                    onSearch = {
+                        if (searchEntryId != null) searchOpen = true
+                        else switchTab?.invoke(1)
+                    },
+                    onZones = switchTab?.let { { it(2) } },
                     onQueue = { queueOpen = true },
                 )
             } else {
@@ -172,6 +190,16 @@ class MediaPlayerCard : CardRenderer {
         }
         if (full && queueOpen) {
             QueueSheet(ctx, queuePlayer, speaker = entityId) { queueOpen = false }
+        }
+        if (full && searchOpen && searchEntryId != null) {
+            InWindowDialog(onDismissRequest = { searchOpen = false }) {
+                MusicSearchPanel(
+                    ctx = ctx,
+                    entry = searchEntryId,
+                    player = queuePlayer,
+                    onClose = { searchOpen = false },
+                )
+            }
         }
     }
 
@@ -182,95 +210,212 @@ class MediaPlayerCard : CardRenderer {
         ctx.client.callService(ServiceCall.fromConfig(service, b["entity_id"] as? String, data))
     }
 
-    // ---- tv (TV page): what's on, as information, and the app tiles -------------
+    // ---- tv (TV Cinema Console): hero + power + embedded audio strip --------
 
-    /**
-     * The TV card's content. Only what it shows is derived from HA, so a
-     * position report or a fresh ADB screen-grab, which change nothing here,
-     * doesn't recompose it; the progress line reads its own entity.
-     */
     @Suppress("UNCHECKED_CAST")
     @Composable
     private fun TvCard(config: CardConfig, ctx: CardContext, entityId: String) {
         val apps = remember(config) { (config.options["apps"] as? List<Map<String, Any?>>) ?: emptyList() }
         val players = remember(config) { config.stringList("art_entities") }
+        val alsoOnEntries = remember(config) {
+            when (val raw = config.options["also_on"]) {
+                is Map<*, *> -> listOf(raw)
+                is List<*> -> raw.filterIsInstance<Map<*, *>>()
+                else -> emptyList()
+            }
+        }
         val session by remember(config, ctx) {
             derivedStateOf {
+                val activeAlsoOn = alsoOnEntries.firstOrNull { alsoOn(it, ctx) }
                 resolveTvSession(
                     ctx.entity(entityId),
                     players.mapNotNull { ctx.entity(it) }.filterNot { it.isUnavailable },
                     apps,
+                    activeAlsoOn,
                 )
             }
         }
         val art = rememberArt(ctx, session.artPath)
-        // `footer`: another card drawn inside this one, under what's on
-        // (the Plex buttons), so the two read as one card.
         val footer = remember(config) { config.options["footer"] as? Map<String, Any?> }
-        // `corner_button`: a small round button top right, e.g. TV sound.
         val corner = remember(config) { config.options["corner_button"] as? Map<String, Any?> }
+        val audioEntity = config.string("audio_entity")
+        val audioName = config.string("audio_name") ?: "Club"
+        val tvPowerRemote = config.string("tv_power_entity")
+        val tvAudioBtn = remember(config) { config.options["tv_audio_button"] as? Map<String, Any?> }
 
         ArtBackdrop(art, washPx = 6) {
-          Box(Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SessionArt(art, session, config.string("placeholder"))
-                    Spacer(Modifier.width(14.dp))
-                    // Keeps the title clear of the corner button.
-                    SessionInfo(ctx, session, Modifier.weight(1f).padding(end = if (corner != null) 30.dp else 0.dp))
-                }
-                footer?.let { f ->
-                    val type = f["type"] as? String
-                    val renderer = type?.let { com.custom.astrion.cards.CardRegistry.get(it) }
-                    if (renderer != null) {
-                        val opts = ((f["options"] as? Map<String, Any?>) ?: emptyMap()) + ("flush" to true)
-                        renderer.Render(CardConfig(type, opts), ctx)
+            Box(Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SessionArt(art, session, config.string("placeholder"))
+                        Spacer(Modifier.width(12.dp))
+                        val endReserve = if (tvPowerRemote != null || (corner != null && audioEntity == null)) 46.dp else 0.dp
+                        SessionInfo(ctx, session, Modifier.weight(1f).padding(end = endReserve))
                     }
-                }
-                if (apps.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        apps.forEach { a ->
-                            val inFront = session.frontApp != null && appSource(a) == session.frontApp
-                            AppTile(a, Modifier.weight(1f), ctx.connected, inFront = inFront) {
-                                // Already the app on the TV: don't relaunch it (that can
-                                // restart it or drop out of what's playing); just wake the
-                                // Streamer and put the TV on its input.
-                                val tvAdb = a["entity_id"] as? String
-                                if (inFront && tvAdb != null) {
-                                    ctx.client.callService(
-                                        ServiceCall.of(
-                                            "androidtv", "adb_command", tvAdb,
-                                            "command" to "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay",
+
+                    // Embedded Club volume fader + explicit matte "TV Audio" pill.
+                    if (audioEntity != null) {
+                        TvAudioStrip(ctx, audioEntity, audioName, tvAudioBtn ?: corner)
+                    }
+
+                    footer?.let { f ->
+                        val type = f["type"] as? String
+                        val renderer = type?.let { CardRegistry.get(it) }
+                        if (renderer != null) {
+                            val opts = ((f["options"] as? Map<String, Any?>) ?: emptyMap()) + ("flush" to true)
+                            renderer.Render(CardConfig(type, opts), ctx)
+                        }
+                    }
+                    if (apps.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            apps.forEach { a ->
+                                val inFront = session.frontApp != null && appSource(a) == session.frontApp
+                                AppTile(a, Modifier.weight(1f), ctx.connected, inFront = inFront) {
+                                    val tvAdb = a["entity_id"] as? String
+                                    if (inFront && tvAdb != null) {
+                                        ctx.client.callService(
+                                            ServiceCall.of(
+                                                "androidtv", "adb_command", tvAdb,
+                                                "command" to "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay",
+                                            )
                                         )
-                                    )
-                                } else {
-                                    fireService(ctx, a)
+                                    } else {
+                                        fireService(ctx, a)
+                                    }
                                 }
                             }
                         }
                     }
                 }
+
+                if (tvPowerRemote != null) {
+                    val tvIsOn = session.state != TvState.OFF
+                    HitTarget(
+                        visual = 38.dp,
+                        enabled = ctx.connected,
+                        onClick = {
+                            ctx.client.callService(
+                                ServiceCall.of("remote", "send_command", tvPowerRemote, "command" to "POWER"),
+                                confirm = true,
+                            )
+                        },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+                        face = Modifier
+                            .clip(CircleShape)
+                            .background(if (tvIsOn) AstrionTheme.accentContainer else AstrionTheme.controlBg),
+                    ) {
+                        Icon(
+                            Glyphs.power,
+                            contentDescription = if (tvIsOn) "Turn TV off" else "Turn TV on",
+                            tint = if (tvIsOn) AstrionTheme.accent else AstrionTheme.textOnControl,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                } else if (corner != null && audioEntity == null) {
+                    CornerButton(ctx, corner, Modifier.align(Alignment.TopEnd).padding(8.dp))
+                }
             }
-            corner?.let { CornerButton(ctx, it, Modifier.align(Alignment.TopEnd).padding(10.dp)) }
-          }
         }
     }
 
-    /**
-     * The TV card's corner button: lit while [`lit_entity`] has [`lit_when`]
-     * (attribute `lit_attribute`, else its state); a tap runs `service` on
-     * `entity_id`, then unjoins every other speaker from `unjoin_others`.
-     *   "corner_button": { "icon": "speaker", "label": "TV sound",
-     *     "service": "script.turn_on", "entity_id": "script.long_music",
-     *     "unjoin_others": "media_player.club",
-     *     "lit_entity": "media_player.club", "lit_attribute": "source", "lit_when": "TV" }
-     */
+    @Composable
+    private fun TvAudioStrip(
+        ctx: CardContext,
+        audioEntity: String,
+        audioName: String,
+        tvAudioBtn: Map<String, Any?>?,
+    ) {
+        val spk = ctx.entities[audioEntity]
+        val muted = spk?.attrString("is_volume_muted") == "true"
+        val enabled = spk != null && !spk.isUnavailable && ctx.connected
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Fader(
+                value = spk?.attrDouble("volume_level")?.toFloat(),
+                onCommit = { v ->
+                    ctx.client.callService(
+                        ServiceCall.of("media_player", "volume_set", audioEntity, "volume_level" to v.toDouble())
+                    )
+                },
+                enabled = enabled,
+                muted = muted,
+                fill = AstrionTheme.accentStrong,
+                track = AstrionTheme.colors.surfacePrimary.copy(alpha = 0.78f),
+                radius = 12.dp,
+                modifier = Modifier.weight(1f).height(42.dp),
+            ) {
+                Icon(
+                    if (muted) Glyphs.mute else Glyphs.vol,
+                    contentDescription = null,
+                    tint = if (muted) AstrionTheme.blush else AstrionTheme.textSecondary,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    audioName,
+                    color = AstrionTheme.textPrimary,
+                    fontSize = AstrionTheme.size.body,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+            }
+
+            if (tvAudioBtn != null) {
+                val litEntity = tvAudioBtn["lit_entity"] as? String ?: audioEntity
+                val lit = run {
+                    val e = ctx.entity(litEntity)
+                    val v = (tvAudioBtn["lit_attribute"] as? String)?.let { e?.attrString(it) } ?: e?.state
+                    v != null && v == tvAudioBtn["lit_when"]?.toString()
+                }
+                val label = tvAudioBtn["short_label"] as? String ?: "TV Audio"
+                Row(
+                    modifier = Modifier
+                        .height(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (lit) AstrionTheme.accentStrong else AstrionTheme.controlBg)
+                        .tap(enabled = ctx.connected) {
+                            (tvAudioBtn["service"] as? String)?.let { svc ->
+                                ctx.client.callService(
+                                    ServiceCall.fromConfig(svc, tvAudioBtn["entity_id"] as? String),
+                                    confirm = true,
+                                )
+                            }
+                            (tvAudioBtn["unjoin_others"] as? String)?.let { master ->
+                                ctx.client.live[master]?.attrStringList("group_members")
+                                    ?.filter { it != master }
+                                    ?.forEach { ctx.client.callService(ServiceCall("media_player", "unjoin", entityId = it)) }
+                            }
+                        }
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Icon(
+                        Glyphs.speaker,
+                        contentDescription = null,
+                        tint = if (lit) AstrionTheme.colors.onPrimary else AstrionTheme.textOnControl,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        label,
+                        color = if (lit) AstrionTheme.colors.onPrimary else AstrionTheme.textOnControl,
+                        fontSize = AstrionTheme.size.label,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+
     @Composable
     private fun CornerButton(ctx: CardContext, b: Map<String, Any?>, modifier: Modifier) {
         val litEntity = b["lit_entity"] as? String
@@ -280,8 +425,8 @@ class MediaPlayerCard : CardRenderer {
             v != null && v == b["lit_when"]?.toString()
         } == true
         val label = b["label"] as? String ?: "Sound"
-        com.custom.astrion.ui.HitTarget(
-            visual = 32.dp,
+        HitTarget(
+            visual = 34.dp,
             enabled = ctx.connected,
             onClick = {
                 (b["service"] as? String)?.let { svc ->
@@ -296,7 +441,7 @@ class MediaPlayerCard : CardRenderer {
             modifier = modifier,
             face = Modifier
                 .clip(CircleShape)
-                .background(if (lit) AstrionTheme.accentStrong else AstrionTheme.colors.void.copy(alpha = 0.45f)),
+                .background(if (lit) AstrionTheme.accentStrong else AstrionTheme.controlBg),
         ) {
             Icon(
                 Icons.Filled.SurroundSound,
@@ -307,13 +452,12 @@ class MediaPlayerCard : CardRenderer {
         }
     }
 
-    /** Artwork at its own proportions: a poster stands, a thumbnail lies flat. */
     @Composable
     private fun SessionArt(art: ImageBitmap?, s: TvSession, placeholder: String?) {
-        val shape = RoundedCornerShape(10.dp)
-        val logo by com.custom.astrion.ui.rememberSampledBitmap(if (art == null) s.logo else null, targetPx = 128)
-        val tvPicture by com.custom.astrion.ui.rememberSampledBitmap(
-            if (art == null && s.state == TvState.OFF) placeholder else null, targetPx = 320,
+        val shape = RoundedCornerShape(12.dp)
+        val logo by rememberSampledBitmap(if (art == null) s.logo else null, targetPx = 128)
+        val tvPicture by rememberSampledBitmap(
+            if (art == null && s.state == TvState.OFF) placeholder else null, targetPx = 280,
         )
         val l = logo
         val p = tvPicture
@@ -327,7 +471,6 @@ class MediaPlayerCard : CardRenderer {
                 }
                 Image(art, null, modifier = size.clip(shape), contentScale = ContentScale.Crop)
             }
-            // No artwork: the logo of the app in front, on its own colour.
             l != null -> Box(
                 modifier = Modifier
                     .size(SQUARE_ART)
@@ -336,17 +479,22 @@ class MediaPlayerCard : CardRenderer {
                     .background(parseHexColor(s.logoColor)?.copy(alpha = 0.18f) ?: Color.Transparent),
                 contentAlignment = Alignment.Center,
             ) {
-                Image(l, contentDescription = null, modifier = Modifier.size(52.dp))
+                Image(l, contentDescription = null, modifier = Modifier.size(48.dp))
             }
             p != null -> Image(
-                p, null, alpha = 0.55f, contentScale = ContentScale.Crop,
+                p, null, alpha = 0.65f, contentScale = ContentScale.Crop,
                 modifier = Modifier.width(WIDE_ART_W).aspectRatio(p.width.toFloat() / p.height.coerceAtLeast(1)).clip(shape),
             )
             else -> Box(
                 modifier = Modifier.size(SQUARE_ART).clip(shape).background(AstrionTheme.raised),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Movie, contentDescription = null, tint = AstrionTheme.colors.accentMuted, modifier = Modifier.size(40.dp))
+                Icon(
+                    if (s.state == TvState.OFF) Glyphs.tv else Icons.Filled.Movie,
+                    contentDescription = null,
+                    tint = AstrionTheme.colors.accentMuted,
+                    modifier = Modifier.size(34.dp),
+                )
             }
         }
     }
@@ -356,9 +504,9 @@ class MediaPlayerCard : CardRenderer {
         val status = when (s.state) {
             TvState.PLAYING -> "Playing"
             TvState.PAUSED -> "Paused"
-            TvState.ON -> "On"
-            TvState.OFF -> null
-        }?.let { word -> listOfNotNull(word, s.appName?.takeIf { it != s.title }).joinToString(" · ") }
+            TvState.ON -> "Active"
+            TvState.OFF -> "Standby"
+        }.let { word -> listOfNotNull(word, s.appName?.takeIf { it != s.title }).joinToString(" · ") }
         Column(modifier) {
             Text(
                 s.title, color = AstrionTheme.textPrimary, fontFamily = AstrionTheme.headingFont,
@@ -366,42 +514,47 @@ class MediaPlayerCard : CardRenderer {
                 style = tightTextStyle(21.sp),
             )
             s.subtitle?.let {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(3.dp))
                 Text(
-                    it, color = AstrionTheme.textPrimary.copy(alpha = 0.85f), fontSize = AstrionTheme.size.body,
+                    it, color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.size.body,
                     maxLines = 2, overflow = TextOverflow.Ellipsis, style = tightTextStyle(17.sp),
                 )
             }
             s.meta?.let {
-                Spacer(Modifier.height(3.dp))
+                Spacer(Modifier.height(2.dp))
                 Text(it, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            if (status != null) {
-                Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(7.dp).clip(CircleShape).background(
-                            when (s.state) {
-                                TvState.PLAYING -> AstrionTheme.good
-                                TvState.PAUSED -> AstrionTheme.blush
-                                else -> AstrionTheme.good.copy(alpha = 0.5f)
-                            }
-                        )
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(7.dp).clip(CircleShape).background(
+                        when (s.state) {
+                            TvState.PLAYING -> AstrionTheme.good
+                            TvState.PAUSED -> AstrionTheme.blush
+                            TvState.ON -> AstrionTheme.accent
+                            TvState.OFF -> AstrionTheme.textMuted
+                        }
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text(status, color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.size.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(status, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            s.progressEntity?.let { SessionProgress(ctx, it) }
+            s.progressEntity?.let { SessionProgress(ctx, it, interactive = false) }
         }
     }
 
     /**
-     * Elapsed and length under a hairline, extrapolated from HA's last
-     * position report. It ticks each second only while playing and on screen.
+     * Progress bar with live extrapolation and optional scrub/skip controls
+     * (`media_player.media_seek`) for the full Media player.
      */
     @Composable
-    private fun SessionProgress(ctx: CardContext, entityId: String) {
+    private fun SessionProgress(
+        ctx: CardContext,
+        entityId: String,
+        topGap: Dp = 6.dp,
+        interactive: Boolean = false,
+        enabled: Boolean = true,
+    ) {
         val p = ctx.entity(entityId) ?: return
         val duration = p.attrDouble("media_duration")?.takeIf { it > 0 } ?: return
         val position = p.attrDouble("media_position") ?: return
@@ -415,34 +568,85 @@ class MediaPlayerCard : CardRenderer {
                 delay(1000 - now % 1000)
             }
         }
-        val pos = (if (ticking && reportedAt != null) position + (now - reportedAt) / 1000.0 else position)
+        val livePos = (if (ticking && reportedAt != null) position + (now - reportedAt) / 1000.0 else position)
             .coerceIn(0.0, duration)
-        Spacer(Modifier.height(8.dp))
+        var scrubFrac by remember(entityId) { mutableStateOf<Float?>(null) }
+        val shownPos = scrubFrac?.let { it * duration } ?: livePos
+        val shownFrac = (shownPos / duration).toFloat().coerceIn(0f, 1f)
+
+        fun seekTo(sec: Double) {
+            val target = sec.coerceIn(0.0, duration)
+            ctx.client.callService(
+                ServiceCall.of("media_player", "media_seek", entityId, "seek_position" to target)
+            )
+        }
+
+        Spacer(Modifier.height(topGap))
         Box(
-            Modifier
+            modifier = Modifier
                 .fillMaxWidth()
-                .height(3.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(AstrionTheme.colors.hairlineStrong),
+                .height(if (interactive) 20.dp else 6.dp)
+                .then(
+                    if (!interactive || !enabled) Modifier else Modifier
+                        .pointerInput(entityId, duration) {
+                            detectTapGestures { offset ->
+                                val f = (offset.x / size.width).coerceIn(0f, 1f)
+                                seekTo(f * duration)
+                            }
+                        }
+                        .pointerInput(entityId, duration) {
+                            detectHorizontalDragGestures(
+                                onDragStart = { offset -> scrubFrac = (offset.x / size.width).coerceIn(0f, 1f) },
+                                onDragEnd = {
+                                    scrubFrac?.let { seekTo(it * duration) }
+                                    scrubFrac = null
+                                },
+                                onDragCancel = { scrubFrac = null },
+                            ) { change, _ ->
+                                change.consume()
+                                scrubFrac = (change.position.x / size.width).coerceIn(0f, 1f)
+                            }
+                        }
+                ),
+            contentAlignment = Alignment.CenterStart,
         ) {
             Box(
                 Modifier
-                    .fillMaxWidth((pos / duration).toFloat().coerceIn(0f, 1f))
-                    .fillMaxHeight()
-                    .background(AstrionTheme.accent),
-            )
+                    .fillMaxWidth()
+                    .height(if (interactive) 4.dp else 3.dp)
+                    .clip(CircleShape)
+                    .background(AstrionTheme.colors.surfacePrimary.copy(alpha = 0.78f)),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(shownFrac)
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .background(AstrionTheme.accent),
+                )
+            }
         }
-        Spacer(Modifier.height(4.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(formatMediaTime(pos), color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
-            Text(formatMediaTime(duration), color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                formatMediaTime(shownPos),
+                color = AstrionTheme.textSecondary,
+                fontSize = AstrionTheme.size.micro,
+                style = TextStyle(fontFeatureSettings = "tnum"),
+            )
+            Text(
+                formatMediaTime(duration),
+                color = AstrionTheme.textSecondary,
+                fontSize = AstrionTheme.size.micro,
+                style = TextStyle(fontFeatureSettings = "tnum"),
+            )
         }
     }
 
-    /**
-     * Launcher tile: the app's logo, or a tinted letter badge over a small-caps
-     * name, or a coloured wordmark. Outlined while that app is in front.
-     */
     @Composable
     private fun AppTile(a: Map<String, Any?>, modifier: Modifier, enabled: Boolean, inFront: Boolean, onClick: () -> Unit) {
         val name = a["name"] as? String ?: ""
@@ -453,23 +657,18 @@ class MediaPlayerCard : CardRenderer {
         val shape = RoundedCornerShape(12.dp)
         Column(
             modifier = modifier
-                .height(if (hasIcon) 44.dp else 76.dp)
+                .height(if (hasIcon) 44.dp else 72.dp)
                 .clip(shape)
-                .background(if (inFront) AstrionTheme.colors.surfaceVariant.copy(alpha = 0.5f) else AstrionTheme.colors.pinnedTopBg.copy(alpha = 0.33f))
-                .then(if (inFront) Modifier.border(1.5.dp, AstrionTheme.accent.copy(alpha = 0.75f), shape) else Modifier)
+                .background(if (inFront) AstrionTheme.accentContainer else AstrionTheme.controlSunken)
                 .tap(enabled = enabled, onClick = onClick)
                 .padding(if (hasIcon) 3.dp else 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
             val alpha = if (dim) 0.5f else 1f
-            val logo by com.custom.astrion.ui.rememberSampledBitmap(a["icon"] as? String, targetPx = 128)
+            val logo by rememberSampledBitmap(a["icon"] as? String, targetPx = 128)
             if (logo != null) {
-                // Logo only — no label.
-                Image(
-                    logo!!, contentDescription = name, alpha = alpha,
-                    modifier = Modifier.size(28.dp),
-                )
+                Image(logo!!, contentDescription = name, alpha = alpha, modifier = Modifier.size(28.dp))
             } else if (badge != null && a["wordmark"] != true) {
                 Box(
                     modifier = Modifier
@@ -486,12 +685,12 @@ class MediaPlayerCard : CardRenderer {
                     fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, maxLines = 1,
                 )
             } else {
-                Text(name, color = color.copy(alpha = alpha), fontSize = AstrionTheme.size.heading, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(name, color = color.copy(alpha = alpha), fontSize = AstrionTheme.size.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1)
             }
         }
     }
 
-    // ---- compact (main page): one row, transport + volume ---------------------
+    // ---- compact: single-row transport + volume -----------------------------
     @Composable
     private fun CompactContent(
         title: String,
@@ -508,47 +707,35 @@ class MediaPlayerCard : CardRenderer {
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val artMod = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .then(
-                    if (playing) Modifier.border(2.dp, AstrionTheme.good, CircleShape)
-                    else Modifier
-                )
+            val artMod = Modifier.size(40.dp).clip(CircleShape)
             if (art != null) {
                 Image(art, null, modifier = artMod, contentScale = ContentScale.Crop)
             } else {
                 Box(artMod.background(AstrionTheme.colors.surfaceVariant))
             }
             Column(Modifier.weight(1f)) {
-                Text(title, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.bodyLarge, fontWeight = FontWeight.SemiBold,
+                Text(title, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(artist, color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.label,
+                Text(artist, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.label,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            CircleControl(
-                Icons.Filled.VolumeDown, 40.dp,
-                description = "Volume down", enabled = enabled,
-            ) { mp("volume_down", emptyArray()) }
+            CircleControl(Icons.Filled.VolumeDown, 40.dp, "Volume down", enabled = enabled) { mp("volume_down", emptyArray()) }
             CircleControl(
                 if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, 42.dp,
-                description = if (playing) "Pause" else "Play",
-                accent = true, enabled = enabled,
+                description = if (playing) "Pause" else "Play", accent = true, enabled = enabled,
             ) { mp("media_play_pause", emptyArray()) }
-            CircleControl(
-                Icons.Filled.VolumeUp, 40.dp,
-                description = "Volume up", enabled = enabled,
-            ) { mp("volume_up", emptyArray()) }
+            CircleControl(Icons.Filled.VolumeUp, 40.dp, "Volume up", enabled = enabled) { mp("volume_up", emptyArray()) }
         }
     }
 
-    // ---- full (media page): square blended 1.4 + 1.5 player ------------------
+    // ---- full (Media Tab 0): borderless matte player ------------------------
     @Composable
     private fun FullContent(
         ctx: CardContext,
         e: EntityState?,
         entityId: String,
         speakerName: String,
+        linkToggleEntity: String,
         title: String,
         artist: String,
         playing: Boolean,
@@ -558,139 +745,166 @@ class MediaPlayerCard : CardRenderer {
         sourceEntity: String?,
         enabled: Boolean,
         showControls: Boolean,
-        onQueue: (() -> Unit)? = null,
+        onSearch: () -> Unit,
+        onZones: (() -> Unit)?,
+        onQueue: () -> Unit,
     ) {
-        Box(
+        val members = e?.attrStringList("group_members").orEmpty()
+        val extraCount = (members.size - 1).coerceAtLeast(0)
+        val baeoLinkOn = ctx.entities[linkToggleEntity]?.isOn == true
+        val zoneSummary = buildList {
+            add(if (extraCount > 0) "$speakerName +$extraCount" else speakerName)
+            if (baeoLinkOn) add("BÆOLINK")
+        }.joinToString(" · ")
+
+        val hasProgress = e != null && (e.attrDouble("media_duration") ?: 0.0) > 0 &&
+            e.attrDouble("media_position") != null
+
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(
+            // Top utility bar: bare Search (left), Active-Zone bridge pill (centre), bare Queue (right).
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                if (sourceEntity != null) {
-                    CompactSourceSelect(ctx, sourceEntity)
+                HitTarget(visual = 34.dp, onClick = onSearch, enabled = ctx.connected) {
+                    Icon(Glyphs.search, contentDescription = "Search music", tint = AstrionTheme.textOnControl, modifier = Modifier.size(19.dp))
                 }
-                if (topButtons.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        topButtons.forEach { b ->
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(38.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(AstrionTheme.colors.controlBg.copy(alpha = 0.4f))
-                                    .tap(enabled = enabled) { fireService(ctx, b) },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    b["name"] as? String ?: "",
-                                    color = AstrionTheme.colors.onSurface,
-                                    fontSize = AstrionTheme.size.bodyLarge,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                            }
+                Row(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (baeoLinkOn) AstrionTheme.accentContainer else AstrionTheme.colors.surfacePrimary.copy(alpha = 0.62f))
+                        .tap(enabled = onZones != null) { onZones?.invoke() }
+                        .padding(horizontal = 11.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Icon(
+                        Glyphs.speaker,
+                        contentDescription = null,
+                        tint = if (baeoLinkOn) AstrionTheme.accent else AstrionTheme.textSecondary,
+                        modifier = Modifier.size(13.dp),
+                    )
+                    Text(
+                        text = zoneSummary,
+                        color = if (baeoLinkOn) AstrionTheme.accent else AstrionTheme.textOnControl,
+                        fontSize = AstrionTheme.size.micro,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (onZones != null) {
+                        Icon(Glyphs.fwd, contentDescription = null, tint = AstrionTheme.textMuted, modifier = Modifier.size(12.dp))
+                    }
+                }
+                HitTarget(visual = 34.dp, onClick = onQueue, enabled = enabled) {
+                    Icon(Glyphs.list, contentDescription = "Queue", tint = AstrionTheme.textOnControl, modifier = Modifier.size(19.dp))
+                }
+            }
+
+            if (sourceEntity != null) CompactSourceSelect(ctx, sourceEntity)
+            if (topButtons.isNotEmpty()) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    topButtons.forEach { b ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(36.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(AstrionTheme.controlBg.copy(alpha = 0.65f))
+                                .tap(enabled = enabled) { fireService(ctx, b) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                b["name"] as? String ?: "",
+                                color = AstrionTheme.textPrimary,
+                                fontSize = AstrionTheme.size.label,
+                                fontWeight = FontWeight.Medium,
+                            )
                         }
                     }
                 }
-                // Single clear album cover in focus over the blurred backdrop.
-                FocusedAlbumArt(art = art, maxHeight = 150.dp, maxWidth = 290.dp)
+            }
 
-            // Centered now-playing track title + artist.
+            // Borderless album cover capped <= 144dp so Tab 0 always fits 581.8dp with slack.
+            FocusedAlbumArt(art = art, maxHeight = if (hasProgress) 122.dp else 144.dp, maxWidth = 280.dp)
+
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                key(title) {
+                    Text(
+                        text = title,
+                        color = AstrionTheme.textPrimary,
+                        fontFamily = AstrionTheme.bodyFont,
+                        fontSize = AstrionTheme.size.emphasis,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .basicMarquee(iterations = 1, initialDelayMillis = 1_500),
+                    )
+                }
                 Text(
-                    title,
-                    color = AstrionTheme.textPrimary,
-                    fontFamily = AstrionTheme.headingFont,
-                    fontSize = AstrionTheme.size.title,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    artist,
+                    text = artist,
                     color = AstrionTheme.textSecondary,
-                    fontSize = AstrionTheme.size.small,
+                    fontSize = AstrionTheme.size.label,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (hasProgress) {
+                    SessionProgress(ctx, entityId, topGap = 5.dp, interactive = true, enabled = enabled)
+                }
             }
-            // Clean 3-button transport row + integrated glass/blend volume bar inside the card.
+
             if (showControls) {
+                // Bare Prev / Next flanking a solid matte Hailstorm Play/Pause circle.
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(26.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CircleControl(Glyphs.prev, 38.dp, "Previous track", enabled = enabled) {
-                        mp("media_previous_track", emptyArray())
+                    HitTarget(visual = 42.dp, enabled = enabled, onClick = { mp("media_previous_track", emptyArray()) }) {
+                        Icon(Glyphs.prev, contentDescription = "Previous track", tint = AstrionTheme.textPrimary, modifier = Modifier.size(22.dp))
                     }
                     CircleControl(
-                        if (playing) Glyphs.pause else Glyphs.play, 48.dp,
+                        icon = if (playing) Glyphs.pause else Glyphs.play,
+                        size = 48.dp,
                         description = if (playing) "Pause" else "Play",
-                        accent = true, enabled = enabled,
-                    ) {
-                        mp("media_play_pause", emptyArray())
-                    }
-                    CircleControl(Glyphs.next, 38.dp, "Next track", enabled = enabled) {
-                        mp("media_next_track", emptyArray())
+                        accent = true,
+                        enabled = enabled,
+                    ) { mp("media_play_pause", emptyArray()) }
+                    HitTarget(visual = 42.dp, enabled = enabled, onClick = { mp("media_next_track", emptyArray()) }) {
+                        Icon(Glyphs.next, contentDescription = "Next track", tint = AstrionTheme.textPrimary, modifier = Modifier.size(22.dp))
                     }
                 }
                 VolumeRow(ctx, entityId, speakerName, enabled)
             }
         }
-        if (onQueue != null) {
-            // 34dp drawn, 48dp to hit: the small one took a second try.
-            HitTarget(
-                visual = 34.dp,
-                onClick = onQueue,
-                modifier = Modifier.align(Alignment.TopEnd),
-                enabled = enabled,
-                face = Modifier
-                    .clip(CircleShape)
-                    .background(AstrionTheme.colors.void.copy(alpha = 0.44f))
-                    .border(1.dp, AstrionTheme.colors.hairline, CircleShape),
-            ) {
-                Icon(
-                    Glyphs.list,
-                    contentDescription = "Queue",
-                    tint = AstrionTheme.colors.textOnControl,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        }
     }
-}
 
-    /**
-     * Single clear album cover in focus in the center over the card's
-     * blurred background, dynamically sized to fit naturally whether square,
-     * widescreen (16:9), or portrait without cropping or distortion.
-     */
     @Composable
     private fun FocusedAlbumArt(
         art: ImageBitmap?,
-        maxHeight: androidx.compose.ui.unit.Dp = 165.dp,
-        maxWidth: androidx.compose.ui.unit.Dp = 290.dp,
+        maxHeight: Dp = 144.dp,
+        maxWidth: Dp = 280.dp,
     ) {
-        val frontShape = RoundedCornerShape(15.dp)
+        val frontShape = RoundedCornerShape(14.dp)
         val imgAspect = if (art != null && art.height > 0) {
             (art.width.toFloat() / art.height.toFloat()).coerceIn(0.5f, 2.5f)
         } else 1f
 
-        val targetW: androidx.compose.ui.unit.Dp
-        val targetH: androidx.compose.ui.unit.Dp
+        val targetW: Dp
+        val targetH: Dp
         if (maxWidth.value / maxHeight.value > imgAspect) {
             targetH = maxHeight
             targetW = maxHeight * imgAspect
@@ -700,82 +914,54 @@ class MediaPlayerCard : CardRenderer {
         }
 
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(targetH),
+            modifier = Modifier.fillMaxWidth().height(targetH),
             contentAlignment = Alignment.Center,
         ) {
             if (art != null) {
-                Box(
-                    Modifier
-                        .size(width = targetW, height = targetH)
-                        .clip(frontShape)
-                        .border(1.dp, AstrionTheme.colors.hairlineStrong, frontShape),
-                ) {
-                    Image(
-                        art,
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.Crop,
-                    )
-                }
+                Image(
+                    art,
+                    contentDescription = null,
+                    modifier = Modifier.size(width = targetW, height = targetH).clip(frontShape),
+                    contentScale = ContentScale.Crop,
+                )
             } else {
                 Box(
                     Modifier
                         .size(width = targetW, height = targetH)
                         .clip(frontShape)
-                        .background(AstrionTheme.raised)
-                        .border(1.dp, AstrionTheme.colors.hairline, frontShape),
+                        .background(AstrionTheme.raised),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        Glyphs.note,
-                        contentDescription = "Nothing playing",
-                        tint = AstrionTheme.colors.accentMuted,
-                        modifier = Modifier.size(44.dp),
-                    )
+                    Icon(Glyphs.note, contentDescription = "Nothing playing", tint = AstrionTheme.colors.accentMuted, modifier = Modifier.size(40.dp))
                 }
             }
         }
     }
 
-    /**
-     * Mute toggle button on the left + horizontal draggable volume fader bar
-     * inside the player card, using a translucent glass track and additive
-     * (`BlendMode.Plus`) fill so the blurred artwork colours blend through.
-     */
     @Composable
     private fun VolumeRow(ctx: CardContext, entityId: String, name: String, enabled: Boolean) {
         val e = ctx.entities[entityId]
         val muted = e?.attrString("is_volume_muted") == "true"
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                Modifier
-                    .size(36.dp)
+            HitTarget(
+                visual = 40.dp,
+                enabled = enabled,
+                onClick = {
+                    ctx.client.callService(ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted))
+                },
+                face = Modifier
                     .clip(CircleShape)
-                    .background(
-                        if (muted) AstrionTheme.blush.copy(alpha = 0.25f)
-                        else Color.White.copy(alpha = 0.11f)
-                    )
-                    .border(
-                        1.dp,
-                        if (muted) AstrionTheme.blush.copy(alpha = 0.45f) else AstrionTheme.colors.hairline,
-                        CircleShape,
-                    )
-                    .tap(enabled = enabled) {
-                        ctx.client.callService(ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted))
-                    },
-                contentAlignment = Alignment.Center,
+                    .background(if (muted) AstrionTheme.blushContainer else AstrionTheme.colors.surfacePrimary.copy(alpha = 0.72f)),
             ) {
                 Icon(
                     if (muted) Glyphs.mute else Glyphs.vol,
                     contentDescription = if (muted) "Unmute" else "Mute",
                     tint = if (muted) AstrionTheme.blush else AstrionTheme.textPrimary,
-                    modifier = Modifier.size(17.dp),
+                    modifier = Modifier.size(18.dp),
                 )
             }
             Fader(
@@ -783,28 +969,18 @@ class MediaPlayerCard : CardRenderer {
                 onCommit = { v ->
                     ctx.client.callService(ServiceCall.of("media_player", "volume_set", entityId, "volume_level" to v.toDouble()))
                 },
-                modifier = Modifier.weight(1f).height(36.dp),
+                modifier = Modifier.weight(1f).height(40.dp),
                 enabled = enabled,
-                fill = if (muted) Color.White.copy(alpha = 0.18f) else AstrionTheme.accent.copy(alpha = 0.46f),
-                track = Color.White.copy(alpha = 0.10f),
+                muted = muted,
+                fill = AstrionTheme.accentStrong,
+                track = AstrionTheme.colors.surfacePrimary.copy(alpha = 0.72f),
                 radius = 12.dp,
-                // No end cap: at low volume it sat on top of the name.
-                cap = false,
-                fillBlendMode = androidx.compose.ui.graphics.BlendMode.Plus,
-                borderColor = AstrionTheme.colors.hairline,
             ) {
-                Text(name, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(name, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
         }
     }
 
-    /**
-     * A single slim row showing the entity's current source; tap opens a
-     * dropdown of its live `source_list`. Deliberately tighter than the
-     * standalone `source_select` card (less vertical padding, no stacked
-     * label) so embedding it above the rest of the full player doesn't cost
-     * much height.
-     */
     @Composable
     private fun CompactSourceSelect(ctx: CardContext, entityId: String) {
         val e = ctx.entities[entityId]
@@ -817,15 +993,15 @@ class MediaPlayerCard : CardRenderer {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(AstrionTheme.colors.controlBg.copy(alpha = 0.4f))
+                    .background(AstrionTheme.colors.controlBg.copy(alpha = 0.5f))
                     .tap(enabled = sources.isNotEmpty()) { expanded = true }
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     current ?: if (sources.isEmpty()) "No sources" else "Select source…",
-                    color = AstrionTheme.colors.onSurface,
-                    fontSize = AstrionTheme.size.small,
+                    color = AstrionTheme.textPrimary,
+                    fontSize = AstrionTheme.size.label,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
@@ -833,21 +1009,21 @@ class MediaPlayerCard : CardRenderer {
                 Icon(
                     Icons.Filled.ArrowDropDown,
                     contentDescription = null,
-                    tint = if (sources.isEmpty()) AstrionTheme.colors.textMuted else AstrionTheme.colors.textOnControl,
+                    tint = if (sources.isEmpty()) AstrionTheme.textMuted else AstrionTheme.textOnControl,
                     modifier = Modifier.size(18.dp),
                 )
             }
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                modifier = Modifier.background(AstrionTheme.colors.surfaceVariant).widthIn(max = 400.dp),
+                modifier = Modifier.background(AstrionTheme.surfaceElevated).widthIn(max = 400.dp),
             ) {
                 sources.forEach { s ->
                     DropdownMenuItem(
                         text = {
                             Text(
                                 s,
-                                color = if (s == current) AstrionTheme.colors.accent else AstrionTheme.colors.onSurface,
+                                color = if (s == current) AstrionTheme.accent else AstrionTheme.textPrimary,
                                 fontSize = AstrionTheme.size.body,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
@@ -855,9 +1031,7 @@ class MediaPlayerCard : CardRenderer {
                         },
                         onClick = {
                             expanded = false
-                            ctx.client.callService(
-                                ServiceCall.of("media_player", "select_source", entityId, "source" to s)
-                            )
+                            ctx.client.callService(ServiceCall.of("media_player", "select_source", entityId, "source" to s))
                         },
                     )
                 }
@@ -868,7 +1042,7 @@ class MediaPlayerCard : CardRenderer {
     @Composable
     private fun CircleControl(
         icon: ImageVector,
-        size: androidx.compose.ui.unit.Dp,
+        size: Dp,
         description: String? = null,
         accent: Boolean = false,
         enabled: Boolean = true,
@@ -878,53 +1052,49 @@ class MediaPlayerCard : CardRenderer {
             modifier = Modifier
                 .size(size)
                 .clip(CircleShape)
-                .background(if (accent) AstrionTheme.accentStrong else AstrionTheme.colors.controlBg.copy(alpha = 0.38f))
+                .background(if (accent) AstrionTheme.accent else AstrionTheme.controlBg)
                 .tap(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = description, tint = AstrionTheme.textPrimary, modifier = Modifier.size(size * 0.42f))
+            Icon(
+                icon,
+                contentDescription = description,
+                tint = if (accent) AstrionTheme.onAccent else AstrionTheme.textPrimary,
+                modifier = Modifier.size(size * 0.44f),
+            )
         }
     }
 }
 
-
-/** What the TV card shows: a session on the TV, or what the TV itself is doing. */
 private enum class TvState { PLAYING, PAUSED, ON, OFF }
 
 private data class TvSession(
     val state: TvState,
     val title: String,
     val subtitle: String? = null,
-    /** "S16 E13 · TV-14". */
     val meta: String? = null,
-    /** The app the session is in, after the state word ("Paused · Plex"). */
     val appName: String? = null,
-    /** HA `entity_picture` of the session: a poster or a thumbnail. */
     val artPath: String? = null,
-    /** Logo (and its colour) for the art slot when there's no artwork. */
     val logo: String? = null,
     val logoColor: String? = null,
-    /** Entity whose media_position / media_duration drive the progress line. */
     val progressEntity: String? = null,
-    /** Package of the app in front, to outline its tile. */
     val frontApp: String? = null,
 )
 
 private const val PLAYER_OFF_STATES = "off standby unavailable unknown"
 
-private val POSTER_W = 104.dp
-private val SQUARE_ART = 108.dp
-private val WIDE_ART_W = 148.dp
+private val POSTER_W = 86.dp
+private val SQUARE_ART = 88.dp
+private val WIDE_ART_W = 126.dp
 
 private fun appSource(a: Map<String, Any?>): String? = (a["data"] as? Map<*, *>)?.get("source") as? String
 
-/**
- * Picks what the TV card shows. A playing session wins. A paused one only
- * counts while the TV is on and its app is the one in front: Plex keeps a
- * paused session open in the background for hours after you've moved on to
- * another app, and that isn't what's on the TV.
- */
-private fun resolveTvSession(tv: EntityState?, players: List<EntityState>, apps: List<Map<String, Any?>>): TvSession {
+private fun resolveTvSession(
+    tv: EntityState?,
+    players: List<EntityState>,
+    apps: List<Map<String, Any?>>,
+    alsoOnMatch: Map<*, *>? = null,
+): TvSession {
     fun named(text: String?): Map<String, Any?>? = text?.let { t ->
         apps.firstOrNull { a -> (a["name"] as? String)?.let { t.contains(it, ignoreCase = true) } == true }
     }
@@ -961,26 +1131,32 @@ private fun resolveTvSession(tv: EntityState?, players: List<EntityState>, apps:
             frontApp = frontPkg,
         )
     }
+    if (alsoOnMatch != null) {
+        val src = alsoOnMatch["is"]?.toString()?.uppercase() ?: "HDMI"
+        val title = (alsoOnMatch["title"] as? String) ?: (alsoOnMatch["name"] as? String) ?: "PC · $src"
+        val subtitle = (alsoOnMatch["subtitle"] as? String) ?: "External input"
+        return TvSession(
+            state = TvState.ON,
+            title = title,
+            subtitle = subtitle,
+            appName = alsoOnMatch["app_name"] as? String,
+            frontApp = alsoOnMatch["is"]?.toString(),
+        )
+    }
     if (!tvOn) return TvSession(TvState.OFF, "TV off")
     val playing = tv?.state == "playing"
     return TvSession(
         state = if (playing) TvState.PLAYING else TvState.ON,
         title = (front?.get("name") as? String) ?: "TV",
-        subtitle = if (playing) null else "Nothing playing",
+        subtitle = if (playing) null else "Ready",
         logo = front?.get("icon") as? String,
         logoColor = front?.get("color") as? String,
         frontApp = frontPkg,
     )
 }
 
-
-/**
- * Artwork for [path] through ArtCache: the screensaver shows the same art, and
- * a poster decoded at full size can be ~6 MB. 480px covers the panel's width.
- */
 @Composable
 internal fun rememberArt(ctx: CardContext, path: String?, cacheKey: String? = path): ImageBitmap? {
-    // Not keyed, so the last cover stays up while the next one loads.
     var art by remember { mutableStateOf(cacheKey?.let { ArtCache.peek(it, 480) }) }
     LaunchedEffect(cacheKey) {
         art = if (path == null || cacheKey == null) null
@@ -989,23 +1165,14 @@ internal fun rememberArt(ctx: CardContext, path: String?, cacheKey: String? = pa
     return art
 }
 
-/**
- * ArtCache key for a player's cover. A Sonos that Music Assistant is feeding
- * keeps one entity_picture (same `cache=` hash) from track to track, while HA
- * serves the current cover behind it, so the URL alone pins the first cover
- * it saw. The album, or the title, tells the tracks apart.
- */
 internal fun EntityState.artKey(): String? = attrString("entity_picture")?.let { path ->
     val track = attrString("media_album_name")?.takeIf { it.isNotBlank() } ?: attrString("media_title").orEmpty()
     "$path#$track"
 }
 
 /**
- * The player card's shell: rounded, with the artwork blurred behind it under
- * a scrim. Modifier.blur is a no-op on API 26, so "blurred" is a [washPx]-wide
- * copy stretched to fill. The TV card, whose poster sits beside the text
- * rather than filling the card, uses a few pixels: just the poster's colours,
- * where 32px still drew its shapes, blocky, behind the title.
+ * Velvety borderless ARGB_8888 artwork wash with >= 0.64 matte dark scrim so
+ * bright/white album covers always hold >= 4.5:1 text contrast.
  */
 @Composable
 private fun ArtBackdrop(
@@ -1014,28 +1181,34 @@ private fun ArtBackdrop(
     bottomShade: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val blurred = remember(art, washPx) {
-        art?.let { img ->
-            val src = img.asAndroidBitmap()
-            if (src.width <= 0) return@let null
-            val w = washPx
-            val h = (w * src.height / src.width).coerceAtLeast(1)
-            Bitmap.createScaledBitmap(src, w, h, true).asImageBitmap()
+    val blurred by produceState<ImageBitmap?>(initialValue = null, art, washPx) {
+        value = art?.let { img ->
+            withContext(Dispatchers.Default) {
+                val src = img.asAndroidBitmap()
+                if (src.width <= 0) return@withContext null
+                val w = washPx
+                val h = (w * src.height / src.width).coerceAtLeast(1)
+                val scaled = Bitmap.createScaledBitmap(src, w, h, true)
+                val argb = if (scaled.config == Bitmap.Config.ARGB_8888) scaled else {
+                    scaled.copy(Bitmap.Config.ARGB_8888, false).also { if (scaled !== src) scaled.recycle() }
+                }
+                argb.asImageBitmap()
+            }
         }
     }
     val shade = AstrionTheme.colors.void
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(AstrionTheme.colors.surface),
+            .clip(RoundedCornerShape(AstrionTheme.surfaces.cardCornerRadius))
+            .background(AstrionTheme.cardBg),
     ) {
         blurred?.let { bg ->
             Image(bitmap = bg, contentDescription = null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .background(AstrionTheme.colors.pinnedTopBg.copy(alpha = if (bottomShade) 0.58f else 0.7f)),
+                    .background(AstrionTheme.colors.background.copy(alpha = if (bottomShade) 0.64f else 0.72f)),
             )
             if (bottomShade) {
                 Box(
@@ -1043,9 +1216,9 @@ private fun ArtBackdrop(
                         .matchParentSize()
                         .background(
                             Brush.verticalGradient(
-                                0.35f to shade.copy(alpha = 0f),
-                                0.72f to shade.copy(alpha = 0.42f),
-                                1f to shade.copy(alpha = 0.76f),
+                                0.30f to shade.copy(alpha = 0.0f),
+                                0.68f to shade.copy(alpha = 0.48f),
+                                1.00f to shade.copy(alpha = 0.84f),
                             )
                         ),
                 )

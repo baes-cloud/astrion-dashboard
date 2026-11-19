@@ -3,16 +3,15 @@ package com.custom.astrion.cards.impl
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
-import com.custom.astrion.ui.MIN_TOUCH
-import com.custom.astrion.ui.overhang
-import kotlinx.coroutines.delay
-import com.custom.astrion.ui.LocalMinuteClock
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
@@ -20,11 +19,16 @@ import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,44 +38,20 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.LocalMinuteClock
 import com.custom.astrion.ui.UnavailableLabel
-import com.custom.astrion.ui.dimIfUnavailable
 import com.custom.astrion.ui.holdOnly
 import com.custom.astrion.ui.humanise
 import com.custom.astrion.ui.tap
+import kotlinx.coroutines.delay
 
 /**
- * Door-lock card: name, how long the bolt has been where it is, and one
- * button that shows the current state (Locked, green / Unlocked, amber) and
- * toggles it. (It used to be a two-chip Lock | Unlock segmented control;
- * The owner preferred the single state button, 2026-09-27.)
- *
- * `locking` / `unlocking` are transient states the lock reports while the bolt
- * is actually moving; they get their own label so a slow motor doesn't look
- * like a failed tap.
- *
- * `hold_entity` hangs a second control off the padlock tile: hold it to toggle
- * a "keep unlocked" flag, and the padlock turns red while that flag is on. The
- * flag is not the lock's state, so it deliberately does not move the bolt:
- * only the colour, the wording and the held gesture change. In `compact` mode
- * there is no tile, so the hold goes on the name and state instead.
- *
- * Compact mode's padlock locks on a tap but only unlocks on a hold (a tap says
- * "Hold to unlock"): it is small and sits on Main, where a brush shouldn't open
- * the front door. Its touch area is 48dp whatever it's drawn at.
- *
- * Config shape:
- *   { "type": "lock", "options": {
- *       "entity_id": "lock.front_door",
- *       "name": "Front Door",
- *       "show_age": true,
- *       "hold_entity": "input_boolean.front_door_keep_unlocked",
- *       "compact": false
- *   } }
- *
- * `compact` is for half a row (e.g. beside a switch card in a `row`): the
- * age goes, the second line is just the state, and the button shrinks to a
- * square padlock. Same height as the full card, so the pair lines up.
+ * Door-lock card (Bæo v3.0 Matte Tonal):
+ *  - Compact mode renders as a 48dp borderless matte action pill matching
+ *    Automations / Neon / Mirror Ball (`blushContainer` when unlocked or held
+ *    open, `cardBg` when locked), with zero bezel overhang.
+ *  - Tap locks; hold unlocks (tap while locked briefly shows "Hold to unlock").
+ *  - Holding the name/state toggles `hold_entity` ("Held open").
  */
 class LockCard : CardRenderer {
     override val type = "lock"
@@ -84,21 +64,16 @@ class LockCard : CardRenderer {
         val unavailable = e == null || e.isUnavailable
         val live = !unavailable && ctx.connected
         val compact = config.bool("compact", false)
-        val bare = config.bool("bare", true)
         val showAge = config.bool("show_age", true) && !compact
 
         val state = e?.state.orEmpty()
         val locked = state == "locked"
         val moving = state == "locking" || state == "unlocking"
 
-        // "Keep unlocked" is a separate helper, not a lock state: holding the
-        // padlock toggles it, and it tints the padlock red while on.
         val holdEntity = config.string("hold_entity")
         val keepUnlocked = holdEntity?.let { ctx.entity(it)?.isOn } == true
         val holdLive = holdEntity != null && ctx.connected
 
-        // Re-tick so "12 min ago" doesn't sit frozen at whatever it said when
-        // the page was first composed.
         val now = LocalMinuteClock.current
         val age = if (showAge) ago(e?.lastChangedMs, now) else null
 
@@ -106,8 +81,6 @@ class LockCard : CardRenderer {
             ctx.client.callService(ServiceCall(domain = "lock", service = service, entityId = entityId))
         }
 
-        // "Hold to unlock" replaces the state line for a moment after a tap on
-        // a locked compact padlock.
         var hintAt by remember { mutableLongStateOf(0L) }
         val hint = hintAt != 0L
         LaunchedEffect(hintAt) {
@@ -117,19 +90,22 @@ class LockCard : CardRenderer {
             }
         }
 
+        val attention = !unavailable && (keepUnlocked || !locked)
+        val pillBg = when {
+            config.bool("flush") -> AstrionTheme.pageBg.copy(alpha = 0f)
+            compact && attention -> AstrionTheme.blushContainer
+            else -> AstrionTheme.cardBg
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .dimIfUnavailable(unavailable)
-                .then(
-                    if (config.bool("flush") || (compact && bare)) Modifier
-                    else Modifier.clip(RoundedCornerShape(18.dp)).background(AstrionTheme.cardBgAlt)
-                )
-                // Shaped like the blind rows: icon tile, name over state,
-                // the button on the right.
+                .then(if (compact) Modifier.height(48.dp) else Modifier)
+                .clip(RoundedCornerShape(if (compact) 14.dp else AstrionTheme.surfaces.cardCornerRadius))
+                .background(pillBg)
                 .padding(
-                    horizontal = if (compact && bare) 2.dp else if (compact) 10.dp else 12.dp,
-                    vertical = if (compact && bare) 1.dp else 8.dp,
+                    horizontal = if (compact) 8.dp else 12.dp,
+                    vertical = if (compact) 0.dp else 8.dp,
                 ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -138,8 +114,7 @@ class LockCard : CardRenderer {
                     modifier = Modifier
                         .size(34.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (locked) AstrionTheme.controlSunken else AstrionTheme.raised)
-                        // Hold only: a tap here must not move the bolt by accident.
+                        .background(if (locked && !keepUnlocked) AstrionTheme.controlSunken else AstrionTheme.blushContainer)
                         .holdOnly(enabled = holdLive) {
                             val target = holdEntity ?: return@holdOnly
                             ctx.client.callService(
@@ -150,23 +125,19 @@ class LockCard : CardRenderer {
                 ) {
                     Icon(
                         if (locked) Icons.Filled.Lock else Icons.Filled.LockOpen,
-                        contentDescription = if (keepUnlocked) {
-                            "$name, ${state.humanise()}, keep unlocked on"
-                        } else {
-                            "$name, ${state.humanise()}"
-                        },
+                        contentDescription = if (keepUnlocked) "$name, ${state.humanise()}, held open" else "$name, ${state.humanise()}",
                         modifier = Modifier.size(18.dp),
                         tint = when {
                             unavailable -> AstrionTheme.unavailable
-                            holdEntity != null -> if (keepUnlocked) AstrionTheme.danger else AstrionTheme.good
-                            locked -> AstrionTheme.good
+                            keepUnlocked -> AstrionTheme.blush
+                            locked -> AstrionTheme.accent
                             else -> AstrionTheme.blush
                         },
                     )
                 }
                 Spacer(Modifier.width(10.dp))
             }
-            // Name over state and age: right-aligned in compact mode to the right lock icon
+
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -182,19 +153,19 @@ class LockCard : CardRenderer {
                 Text(
                     name,
                     color = AstrionTheme.textPrimary,
-                    fontSize = AstrionTheme.size.body,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = if (compact) AstrionTheme.size.label else AstrionTheme.size.body,
+                    fontWeight = if (compact) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = if (compact) TextAlign.End else TextAlign.Start,
                 )
                 if (unavailable) {
-                    UnavailableLabel(AstrionTheme.size.label)
+                    UnavailableLabel(if (compact) AstrionTheme.size.micro else AstrionTheme.size.label)
                 } else {
                     Text(
                         if (compact) {
                             when {
-                                hint -> "Hold to unlock"
+                                hint -> "Hold unlock"
                                 keepUnlocked -> "Held open"
                                 else -> state.humanise()
                             }
@@ -202,24 +173,28 @@ class LockCard : CardRenderer {
                             if (keepUnlocked || age == null) state.humanise() else null,
                             if (keepUnlocked) "held open" else age,
                         ).joinToString(" · "),
-                        color = AstrionTheme.textSecondary,
-                        fontSize = AstrionTheme.size.label,
+                        color = when {
+                            hint -> AstrionTheme.textPrimary
+                            attention -> AstrionTheme.blush
+                            else -> AstrionTheme.textSecondary
+                        },
+                        fontSize = if (compact) AstrionTheme.size.micro else AstrionTheme.size.label,
+                        fontWeight = if (attention || hint) FontWeight.SemiBold else FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = if (compact) TextAlign.End else TextAlign.Start,
                     )
                 }
             }
-            // One button that shows the state and flips it, and the only
-            // thing here that does: a brush of the name mustn't unlock the door.
-            Spacer(Modifier.width(8.dp))
+
+            Spacer(Modifier.width(if (compact) 4.dp else 6.dp))
             StateButton(
                 state = state,
                 locked = locked,
                 moving = moving,
+                attention = attention,
                 live = live && !moving,
                 iconOnly = compact,
-                bare = compact && bare,
                 onHint = { hintAt = System.currentTimeMillis() },
             ) { call(if (locked) "unlock" else "lock") }
         }
@@ -231,25 +206,24 @@ class LockCard : CardRenderer {
         state: String,
         locked: Boolean,
         moving: Boolean,
+        attention: Boolean,
         live: Boolean,
         iconOnly: Boolean = false,
-        bare: Boolean = false,
         onHint: () -> Unit = {},
         onClick: () -> Unit,
     ) {
         val tint = when {
             moving -> AstrionTheme.textSecondary
-            locked -> AstrionTheme.good
+            attention -> AstrionTheme.blush
+            locked -> AstrionTheme.accent
             else -> AstrionTheme.blush
         }
         if (iconOnly) {
-            val visual = if (bare) 28.dp else 36.dp
             val haptics = LocalHapticFeedback.current
             Box(
                 modifier = Modifier
-                    .overhang(visual, MIN_TOUCH)
-                    // Tap locks; unlocking needs a hold. A tap on a locked
-                    // padlock only explains that, with no haptic tick.
+                    .size(width = 26.dp, height = 44.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .combinedClickable(
                         enabled = live,
                         onClick = {
@@ -266,22 +240,12 @@ class LockCard : CardRenderer {
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-              Box(
-                modifier = Modifier
-                    .size(visual)
-                    .then(
-                        if (bare) Modifier
-                        else Modifier.clip(RoundedCornerShape(12.dp)).background(tint.copy(alpha = 0.16f))
-                    ),
-                contentAlignment = Alignment.Center,
-              ) {
                 Icon(
                     if (locked) Icons.Filled.Lock else Icons.Filled.LockOpen,
                     contentDescription = if (locked) "Hold to unlock" else "Lock",
                     tint = tint,
-                    modifier = Modifier.size(if (bare) 20.dp else 18.dp),
+                    modifier = Modifier.size(19.dp),
                 )
-              }
             }
             return
         }
@@ -289,7 +253,7 @@ class LockCard : CardRenderer {
             modifier = Modifier
                 .height(36.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(tint.copy(alpha = 0.16f))
+                .background(if (attention) AstrionTheme.blushContainer else AstrionTheme.accentContainer)
                 .tap(enabled = live, onClick = onClick)
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -308,13 +272,12 @@ class LockCard : CardRenderer {
                     else -> "Unlocked"
                 },
                 color = tint,
-                fontSize = AstrionTheme.size.small,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.SemiBold,
             )
         }
     }
 
-    /** "3 min ago" from the entity's last change (epoch millis). */
     private fun ago(lastChangedMs: Long?, nowMs: Long): String? {
         val then = lastChangedMs ?: return null
         val secs = (nowMs - then) / 1000

@@ -34,7 +34,14 @@ fun DashboardScreen(
         if (powerState.isScreensaverOn && inputState.isGuideOpen) inputVm.onIntent(InputIntent.CloseGuide)
     }
 
-    CompositionLocalProvider(LocalSheetHost provides sheetHost) {
+    CompositionLocalProvider(
+        LocalSheetHost provides sheetHost,
+        LocalOpenIrMode provides { inputVm.onIntent(InputIntent.ToggleIrMode) },
+        LocalBatteryState provides BatteryReadout(
+            pct = powerState.batteryPct,
+            charging = powerState.isCharging || powerState.isDocked,
+        ),
+    ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxSize().unplacedWhen(powerState.isScreensaverOn)) {
                 CompositionLocalProvider(
@@ -48,6 +55,8 @@ fun DashboardScreen(
                             configNotice = dashboardState.configNotice,
                             navTarget = dashboardState.navTarget,
                             onNavHandled = { dashboardVm.onIntent(DashboardIntent.NavTargetHandled) },
+                            onPageShown = { dashboardVm.onIntent(DashboardIntent.PageShown(it)) },
+                            onOpenGuide = { inputVm.onIntent(InputIntent.OpenGuide) },
                         )
                         sheetHost.Host()
                     }
@@ -140,6 +149,7 @@ fun DashboardScreen(
                 client = dashboardVm.client,
                 targetEntityId = inputState.lastVolumeEntityId,
                 externalTriggerEpoch = inputState.volumeTriggerEpoch,
+                suppressPassive = powerState.isScreensaverOn,
             )
 
             ActionToast(dashboardState.toastMessage, onGone = { dashboardVm.onIntent(DashboardIntent.ClearToast) })

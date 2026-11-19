@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -230,7 +232,7 @@ fun AstrionCard(
  */
 @Composable
 fun TouchTarget(
-    size: Dp = 44.dp,
+    size: Dp = MIN_TOUCH,
     enabled: Boolean = true,
     onClick: () -> Unit,
     content: @Composable () -> Unit,
@@ -241,6 +243,39 @@ fun TouchTarget(
             .tap(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
+}
+
+/**
+ * Power as a pill that says its state in words. Off is a calm matte neutral
+ * control (never error red); on is Gunmetal matte teal.
+ */
+@Composable
+fun PowerPill(
+    on: Boolean,
+    name: String,
+    enabled: Boolean,
+    height: Dp = MIN_TOUCH,
+    onClick: () -> Unit,
+) {
+    val ink = if (on) AstrionTheme.colors.onPrimary else AstrionTheme.textOnControl
+    androidx.compose.foundation.layout.Row(
+        modifier = Modifier
+            .height(height)
+            .clip(RoundedCornerShape(height / 2))
+            .background(if (on) AstrionTheme.accentStrong else AstrionTheme.controlBg)
+            .tap(enabled = enabled, onClick = onClick)
+            .padding(start = 11.dp, end = 15.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+    ) {
+        androidx.compose.material3.Icon(
+            androidx.compose.material.icons.Icons.Filled.PowerSettingsNew,
+            contentDescription = if (on) "Turn $name off" else "Turn $name on",
+            tint = ink,
+            modifier = Modifier.size(20.dp),
+        )
+        Text(if (on) "On" else "Off", color = ink, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.Bold)
+    }
 }
 
 /**

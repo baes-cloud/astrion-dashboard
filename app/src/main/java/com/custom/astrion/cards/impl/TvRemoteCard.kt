@@ -161,7 +161,7 @@ class TvRemoteCard : CardRenderer {
                 .tap(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Text(label, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(label, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.Medium)
         }
     }
 

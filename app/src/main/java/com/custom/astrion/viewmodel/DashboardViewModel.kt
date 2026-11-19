@@ -51,6 +51,8 @@ sealed interface DashboardIntent {
     data class NavigateToPage(val pageIndex: Int) : DashboardIntent
     data class NavigateToPageByName(val pageName: String) : DashboardIntent
     object NavTargetHandled : DashboardIntent
+    /** The dashboard reports the page on screen (a swipe never asks first). */
+    data class PageShown(val pageIndex: Int) : DashboardIntent
     data class ReloadConfig(val force: Boolean = false) : DashboardIntent
     object ToggleVoice : DashboardIntent
     object CancelVoice : DashboardIntent
@@ -358,6 +360,11 @@ class DashboardViewModel(
                 val idx = uiState.value.config.pages.indexOfFirst { it.name.equals(intent.pageName, ignoreCase = true) }
                 if (idx >= 0) {
                     onIntent(DashboardIntent.NavigateToPage(idx))
+                }
+            }
+            is DashboardIntent.PageShown -> {
+                if (intent.pageIndex in uiState.value.config.pages.indices) {
+                    _uiState.update { if (it.currentPage == intent.pageIndex) it else it.copy(currentPage = intent.pageIndex) }
                 }
             }
             DashboardIntent.NavTargetHandled -> {

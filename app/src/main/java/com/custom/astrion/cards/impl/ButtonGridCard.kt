@@ -1,17 +1,23 @@
 package com.custom.astrion.cards.impl
 
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,7 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -40,56 +46,16 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.BottomSheet
-import com.custom.astrion.ui.tap
+import com.custom.astrion.ui.Glyphs
+import com.custom.astrion.ui.LocalOpenIrMode
+import com.custom.astrion.ui.components.BaeoSectionHeader
 import com.custom.astrion.ui.parseHexColor
 import com.custom.astrion.ui.rememberSampledBitmap
+import com.custom.astrion.ui.tap
 import com.custom.astrion.ui.tightTextStyle
 
-/**
- * Generic grid of action buttons, each firing a HA service call. Buttons can
- * carry a PNG icon loaded from a file path (e.g. /sdcard/astrion/icons/mos.png),
- * a text label, or both. Used for the TV-app row, Group/Ungroup, and the
- * playlist buttons.
- *
- * `label_lines: 2` lets a long name wrap onto a second line.
- *
- * `tile_height`, `icon_size` and `spacing` (all dp) shrink the buttons where a
- * grid has to share a page with taller cards — the playlist grid sits under the
- * media stack and would otherwise be cut in half by the bottom of the screen.
- *
- * Config shape:
- *   { "type": "button_grid", "options": {
- *       "columns": 3,
- *       "tile_height": 56,
- *       "icon_size": 26,
- *       "buttons": [
- *         { "name": "Group",   "service": "script.group" },
- *         { "name": "Disco",   "icon": "/sdcard/astrion/icons/disco.png",
- *           "service": "script.playlist_disco" },
- *         { "name": "Netflix", "service": "media_player.play_media",
- *           "entity_id": "media_player.the_club_tvv",
- *           "data": { "media_content_type": "app", "media_content_id": "com.netflix.ninja" } }
- *       ]
- *
- * Optional per button: `color` ("#RRGGBB", tile background — e.g. a brand
- * colour for text-only app tiles) and `text_color` (defaults to white or dark
- * ink, whichever reads on `color`).
- *
- * `show_state: true` greys the icon out while `entity_id` is off, so a light
- * button says whether the light is on. `hold: "members"` opens a popup on a
- * long press with each light in the `entity_id` group, one tap each, plus a
- * button for all of them (the balcony neon is two lights in one group).
- *   } }
- */
 private val GREYSCALE = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
 
-/** The darker band under each tile that the face sinks into when pressed. */
-private val LIP = 5.dp
-
-/**
- * Long press on a group light button: each light in the group with a tap to
- * switch it, and one button for the lot.
- */
 @Composable
 private fun MembersSheet(ctx: CardContext, groupId: String, title: String?, onClose: () -> Unit) {
     val group = ctx.entities[groupId]
@@ -107,9 +73,9 @@ private fun MembersSheet(ctx: CardContext, groupId: String, title: String?, onCl
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .height(52.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(if (on) AstrionTheme.colors.accentContainer else AstrionTheme.cardBgAlt)
+                    .background(if (on) AstrionTheme.ochreSurface else AstrionTheme.controlBg)
                     .tap(enabled = !unavailable && ctx.connected) {
                         ctx.client.callService(ServiceCall(id.substringBefore('.'), "toggle", id))
                     }
@@ -119,7 +85,7 @@ private fun MembersSheet(ctx: CardContext, groupId: String, title: String?, onCl
                 Text(
                     e?.friendlyName ?: id,
                     color = AstrionTheme.textPrimary,
-                    fontSize = AstrionTheme.size.bodyLarge,
+                    fontSize = AstrionTheme.size.body,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
@@ -131,7 +97,7 @@ private fun MembersSheet(ctx: CardContext, groupId: String, title: String?, onCl
                         on -> "On"
                         else -> "Off"
                     },
-                    color = if (on) AstrionTheme.accent else AstrionTheme.textSecondary,
+                    color = if (on) AstrionTheme.ochreInk else AstrionTheme.textSecondary,
                     fontSize = AstrionTheme.size.body,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -141,7 +107,7 @@ private fun MembersSheet(ctx: CardContext, groupId: String, title: String?, onCl
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .height(50.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(AstrionTheme.accentStrong)
                     .tap(enabled = ctx.connected) {
@@ -151,8 +117,8 @@ private fun MembersSheet(ctx: CardContext, groupId: String, title: String?, onCl
             ) {
                 Text(
                     "${if (members.size == 2) "Both" else "All"} ${if (anyOn) "off" else "on"}",
-                    color = Color.White,
-                    fontSize = AstrionTheme.size.bodyLarge,
+                    color = AstrionTheme.colors.onPrimary,
+                    fontSize = AstrionTheme.size.body,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -160,6 +126,15 @@ private fun MembersSheet(ctx: CardContext, groupId: String, title: String?, onCl
     }
 }
 
+/**
+ * Borderless Matte Button Grid (Bæo v3.0):
+ *  - Lightweight static Column/Row layout (no LazyVerticalGrid subcomposition
+ *    overhead for small action bars, mixes, TV launchers, and cinema macros).
+ *  - Supports monochrome `glyph` names alongside PNG `icon` paths.
+ *  - Supports `key_dot` ("red"|"green"|"blue"|"yellow") passive hardware remote
+ *    colour indicators, `active_tone` ("ochre"|"accent"|"blush"), and internal
+ *    `astrion.open_ir` action.
+ */
 class ButtonGridCard : CardRenderer {
     override val type = "button_grid"
 
@@ -172,80 +147,83 @@ class ButtonGridCard : CardRenderer {
         val configuredTileHeight = config.int("tile_height", 0).takeIf { it > 0 }?.dp
         val iconSize = config.int("icon_size", 0).takeIf { it > 0 }?.dp
         val labelLines = config.int("label_lines", 1).coerceIn(1, 2)
-        val spacing = config.int("spacing", 10).coerceIn(2, 24).dp
-        // `"style": "flat"`: plain tiles on the card surface, no raised lip.
-        val flat = config.string("style") == "flat"
-        val lip = if (flat) 0.dp else LIP
+        val spacing = config.int("spacing", 8).coerceIn(2, 24).dp
+        val openIr = LocalOpenIrMode.current
 
         if (buttons.isEmpty()) return
 
-        val hasAnyIcon = buttons.any { it["icon"] != null }
-        val effectiveTileHeight = configuredTileHeight ?: if (hasAnyIcon) 68.dp else 48.dp
-
-        val rowCount = (buttons.size + columns - 1) / columns
-        // Each tile is its face plus the lip under it; leaving the lip out
-        // here clipped every tile's bottom edge and corners flat.
-        val totalGridHeight = ((effectiveTileHeight + lip) * rowCount) + (spacing * (rowCount - 1).coerceAtLeast(0))
+        val hasAnyIcon = buttons.any { it["icon"] != null || it["glyph"] != null }
+        val effectiveTileHeight = configuredTileHeight ?: if (hasAnyIcon) 60.dp else 48.dp
 
         Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
-            if (title != null) {
-                Text(
-                    title,
-                    color = AstrionTheme.colors.onSurfaceVariant,
-                    fontSize = AstrionTheme.size.label,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.sp,
-                )
-            }
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(totalGridHeight),
-                horizontalArrangement = Arrangement.spacedBy(spacing),
-                verticalArrangement = Arrangement.spacedBy(spacing),
-                contentPadding = PaddingValues(0.dp),
-                userScrollEnabled = false, // Nested scrolling safety with parent verticalScroll
-            ) {
-                items(
-                    count = buttons.size,
-                    key = { index ->
-                        val b = buttons[index]
-                        val name = b["name"] as? String ?: ""
-                        val entityId = b["entity_id"] as? String ?: ""
-                        val service = b["service"] as? String ?: ""
-                        "$name:$entityId:$service:$index"
-                    },
-                ) { index ->
-                    val b = buttons[index]
-                    val entityId = b["entity_id"] as? String
-                    val off = b["show_state"] == true && entityId != null && ctx.entities[entityId]?.isOn != true
-                    var membersOpen by remember { mutableStateOf(false) }
-                    GridButton(
-                        b = b,
-                        modifier = Modifier.fillMaxWidth(),
-                        tileHeight = effectiveTileHeight,
-                        iconSize = iconSize,
-                        labelLines = labelLines,
-                        flat = flat,
-                        off = off,
-                        onLongClick = if (b["hold"] == "members" && entityId != null) {
-                            { membersOpen = true }
-                        } else null,
-                    ) { fire(ctx, b) }
-                    if (membersOpen && entityId != null) {
-                        MembersSheet(ctx, entityId, b["name"] as? String) { membersOpen = false }
+            if (title != null) BaeoSectionHeader(title)
+            buttons.chunked(columns).forEach { rowButtons ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(spacing),
+                ) {
+                    rowButtons.forEach { b ->
+                        val entityId = b["entity_id"] as? String
+                        val stateEntity = (b["state_entity"] as? String) ?: entityId
+                        val showState = b["show_state"] == true && stateEntity != null
+                        val active = isButtonActive(ctx, b, stateEntity, showState)
+                        val off = showState && !active
+                        var membersOpen by remember(b) { mutableStateOf(false) }
+
+                        GridButton(
+                            b = b,
+                            modifier = Modifier.weight(1f),
+                            tileHeight = effectiveTileHeight,
+                            iconSize = iconSize,
+                            labelLines = labelLines,
+                            active = active,
+                            off = off,
+                            enabled = ctx.connected || b["service"] == "astrion.open_ir",
+                            onLongClick = if (b["hold"] == "members" && entityId != null) {
+                                { membersOpen = true }
+                            } else null,
+                        ) {
+                            if (b["service"] == "astrion.open_ir") {
+                                openIr?.invoke()
+                            } else {
+                                fire(ctx, b)
+                            }
+                        }
+                        if (membersOpen && entityId != null) {
+                            MembersSheet(ctx, entityId, b["name"] as? String) { membersOpen = false }
+                        }
                     }
+                    repeat(columns - rowButtons.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
+    }
+
+    private fun isButtonActive(
+        ctx: CardContext,
+        b: Map<String, Any?>,
+        stateEntity: String?,
+        showState: Boolean,
+    ): Boolean {
+        val litWhen = b["lit_when"]?.toString()
+        if (stateEntity != null && litWhen != null) {
+            val e = ctx.entities[stateEntity] ?: return false
+            val attr = b["lit_attribute"] as? String
+            val actual = attr?.let { e.attrString(it) } ?: e.state
+            return actual.equals(litWhen, ignoreCase = true)
+        }
+        if (showState && stateEntity != null) {
+            return ctx.entities[stateEntity]?.isOn == true
+        }
+        return false
     }
 
     @Suppress("UNCHECKED_CAST")
     private fun fire(ctx: CardContext, b: Map<String, Any?>) {
         val service = b["service"] as? String ?: return
         val data = (b["data"] as? Map<String, Any?>).orEmpty()
-        ctx.client.callService(ServiceCall.fromConfig(service, b["entity_id"] as? String, data))
+        val confirm = b["confirm"] as? Boolean ?: false
+        ctx.client.callService(ServiceCall.fromConfig(service, b["entity_id"] as? String, data), confirm = confirm)
     }
 
     @OptIn(ExperimentalFoundationApi::class)
@@ -253,94 +231,128 @@ class ButtonGridCard : CardRenderer {
     private fun GridButton(
         b: Map<String, Any?>,
         modifier: Modifier,
-        tileHeight: Dp?,
+        tileHeight: Dp,
         iconSize: Dp?,
         labelLines: Int,
-        flat: Boolean = false,
-        off: Boolean = false,
+        active: Boolean,
+        off: Boolean,
+        enabled: Boolean,
         onLongClick: (() -> Unit)? = null,
         onClick: () -> Unit,
     ) {
         val name = b["name"] as? String
         val iconPath = b["icon"] as? String
-        // Off-thread and downsampled — these are drawn into a 32dp box but
-        // were being decoded at native resolution (up to 78 KB apiece) on the
-        // composition thread, six at a time, when the Media page first drew.
+        val glyphVec = glyphForName(b["glyph"] as? String)
         val bitmap by rememberSampledBitmap(iconPath, targetPx = 96)
-        val hasIcon = bitmap != null
-        val tileColor = parseHexColor(b["color"] as? String)
-        val inkColor = parseHexColor(b["text_color"] as? String)
-            ?: tileColor?.let { if (0.2126f * it.red + 0.7152f * it.green + 0.0722f * it.blue > 0.6f) AstrionTheme.colors.surfacePrimary else Color.White }
-            ?: AstrionTheme.colors.onSurface
-
-        val height = tileHeight ?: if (hasIcon) 68.dp else 48.dp
-        val glyph = iconSize ?: 32.dp
-
-        val lip = if (flat) 0.dp else LIP
-        val baseColor = tileColor?.let {
-            Color(it.red * 0.5f, it.green * 0.5f, it.blue * 0.5f, 0.62f)
-        } ?: AstrionTheme.controlSunken
-        val faceColor = tileColor ?: if (flat) AstrionTheme.cardBgAlt else AstrionTheme.raised
+        val hasVisual = bitmap != null || glyphVec != null
+        val customTileColor = parseHexColor(b["color"] as? String)
+        val activeTone = b["active_tone"] as? String
+        val keyDotColor = keyDotColorFor(b["key_dot"] as? String)
 
         val interaction = remember { MutableInteractionSource() }
         val pressed by interaction.collectIsPressedAsState()
         val haptics = LocalHapticFeedback.current
-        val sink by animateDpAsState(if (pressed) lip else 0.dp, label = "button_sink")
-        // Flat tiles answer a press by lifting to the raised surface instead of sinking.
-        val face = if (flat && pressed && tileColor == null) AstrionTheme.raised else faceColor
+
+        val baseFace = when {
+            customTileColor != null -> customTileColor
+            active && activeTone == "ochre" -> AstrionTheme.ochreSurface
+            active && activeTone == "blush" -> AstrionTheme.blushContainer
+            active -> AstrionTheme.accentContainer
+            else -> AstrionTheme.cardBg
+        }
+        val face = if (pressed && customTileColor == null) AstrionTheme.surfaceElevated else baseFace
+
+        val iconTint = when {
+            active && activeTone == "ochre" -> AstrionTheme.ochreInk
+            active && activeTone == "blush" -> AstrionTheme.blush
+            active -> AstrionTheme.accent
+            else -> AstrionTheme.textSecondary
+        }
+        val inkColor = parseHexColor(b["text_color"] as? String)
+            ?: customTileColor?.let {
+                if (0.2126f * it.red + 0.7152f * it.green + 0.0722f * it.blue > 0.6f) AstrionTheme.colors.surfacePrimary
+                else AstrionTheme.colors.onPrimary
+            }
+            ?: when {
+                active && activeTone == "ochre" -> AstrionTheme.ochreInk
+                active && activeTone == "blush" -> AstrionTheme.blush
+                active -> AstrionTheme.textPrimary
+                else -> AstrionTheme.textOnControl
+            }
+
+        val glyphDp = iconSize ?: 20.dp
 
         Box(
             modifier = modifier
-                .height(height + lip)
+                .height(tileHeight)
                 .clip(RoundedCornerShape(14.dp))
-                .background(if (flat) Color.Transparent else baseColor),
+                .background(face)
+                .combinedClickable(
+                    enabled = enabled,
+                    interactionSource = interaction,
+                    indication = null,
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onClick()
+                    },
+                    onLongClick = onLongClick?.let { hold ->
+                        {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            hold()
+                        }
+                    },
+                ),
         ) {
+            if (keyDotColor != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 7.dp, end = 7.dp)
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(keyDotColor),
+                )
+            }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(height)
-                    .align(Alignment.TopCenter)
-                    .graphicsLayer { translationY = sink.toPx() }
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(face)
-                    .combinedClickable(
-                        interactionSource = interaction,
-                        indication = null,
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onClick()
-                        },
-                        onLongClick = onLongClick?.let { hold ->
-                            {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                hold()
-                            }
-                        },
-                    )
-                    .padding(6.dp),
+                    .align(Alignment.Center)
+                    .padding(horizontal = if (labelLines > 1) 3.dp else 6.dp, vertical = 3.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                bitmap?.let { bmp ->
-                    Image(
-                        bitmap = bmp,
-                        contentDescription = name,
-                        modifier = Modifier.size(glyph),
-                        // Off: greyed and faded, so a light button shows its state.
-                        alpha = if (off) 0.45f else 1f,
-                        colorFilter = if (off) GREYSCALE else null,
-                    )
-                    if (!name.isNullOrBlank()) Spacer(Modifier.height(if (labelLines > 1) 2.dp else 3.dp))
+                when {
+                    glyphVec != null -> {
+                        Icon(
+                            imageVector = glyphVec,
+                            contentDescription = name,
+                            tint = iconTint,
+                            modifier = Modifier.size(glyphDp),
+                        )
+                        if (!name.isNullOrBlank()) Spacer(Modifier.height(if (labelLines > 1) 2.dp else 4.dp))
+                    }
+                    bitmap != null -> {
+                        Image(
+                            bitmap = bitmap!!,
+                            contentDescription = name,
+                            modifier = Modifier.size(glyphDp),
+                            alpha = if (off) 0.50f else 1f,
+                            colorFilter = if (off) GREYSCALE else null,
+                        )
+                        if (!name.isNullOrBlank()) Spacer(Modifier.height(if (labelLines > 1) 2.dp else 3.dp))
+                    }
                 }
                 if (!name.isNullOrBlank()) {
-                    // `label_lines: 2` wraps a long name ("Purple Disco") onto a
-                    // second, tightly spaced line instead of cutting it off.
                     Text(
-                        name,
-                        style = if (labelLines > 1) tightTextStyle(13.sp) else LocalTextStyle.current,
+                        text = name,
+                        style = if (labelLines > 1) tightTextStyle(12.sp) else LocalTextStyle.current,
                         color = inkColor,
-                        fontSize = if (hasIcon) (if (labelLines > 1) AstrionTheme.size.label else AstrionTheme.size.label) else if (name.length > 8) AstrionTheme.size.small else AstrionTheme.size.bodyLarge,
-                        fontWeight = if (tileColor != null && !hasIcon) FontWeight.Bold else FontWeight.Medium,
+                        fontSize = when {
+                            labelLines > 1 -> AstrionTheme.size.micro
+                            hasVisual || name.length > 8 -> AstrionTheme.size.label
+                            else -> AstrionTheme.size.body
+                        },
+                        fontWeight = if (active || customTileColor != null || labelLines > 1) FontWeight.SemiBold else FontWeight.Medium,
                         maxLines = labelLines,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
@@ -348,5 +360,35 @@ class ButtonGridCard : CardRenderer {
                 }
             }
         }
+    }
+
+    private fun glyphForName(name: String?): ImageVector? = when (name) {
+        "radio" -> Glyphs.radio
+        "disc" -> Glyphs.disc
+        "headphones" -> Glyphs.headphones
+        "note", "music" -> Glyphs.note
+        "tv" -> Glyphs.tv
+        "home" -> Glyphs.home
+        "eye" -> Glyphs.eye
+        "remote" -> Glyphs.remote
+        "bulb", "light" -> Glyphs.bulb
+        "roller_blind", "blinds" -> Glyphs.rollerBlind
+        "mirrorball" -> Glyphs.mirrorball
+        "speaker" -> Glyphs.speaker
+        "sun" -> Glyphs.sun
+        "sheer" -> Glyphs.sheer
+        "moon" -> Glyphs.moon
+        "play" -> Glyphs.play
+        "search" -> Glyphs.search
+        else -> null
+    }
+
+    @Composable
+    private fun keyDotColorFor(name: String?): Color? = when (name?.lowercase()) {
+        "red" -> AstrionTheme.colors.keyRed
+        "green" -> AstrionTheme.colors.keyGreen
+        "blue" -> AstrionTheme.colors.keyBlue
+        "yellow" -> AstrionTheme.colors.keyYellow
+        else -> null
     }
 }

@@ -47,7 +47,12 @@ import androidx.compose.ui.window.Dialog
  * same treatment through one host.
  */
 class SheetHost {
-    internal class Entry(val dismiss: () -> Unit, val bottom: Boolean, val content: @Composable () -> Unit)
+    internal class Entry(
+        val dismiss: () -> Unit,
+        val bottom: Boolean,
+        val onBack: (() -> Boolean)? = null,
+        val content: @Composable () -> Unit,
+    )
 
     internal val entries = mutableStateListOf<Entry>()
 
@@ -56,6 +61,14 @@ class SheetHost {
     /** Dismiss every popup (a page key took you elsewhere). */
     fun dismissAll() {
         entries.toList().asReversed().forEach { it.dismiss() }
+    }
+
+    /** Handle physical BACK: lets the top sheet pop an internal back-stack first, else dismisses it. */
+    fun handleBack(): Boolean {
+        val top = entries.lastOrNull() ?: return false
+        if (top.onBack?.invoke() == true) return true
+        top.dismiss()
+        return true
     }
 
     /** Dismiss the top popup (BACK). True if there was one. */
@@ -112,7 +125,12 @@ val LocalSheetHost = staticCompositionLocalOf<SheetHost?> { null }
  * host. [bottom] docks it to the bottom edge as a sheet.
  */
 @Composable
-fun InWindowDialog(onDismissRequest: () -> Unit, bottom: Boolean = false, content: @Composable () -> Unit) {
+fun InWindowDialog(
+    onDismissRequest: () -> Unit,
+    bottom: Boolean = false,
+    onBack: (() -> Boolean)? = null,
+    content: @Composable () -> Unit,
+) {
     val host = LocalSheetHost.current
     if (host == null) {
         Dialog(onDismissRequest = onDismissRequest, content = content)
@@ -120,8 +138,13 @@ fun InWindowDialog(onDismissRequest: () -> Unit, bottom: Boolean = false, conten
     }
     val latestContent = rememberUpdatedState(content)
     val latestDismiss = rememberUpdatedState(onDismissRequest)
+    val latestBack = rememberUpdatedState(onBack)
     DisposableEffect(host) {
-        val entry = SheetHost.Entry({ latestDismiss.value() }, bottom) { latestContent.value() }
+        val entry = SheetHost.Entry(
+            dismiss = { latestDismiss.value() },
+            bottom = bottom,
+            onBack = { latestBack.value?.invoke() == true },
+        ) { latestContent.value() }
         host.entries += entry
         onDispose { host.entries -= entry }
     }
@@ -137,13 +160,19 @@ fun BottomSheet(
     title: String,
     onDismissRequest: () -> Unit,
     subtitle: String? = null,
+    onBack: (() -> Boolean)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    InWindowDialog(onDismissRequest = onDismissRequest, bottom = true) {
+    InWindowDialog(onDismissRequest = onDismissRequest, bottom = true, onBack = onBack) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .clip(
+                    RoundedCornerShape(
+                        topStart = AstrionTheme.surfaces.dialogCornerRadius,
+                        topEnd = AstrionTheme.surfaces.dialogCornerRadius,
+                    )
+                )
                 .background(AstrionTheme.cardBg)
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -151,16 +180,16 @@ fun BottomSheet(
             Box(
                 Modifier
                     .align(Alignment.CenterHorizontally)
-                    .size(width = 32.dp, height = 3.dp)
+                    .size(width = 34.dp, height = 3.dp)
                     .clip(CircleShape)
-                    .background(AstrionTheme.colors.hairlineStrong),
+                    .background(AstrionTheme.colors.controlRaised),
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         title,
                         color = AstrionTheme.textPrimary,
-                        fontSize = AstrionTheme.size.title,
+                        fontSize = AstrionTheme.size.emphasis,
                         fontWeight = FontWeight.ExtraBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -169,21 +198,25 @@ fun BottomSheet(
                         Text(
                             subtitle,
                             color = AstrionTheme.textSecondary,
-                            fontSize = AstrionTheme.size.small,
+                            fontSize = AstrionTheme.size.label,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
-                Box(
-                    Modifier
-                        .size(36.dp)
+                HitTarget(
+                    visual = 36.dp,
+                    onClick = onDismissRequest,
+                    face = Modifier
                         .clip(CircleShape)
-                        .background(AstrionTheme.raised)
-                        .tap(onClick = onDismissRequest),
-                    contentAlignment = Alignment.Center,
+                        .background(AstrionTheme.controlBg),
                 ) {
-                    Icon(Glyphs.close, contentDescription = "Close", tint = AstrionTheme.textSecondary, modifier = Modifier.size(17.dp))
+                    Icon(
+                        Glyphs.close,
+                        contentDescription = "Close",
+                        tint = AstrionTheme.textOnControl,
+                        modifier = Modifier.size(17.dp),
+                    )
                 }
             }
             content()

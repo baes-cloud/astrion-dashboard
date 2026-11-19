@@ -35,7 +35,7 @@ object AstrionTheme {
         @Composable @ReadOnlyComposable get() = LocalAstrionColors.current
     val typography: AstrionTypography
         @Composable @ReadOnlyComposable get() = LocalAstrionTypography.current
-    /** Font sizes: `fontSize = AstrionTheme.size.small`. */
+    /** Font sizes: `fontSize = AstrionTheme.size.label`. */
     val size: AstrionTypeSizes
         @Composable @ReadOnlyComposable get() = LocalAstrionTypography.current.sizes
     val surfaces: AstrionSurfaces
@@ -45,17 +45,19 @@ object AstrionTheme {
     val pageBg: Color @Composable @ReadOnlyComposable get() = colors.background
     val pinnedTopBg: Color @Composable @ReadOnlyComposable get() = colors.pinnedTopBg
     val pinnedBottomBg: Color @Composable @ReadOnlyComposable get() = colors.pinnedBottomBg
-    /** Default card fill. */
+    /** Default borderless matte card fill. */
     val cardBg: Color @Composable @ReadOnlyComposable get() = colors.surface
-    /** Secondary card fill: cover/switch tiles, the floorplan canvas. */
+    /** Secondary card fill: cover/switch tiles. */
     val cardBgAlt: Color @Composable @ReadOnlyComposable get() = colors.surfaceVariant
-    /** Raised element inside a card (grid buttons, scene tile faces). */
+    /** Elevated matte surface: Volume OSD, active tab pill, sheets. */
+    val surfaceElevated: Color @Composable @ReadOnlyComposable get() = colors.surfaceElevated
+    /** Raised element inside a card (grid buttons, matte pills). */
     val raised: Color @Composable @ReadOnlyComposable get() = colors.raised
-    /** Control chrome: small round buttons, chips. */
+    /** Control chrome: steppers, blind rockers, chips. */
     val controlBg: Color @Composable @ReadOnlyComposable get() = colors.controlBg
-    /** Recessed control, e.g. the lip under a scene tile. */
+    /** Quiet inset pill / on-demand drawer bar. */
     val controlSunken: Color @Composable @ReadOnlyComposable get() = colors.controlSunken
-    /** Slider / progress track. */
+    /** Borderless recessed fader / segmented track. */
     val trackBg: Color @Composable @ReadOnlyComposable get() = colors.surfaceCard
 
     // ---- text ---------------------------------------------------------------
@@ -65,19 +67,35 @@ object AstrionTheme {
     val textMuted: Color @Composable @ReadOnlyComposable get() = colors.textMuted
 
     // ---- state --------------------------------------------------------------
-    /** Hailstorm, lifted to read as text/icons on the dark cards. */
+    /** Hailstorm: solid matte Play/Pause circle, active icons, PageRule ON. */
     val accent: Color @Composable @ReadOnlyComposable get() = colors.accent
-    /** Gunmetal Grey: selected chips and filled buttons under white text. */
+    /** Dark ink on solid matte Hailstorm controls. */
+    val onAccent: Color @Composable @ReadOnlyComposable get() = colors.onAccent
+    /** Smooth Gunmetal matte fill: Joined, active chips, Linked/Player faders. */
     val accentStrong: Color @Composable @ReadOnlyComposable get() = colors.accentStrong
-    /** Warm amber, for lights that are on and nothing else. */
+    /** Quiet Gunmetal matte fill for unlinked Zone faders. */
+    val accentFillQuiet: Color @Composable @ReadOnlyComposable get() = colors.accentFillQuiet
+    /** Velvety Hailstorm wash: BÆOLINK hero, linked zone, Aircon Cool. */
+    val accentContainer: Color @Composable @ReadOnlyComposable get() = colors.accentContainer
+    /** Warm matte ochre active pill (Mirror Ball, Neon, TV Lights). */
+    val ochreSurface: Color @Composable @ReadOnlyComposable get() = colors.ochreSurface
+    val ochreInk: Color @Composable @ReadOnlyComposable get() = colors.ochreInk
+    /** Solid matte butter-amber for lit floorplan light discs. */
     val on: Color @Composable @ReadOnlyComposable get() = colors.lightOn
     val onBg: Color @Composable @ReadOnlyComposable get() = colors.onLightOn
-    /** Baby Doll: "needs attention" (unlocked, open, warnings, mute) and the
-     *  next alarm. Text/icons on it use [onBlush]. */
+    /** Baby Doll attention / next alarm / muted / blind hem. */
     val blush: Color @Composable @ReadOnlyComposable get() = colors.blush
     val onBlush: Color @Composable @ReadOnlyComposable get() = colors.onBlush
+    val blushContainer: Color @Composable @ReadOnlyComposable get() = colors.blushContainer
+    /** Terracotta-Rose Aircon Heating wash & accent. */
+    val warmSurface: Color @Composable @ReadOnlyComposable get() = colors.warmSurface
+    val warmHeat: Color @Composable @ReadOnlyComposable get() = colors.warmHeat
+    /** Matte blind fills (Sofa blackout & Sheer translucent). */
+    val blindSolidFill: Color @Composable @ReadOnlyComposable get() = colors.blindSolidFill
+    val blindSheerFill: Color @Composable @ReadOnlyComposable get() = colors.blindSheerFill
     val danger: Color @Composable @ReadOnlyComposable get() = colors.danger
     val dangerBg: Color @Composable @ReadOnlyComposable get() = colors.dangerBg
+    val onDanger: Color @Composable @ReadOnlyComposable get() = colors.onDanger
     val good: Color @Composable @ReadOnlyComposable get() = colors.accent
 
     // ---- night (docked screensaver) -----------------------------------------

@@ -219,6 +219,7 @@ class PowerViewModel(
                 "status" to Battery.statusName(s.status),
                 "docked" to s.docked,
                 "dock_fault" to s.dockFault,
+                "storage_ro" to com.custom.astrion.power.StorageHealth.isDataReadOnly.value,
             )
             power.reportName?.let { attrs["friendly_name"] = it }
             client.postState(entity, pct.toString(), attrs)
@@ -245,13 +246,15 @@ class PowerViewModel(
     private fun enforceScreenTimeout() {
         val seconds = currentConfig().features.power.screenTimeoutSeconds
         if (seconds == 0 || seconds < -1) return
-        val current = runCatching {
-            Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT)
-        }.getOrNull() ?: return
-        val target = if (seconds == -1) Int.MAX_VALUE else seconds * 1000
-        if (current != target && Settings.System.canWrite(context)) {
-            runCatching {
-                Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, target)
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = runCatching {
+                Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT)
+            }.getOrNull() ?: return@launch
+            val target = if (seconds == -1) Int.MAX_VALUE else seconds * 1000
+            if (current != target && Settings.System.canWrite(context)) {
+                runCatching {
+                    Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, target)
+                }
             }
         }
     }
@@ -285,6 +288,7 @@ class PowerViewModel(
             is PowerIntent.SetSwallowTouch -> _uiState.update { it.copy(swallowTouch = intent.swallow) }
             PowerIntent.Foreground -> {
                 enforceScreenTimeout()
+                viewModelScope.launch(Dispatchers.IO) { com.custom.astrion.power.StorageHealth.refresh() }
                 // Re-apply motion-wake and HA foreground (marking them stale), keeping the filter.
                 synchronized(lock) { applied = applied?.let { it.copy(motionWake = !it.motionWake, foreground = !it.foreground) } }
                 dispatch(PowerInput.Tick(clock()))

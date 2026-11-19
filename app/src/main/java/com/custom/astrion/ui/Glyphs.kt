@@ -55,6 +55,23 @@ object Glyphs {
     val artwork: ImageVector by lazy { glyph("artwork", P("M4 5h16v14H4z", INK), P("M4 16l5-5 4 4 2-2 5 5", INK), P("M15.5 9h.01", INK)) }
     val prev: ImageVector by lazy { glyph("prev", P("M6 5.5v13", INK), P("M19 5.5v13L9 12z", INK, fill = INK)) }
     val next: ImageVector by lazy { glyph("next", P("M18 5.5v13", INK), P("M5 5.5v13L15 12z", INK, fill = INK)) }
+
+    // v3.0 Matte UI utility & page glyphs
+    val search: ImageVector by lazy { glyph("search", P("M10.5 4.5a6 6 0 1 0 0 12a6 6 0 1 0 0 -12z", INK), P("M15.2 15.2l4.3 4.3", INK)) }
+    val tv: ImageVector by lazy { glyph("tv", P("M4 6h16a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 20 18H4a1.5 1.5 0 0 1 -1.5 -1.5v-9A1.5 1.5 0 0 1 4 6z", INK), P("M8.5 21h7", INK)) }
+    val home: ImageVector by lazy { glyph("home", P("M4 11l8-7 8 7", INK), P("M6.5 10.5V20h11v-9.5", INK)) }
+    val eye: ImageVector by lazy { glyph("eye", P("M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z", INK), P("M12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0 -5z", INK)) }
+    val remote: ImageVector by lazy { glyph("remote", P("M7.5 3.5h9a2 2 0 0 1 2 2v13a2 2 0 0 1 -2 2h-9a2 2 0 0 1 -2 -2v-13a2 2 0 0 1 2 -2z", INK), P("M12 8.5h.01M9.5 13h.01M14.5 13h.01M9.5 16.5h.01M14.5 16.5h.01", INK)) }
+    val cool: ImageVector by lazy { glyph("cool", P("M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9", INK)) }
+    val heat: ImageVector by lazy { glyph("heat", P("M12 3.5c3 3.2 5.5 6 5.5 9.5a5.5 5.5 0 0 1 -11 0c0-2.1 1.1-4.1 2.4-5.8.2 1.7 1.3 2.5 2.1 2.5 1.3 0 1-2.7 1-6.2z", INK)) }
+    val fan: ImageVector by lazy { glyph("fan", P("M12 12a2 2 0 1 0 0 .01z", INK), P("M12 10c-1-3.5 1-6.5 3.5-6.5s3 3 0 5.5M14 12c3.5-1 6.5 1 6.5 3.5s-3 3-5.5 0M12 14c1 3.5-1 6.5-3.5 6.5s-3-3 0-5.5M10 12c-3.5 1-6.5-1-6.5-3.5s3-3 5.5 0", INK)) }
+    val sun: ImageVector by lazy { glyph("sun", P("M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0 -8z", INK), P("M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4", INK)) }
+    val sheer: ImageVector by lazy { glyph("sheer", P("M4 4.5h16v15H4z", INK), P("M8 4.5v15M12 4.5v15M16 4.5v15", INK)) }
+    val moon: ImageVector by lazy { glyph("moon", P("M18 14.5A6.5 6.5 0 0 1 9.5 6a6.5 6.5 0 1 0 8.5 8.5z", INK)) }
+    val radio: ImageVector by lazy { glyph("radio", P("M4 9.5h16a1.5 1.5 0 0 1 1.5 1.5v7.5A1.5 1.5 0 0 1 20 20H4a1.5 1.5 0 0 1 -1.5 -1.5V11A1.5 1.5 0 0 1 4 9.5z", INK), P("M7 9.5l9-5", INK), P("M8.5 14.5a2 2 0 1 0 0 .01zM14.5 13.5h3M14.5 16.5h3", INK)) }
+    val disc: ImageVector by lazy { glyph("disc", P("M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0 -16z", INK), P("M12 10a2 2 0 1 0 0 4a2 2 0 1 0 0 -4z", INK)) }
+    val headphones: ImageVector by lazy { glyph("headphones", P("M4.5 14v-2a7.5 7.5 0 0 1 15 0v2", INK), P("M4.5 14h2.5v5H5.5a1 1 0 0 1 -1 -1zM17 14h2.5v4a1 1 0 0 1 -1 1H17z", INK)) }
+    val more: ImageVector by lazy { glyph("more", P("M6 12h.01M12 12h.01M18 12h.01", INK)) }
 }
 
 private val INK = Color.Black

@@ -1,7 +1,6 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -142,7 +141,9 @@ fun QueueSheet(ctx: CardContext, player: String, speaker: String? = null, onClos
                     Caption("NOW PLAYING")
                     QueueRow(QueueItem(title, p.attrString("media_artist") ?: p.attrString("media_album_name"), null), now = true)
                     Note(
-                        if (direct && queue != null) "Playing on the Sonos directly, not from Music Assistant, so there's no queue to show."
+                        // MA answers "no active queue" with an error (null
+                        // here) when the Sonos plays something it didn't start.
+                        if (direct) "Playing on the Sonos directly, not from Music Assistant, so there's no queue to show."
                         else "Music Assistant didn't send the queue. Close and reopen to try again."
                     )
                 } else {
@@ -188,7 +189,6 @@ private fun QueueRow(item: QueueItem, now: Boolean) {
             .fillMaxWidth()
             .clip(shape)
             .background(if (now) AstrionTheme.colors.accentContainer else AstrionTheme.raised)
-            .then(if (now) Modifier.border(1.dp, AstrionTheme.accentStrong, shape) else Modifier)
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -225,7 +225,7 @@ private fun QueueRow(item: QueueItem, now: Boolean) {
             Text(
                 "${s / 60}:${(s % 60).toString().padStart(2, '0')}",
                 color = AstrionTheme.textMuted,
-                fontSize = AstrionTheme.size.small,
+                fontSize = AstrionTheme.size.label,
                 fontWeight = FontWeight.SemiBold,
             )
         }
@@ -246,7 +246,7 @@ private fun Caption(text: String) {
 
 @Composable
 private fun Note(text: String) {
-    Text(text, color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.small, modifier = Modifier.padding(4.dp))
+    Text(text, color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.label, modifier = Modifier.padding(4.dp))
 }
 
 private class QueueItem(val title: String, val artist: String?, val seconds: Int?)

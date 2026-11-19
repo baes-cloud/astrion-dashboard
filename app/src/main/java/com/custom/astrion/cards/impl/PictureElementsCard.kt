@@ -1,6 +1,8 @@
 package com.custom.astrion.cards.impl
 
 import com.custom.astrion.ui.parseHexColor
+import com.custom.astrion.ui.MIN_TOUCH
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
@@ -16,8 +18,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,7 +52,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -61,7 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.custom.astrion.ui.InWindowDialog
+import com.custom.astrion.ui.BottomSheet
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -136,11 +135,7 @@ class PictureElementsCard : CardRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (fill) Modifier.fillMaxHeight() else Modifier.aspectRatio(aspect))
-                // Inside a `stack` the container clips the outer corners; a
-                // second rounding here would notch the joins.
-                .then(if (config.bool("flush")) Modifier else Modifier.clip(RoundedCornerShape(18.dp)))
-                // Flush inside a stack, any letterbox margin shows the card's
-                // own fill, so it reads as spacing rather than black bars.
+                .then(if (config.bool("flush")) Modifier else Modifier.clip(RoundedCornerShape(16.dp)))
                 .then(if (config.bool("flush")) Modifier else Modifier.background(AstrionTheme.colors.surfacePrimary)),
             contentAlignment = Alignment.Center,
         ) {
@@ -242,114 +237,92 @@ class PictureElementsCard : CardRenderer {
                 )
             }
 
-            // 36dp: a touch smaller than the 40dp it was, so the plan shows more.
             val iconBox = 36.dp
 
-            elements.forEach { el ->
-                val leftPct = (el["left"] as? Number)?.toFloat() ?: 50f
-                val topPct = (el["top"] as? Number)?.toFloat() ?: 50f
+            // Pure immutable geometry derived from (elements, w, h) — never
+            // mutated inside composition, and clamped to both lower & upper edges.
+            val layout = remember(elements, w, h) {
+                elements.mapIndexed { index, el ->
+                    val leftPct = (el["left"] as? Number)?.toFloat() ?: 50f
+                    val topPct = (el["top"] as? Number)?.toFloat() ?: 50f
+                    val box = (el["size"] as? Number)?.toFloat()?.dp ?: iconBox
+                    val maxAx = (w - box).coerceAtLeast(0.dp)
+                    val maxAy = (h - box).coerceAtLeast(0.dp)
+                    val ax = (w * (leftPct / 100f) - box / 2).coerceIn(0.dp, maxAx)
+                    val ay = (h * (topPct / 100f) - box / 2).coerceIn(0.dp, maxAy)
+                    val hit = maxOf(box, MIN_TOUCH)
+                    val maxHx = (w - hit).coerceAtLeast(0.dp)
+                    val maxHy = (h - hit).coerceAtLeast(0.dp)
+                    val hx = (ax + box / 2 - hit / 2).coerceIn(0.dp, maxHx)
+                    val hy = (ay + box / 2 - hit / 2).coerceIn(0.dp, maxHy)
+                    FixtureLayout(
+                        index = index,
+                        el = el,
+                        box = box,
+                        ax = ax,
+                        ay = ay,
+                        hit = hit,
+                        hx = hx,
+                        hy = hy,
+                        centre = Offset((ax + box / 2).value, (ay + box / 2).value),
+                    )
+                }
+            }
+            val centres = remember(layout) { layout.associate { it.index to it.centre } }
+            val sentFlags = remember(elements) { androidx.compose.runtime.mutableStateMapOf<Int, Boolean>() }
+
+            fun triggerTap(targetIndex: Int) {
+                if (!ctx.connected) return
+                val el = elements.getOrNull(targetIndex) ?: return
                 val entityId = el["entity_id"] as? String
                 val service = el["service"] as? String
-                val isPower = (el["icon"] as? String) == "power"
-                // "shape": "square" for a fixture that isn't a light, like a blind;
-                // "bare": true for just the glyph, no backing disc.
-                val shape = if (el["shape"] == "square") RoundedCornerShape(10.dp) else CircleShape
-                val bare = el["bare"] == true
-
-                val entity = entityId?.let { ctx.entities[it] }
-                val on = entity?.isOn == true
-                // A Zigbee light that dropped off the mesh used to render as a
-                // dark icon — identical to one deliberately turned off — so the
-                // floorplan actively misreported the state of the house.
-                val elUnavailable = entityId != null && (entity == null || entity.isUnavailable)
-
-                // Position using cheap Modifier.offset instead of expensive layout padding
-                // "size" (dp) makes one fixture a bigger button than the rest.
-                val box = (el["size"] as? Number)?.toFloat()?.dp ?: iconBox
-                val x = w * (leftPct / 100f) - box / 2
-                val y = h * (topPct / 100f) - box / 2
-
-                // With lit rooms the bulb takes the light's own colour, so the
-                // icon matches the glow around it.
-                val glowColor = if (on && litRooms != null) entity?.let { lightColor(it, recolor) } else null
-                val bg = when {
-                    elUnavailable -> AstrionTheme.colors.danger.copy(alpha = 0.27f)
-                    glowColor != null -> glowColor.copy(alpha = 0.42f)
-                    on -> AstrionTheme.colors.lightOn.copy(alpha = 0.4f)
-                    else -> Color.Black.copy(alpha = 0.2f)
-                }
-                val tint = when {
-                    elUnavailable -> AstrionTheme.colors.danger
-                    glowColor != null -> lerp(glowColor, Color.White, 0.65f)
-                    on -> AstrionTheme.colors.lightOnBright
-                    else -> AstrionTheme.colors.onSurface
-                }
-                val icon = when {
-                    isPower -> Icons.Filled.PowerSettingsNew
-                    elUnavailable -> Icons.Filled.HelpOutline
-                    else -> fixtureGlyph(el["icon"] as? String)
-                        ?: if (on) Icons.Filled.Lightbulb else Icons.Outlined.Lightbulb
-                }
-
-                // The most-tapped targets on Main, and they gave no feedback
-                // at all until HA echoed the new state back (often hundreds
-                // of ms). Now: a haptic on tap and hold, and a ring for a
-                // moment to show the tap was sent.
-                var sent by remember(entityId, service) { mutableStateOf(false) }
-                LaunchedEffect(sent) {
-                    if (sent) {
-                        delay(SENT_RING_MS)
-                        sent = false
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                sentFlags[targetIndex] = true
+                when {
+                    entityId != null -> ctx.client.toggle(entityId)
+                    service != null -> {
+                        val domain = service.substringBefore('.')
+                        val svc = service.substringAfter('.')
+                        val targets = (el["targets"] as? List<*>)?.filterIsInstance<String>().orEmpty()
+                        if (targets.isEmpty()) {
+                            ctx.client.callService(ServiceCall(domain, svc))
+                        } else {
+                            targets.forEach { t ->
+                                ctx.client.callService(ServiceCall(domain, svc, entityId = t))
+                            }
+                        }
                     }
                 }
-                Icon(
-                    imageVector = icon,
-                    // What a screen reader says: the light's name and state, not its id.
-                    contentDescription = entity?.let { "${it.friendlyName}, ${it.state.humanise()}" } ?: entityId,
-                    // "color" (hex) for a bare glyph that sits on something pale.
-                    tint = parseHexColor(el["color"] as? String)?.takeIf { !elUnavailable } ?: tint,
-                    modifier = Modifier
-                        .offset(x = x.coerceAtLeast(0.dp), y = y.coerceAtLeast(0.dp))
-                        .size(box)
-                        .clip(shape)
-                        .background(if (bare) Color.Transparent else bg)
-                        .then(
-                            if (sent) Modifier.border(2.dp, AstrionTheme.accent.copy(alpha = 0.85f), shape)
-                            else Modifier
-                        )
-                        .pointerInput(entityId, service) {
-                            detectTapGestures(
-                                // Long-press a light icon → colour/brightness popup
-                                // (same dialog as the bubble_light card).
-                                onLongPress = if (entityId?.startsWith("light.") == true) {
-                                    { _ ->
-                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        detailEntity = entityId
-                                    }
-                                } else null,
-                                onTap = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    sent = true
-                                    when {
-                                        entityId != null -> ctx.client.toggle(entityId)
-                                        service != null -> {
-                                            val domain = service.substringBefore('.')
-                                            val svc = service.substringAfter('.')
-                                            val targets = (el["targets"] as? List<*>)?.filterIsInstance<String>().orEmpty()
-                                            if (targets.isEmpty()) {
-                                                ctx.client.callService(ServiceCall(domain, svc))
-                                            } else {
-                                                targets.forEach { t ->
-                                                    ctx.client.callService(ServiceCall(domain, svc, entityId = t))
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                            )
-                        }
-                        .padding(6.dp),
-                )
+            }
+
+            fun triggerHold(targetIndex: Int) {
+                if (!ctx.connected) return
+                val el = elements.getOrNull(targetIndex) ?: return
+                val entityId = el["entity_id"] as? String
+                if (entityId?.startsWith("light.") == true) {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    detailEntity = entityId
+                } else {
+                    triggerTap(targetIndex)
+                }
+            }
+
+            // Per-fixture composable isolation: toggling one light recomposes only
+            // its own FloorplanFixture scope instead of all 16 fixtures.
+            layout.forEach { item ->
+                key(item.index) {
+                    FloorplanFixture(
+                        item = item,
+                        ctx = ctx,
+                        hasLitRooms = litRooms != null,
+                        recolor = recolor,
+                        sent = sentFlags[item.index] == true,
+                        onClearSent = { sentFlags.remove(item.index) },
+                        centres = centres,
+                        onTapIndex = ::triggerTap,
+                        onHoldIndex = ::triggerHold,
+                    )
+                }
             }
 
             // Radar overlays: plot mmWave target dots (e.g. LD2450) on the plan.
@@ -393,19 +366,112 @@ class PictureElementsCard : CardRenderer {
             }
 
             if (showVacuumDialog && vacuumOpts != null) {
-                InWindowDialog(onDismissRequest = { showVacuumDialog = false }) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(AstrionTheme.colors.surface)
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        VacuumPanelContent(vacuumOpts, ctx)
-                    }
+                val vacId = vacuumOpts["entity_id"] as? String
+                val vacState = vacId?.let { ctx.entities[it]?.state }
+                BottomSheet(
+                    title = (vacuumOpts["name"] as? String) ?: "Vacuum",
+                    subtitle = vacState?.let(::prettyVacuumLabel),
+                    onDismissRequest = { showVacuumDialog = false },
+                ) {
+                    VacuumPanelContent(vacuumOpts, ctx, showHeader = false)
                 }
             }
+        }
+    }
+
+    private data class FixtureLayout(
+        val index: Int,
+        val el: Map<String, Any?>,
+        val box: Dp,
+        val ax: Dp,
+        val ay: Dp,
+        val hit: Dp,
+        val hx: Dp,
+        val hy: Dp,
+        val centre: Offset,
+    )
+
+    @Composable
+    private fun FloorplanFixture(
+        item: FixtureLayout,
+        ctx: CardContext,
+        hasLitRooms: Boolean,
+        recolor: List<Pair<Color, Color>>,
+        sent: Boolean,
+        onClearSent: () -> Unit,
+        centres: Map<Int, Offset>,
+        onTapIndex: (Int) -> Unit,
+        onHoldIndex: (Int) -> Unit,
+    ) {
+        val el = item.el
+        val entityId = el["entity_id"] as? String
+        val isPower = (el["icon"] as? String) == "power"
+        val shape = if (el["shape"] == "square") RoundedCornerShape(10.dp) else CircleShape
+        val bare = el["bare"] == true
+
+        val entity = entityId?.let { ctx.entities[it] }
+        val on = entity?.isOn == true
+        val elUnavailable = entityId != null && (entity == null || entity.isUnavailable)
+        val offlineAlpha = if (ctx.connected) 1f else 0.56f
+
+        LaunchedEffect(sent) {
+            if (sent) {
+                delay(SENT_RING_MS)
+                onClearSent()
+            }
+        }
+
+        // Translucent discs (Bae preferred these to v3's solid ones): a soft
+        // wash of the light's own colour when on, so the icon matches the glow.
+        val glowColor = if (on && hasLitRooms) entity?.let { lightColor(it, recolor) } else null
+        val bg = when {
+            elUnavailable -> AstrionTheme.colors.danger.copy(alpha = 0.27f)
+            glowColor != null -> glowColor.copy(alpha = 0.42f)
+            on -> AstrionTheme.colors.lightOn.copy(alpha = 0.4f)
+            else -> Color.Black.copy(alpha = 0.2f)
+        }
+        val tint = when {
+            elUnavailable -> AstrionTheme.colors.danger
+            glowColor != null -> androidx.compose.ui.graphics.lerp(glowColor, Color.White, 0.65f)
+            on -> AstrionTheme.colors.lightOnBright
+            else -> AstrionTheme.colors.onSurface
+        }
+        val icon = when {
+            isPower -> Icons.Filled.PowerSettingsNew
+            elUnavailable -> Icons.Filled.HelpOutline
+            else -> fixtureGlyph(el["icon"] as? String)
+                ?: if (on) Icons.Filled.Lightbulb else Icons.Outlined.Lightbulb
+        }
+
+        Box(
+            Modifier
+                .offset(x = item.hx, y = item.hy)
+                .size(item.hit)
+                .graphicsLayer { alpha = offlineAlpha }
+                .pointerInput(item.index, item.hx, item.hy, centres) {
+                    fun target(at: Offset): Int =
+                        nearestElement(centres, item.hx.value + at.x / density, item.hy.value + at.y / density) ?: item.index
+                    detectTapGestures(
+                        onLongPress = { at -> onHoldIndex(target(at)) },
+                        onTap = { at -> onTapIndex(target(at)) },
+                    )
+                },
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = entity?.let { "${it.friendlyName}, ${it.state.humanise()}" } ?: entityId,
+                tint = parseHexColor(el["color"] as? String)?.takeIf { !elUnavailable } ?: tint,
+                modifier = Modifier
+                    .offset(x = item.ax - item.hx, y = item.ay - item.hy)
+                    .size(item.box)
+                    .clip(shape)
+                    .background(if (bare) Color.Transparent else bg)
+                    .then(
+                        if (sent) Modifier.border(2.dp, AstrionTheme.accent.copy(alpha = 0.85f), shape)
+                        else Modifier
+                    )
+                    .padding(6.dp),
+            )
         }
     }
 
@@ -467,8 +533,7 @@ class PictureElementsCard : CardRenderer {
             modifier = modifier
                 .height(40.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(AstrionTheme.colors.pinnedTopBg.copy(alpha = 0.85f))
-                .border(1.dp, AstrionTheme.colors.hairline, RoundedCornerShape(14.dp)),
+                .background(AstrionTheme.colors.surfaceElevated.copy(alpha = 0.92f)),
             contentAlignment = Alignment.Center,
         ) {
             val opts = ((card["options"] as? Map<String, Any?>) ?: emptyMap()) + ("flush" to true)
@@ -691,7 +756,7 @@ class PictureElementsCard : CardRenderer {
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("${i + 1}", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.Bold)
+                    Text("${i + 1}", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -757,7 +822,7 @@ class PictureElementsCard : CardRenderer {
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Text("$label$id", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.Bold)
+            Text("$label$id", color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.Bold)
         }
     }
 
@@ -807,3 +872,13 @@ private fun fixtureGlyph(key: String?): androidx.compose.ui.graphics.vector.Imag
     "roller_blind", "blind" -> Glyphs.rollerBlind
     else -> null
 }
+
+/**
+ * The element whose centre is closest to ([x], [y]), all in the same units;
+ * null if there are none. Ties go to the lower index, so the answer doesn't
+ * depend on map order.
+ */
+internal fun nearestElement(centres: Map<Int, Offset>, x: Float, y: Float): Int? =
+    centres.entries.minWithOrNull(
+        compareBy<Map.Entry<Int, Offset>>({ (it.value.x - x) * (it.value.x - x) + (it.value.y - y) * (it.value.y - y) }, { it.key })
+    )?.key

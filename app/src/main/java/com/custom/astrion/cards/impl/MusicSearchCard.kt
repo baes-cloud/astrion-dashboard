@@ -1,11 +1,24 @@
 package com.custom.astrion.cards.impl
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -23,7 +36,12 @@ import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,8 +65,8 @@ import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.HitTarget
 import com.custom.astrion.ui.InWindowDialog
+import com.custom.astrion.ui.components.BaeoSectionHeader
 import com.custom.astrion.ui.tap
-import android.util.Log
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -59,24 +77,11 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 
 /**
- * Music search: a "Search music" bar that opens a panel with a text field,
- * type filters and results from Music Assistant (`music_assistant.search`),
- * so it covers every provider MA has: the local library now, Spotify etc.
- * once they're added in MA. Tap a result to play it now on [player]; tap its
- * + to add it to the queue instead.
- *
- * With `browse_players`, a library button sits beside the bar and opens HA's
- * media browser ([MediaBrowser]) for those players, e.g. the Sonos rooms:
- * favourites, Sonos library, Plex, Spotify, radio. The first is the default.
- *
- * Config:
- *   { "type": "music_search", "options": {
- *       "config_entry_id": "01KVF3KES1KSZ0JYSXJ405AKVA",   // the MA integration
- *       "player": "media_player.club_2",                    // an MA player
- *       "placeholder": "Search music",
- *       "limit": 8,                                         // per type
- *       "browse_players": ["media_player.club", "media_player.bedroom_sonos"]
- *   } }
+ * Music search bar (Bæo v3.0 Matte Tonal):
+ *  - Recessed borderless matte search pill + library browser button.
+ *  - Fixes double-X confusion by using a text "Clear" control inside the input
+ *    and a circular close button outside.
+ *  - Wires [MediaBrowserDialog] folder stack to physical BACK.
  */
 class MusicSearchCard : CardRenderer {
     override val type = "music_search"
@@ -95,24 +100,24 @@ class MusicSearchCard : CardRenderer {
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(AstrionTheme.cardBgAlt)
+                    .height(42.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(AstrionTheme.cardBg)
                     .tap(enabled = ctx.connected) { open = true }
                     .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.Search, contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.Search, contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(19.dp))
                 Spacer(Modifier.width(10.dp))
                 Text(placeholder, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.body)
             }
             if (browsePlayers.isNotEmpty()) {
                 Spacer(Modifier.width(8.dp))
                 HitTarget(
-                    visual = 40.dp,
+                    visual = 42.dp,
                     enabled = ctx.connected,
                     onClick = { browsing = true },
-                    face = Modifier.clip(CircleShape).background(AstrionTheme.cardBgAlt),
+                    face = Modifier.clip(RoundedCornerShape(14.dp)).background(AstrionTheme.cardBg),
                 ) {
                     Icon(Icons.Filled.LibraryMusic, contentDescription = "Browse music", tint = AstrionTheme.accent, modifier = Modifier.size(20.dp))
                 }
@@ -121,26 +126,23 @@ class MusicSearchCard : CardRenderer {
 
         if (open) {
             InWindowDialog(onDismissRequest = { open = false }) {
-                SearchPanel(ctx, entry, player, placeholder, limit) { open = false }
+                MusicSearchPanel(ctx, entry, player, placeholder, limit) { open = false }
             }
         }
 
         if (browsing) {
-            // Names are read once on open; a renamed room shows next time.
             val rooms = remember(browsePlayers) {
                 browsePlayers.map { BrowseRoom(it, ctx.entity(it)?.friendlyName ?: it.substringAfter('.')) }
             }
-            InWindowDialog(onDismissRequest = { browsing = false }) {
-                MediaBrowser(ctx.client, rooms) { browsing = false }
-            }
+            MediaBrowserDialog(ctx.client, rooms) { browsing = false }
         }
     }
 }
 
-/** One result, already flattened for a row. */
 private data class Hit(
     val name: String,
     val subtitle: String,
+    val provider: String?,
     val uri: String,
     val mediaType: String,
     val image: String?,
@@ -156,12 +158,12 @@ private enum class Kind(val label: String, val key: String, val maType: String?)
 }
 
 @Composable
-private fun SearchPanel(
+internal fun MusicSearchPanel(
     ctx: CardContext,
     entry: String,
     player: String,
-    placeholder: String,
-    limit: Int,
+    placeholder: String = "Search music",
+    limit: Int = 8,
     onClose: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
@@ -175,7 +177,6 @@ private fun SearchPanel(
 
     LaunchedEffect(Unit) { focus.requestFocus() }
 
-    // Search as you type, after a short pause, so each keystroke isn't a call.
     LaunchedEffect(query, kind) {
         val q = query.trim()
         if (q.length < 2) {
@@ -188,7 +189,6 @@ private fun SearchPanel(
         val found = runCatching { search(ctx, entry, q, kind, limit) }
             .onFailure { Log.w("MusicSearch", "search failed", it) }
             .getOrNull()
-        Log.d("MusicSearch", "\"$q\" ${kind.label}: ${found?.values?.sumOf { it.size } ?: "no answer"}")
         failed = found == null
         results = found
         busy = false
@@ -210,8 +210,8 @@ private fun SearchPanel(
         Modifier
             .fillMaxWidth()
             .fillMaxHeight()
-            .clip(RoundedCornerShape(22.dp))
-            .background(AstrionTheme.colors.surfaceVariant)
+            .clip(RoundedCornerShape(AstrionTheme.surfaces.dialogCornerRadius))
+            .background(AstrionTheme.cardBg)
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -220,22 +220,22 @@ private fun SearchPanel(
                 Modifier
                     .weight(1f)
                     .height(46.dp)
-                    .clip(RoundedCornerShape(23.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(AstrionTheme.colors.surfacePrimary)
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.Search, contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(10.dp))
+                Icon(Icons.Filled.Search, contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(19.dp))
+                Spacer(Modifier.width(8.dp))
                 Box(Modifier.weight(1f)) {
                     if (query.isEmpty()) {
-                        Text(placeholder, color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.bodyLarge)
+                        Text(placeholder, color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.body)
                     }
                     BasicTextField(
                         value = query,
                         onValueChange = { query = it },
                         singleLine = true,
-                        textStyle = TextStyle(color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.bodyLarge),
+                        textStyle = TextStyle(color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body),
                         cursorBrush = SolidColor(AstrionTheme.accent),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
@@ -243,9 +243,16 @@ private fun SearchPanel(
                     )
                 }
                 if (query.isNotEmpty()) {
-                    HitTarget(visual = 26.dp, onClick = { query = "" }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Clear", tint = AstrionTheme.textSecondary, modifier = Modifier.size(18.dp))
-                    }
+                    Text(
+                        text = "Clear",
+                        color = AstrionTheme.accent,
+                        fontSize = AstrionTheme.size.label,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .tap { query = "" }
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                    )
                 }
             }
             Spacer(Modifier.width(8.dp))
@@ -258,9 +265,8 @@ private fun SearchPanel(
             }
         }
 
-        // Type filters, scrollable sideways if they don't fit.
         Row(
-            Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Kind.entries.forEach { k ->
@@ -268,10 +274,10 @@ private fun SearchPanel(
                 Text(
                     k.label,
                     color = if (on) AstrionTheme.colors.onPrimary else AstrionTheme.textSecondary,
-                    fontSize = AstrionTheme.size.small,
+                    fontSize = AstrionTheme.size.label,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .background(if (on) AstrionTheme.accentStrong else AstrionTheme.raised)
                         .tap { kind = k }
                         .padding(horizontal = 12.dp, vertical = 7.dp),
@@ -280,7 +286,17 @@ private fun SearchPanel(
         }
 
         queued?.let {
-            Text(it, color = AstrionTheme.accent, fontSize = AstrionTheme.size.small)
+            Text(
+                it,
+                color = AstrionTheme.accent,
+                fontSize = AstrionTheme.size.label,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(AstrionTheme.accentContainer)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
             LaunchedEffect(it) { delay(2500); queued = null }
         }
 
@@ -296,19 +312,14 @@ private fun SearchPanel(
             ) {
                 shown.forEach { (k, hits) ->
                     if (hits.isEmpty()) return@forEach
-                    if (kind == Kind.ALL) item(key = "h-${k.key}") {
-                        Text(
-                            k.label.uppercase(),
-                            color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.label,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp, start = 4.dp),
-                        )
+                    if (kind == Kind.ALL) item(key = "h-${k.key}", contentType = "header") {
+                        BaeoSectionHeader(k.label, modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
                     }
-                    items(hits, key = { "${k.key}-${it.uri}" }) { hit ->
+                    items(hits, key = { "${k.key}-${it.uri}" }, contentType = { "hit" }) { hit ->
                         HitRow(
                             ctx, hit,
                             onPlay = { keyboard?.hide(); play(hit, "replace"); onClose() },
-                            onQueue = { play(hit, "add"); queued = "Added “${hit.name}” to the queue" },
+                            onQueue = { play(hit, "add"); queued = "Added “${hit.name}” to queue" },
                         )
                     }
                 }
@@ -320,7 +331,7 @@ private fun SearchPanel(
 @Composable
 private fun Hint(text: String) {
     Text(
-        text, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small,
+        text, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label,
         modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 4.dp),
     )
 }
@@ -338,10 +349,30 @@ private fun HitRow(ctx: CardContext, hit: Hit, onPlay: () -> Unit, onQueue: () -
         Art(ctx, hit)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(
-                hit.name, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body,
-                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    hit.name,
+                    color = AstrionTheme.textPrimary,
+                    fontSize = AstrionTheme.size.body,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                hit.provider?.let { prov ->
+                    Text(
+                        text = prov,
+                        color = AstrionTheme.textSecondary,
+                        fontSize = AstrionTheme.size.micro,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(AstrionTheme.raised)
+                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                    )
+                }
+            }
             if (hit.subtitle.isNotBlank()) {
                 Text(
                     hit.subtitle, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label,
@@ -354,7 +385,7 @@ private fun HitRow(ctx: CardContext, hit: Hit, onPlay: () -> Unit, onQueue: () -
             onClick = onQueue,
             face = Modifier.clip(CircleShape).background(AstrionTheme.controlBg),
         ) {
-            Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = "Add ${hit.name} to the queue", tint = AstrionTheme.textOnControl, modifier = Modifier.size(18.dp))
+            Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = "Add ${hit.name} to queue", tint = AstrionTheme.textOnControl, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -389,7 +420,6 @@ private fun typeIcon(t: String): ImageVector = when (t) {
     else -> Icons.Filled.MusicNote
 }
 
-/** `music_assistant.search`, flattened per type. Null if HA didn't answer. */
 private suspend fun search(ctx: CardContext, entry: String, q: String, kind: Kind, limit: Int): Map<Kind, List<Hit>>? {
     val data = buildJsonObject {
         put("config_entry_id", entry)
@@ -412,25 +442,23 @@ private fun parseHit(o: JsonObject?, fallbackType: String): Hit? {
     val artists = (o["artists"] as? JsonArray).orEmpty()
         .mapNotNull { ((it as? JsonObject)?.get("name") as? JsonPrimitive)?.contentOrNull }
     val album = ((o["album"] as? JsonObject)?.get("name") as? JsonPrimitive)?.contentOrNull
-    // Where it comes from, so a Spotify result reads differently from the library.
-    // MA names provider instances like "spotify--x8r8ytof"; the part before "--" is enough.
-    val provider = uri.substringBefore("://").substringBefore("--")
-    val source = when (provider) {
+    val rawProvider = uri.substringBefore("://").substringBefore("--")
+    val source = when (rawProvider) {
         "library" -> null
         "spotify" -> "Spotify"
-        else -> provider.replace('_', ' ').replaceFirstChar(Char::uppercase)
+        "filesystem_smb", "filesystem_local" -> "Local"
+        else -> rawProvider.replace('_', ' ').replaceFirstChar(Char::uppercase)
     }
     val subtitle = listOfNotNull(
         artists.takeIf { it.isNotEmpty() }?.joinToString(", "),
         album?.takeIf { type == "track" },
-        source,
     ).joinToString(" · ")
     return Hit(
         name = str("name") ?: uri,
         subtitle = subtitle,
+        provider = source,
         uri = uri,
         mediaType = type,
-        // MA's imageproxy serves full size at size=0; a row needs ~96 px.
         image = str("image")?.takeIf { it.isNotBlank() }?.replace("size=0", "size=128"),
     )
 }

@@ -188,12 +188,12 @@ private fun HomeView(
             ) {
                 Text(
                     "New here?",
-                    color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.title,
+                    color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.emphasis,
                     fontFamily = AstrionTheme.headingFont, fontWeight = FontWeight.Bold,
                 )
                 Text(
                     "Two minutes on the real buttons. Nothing you press actually happens, so press away.",
-                    color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.size.small,
+                    color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.size.label,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     PrimaryButton("Start walkthrough", Modifier.weight(1.3f), onTour)
@@ -257,7 +257,7 @@ private fun PressKinds() {
                 Spacer(Modifier.width(8.dp))
                 Column {
                     Text(
-                        kind.word, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.small,
+                        kind.word, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.label,
                         fontWeight = FontWeight.SemiBold, maxLines = 1,
                     )
                     Text(how, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label, maxLines = 2)
@@ -305,7 +305,7 @@ private fun ActionLine(kind: PressKind, action: String, emphasised: Boolean = fa
             modifier = Modifier.width(78.dp), maxLines = 1,
         )
         Text(
-            action, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.small,
+            action, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.label,
             modifier = Modifier.weight(1f),
         )
     }
@@ -332,7 +332,7 @@ private fun TipCard(tip: GuideTip, open: Boolean, onToggle: () -> Unit, extra: @
             }
             Spacer(Modifier.width(10.dp))
             Text(
-                tip.title, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.bodyLarge,
+                tip.title, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body,
                 fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
             )
             Icon(
@@ -349,10 +349,10 @@ private fun TipCard(tip: GuideTip, open: Boolean, onToggle: () -> Unit, extra: @
                 tip.steps.forEachIndexed { i, step ->
                     Row {
                         Text(
-                            "${i + 1}", color = AstrionTheme.accent, fontSize = AstrionTheme.size.small,
+                            "${i + 1}", color = AstrionTheme.accent, fontSize = AstrionTheme.size.label,
                             fontWeight = FontWeight.Bold, modifier = Modifier.width(20.dp),
                         )
-                        Text(step, color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.size.small, modifier = Modifier.weight(1f))
+                        Text(step, color = AstrionTheme.colors.textSoft, fontSize = AstrionTheme.size.label, modifier = Modifier.weight(1f))
                     }
                 }
                 extra()
@@ -381,7 +381,7 @@ private fun VoiceExamples(catalog: GuideCatalog) {
             pair.forEach { phrase ->
                 Text(
                     "“$phrase”",
-                    color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.small,
+                    color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.label,
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(10.dp))
@@ -496,7 +496,7 @@ private fun TourView(
                     } else {
                         Text(
                             "Skip this step",
-                            color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.small,
+                            color = AstrionTheme.textMuted, fontSize = AstrionTheme.size.label,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
@@ -610,7 +610,7 @@ private fun LoneKeys(catalog: GuideCatalog, keys: Set<HardwareKey>) {
                 KeyIcon(key, if (many) 30.dp else 48.dp, AstrionTheme.textOnControl)
                 Text(
                     catalog.forKey(key)?.name ?: key.name,
-                    color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.small,
+                    color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.label,
                     fontWeight = FontWeight.SemiBold, maxLines = 1, textAlign = TextAlign.Center,
                 )
             }
@@ -630,7 +630,7 @@ private fun Waiting(kind: PressKind) {
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         PressGlyph(kind, AstrionTheme.accent, scale = 1.6f)
-        Text("Your turn\u2026", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small)
+        Text("Your turn\u2026", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
     }
 }
 
@@ -659,12 +659,12 @@ private fun Feedback(catalog: GuideCatalog, press: GuidePress, correct: Boolean,
             }
             Text(
                 "${press.kind.word} · ${help?.name ?: press.key.name}",
-                color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.bodyLarge, fontWeight = FontWeight.SemiBold,
+                color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.body, fontWeight = FontWeight.SemiBold,
             )
         }
         Text(
             action ?: "That one isn't set up to do anything.",
-            color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.title,
+            color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.emphasis,
             fontFamily = AstrionTheme.headingFont,
         )
         if (!correct && wanted != null) {
@@ -672,7 +672,7 @@ private fun Feedback(catalog: GuideCatalog, press: GuidePress, correct: Boolean,
             Text(
                 if (sameKey) "Close! That was a ${press.kind.word.lowercase()}. Try a ${wanted.kind.word.lowercase()}."
                 else "Not that one. ${wanted.hint}",
-                color = AstrionTheme.blush, fontSize = AstrionTheme.size.small,
+                color = AstrionTheme.blush, fontSize = AstrionTheme.size.label,
             )
         }
     }
@@ -700,12 +700,12 @@ private fun PlayView(catalog: GuideCatalog, shown: GuidePress?, onBack: () -> Un
                     Icon(Icons.Filled.SettingsRemote, contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(44.dp))
                     Text(
                         "Press or hold any button",
-                        color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.title,
+                        color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.emphasis,
                         fontFamily = AstrionTheme.headingFont, textAlign = TextAlign.Center,
                     )
                     Text(
                         "and this screen says what it does.",
-                        color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small,
+                        color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label,
                     )
                 }
             } else {
@@ -732,7 +732,7 @@ private fun Header(title: String, subtitle: String, onClose: () -> Unit) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                title, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.displaySm,
+                title, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.displayMd,
                 fontFamily = AstrionTheme.headingFont, fontWeight = FontWeight.Bold,
             )
             Text(subtitle, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
@@ -781,7 +781,7 @@ private fun KeyCap(help: KeyHelp) {
         KeyIcon(help.key, 18.dp)
         Spacer(Modifier.width(7.dp))
         Text(
-            help.name, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.small,
+            help.name, color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.label,
             fontWeight = FontWeight.SemiBold, letterSpacing = 0.02.em,
         )
     }
@@ -824,7 +824,7 @@ private fun Segmented(labels: List<String>, selected: Int, onSelect: (Int) -> Un
                 Text(
                     label,
                     color = if (on) AstrionTheme.colors.onPrimary else AstrionTheme.textSecondary,
-                    fontSize = AstrionTheme.size.small, fontWeight = FontWeight.SemiBold,
+                    fontSize = AstrionTheme.size.label, fontWeight = FontWeight.SemiBold,
                 )
             }
         }

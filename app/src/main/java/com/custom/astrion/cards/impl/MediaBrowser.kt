@@ -85,10 +85,44 @@ private val HIDDEN_SOURCES = setOf("ai_task", "camera", "image", "image_upload",
  * capped at [MAX_ROWS]), and covers decode at row size through [ArtCache].
  */
 @Composable
-fun MediaBrowser(client: HaClient, rooms: List<BrowseRoom>, onClose: () -> Unit) {
+fun MediaBrowserDialog(
+    client: HaClient,
+    rooms: List<BrowseRoom>,
+    onClose: () -> Unit,
+) {
+    val stack = remember { mutableStateListOf(Level(null, null, "Library")) }
+    com.custom.astrion.ui.InWindowDialog(
+        onDismissRequest = onClose,
+        onBack = {
+            if (stack.size > 1) {
+                stack.removeAt(stack.size - 1)
+                true
+            } else false
+        },
+    ) {
+        MediaBrowser(client = client, rooms = rooms, stack = stack, onClose = onClose)
+    }
+}
+
+@Composable
+fun MediaBrowser(
+    client: HaClient,
+    rooms: List<BrowseRoom>,
+    onClose: () -> Unit,
+) {
+    val stack = remember { mutableStateListOf(Level(null, null, "Library")) }
+    MediaBrowser(client = client, rooms = rooms, stack = stack, onClose = onClose)
+}
+
+@Composable
+private fun MediaBrowser(
+    client: HaClient,
+    rooms: List<BrowseRoom>,
+    stack: androidx.compose.runtime.snapshots.SnapshotStateList<Level>,
+    onClose: () -> Unit,
+) {
     if (rooms.isEmpty()) return
     var room by remember { mutableStateOf(rooms.first()) }
-    val stack = remember { mutableStateListOf(Level(null, null, "Library")) }
     var note by remember { mutableStateOf<String?>(null) }
     var retry by remember { mutableIntStateOf(0) }
     val level = stack.last()
@@ -145,7 +179,7 @@ fun MediaBrowser(client: HaClient, rooms: List<BrowseRoom>, onClose: () -> Unit)
             Text(
                 level.title,
                 color = AstrionTheme.textPrimary,
-                fontSize = AstrionTheme.size.title,
+                fontSize = AstrionTheme.size.emphasis,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -167,7 +201,7 @@ fun MediaBrowser(client: HaClient, rooms: List<BrowseRoom>, onClose: () -> Unit)
                     Text(
                         r.name,
                         color = if (on) AstrionTheme.colors.onPrimary else AstrionTheme.textSecondary,
-                        fontSize = AstrionTheme.size.small,
+                        fontSize = AstrionTheme.size.label,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
                             .clip(RoundedCornerShape(16.dp))
@@ -186,7 +220,7 @@ fun MediaBrowser(client: HaClient, rooms: List<BrowseRoom>, onClose: () -> Unit)
         }
 
         note?.let {
-            Text(it, color = AstrionTheme.accent, fontSize = AstrionTheme.size.small)
+            Text(it, color = AstrionTheme.accent, fontSize = AstrionTheme.size.label)
             LaunchedEffect(it) { delay(2500); note = null }
         }
 
@@ -297,7 +331,7 @@ private fun Art(client: HaClient, item: MediaItem) {
 @Composable
 private fun Hint(text: String) {
     Text(
-        text, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.small,
+        text, color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label,
         modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 4.dp),
     )
 }

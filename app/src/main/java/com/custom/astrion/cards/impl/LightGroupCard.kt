@@ -249,7 +249,7 @@ class LightGroupCard : CardRenderer {
                 )
             }
             Column(Modifier.weight(1f)) {
-                Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.small, fontWeight = FontWeight.SemiBold,
+                Text(name, color = AstrionTheme.colors.onSurface, fontSize = AstrionTheme.size.label, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(if (on) "On" else "Off", color = AstrionTheme.colors.onSurfaceVariant, fontSize = AstrionTheme.size.label)
             }

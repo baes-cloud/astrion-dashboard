@@ -1,26 +1,27 @@
 package com.custom.astrion.cards.impl
 
-import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,45 +29,28 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.input.VolumeFocus
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.LocalNavEpoch
 import com.custom.astrion.ui.LocalPageNameOverride
+import com.custom.astrion.ui.components.BaeoSegmentItem
+import com.custom.astrion.ui.components.BaeoSegmentedBar
 import com.custom.astrion.ui.tap
 import kotlinx.coroutines.launch
 
 /**
- * Generic swipeable container: stacks child cards on top of each other and
- * swipes between them. With `titles`, a segmented tab bar picks the page;
- * without, a title and pagination dots.
- *
- * The sibling of [RowCard] — that one puts children side by side, this one
- * puts them one behind the other. Used on Media to keep the big player and the
- * Sonos shelves in the same slot instead of making the page twice as long.
- *
- * The dots are tappable, not decoration. Children like `media_shelves` are
- * built from LazyRows, which eat horizontal drags for their own scrolling, so
- * on those pages the only reliable swipe surface is the gaps between rows —
- * the dots give a way through that always works.
- *
- * Config shape:
- *   { "type": "swipe_stack", "options": {
- *       "titles": ["Player", "Media"],
- *       "height": 330,
- *       "cards": [
- *         { "type": "media_player",  "options": { ... } },
- *         { "type": "media_shelves", "options": { ... } }
- *       ]
- *   } }
- *
- * `device_names` (optional, one per child) replaces the page's device name in
- * the footer while that child is showing.
- *
- * A tab can hold several cards: { "type": "column", "options": {
- *   "spacing": 10, "cards": [ ... ] } }.
- *
- * `height` is in dp and fixes the swipe area. Left at 0 the pager sizes to its
- * content, which makes the whole page jump as you drag between children of
- * different heights.
+ * Lets a child inside [SwipeStackCard] jump to a sibling tab (e.g., Player's
+ * Active-Zone pill -> Zones tab 2, Media's Mini Now-Playing bar -> Player tab 0).
+ */
+val LocalTabSwitcher = compositionLocalOf<((Int) -> Unit)?> { null }
+
+/**
+ * Borderless matte swipeable container (Bæo v3.0):
+ *  - Recessed `BaeoSegmentedBar` (`#141B22` trough + `#28333F` elevated matte
+ *    pill — zero neon glow, zero drop shadows, zero borders).
+ *  - `beyondViewportPageCount = 2` keeps all 3 Media tabs warm and composed.
+ *  - `fillMaxSize()` inside `HorizontalPager` retires the hardcoded `height: 454`
+ *    hack and supports `"pin": "fill"` children inside `"column"` tabs.
  */
 class SwipeStackCard : CardRenderer {
     override val type = "swipe_stack"
@@ -78,20 +62,16 @@ class SwipeStackCard : CardRenderer {
         if (children.isEmpty()) return
         val titles = config.stringList("titles")
         val height = config.int("height", 0)
+        val fill = config.options["pin"] == "fill"
 
         val pagerState = rememberPagerState(pageCount = { children.size })
         val scope = rememberCoroutineScope()
-        // A button jump (the music key, the 5 min home timer) opens on the
-        // first tab rather than wherever it was left.
         val navEpoch = LocalNavEpoch.current
         LaunchedEffect(navEpoch) {
             if (navEpoch > 0 && pagerState.currentPage != 0) pagerState.scrollToPage(0)
         }
-        // Leaving the Zones tab (to Player or Media) gives the volume keys back to the Club.
-        LaunchedEffect(pagerState.currentPage) { com.custom.astrion.input.VolumeFocus.clear() }
+        LaunchedEffect(pagerState.currentPage) { VolumeFocus.clear() }
 
-        // Per-tab device names for the page footer (Media: BÆOSOUND, …,
-        // BÆOLINK); without `device_names` the page's own name stands.
         val deviceNames = config.stringList("device_names")
         val nameOverride = LocalPageNameOverride.current
         if (deviceNames.isNotEmpty() && nameOverride != null) {
@@ -99,152 +79,120 @@ class SwipeStackCard : CardRenderer {
             SideEffect { nameOverride.value = tabName }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // Lets the footer arrows step through these tabs (see Dashboard's step()).
+        val tabsSlot = com.custom.astrion.ui.LocalPageTabsSlot.current
+        androidx.compose.runtime.DisposableEffect(tabsSlot, children.size) {
+            tabsSlot?.value = com.custom.astrion.ui.PageTabs(children.size, { pagerState.currentPage }) { idx, animate ->
+                scope.launch { if (animate) pagerState.animateScrollToPage(idx) else pagerState.scrollToPage(idx) }
+            }
+            onDispose { tabsSlot?.value = null }
+        }
+
+        val switchToTab: (Int) -> Unit = { idx ->
+            if (idx in children.indices) scope.launch { pagerState.animateScrollToPage(idx) }
+        }
+
+        Column(
+            modifier = if (fill) Modifier.fillMaxSize() else Modifier,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             if (titles.size >= children.size) {
-                // Segmented tab bar ("Player | Media"): says what's behind each
-                // page and, unlike a swipe, always gets through children built
-                // from LazyRows (which eat horizontal drags).
-                // Recessed track; the current tab sinks a shade darker and
-                // gets a bright Hailstorm neon rule under its name. Gunmetal fill is kept for
-                // things that are ON (Linked, BÆOLINK, the active scene), so
-                // the tab no longer reads as a switched-on button.
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(AstrionTheme.trackBg)
-                        .padding(3.dp),
-                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
+                BaeoSegmentedBar(trackColor = AstrionTheme.colors.surfacePrimary) {
                     children.indices.forEach { i ->
                         val current = i == pagerState.currentPage
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(38.dp)
-                                .clip(RoundedCornerShape(9.dp))
-                                .background(if (current) TabSelectedBg else AstrionTheme.trackBg)
-                                .tap { scope.launch { pagerState.animateScrollToPage(i) } },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            // Cut-out titles: a dark drop shadow sinks the
-                            // names into the track; the current one also
-                            // glows faintly in the neon of its rule, which
-                            // reads larger without a bigger font.
-                            Text(
-                                titles[i],
-                                color = if (current) AstrionTheme.textPrimary else AstrionTheme.textSecondary,
-                                fontSize = AstrionTheme.size.small,
-                                fontWeight = FontWeight.SemiBold,
-                                style = TextStyle(
-                                    shadow = if (current) {
-                                        Shadow(TabNeon.copy(alpha = 0.55f), Offset(0f, 0f), blurRadius = 10f)
-                                    } else {
-                                        Shadow(Color.Black.copy(alpha = 0.75f), Offset(0f, 2f), blurRadius = 3f)
-                                    },
-                                ),
-                            )
-                            if (current) {
-                                // Neon rule: a faint glow rising off a bright core.
-                                Box(
-                                    Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(bottom = 8.dp)
-                                        .size(width = 40.dp, height = 10.dp)
-                                        .background(
-                                            Brush.radialGradient(
-                                                listOf(TabNeon.copy(alpha = 0.18f), Color.Transparent),
-                                            )
-                                        ),
-                                )
-                                Box(
-                                    Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(bottom = 5.dp)
-                                        .size(width = 26.dp, height = 3.dp)
-                                        .clip(RoundedCornerShape(2.dp))
-                                        .background(TabNeon),
-                                )
-                            }
-                        }
+                        BaeoSegmentItem(
+                            label = titles[i],
+                            selected = current,
+                            height = 40.dp,
+                            selectedBg = AstrionTheme.surfaceElevated,
+                            selectedInk = AstrionTheme.textPrimary,
+                            onClick = { switchToTab(i) },
+                        )
                     }
                 }
-            } else Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    titles.getOrNull(pagerState.currentPage).orEmpty(),
-                    color = AstrionTheme.textSecondary,
-                    fontSize = AstrionTheme.size.label,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.sp,
-                )
+            } else {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    children.indices.forEach { i ->
-                        val current = i == pagerState.currentPage
-                        Box(
-                            modifier = Modifier
-                                // The dot is 7dp but the touch target is 22dp:
-                                // a 7dp target is a third of the 24dp minimum
-                                // and this is the fallback control for a page
-                                // you may not be able to swipe to.
-                                .size(22.dp)
-                                .tap { scope.launch { pagerState.animateScrollToPage(i) } },
-                            contentAlignment = Alignment.Center,
-                        ) {
+                    Text(
+                        titles.getOrNull(pagerState.currentPage).orEmpty(),
+                        color = AstrionTheme.textSecondary,
+                        fontSize = AstrionTheme.size.label,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 1.sp,
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        children.indices.forEach { i ->
+                            val current = i == pagerState.currentPage
                             Box(
                                 modifier = Modifier
-                                    .size(if (current) 8.dp else 7.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (current) AstrionTheme.accent else AstrionTheme.controlBg
-                                    ),
-                            )
+                                    .size(22.dp)
+                                    .tap { switchToTab(i) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(if (current) 8.dp else 7.dp)
+                                        .clip(CircleShape)
+                                        .background(if (current) AstrionTheme.accent else AstrionTheme.controlBg),
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            HorizontalPager(
-                state = pagerState,
-                modifier = if (height > 0) Modifier.height(height.dp) else Modifier,
-                // Shorter tabs sit at the top rather than centred in the pager.
-                verticalAlignment = Alignment.Top,
-                // With tabs, a swipe belongs to the dashboard (page to page).
-                userScrollEnabled = titles.size < children.size,
-            ) { page ->
-                val child = children[page]
-                val childType = child["type"] as? String
-                val childOptions = (child["options"] as? Map<String, Any?>) ?: emptyMap()
-                Box(Modifier.fillMaxWidth()) {
-                    if (childType == "column") {
-                        // A tab holding several cards, spaced like the page.
-                        val cards = (childOptions["cards"] as? List<Map<String, Any?>>) ?: emptyList()
-                        val gap = (childOptions["spacing"] as? Number)?.toInt() ?: 10
-                        Column(verticalArrangement = Arrangement.spacedBy(gap.dp)) {
-                            cards.forEach { c ->
-                                val t = c["type"] as? String ?: return@forEach
-                                val o = (c["options"] as? Map<String, Any?>) ?: emptyMap()
-                                CardRegistry.get(t)?.Render(CardConfig(t, o), ctx)
+            CompositionLocalProvider(LocalTabSwitcher provides switchToTab) {
+                HorizontalPager(
+                    state = pagerState,
+                    beyondViewportPageCount = 2,
+                    modifier = when {
+                        fill -> Modifier.weight(1f).fillMaxWidth()
+                        height > 0 -> Modifier.height(height.dp).fillMaxWidth()
+                        else -> Modifier.fillMaxWidth()
+                    },
+                    verticalAlignment = Alignment.Top,
+                    userScrollEnabled = titles.size < children.size,
+                ) { page ->
+                    val child = children[page]
+                    val childType = child["type"] as? String
+                    val childOptions = (child["options"] as? Map<String, Any?>) ?: emptyMap()
+                    Box(if (fill) Modifier.fillMaxSize() else Modifier.fillMaxWidth()) {
+                        if (childType == "column") {
+                            val cards = (childOptions["cards"] as? List<Map<String, Any?>>) ?: emptyList()
+                            val gap = (childOptions["spacing"] as? Number)?.toInt() ?: 10
+                            val hasFillChild = fill && cards.any {
+                                ((it["options"] as? Map<*, *>)?.get("pin") == "fill") || it["pin"] == "fill"
                             }
+                            Column(
+                                modifier = if (hasFillChild) Modifier.fillMaxSize() else Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(gap.dp),
+                            ) {
+                                cards.forEach { c ->
+                                    val t = c["type"] as? String ?: return@forEach
+                                    val o = (c["options"] as? Map<String, Any?>) ?: emptyMap()
+                                    val fillChild = hasFillChild && (o["pin"] == "fill" || c["pin"] == "fill")
+                                    if (fillChild) {
+                                        Box(Modifier.weight(1f).fillMaxWidth()) {
+                                            CardRegistry.get(t)?.Render(CardConfig(t, o), ctx)
+                                        }
+                                    } else {
+                                        CardRegistry.get(t)?.Render(CardConfig(t, o), ctx)
+                                    }
+                                }
+                            }
+                        } else {
+                            childType?.let { CardRegistry.get(it) }
+                                ?.Render(CardConfig(childType, childOptions), ctx)
                         }
-                    } else {
-                        childType?.let { CardRegistry.get(it) }
-                            ?.Render(CardConfig(childType, childOptions), ctx)
                     }
                 }
             }
         }
     }
 }
-
-/** The current tab: a shade darker than the track it sits in. */
-private val TabSelectedBg: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.pinnedTopBg
-
-/** Hailstorm pushed brighter for the tab's neon rule. */
-private val TabNeon: Color @Composable @ReadOnlyComposable get() = AstrionTheme.colors.accentBright

@@ -137,7 +137,10 @@ class PlexCard : CardRenderer {
         // Refreshed on every visit to the page (it stays composed otherwise).
         val visits = rememberPageVisits()
         var loadError by remember { mutableStateOf<String?>(null) }
-        val shelves by produceState(initialValue = storedShelves(host), host, token, limit, visits) {
+        val shelves by produceState(initialValue = shelfCache[host], host, token, limit, visits) {
+            if (value == null) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { storedShelves(host) }?.let { value = it }
+            }
             // All rows at once rather than one after another.
             val results = kotlinx.coroutines.coroutineScope {
                 rowSpecs.map { spec ->
@@ -231,7 +234,7 @@ class PlexCard : CardRenderer {
         Text(
             text,
             color = AstrionTheme.textSecondary,
-            fontSize = AstrionTheme.size.small,
+            fontSize = AstrionTheme.size.label,
             fontWeight = FontWeight.Medium,
         )
     }

@@ -43,9 +43,11 @@ import com.custom.astrion.di.appModules
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.DiskJson
+import com.custom.astrion.power.StorageHealth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.koin.android.ext.android.get
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
@@ -81,16 +83,7 @@ class AstrionApp : Application() {
             androidContext(this@AstrionApp)
             modules(appModules)
         }
-        ArtCache.init(cacheDir)
-        DiskJson.init(cacheDir)
         DashboardLoader.init(assets)
-        // Read /sdcard/astrion before any ViewModel exists, so none of them
-        // starts on the bundled layout (whose report_entity and screen timeout
-        // aren't this remote's), then follow edits to it.
-        (get<AppConfigRepository>() as? DefaultAppConfigRepository)?.apply {
-            loadNow()
-            startWatching(appScope)
-        }
         CardRegistry.register(
             LightCard(),
             LightGroupCard(),
@@ -127,7 +120,20 @@ class AstrionApp : Application() {
             // ← register your own card types here
         )
         setupNetworkMonitor()
-        client.connect()
+        // Move cache dir mkdirs, /proc/mounts check, /sdcard JSON reads, and
+        // OkHttp CA trust-store initialization off the main thread so cold start
+        // never triggers the 10 s ActivityManager launch timeout on MT6580.
+        val repo = get<AppConfigRepository>() as? DefaultAppConfigRepository
+        appScope.launch(Dispatchers.IO) {
+            StorageHealth.refresh()
+            ArtCache.init(cacheDir)
+            DiskJson.init(cacheDir)
+            repo?.apply {
+                loadNow()
+                startWatching(appScope)
+            }
+            client.connect()
+        }
     }
 
     private fun setupNetworkMonitor() {
@@ -136,6 +142,10 @@ class AstrionApp : Application() {
             cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
                     client.onNetworkAvailable()
+                }
+
+                override fun onLost(network: Network) {
+                    client.onNetworkLost()
                 }
             })
         }

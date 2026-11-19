@@ -22,7 +22,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.ui.AstrionMaterialTheme
 import com.custom.astrion.ui.DashboardScreen
@@ -111,9 +110,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Collected for as long as the Activity exists, not only while it is
+     * started: with the screen off the Activity may be stopped, and that is
+     * exactly when an alarm, the doorbell, a pick-up or the wake word has to
+     * get through and light the screen. Under repeatOnLifecycle(STARTED)
+     * those effects waited in their channel until something else woke it.
+     */
     private fun observeViewModelEffects() {
         lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
+            run {
                 launch {
                     powerVm.uiState.collectLatest { state ->
                         if (state.keepScreenOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -244,6 +250,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestBatteryExemptionOnce() {
+        if (com.custom.astrion.power.StorageHealth.isDataReadOnly.value) return
         val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
         if (pm.isIgnoringBatteryOptimizations(packageName)) return
         val prefs = getSharedPreferences("astrion", Context.MODE_PRIVATE)
@@ -312,11 +319,22 @@ class MainActivity : ComponentActivity() {
             }
         }
         val input = inputVm.uiState.value
-        if (event.keyCode == KeyEvent.KEYCODE_BACK && !input.isIrMode && !input.isGuideOpen && sheetHost.isShowing) {
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                sheetHost.dismissTop()
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && !input.isIrMode && !input.isGuideOpen) {
+            val dState = dashboardVm.uiState.value
+            val voiceOpen = dState.voiceState.phase != com.custom.astrion.voice.VoicePhase.IDLE
+            val doorbellOpen = dState.doorbell != null
+            val alertOpen = dState.activeAlerts.isNotEmpty() && (dState.activeAlarm == null || dState.isAlarmHidden)
+            if (voiceOpen || doorbellOpen || alertOpen || sheetHost.isShowing) {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                    when {
+                        voiceOpen -> dashboardVm.onIntent(DashboardIntent.CancelVoice)
+                        doorbellOpen -> dashboardVm.onIntent(DashboardIntent.HideDoorbell)
+                        alertOpen -> dashboardVm.onIntent(DashboardIntent.DismissAlert(dState.activeAlerts.first().token))
+                        else -> sheetHost.handleBack()
+                    }
+                }
+                return true
             }
-            return true
         }
         if (inputVm.handleKeyEvent(event, wasScreensaver)) return true
         return super.dispatchKeyEvent(event)

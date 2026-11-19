@@ -7,11 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,27 +19,31 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
 /**
- * A thick horizontal level you drag, for volumes: the fill grows from the
- * left, [label] sits on it at the left and the level at the right.
- *
- * Only a sideways drag moves it, and it moves by how far you drag rather
- * than jumping to where the finger landed, so a tap or a scroll that starts
- * on it can't blast the volume.
- * [onCommit] runs a few times a second while dragging and once on release.
+ * Borderless Matte Horizontal Fader (Bæo v3.0):
+ *  - Smooth rounded tonal fill (`accentStrong` / `accentFillQuiet` / blind fill)
+ *    with ZERO harsh border and ZERO bright vertical cut-line slicing labels.
+ *  - Reads drag fraction inside [drawBehind] so dragging never forces
+ *    recomposition of the surrounding container; only the tiny numeric readout
+ *    leaf updates.
+ *  - Relative horizontal drag so accidental taps/scrolls never blast volume.
  */
 @Composable
 fun Fader(
@@ -53,32 +54,55 @@ fun Fader(
     fill: Color = AstrionTheme.accentStrong,
     track: Color = AstrionTheme.trackBg,
     radius: Dp = 14.dp,
-    cap: Boolean = true,
-    fillBlendMode: BlendMode? = null,
-    borderColor: Color? = null,
+    @Suppress("UNUSED_PARAMETER") cap: Boolean = false,
+    @Suppress("UNUSED_PARAMETER") fillBlendMode: BlendMode? = null,
+    @Suppress("UNUSED_PARAMETER") borderColor: Color? = null,
+    muted: Boolean = false,
     label: @Composable RowScope.() -> Unit = {},
 ) {
-    var drag by remember { mutableStateOf<Float?>(null) }
-    val shown = (drag ?: value ?: 0f).coerceIn(0f, 1f)
+    val dragState = remember { mutableStateOf<Float?>(null) }
     val commit by rememberUpdatedState(onCommit)
     val start by rememberUpdatedState(value ?: 0f)
     val shape = RoundedCornerShape(radius)
+
     Box(
         modifier = modifier
             .clip(shape)
             .background(track)
-            .then(if (borderColor != null) Modifier.border(1.dp, borderColor, shape) else Modifier)
+            .semantics {
+                val cur = (dragState.value ?: value ?: 0f).coerceIn(0f, 1f)
+                progressBarRangeInfo = ProgressBarRangeInfo(cur, 0f..1f)
+                if (enabled) {
+                    setProgress { target ->
+                        val clamped = target.coerceIn(0f, 1f)
+                        commit(clamped)
+                        true
+                    }
+                }
+            }
+            .drawBehind {
+                val frac = if (muted) 0f else (dragState.value ?: value ?: 0f).coerceIn(0f, 1f)
+                if (frac > 0.005f) {
+                    val fillW = (size.width * frac).coerceAtLeast(radius.toPx().coerceAtMost(size.width))
+                    val r = CornerRadius(radius.toPx(), radius.toPx())
+                    drawRoundRect(
+                        color = fill,
+                        size = Size(fillW, size.height),
+                        cornerRadius = r,
+                    )
+                }
+            }
             .then(
                 if (!enabled) Modifier else Modifier.pointerInput(Unit) {
                     var last = 0L
                     detectHorizontalDragGestures(
-                        onDragStart = { drag = start },
-                        onDragEnd = { drag?.let(commit); drag = null },
-                        onDragCancel = { drag?.let(commit); drag = null },
+                        onDragStart = { dragState.value = start },
+                        onDragEnd = { dragState.value?.let(commit); dragState.value = null },
+                        onDragCancel = { dragState.value?.let(commit); dragState.value = null },
                     ) { change, dx ->
                         change.consume()
-                        val next = ((drag ?: start) + dx / size.width).coerceIn(0f, 1f)
-                        drag = next
+                        val next = ((dragState.value ?: start) + dx / size.width).coerceIn(0f, 1f)
+                        dragState.value = next
                         val now = SystemClock.uptimeMillis()
                         if (now - last > COMMIT_EVERY_MS) {
                             last = now
@@ -88,73 +112,46 @@ fun Fader(
                 },
             ),
     ) {
-        if (fillBlendMode != null) {
-            Box(
-                Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(shown)
-                    .drawBehind {
-                        // Base tint + blended luminous pass so the blurred album art underneath shines through.
-                        drawRect(color = fill.copy(alpha = (fill.alpha * 0.55f).coerceIn(0f, 1f)), size = size)
-                        drawRect(
-                            brush = Brush.horizontalGradient(
-                                listOf(fill.copy(alpha = (fill.alpha * 0.65f).coerceIn(0f, 1f)), fill),
-                            ),
-                            size = Size(size.width, size.height),
-                            blendMode = fillBlendMode,
-                        )
-                    },
-            )
-        } else {
-            Box(
-                Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(shown)
-                    .background(fill),
-            )
-        }
-        if (cap && shown > 0.04f) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(vertical = 10.dp),
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxWidth(shown)
-                        .fillMaxHeight(),
-                    contentAlignment = Alignment.CenterEnd,
-                ) {
-                    Box(
-                        Modifier
-                            .padding(end = 7.dp)
-                            .width(2.5.dp)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(AstrionTheme.textPrimary.copy(alpha = 0.9f)),
-                    )
-                }
-            }
-        }
         Row(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            label()
-            Box(Modifier.weight(1f))
-            Text(
-                if (value == null && drag == null) "—" else "${(shown * 100).roundToInt()}%",
-                color = AstrionTheme.textPrimary,
-                fontFamily = AstrionTheme.bodyFont,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = AstrionTheme.size.bodyLarge,
-                maxLines = 1,
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                content = label,
             )
+            FaderReadout(value = value, dragValue = { dragState.value }, muted = muted)
         }
     }
+}
+
+@Composable
+private fun FaderReadout(
+    value: Float?,
+    dragValue: () -> Float?,
+    muted: Boolean,
+) {
+    val drag = dragValue()
+    val shown = (drag ?: value ?: 0f).coerceIn(0f, 1f)
+    val text = when {
+        muted && drag == null -> "MUTED"
+        value == null && drag == null -> "—"
+        else -> "${(shown * 100).roundToInt()}%"
+    }
+    Text(
+        text = text,
+        color = if (muted && drag == null) AstrionTheme.blush else AstrionTheme.textPrimary,
+        fontFamily = AstrionTheme.bodyFont,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = if (muted && drag == null) AstrionTheme.size.label else AstrionTheme.size.body,
+        style = TextStyle(fontFeatureSettings = "tnum"),
+        maxLines = 1,
+    )
 }
 
 private const val COMMIT_EVERY_MS = 350L

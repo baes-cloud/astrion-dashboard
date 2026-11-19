@@ -1,5 +1,66 @@
 # Changelog
 
+## Unreleased
+
+(nothing yet)
+
+## v1.7.0 (2026-11-20)
+
+A matte redesign, chosen element by element on the real remote, and a faster, lighter app.
+
+**Looks**
+- Matte, borderless cards with no glass. Floorplan lights keep the soft see-through discs, the weather keeps its colour icons and five days.
+- TV page: app tiles with logos and a dot for the matching colour key, a Samsung TV row, and Plex as its own panel instead of a poster wall.
+- Media tab: shelf names marked with a small accent bar, one-line titles, and all three shelves fit without scrolling. Zones volume is blush again.
+- Blinds: a window drawing that shows how far each blind is down, then 25% and 50%, then raise, stop and lower. The arrow for the way it's moving lights while it moves.
+- The footer rule is fainter and as wide as the wordmark. The footer arrows step through Player, Media and Zones.
+
+**Speed and memory** (measured on an HA100)
+- Worst 1% of frames: 250 ms to 73-89 ms. App memory: 115 MB to 71 MB. Graphics memory: 29 MB to 14 MB.
+- Floorplan glows are drawn once into small masks instead of every frame (`"baked_glow_masks": true` on `lit_rooms`).
+- Album thumbnails decode at half the memory; big art and backgrounds keep full colour.
+- A page change fades with per-draw alpha instead of copying the whole page each frame.
+- File and image work moved off the UI thread.
+
+**Fixes**
+- The volume popup's slider called a service HA doesn't have, so dragging did nothing. It now sets the volume.
+- The TV card shows "PC · HDMI 2 · Active" when the TV is on the PC's input (`also_on`).
+- Back closes the top sheet or dialog first.
+- The connection banner sits under the clock and says when HA was last heard from.
+- A read-only `/data` (failing flash) is detected, shown, and reported to HA as `storage_ro`.
+- HA client: separate locks for connecting and publishing, sends that fail are answered at once, and the stuck-connection timer counts deep sleep.
+- Plex library paging, Zones names cut short, and "1 lights" fixed.
+
+**Config**
+- `plex_browse` takes `"style": "panel"` (or `"drawer"`), `title` and `tile_height`.
+- `media_shelves` takes `"mini_player": false`.
+- Section presets take a `tone`; `button_grid` buttons take `key_dot` (red, green, yellow, blue).
+
+## Earlier unreleased work
+
+Fixes from a full code review. Nothing here changes how a page looks.
+
+- **A dropped socket is noticed at once.** When HA closes the connection (a restart), the client now closes its side too; before, the socket sat half-closed and looked connected until a ping went unanswered. Losing Wi-Fi drops the socket straight away instead of waiting up to 30 s for that ping. Requests waiting on a socket that drops (the doorbell's Let in, a library browse, the forecast) are answered immediately rather than after their 8 to 10 s timeout.
+- **Wake-ups reach a stopped Activity.** Alarm, doorbell, pick-up and wake-word effects are collected for the Activity's whole life, not only while it is started, so one that arrives with the screen off no longer waits in a queue.
+- **The keep-alive service is sticky.** If Android kills the process, the service restarts it and the HA connection; with the screen off it also brings MainActivity back, so the alarm watching returns.
+- **Offline taps.** The queue is kept in memory only. The copy on disk could lose a tap when two came close together, dropped the confirmation of a queued call and never said when one was dropped.
+- **Fewer, larger frames.** The client asks HA to coalesce messages, so several updates ready together arrive in one frame.
+- **`connect()` is synchronised** against the reconnect job, the watchdog and the network callback calling it at once.
+- **A slip in dashboard.json costs less.** A file that won't parse keeps the last layout that worked; a card that can't be read becomes a placeholder that says why instead of discarding the layout; unknown card types and hotkey names are listed in the notice banner.
+- **HA URL and token per remote.** `"ha": { "url", "token" }` in device.json overrides the values compiled in (`docs/POWER.md`).
+- **The token stays home.** A spoken reply whose URL points at another host is fetched without the HA token. `allowBackup` is off.
+- **One current page.** The ViewModel's `currentPage` now follows swipes, and pages are keyed by position and name so a reload can't hand one page's state to another.
+- **Tests.** `HaClientSocketTest` runs the client against a real websocket (MockWebServer).
+
+Design round 1, chosen from mockups:
+
+- **Climate.** Mode and Fan speed are captioned segmented rows on a sunken track (Fan only reads Fan, to fit). Power is a pill that says On or Off; the fan tile uses the same one.
+- **Low battery.** At 15% and below, off the dock, the header's percentage, outline and fill all turn Baby Doll. Only the fill used to change, and at 10% that is two pixels.
+- **Music player.** A title too long for its line scrolls through once when the track changes. A progress line with elapsed and total time sits under the artist; the cover is 26 dp shorter while it shows, so the page still fits.
+- **Footer.** The page arrows are full strength and 48 dp wide, and a hairline under the wordmark, one segment per page, shows which page you are on.
+- **Floorplan.** Every icon is hit through a 48 dp area, and where two areas overlap the tap goes to the nearest icon.
+- **Type scale.** Fourteen interface sizes become seven (12, 14, 16, 18, 22, 28, 34): 13, 15, 17, 19, 20, 26 and 32 sp each moved to a neighbour. The three clocks keep their own sizes.
+
 ## v1.6.0 (2026-11-04)
 
 Reliability first: the HA100's eMMC turned out to rot data at rest, and the boot loops on one remote all followed a reboot of a remote that looked frozen. 1.6 makes reboots unnecessary and the flash nearly write-free. (1.5 was a redesign that was shelved; its best parts shipped in 1.4.5.)

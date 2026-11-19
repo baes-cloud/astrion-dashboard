@@ -2,12 +2,24 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
@@ -23,8 +35,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
@@ -33,8 +47,17 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ArtCache
 import com.custom.astrion.ui.AstrionTheme
+import com.custom.astrion.ui.BottomSheet
+import com.custom.astrion.ui.Glyphs
+import com.custom.astrion.ui.HitTarget
+import com.custom.astrion.ui.components.BaeoSectionHeader
 import com.custom.astrion.ui.rememberPageVisits
 import com.custom.astrion.ui.tap
+import com.custom.astrion.ui.tapAndHold
+import com.custom.astrion.ui.tightTextStyle
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -42,45 +65,15 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 
 /**
- * Swipeable shelves of media pulled straight from Home Assistant's
- * `media_player/browse_media`, where one tap plays the item on the target
- * player — no drilling in, no detail screen. Used for the Sonos/Spotify rows
- * (recently played, favourite songs, favourite playlists); a playlist just
- * starts rather than opening.
- *
- * Because it browses whatever node you point it at, any provider the player
- * exposes works: Sonos favourites folders, a Spotify library node, etc.
- *
- * Config shape:
- *   { "type": "media_shelves", "options": {
- *       "entity_id": "media_player.club",
- *       "limit": 10,
- *       "rows": [
- *         { "title": "Favourite Songs",
- *           "content_id": "object.item.audioItem.musicTrack",
- *           "content_type": "favorites_folder",
- *           "limit": 0 }
- *       ]
- *   } }
- *
- * `limit` caps each row (default 10, at most 30); a row's own `limit`
- * overrides it, and 0 on a browse row shows the whole folder, so every
- * Sonos favourite is there to swipe through.
- *
- * A row can instead come from Music Assistant's library (e.g. a random pick
- * of albums, like MA's own "Random albums" shelf). A fresh set is fetched each
- * time the card is shown, and a tap plays it on the MA player:
- *   { "title": "Random albums", "source": "music_assistant",
- *     "config_entry_id": "01KVF3KES1KSZ0JYSXJ405AKVA",
- *     "player": "media_player.club_2",
- *     "media_type": "album", "order_by": "random", "limit": 12 }
- *
- * Inside a fixed-height parent (swipe_stack `height`) the shelves scroll
- * themselves; otherwise they take their full height and the page scrolls.
+ * Swipeable media shelves (Bæo v3.0 Matte Tonal):
+ *  - Stable keys & contentTypes on `LazyRow`.
+ *  - Honest offline copy when disconnected with no cached shelves.
+ *  - Tap feedback highlight + status toast, and long-press Quick Action sheet
+ *    (`Play now`, `Play next`, `Add to queue`).
+ *  - Optional docked 46dp Mini Now-Playing bar (`mini_player: true`) that jumps
+ *    back to the Player tab on tap.
  */
 class MediaShelvesCard : CardRenderer {
     override val type = "media_shelves"
@@ -90,24 +83,23 @@ class MediaShelvesCard : CardRenderer {
         val contentId: String,
         val contentType: String,
         val thumb: String?,
-        /** Music Assistant player to play on; null = the card's media_player. */
         val maPlayer: String? = null,
     )
 
     private data class Shelf(val title: String, val items: List<Item>)
 
     private companion object {
-        // Square album art, ~3.8 across the 480px panel (was 92dp).
-        val TILE = 85.dp
-
-        // Decode floor for covers: 85dp is ~120px on this panel, so a 640px
-        // CDN cover decodes at 160px instead of full size.
+        val TILE = 84.dp
+        val MIN_TILE = 56.dp
+        val LABEL_LINE = 18.sp
+        val CAPTION_LINE = 13.sp
+        val LABEL_GAP = 5.dp
+        val CAPTION_GAP = 4.dp
+        /** Vertical padding inside the tinted band behind each shelf heading. */
+        val HEADER_BAND_PAD = 3.dp
+        val MINI_BAR_HEIGHT = 46.dp
         const val ART_PX = 128
-
-        /** Minimum interval before re-fetching an already-populated shelf on tab revisit. */
         const val SHELF_TTL_MS = 15 * 60_000L
-
-        /** Last shelves per card config, kept across page visits. */
         val shelfCache = java.util.concurrent.ConcurrentHashMap<String, List<Shelf>>()
         val shelfFetchedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
     }
@@ -118,18 +110,10 @@ class MediaShelvesCard : CardRenderer {
         val entityId = config.string("entity_id") ?: return
         val limit = config.int("limit", 10).coerceIn(1, 30)
         val rowSpecs = (config.options["rows"] as? List<Map<String, Any?>>) ?: emptyList()
+        val showMiniPlayer = config.bool("mini_player", true)
 
-        // All rows are fetched at once and each shows as soon as it arrives:
-        // fetched one after another, the page stayed on "Loading…" until the
-        // slowest (Spotify, ~1.3 s through HA) had finished. The last result
-        // of each row is kept for the life of the process, so a revisit shows
-        // the shelves at once while they refresh behind them.
-        //
-        // Keyed on the connection too: shelves still empty when HA came back
-        // load then.
         val connected = ctx.connected
         val cacheKey = entityId + "|" + rowSpecs.hashCode()
-        // Refreshed on page visit only if empty or older than SHELF_TTL_MS.
         val visits = rememberPageVisits()
         val shelves by produceState(initialValue = shelfCache[cacheKey], entityId, limit, connected, visits) {
             if (!connected) return@produceState
@@ -153,36 +137,85 @@ class MediaShelvesCard : CardRenderer {
             if (value == null) value = emptyList()
         }
 
-        // Scroll inside a fixed-height parent (swipe_stack "height"); with no
-        // fixed height the page itself scrolls, and nesting would crash.
-        BoxWithConstraints {
-            Column(
-                modifier = (if (constraints.hasBoundedHeight) Modifier.verticalScroll(rememberScrollState()) else Modifier)
-                    .padding(top = config.int("top_padding", 0).dp),
-                // "top_padding" (dp) sets the first row off the tab bar;
-                // "row_spacing" (dp) spreads fewer rows over the tab.
-                verticalArrangement = Arrangement.spacedBy(config.int("row_spacing", 12).dp),
-            ) {
-                when {
-                    shelves == null -> ShelfLabel("Loading…")
-                    shelves!!.isEmpty() -> ShelfLabel("Nothing to show")
-                    else -> shelves!!.forEach { shelf ->
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            ShelfLabel(shelf.title)
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(shelf.items) { item ->
-                                    Tile(ctx, item) {
-                                        if (item.maPlayer != null) {
-                                            ctx.client.callService(
-                                                ServiceCall.of(
-                                                    "music_assistant", "play_media", item.maPlayer,
-                                                    "media_id" to item.contentId,
-                                                    "media_type" to item.contentType,
-                                                )
-                                            )
-                                        } else {
-                                            ctx.client.playMedia(entityId, item.contentId, item.contentType)
-                                        }
+        var tappedId by remember { mutableStateOf<String?>(null) }
+        var actionItem by remember { mutableStateOf<Item?>(null) }
+        LaunchedEffect(tappedId) {
+            if (tappedId != null) {
+                delay(900L)
+                tappedId = null
+            }
+        }
+
+        fun playItem(item: Item, enqueue: String = "replace") {
+            tappedId = item.contentId
+            if (item.maPlayer != null) {
+                ctx.client.callService(
+                    ServiceCall.of(
+                        "music_assistant", "play_media", item.maPlayer,
+                        "media_id" to item.contentId,
+                        "media_type" to item.contentType,
+                        "enqueue" to enqueue,
+                    ),
+                    confirm = true,
+                )
+            } else {
+                ctx.client.callService(
+                    ServiceCall.of(
+                        "media_player", "play_media", entityId,
+                        "media_content_id" to item.contentId,
+                        "media_content_type" to item.contentType,
+                        "enqueue" to enqueue,
+                    ),
+                    confirm = true,
+                )
+            }
+        }
+
+        val playerEntity = ctx.entities[entityId]
+        val hasMini = showMiniPlayer && playerEntity != null &&
+            !playerEntity.attrString("media_title").isNullOrBlank() &&
+            playerEntity.state in listOf("playing", "paused")
+
+        Column(Modifier.fillMaxSize()) {
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                val topPad = config.int("top_padding", 0).dp
+                val rowGap = config.int("row_spacing", 10).dp
+                val rowCount = shelves?.size ?: 0
+                val fitTile: Dp? = if (constraints.hasBoundedHeight && rowCount > 0) {
+                    val chrome = with(LocalDensity.current) { LABEL_LINE.toDp() + CAPTION_LINE.toDp() } + LABEL_GAP + CAPTION_GAP + HEADER_BAND_PAD * 2 +
+                        // One caption line renders taller than its sp on API 27 (font padding).
+                        4.dp
+                    (maxHeight - topPad - rowGap * (rowCount - 1)) / rowCount - chrome
+                } else null
+                val fits = fitTile != null && fitTile >= MIN_TILE
+                val tile = if (fits) minOf(TILE, fitTile!!) else TILE
+                Column(
+                    modifier = (if (constraints.hasBoundedHeight && !fits) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                        .fillMaxWidth()
+                        .padding(top = topPad),
+                    verticalArrangement = Arrangement.spacedBy(rowGap),
+                ) {
+                    when {
+                        shelves == null && !connected -> StatusNote("Offline — reconnect to browse music")
+                        shelves == null -> StatusNote("Loading shelves…")
+                        shelves!!.isEmpty() -> StatusNote("Nothing to show right now")
+                        else -> shelves!!.forEach { shelf ->
+                            Column(verticalArrangement = Arrangement.spacedBy(LABEL_GAP)) {
+                                ShelfHeader(shelf.title)
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(
+                                        items = shelf.items,
+                                        key = { "${shelf.title}-${it.contentId}" },
+                                        contentType = { "media_tile" },
+                                    ) { item ->
+                                        Tile(
+                                            ctx = ctx,
+                                            item = item,
+                                            tile = tile,
+                                            highlighted = tappedId == item.contentId,
+                                            onClick = { playItem(item, "replace") },
+                                            onLongClick = { actionItem = item },
+                                        )
                                     }
                                 }
                             }
@@ -190,29 +223,170 @@ class MediaShelvesCard : CardRenderer {
                     }
                 }
             }
+
+            if (hasMini) {
+                Spacer(Modifier.height(6.dp))
+                MiniNowPlayingBar(ctx, entityId)
+            }
+        }
+
+        actionItem?.let { item ->
+            BottomSheet(
+                title = item.title,
+                subtitle = "Choose playback action",
+                onDismissRequest = { actionItem = null },
+            ) {
+                QuickActionBtn("Play now", primary = true) {
+                    playItem(item, "replace")
+                    actionItem = null
+                }
+                QuickActionBtn("Play next", primary = false) {
+                    playItem(item, "next")
+                    actionItem = null
+                }
+                QuickActionBtn("Add to queue", primary = false) {
+                    playItem(item, "add")
+                    actionItem = null
+                }
+            }
         }
     }
 
-    /**
-     * Shelf heading: a small, darker uppercase label followed by a hairline
-     * running the rest of the width, so shelves read as sections without the
-     * heading competing with the art.
-     */
     @Composable
-    private fun ShelfLabel(text: String) {
-        // Set like the speaker names on the Link tab.
-        Text(
-            text,
-            color = AstrionTheme.textPrimary,
-            fontSize = AstrionTheme.size.emphasis,
-            fontWeight = FontWeight.SemiBold,
-        )
+    private fun QuickActionBtn(label: String, primary: Boolean, onClick: () -> Unit) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (primary) AstrionTheme.accentStrong else AstrionTheme.controlBg)
+                .tap(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = label,
+                color = if (primary) AstrionTheme.colors.onPrimary else AstrionTheme.textPrimary,
+                fontSize = AstrionTheme.size.body,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 
     @Composable
-    private fun Tile(ctx: CardContext, item: Item, onClick: () -> Unit) {
-        // The page is recomposed from scratch on every visit and LazyRow drops
-        // tiles scrolled off-screen; ArtCache keeps that from refetching covers.
+    private fun MiniNowPlayingBar(ctx: CardContext, entityId: String) {
+        val e = ctx.entities[entityId] ?: return
+        val title = e.attrString("media_title")?.takeIf { it.isNotBlank() } ?: return
+        val artist = e.attrString("media_artist") ?: e.attrString("app_name") ?: ""
+        val playing = e.state == "playing"
+        val artKey = e.artKey()
+        val artPath = e.attrString("entity_picture")
+        var art by remember(artKey) { mutableStateOf(artKey?.let { ArtCache.peek(it, 96) }) }
+        LaunchedEffect(artKey) {
+            if (art == null && artKey != null && artPath != null) {
+                art = ArtCache.load(artKey, 96) { ctx.client.fetchBytes(artPath) }
+            }
+        }
+        val switchTab = LocalTabSwitcher.current
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(MINI_BAR_HEIGHT)
+                .clip(RoundedCornerShape(14.dp))
+                // Pink so the now-playing bar stands out from the shelves (Bae).
+                .background(AstrionTheme.blush)
+                .tap { switchTab?.invoke(0) }
+                .padding(start = 8.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(AstrionTheme.raised),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (art != null) {
+                    Image(art!!, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                } else {
+                    Icon(Glyphs.note, contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(16.dp))
+                }
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    title,
+                    color = AstrionTheme.colors.void,
+                    fontSize = AstrionTheme.size.label,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (artist.isNotBlank()) {
+                    Text(
+                        artist,
+                        color = AstrionTheme.colors.void.copy(alpha = 0.72f),
+                        fontSize = AstrionTheme.size.micro,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            HitTarget(
+                visual = 34.dp,
+                enabled = ctx.connected,
+                onClick = { ctx.client.callService(ServiceCall("media_player", "media_play_pause", entityId)) },
+                face = Modifier.clip(CircleShape).background(AstrionTheme.colors.void),
+            ) {
+                Icon(
+                    if (playing) Glyphs.pause else Glyphs.play,
+                    contentDescription = if (playing) "Pause" else "Play",
+                    tint = AstrionTheme.blush,
+                    modifier = Modifier.size(15.dp),
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun StatusNote(text: String) {
+        Text(
+            text = text,
+            color = AstrionTheme.textSecondary,
+            fontSize = AstrionTheme.size.label,
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp),
+        )
+    }
+
+    /** Shelf heading: an accent tick before the name marks where each shelf starts (no band: too busy). */
+    @Composable
+    private fun ShelfHeader(text: String) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = HEADER_BAND_PAD),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .padding(start = 2.dp, end = 6.dp)
+                    .width(3.dp)
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(AstrionTheme.accent),
+            )
+            BaeoSectionHeader(text, color = AstrionTheme.textPrimary)
+        }
+    }
+
+    @Composable
+    private fun Tile(
+        ctx: CardContext,
+        item: Item,
+        tile: Dp,
+        highlighted: Boolean,
+        onClick: () -> Unit,
+        onLongClick: () -> Unit,
+    ) {
         var art by remember(item.thumb) { mutableStateOf(item.thumb?.let { ArtCache.peek(it, ART_PX) }) }
         LaunchedEffect(item.thumb) {
             val thumb = item.thumb ?: return@LaunchedEffect
@@ -220,43 +394,53 @@ class MediaShelvesCard : CardRenderer {
                 ArtCache.load(thumb, ART_PX) { ctx.client.fetchBytes(thumb) }?.let { art = it }
             }
         }
-        // Art with a caption underneath: covers alone don't say which playlist
-        // is which.
         Column(
-            modifier = Modifier.width(TILE).tap(onClick = onClick),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier
+                .width(tile)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (highlighted) AstrionTheme.accentContainer else AstrionTheme.pageBg.copy(alpha = 0f))
+                .tapAndHold(onClick = onClick, onLongClick = onLongClick),
+            verticalArrangement = Arrangement.spacedBy(CAPTION_GAP),
         ) {
-            val mod = Modifier.size(TILE).clip(RoundedCornerShape(8.dp))
-            if (art != null) {
-                Image(art!!, contentDescription = null, modifier = mod, contentScale = ContentScale.Crop)
-            } else {
-                // Much of this art lives on internet CDNs (Spotify/YouTube/
-                // SoundCloud). If the panel can't reach them the tile would
-                // otherwise be an empty box that looks broken, so show a glyph.
-                Box(mod.background(AstrionTheme.raised), contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Filled.MusicNote,
-                        contentDescription = null,
-                        tint = AstrionTheme.colors.textMuted,
-                        modifier = Modifier.size(26.dp),
-                    )
+            val mod = Modifier.size(tile).clip(RoundedCornerShape(10.dp))
+            Box(mod) {
+                if (art != null) {
+                    Image(art!!, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                } else {
+                    Box(Modifier.fillMaxSize().background(AstrionTheme.cardBg), contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Filled.MusicNote,
+                            contentDescription = null,
+                            tint = AstrionTheme.colors.textMuted,
+                            modifier = Modifier.size(26.dp),
+                        )
+                    }
+                }
+                if (highlighted) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(AstrionTheme.accent.copy(alpha = 0.30f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Glyphs.play, contentDescription = null, tint = AstrionTheme.textPrimary, modifier = Modifier.size(24.dp))
+                    }
                 }
             }
-            // Up to two lines in a muted tone so the art leads. minLines keeps
-            // every caption two lines tall, so tiles in a row stay aligned.
             Text(
                 item.title,
-                color = AstrionTheme.textSecondary,
+                color = if (highlighted) AstrionTheme.accent else AstrionTheme.textSecondary,
                 fontSize = AstrionTheme.size.label,
-                lineHeight = 13.sp,
-                minLines = 2,
-                maxLines = 2,
+                fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Normal,
+                style = tightTextStyle(CAPTION_LINE),
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                // The tile's rounded clip was shaving the first letter's edge.
+                modifier = Modifier.padding(horizontal = 2.dp),
             )
         }
     }
 
-    /** One row: Music Assistant library or a browse_media folder; null if empty or failed. */
     private suspend fun loadShelf(ctx: CardContext, entityId: String, spec: Map<String, Any?>, limit: Int): Shelf? {
         val title = spec["title"] as? String ?: return null
         if (spec["source"] == "music_assistant") {
@@ -265,8 +449,6 @@ class MediaShelvesCard : CardRenderer {
         }
         val cid = spec["content_id"] as? String ?: return null
         val ctype = spec["content_type"] as? String ?: return null
-        // 0 = the whole folder. HA sends it all anyway; LazyRow only builds
-        // the tiles on screen, so 30-odd favourites cost no more to show.
         val rowLimit = (spec["limit"] as? Number)?.toInt()?.let { if (it <= 0) Int.MAX_VALUE else it } ?: limit
         val result = ctx.client.browseMedia(entityId, cid, ctype) ?: return null
         val items = (result["children"] as? JsonArray)
@@ -276,7 +458,6 @@ class MediaShelvesCard : CardRenderer {
         return if (items.isEmpty()) null else Shelf(title, items)
     }
 
-    /** One Music Assistant row via `music_assistant.get_library`. */
     private suspend fun musicAssistantItems(
         ctx: CardContext,
         spec: Map<String, Any?>,
@@ -285,12 +466,7 @@ class MediaShelvesCard : CardRenderer {
         val entry = spec["config_entry_id"] as? String ?: return emptyList()
         val player = spec["player"] as? String ?: return emptyList()
         val mediaType = spec["media_type"] as? String ?: "album"
-        // No "all" here: a library runs to thousands, so 0 falls back to the card's.
         val limit = (spec["limit"] as? Number)?.toInt()?.takeIf { it > 0 } ?: defaultLimit
-        // "exclude_spotify": keep Spotify's saved albums out of a row meant for
-        // the local collection. MA's answer through HA carries no provider, but
-        // Spotify items' artwork is always on Spotify's image CDN. Ask for more
-        // than needed so the row is still full after filtering.
         val noSpotify = spec["exclude_spotify"] as? Boolean ?: false
         val data = buildJsonObject {
             put("config_entry_id", entry)
@@ -310,7 +486,6 @@ class MediaShelvesCard : CardRenderer {
                 title = str("name") ?: uri,
                 contentId = uri,
                 contentType = str("media_type") ?: mediaType,
-                // MA's imageproxy serves full size at size=0; tiles need ~256px.
                 thumb = str("image")?.replace("size=0", "size=256"),
                 maPlayer = player,
             )
@@ -320,7 +495,6 @@ class MediaShelvesCard : CardRenderer {
     private fun parseItem(o: JsonObject?): Item? {
         o ?: return null
         fun str(k: String) = (o[k] as? JsonPrimitive)?.content
-        // Only offer things that actually play; folders would need drilling in.
         val canPlay = (o["can_play"] as? JsonPrimitive)?.booleanOrNull ?: false
         if (!canPlay) return null
         val cid = str("media_content_id") ?: return null

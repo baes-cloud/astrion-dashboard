@@ -45,7 +45,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -64,7 +63,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.impl.artKey
 import com.custom.astrion.cards.impl.nextAlarmMs
-import com.custom.astrion.cards.impl.weatherEmoji
 import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.HaClient
@@ -222,7 +220,7 @@ fun Screensaver(
                     Text(
                         Time.format(now, "a").lowercase(Locale.getDefault()),
                         color = faint,
-                        fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.heading,
+                        fontFamily = AstrionTheme.bodyFont, fontSize = AstrionTheme.size.titleLarge,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(start = 5.dp).alignByBaseline(),
                     )
@@ -232,26 +230,24 @@ fun Screensaver(
             // Date · weather · the remote's own charge. The battery lives here,
             // not at the bottom, to keep the name's clear field empty.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(Time.format(now, "EEEE d MMMM"), color = ink, fontSize = AstrionTheme.size.bodyLarge, maxLines = 1)
+                Text(Time.format(now, "EEEE d MMMM"), color = ink, fontSize = AstrionTheme.size.body, maxLines = 1)
                 if (weather != null && !weather.isUnavailable) {
                     val temp = weather.attrDouble("temperature")
-                    Text("  ·  ", color = faint, fontSize = AstrionTheme.size.bodyLarge)
-                    Text(
-                        weatherEmoji(weather.state),
-                        fontSize = AstrionTheme.size.bodyLarge,
-                        // Emoji ignore the text colour; fade them instead so a
-                        // bright sun doesn't glare out of a dark room.
-                        modifier = Modifier.alpha(if (night) 0.45f else 0.7f),
+                    Text("  ·  ", color = faint, fontSize = AstrionTheme.size.body)
+                    WeatherGlyph(
+                        condition = weather.state,
+                        tint = ink,
+                        modifier = Modifier.size(16.dp),
                     )
                     if (temp != null) {
                         Spacer(Modifier.width(5.dp))
-                        Text("${Math.round(temp)}°", color = ink, fontSize = AstrionTheme.size.bodyLarge)
+                        Text("${Math.round(temp)}°", color = ink, fontSize = AstrionTheme.size.body)
                     }
                 }
                 if (batteryPct != null) {
                     val batteryWarn = dockFault || (!charging && batteryPct <= 20)
                     val batteryColor = if (batteryWarn) accent else ink
-                    Text("  ·  ", color = faint, fontSize = AstrionTheme.size.bodyLarge)
+                    Text("  ·  ", color = faint, fontSize = AstrionTheme.size.body)
                     Icon(
                         when {
                             dockFault -> Icons.Filled.Warning
@@ -263,7 +259,7 @@ fun Screensaver(
                         modifier = Modifier.size(14.dp),
                     )
                     Spacer(Modifier.width(2.dp))
-                    Text("$batteryPct%", color = batteryColor, fontSize = AstrionTheme.size.bodyLarge, maxLines = 1)
+                    Text("$batteryPct%", color = batteryColor, fontSize = AstrionTheme.size.body, maxLines = 1)
                 }
             }
 
@@ -288,6 +284,13 @@ fun Screensaver(
                     ink = ink, faint = faint, accent = accent,
                     modifier = Modifier.padding(horizontal = 8.dp),
                     charging = charging,
+                )
+            } else {
+                Text(
+                    "Hold ☰ for button guide",
+                    color = faint.copy(alpha = 0.65f),
+                    fontSize = AstrionTheme.size.micro,
+                    maxLines = 1,
                 )
             }
         }
@@ -464,10 +467,10 @@ private fun FactRow(f: Fact, tint: Color, faint: Color, charging: Boolean = true
         if (f.countdownTo != null) {
             Spacer(Modifier.width(7.dp))
             val now = rememberSecondTick(enabled = charging)
-            Text(formatCountdown((f.countdownTo - now).coerceAtLeast(0)), color = faint, fontSize = AstrionTheme.size.bodyLarge, maxLines = 1)
+            Text(formatCountdown((f.countdownTo - now).coerceAtLeast(0)), color = faint, fontSize = AstrionTheme.size.body, maxLines = 1)
         } else if (f.detail != null) {
             Spacer(Modifier.width(7.dp))
-            Text(f.detail, color = faint, fontSize = AstrionTheme.size.bodyLarge, maxLines = 1)
+            Text(f.detail, color = faint, fontSize = AstrionTheme.size.body, maxLines = 1)
         }
     }
 }
@@ -566,6 +569,7 @@ private fun alertIcon(name: String?): ImageVector = when (name) {
 
 /** "TV" / "TV Audio" is a Sonos saying it is carrying the TV, not a title. */
 private val PLACEHOLDER_TITLES = setOf("TV", "TV Audio")
+private val PAREN_SUFFIX = Regex("""\s*\([^)]*\)\s*$""")
 
 private fun EntityState.playingTitle(): String? =
     attrString("media_title")?.takeIf { it.isNotBlank() && it !in PLACEHOLDER_TITLES }
@@ -671,14 +675,15 @@ private fun NowPlaying(
                     Text(
                         subtitle,
                         color = currentSubtitleInk,
-                        fontSize = AstrionTheme.size.bodyLarge,
+                        fontSize = AstrionTheme.size.body,
                         fontWeight = if (isPlaying) FontWeight.Normal else FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                val cleanPlayer = e.friendlyName.replace(PAREN_SUFFIX, "").trim().ifEmpty { e.friendlyName }
                 Text(
-                    listOfNotNull(album, e.friendlyName).joinToString(" · "),
+                    listOfNotNull(album, cleanPlayer).joinToString(" · "),
                     color = currentMetaInk,
                     fontSize = AstrionTheme.size.label,
                     maxLines = 1,

@@ -63,7 +63,7 @@ fun RestClock(is24: Boolean) {
                 dateFmt.format(Date(now)),
                 color = AstrionTheme.nightInk2,
                 fontFamily = AstrionTheme.bodyFont,
-                fontSize = AstrionTheme.size.bodyLarge,
+                fontSize = AstrionTheme.size.body,
                 maxLines = 1,
             )
         }

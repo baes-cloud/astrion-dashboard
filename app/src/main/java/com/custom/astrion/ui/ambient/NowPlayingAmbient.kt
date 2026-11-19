@@ -54,8 +54,9 @@ fun NowPlayingAmbient(
             modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dim },
         )
 
-        Column(Modifier.fillMaxSize().padding(horizontal = 40.dp)) {
-            Spacer(Modifier.height(72.dp))
+        // Aligned to Backdrop.kt's 480×800 px geometry (40px / 1.375 = 29dp, 72px / 1.375 = 52dp).
+        Column(Modifier.fillMaxSize().padding(horizontal = 29.dp)) {
+            Spacer(Modifier.height(52.dp))
             // Cover: 400 px square, 8 px corners, nothing framing it.
             Image(
                 bitmap = scene.cover,
@@ -76,7 +77,7 @@ fun NowPlayingAmbient(
                     statusLine,
                     color = scene.inkFaint,
                     fontFamily = AstrionTheme.bodyFont,
-                    fontSize = AstrionTheme.size.small,
+                    fontSize = AstrionTheme.size.label,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -86,7 +87,7 @@ fun NowPlayingAmbient(
                     color = scene.ink,
                     fontFamily = AstrionTheme.headingFont,
                     fontWeight = FontWeight.Normal,
-                    fontSize = if (title.length > 36) AstrionTheme.size.displaySm else AstrionTheme.size.displayLg,
+                    fontSize = if (title.length > 36) AstrionTheme.size.displayMd else AstrionTheme.size.displayXl,
                     lineHeight = if (title.length > 36) 30.sp else 36.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -98,7 +99,7 @@ fun NowPlayingAmbient(
                         color = scene.inkDim,
                         fontFamily = AstrionTheme.bodyFont,
                         fontWeight = FontWeight.Medium,
-                        fontSize = AstrionTheme.size.title,
+                        fontSize = AstrionTheme.size.emphasis,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -109,7 +110,7 @@ fun NowPlayingAmbient(
                         album,
                         color = scene.inkFaint,
                         fontFamily = AstrionTheme.bodyFont,
-                        fontSize = AstrionTheme.size.small,
+                        fontSize = AstrionTheme.size.label,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = TextStyle(fontFeatureSettings = "tnum"),

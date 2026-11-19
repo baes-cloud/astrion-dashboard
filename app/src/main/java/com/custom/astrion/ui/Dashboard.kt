@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -21,11 +22,13 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -61,6 +64,14 @@ val LocalPageVisible = compositionLocalOf { true }
  * with the screen off.
  */
 val LocalDashboardShowing = compositionLocalOf { true }
+
+/**
+ * Shared remote battery state (`pct` and `charging`), provided once from
+ * [com.custom.astrion.viewmodel.PowerViewModel] instead of registering 4
+ * duplicate `ACTION_BATTERY_CHANGED` BroadcastReceivers across the 4 pages.
+ */
+data class BatteryReadout(val pct: Int? = null, val charging: Boolean = false)
+val LocalBatteryState = compositionLocalOf { BatteryReadout() }
 
 /**
  * Wall-clock time, ticking once a minute just after the minute turns, for
@@ -126,6 +137,10 @@ fun Dashboard(
     /** Page index requested by a hardware button; consumed via onNavHandled. */
     navTarget: Int? = null,
     onNavHandled: () -> Unit = {},
+    /** The page on screen changed, by button or by swipe. */
+    onPageShown: (Int) -> Unit = {},
+    /** Long-pressing the BÆO nameplate opens the button guide without a physical key. */
+    onOpenGuide: (() -> Unit)? = null,
 ) {
     // Built once per client, NOT per recomposition. See CardContext's docs —
     // rebuilding this was recomposing every card on every page on every HA
@@ -144,6 +159,10 @@ fun Dashboard(
     // A zone picked for the volume keys only holds while you stay on Zones:
     // any page change hands the keys back to the Club.
     LaunchedEffect(current) { com.custom.astrion.input.VolumeFocus.clear() }
+    // A swipe turns the page here, without going through the ViewModel:
+    // report it, so its currentPage is the page actually on screen.
+    val pageShown by rememberUpdatedState(onPageShown)
+    LaunchedEffect(current) { pageShown(current) }
     LaunchedEffect(navTarget) {
         val t = navTarget ?: return@LaunchedEffect
         if (t in 0 until pageCount) {
@@ -173,6 +192,18 @@ fun Dashboard(
             config.pages.asSequence().flatMap { it.cards }.firstOrNull { it.type == "clock_header" }
         }
         val nameOverrides = remember(config.pages) { config.pages.map { mutableStateOf<String?>(null) } }
+        val tabSlots = remember(config.pages) { config.pages.map { mutableStateOf<PageTabs?>(null) } }
+        // Footer arrows: through the current page's tabs first, then on to the
+        // next page, landing on its first tab going forward or its last going back.
+        fun step(dir: Int) {
+            tabSlots.getOrNull(current)?.value?.let { tabs ->
+                val next = tabs.current() + dir
+                if (next in 0 until tabs.count) { tabs.go(next, true); return }
+            }
+            val nextPage = (current + dir).mod(pageCount)
+            tabSlots.getOrNull(nextPage)?.value?.let { it.go(if (dir > 0) 0 else it.count - 1, false) }
+            current = nextPage
+        }
         // Each page change fades the new page in, sliding a little from the
         // side it came from: opacity and translation only, cheap on this GPU.
         var lastPage by remember { mutableIntStateOf(current) }
@@ -189,17 +220,20 @@ fun Dashboard(
             enter.animateTo(1f, tween(PAGE_ENTER_MS))
             lastPage = current
         }
-        val slidePx = with(LocalDensity.current) { 16.dp.toPx() }
+        val slidePx = with(LocalDensity.current) { 10.dp.toPx() }
         Box(
             Modifier
                 .fillMaxSize()
                 .pageSwipe(pageCount) { dir -> current = (current + dir).mod(pageCount) },
         ) {
             config.pages.forEachIndexed { i, page ->
-                key(i) {
+                // By position and name: a reload that renames or reorders pages
+                // must not hand one page's scroll and tab state to another.
+                key(i, page.name) {
                     CompositionLocalProvider(
                         LocalPageVisible provides (i == current),
                         LocalPageNameOverride provides nameOverrides[i],
+                        LocalPageTabsSlot provides tabSlots[i],
                         LocalNavEpoch provides navEpoch,
                     ) {
                         // Hidden pages stay placed but invisible (alpha 0 draws
@@ -217,6 +251,10 @@ fun Dashboard(
                                     if (shown) {
                                         alpha = enter.value
                                         translationX = (1f - enter.value) * slidePx * enterFrom
+                                        // Alpha on each draw, not via an offscreen copy of the
+                                        // whole page every frame: on the Mali-400 that copy is
+                                        // what made page changes stutter.
+                                        compositingStrategy = CompositingStrategy.ModulateAlpha
                                     } else {
                                         alpha = 0f
                                     }
@@ -236,7 +274,8 @@ fun Dashboard(
         PageName(
             names = config.pages.mapIndexed { i, p -> nameOverrides.getOrNull(i)?.value ?: p.deviceName },
             current = current,
-            onGo = { current = it.mod(pageCount) },
+            onGo = { target -> step(if (target == (current + 1).mod(pageCount)) 1 else -1) },
+            onWordmarkLongClick = onOpenGuide,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
 
@@ -249,16 +288,31 @@ fun Dashboard(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth(),
         ) {
-            ConnectionBanner(connectionState, onRetry = { client.connect() })
+            ConnectionBanner(connectionState, lastLiveAtMs = client.lastLiveAtMs, onRetry = { client.connect() })
+            val storageRo by com.custom.astrion.power.StorageHealth.isDataReadOnly.collectAsState()
+            if (storageRo) StorageReadOnlyBanner()
             if (configNotice != null) ConfigNoticeBanner(configNotice)
         }
     }
 }
 
+/**
+ * A page's own tabs (its swipe_stack), so the footer arrows can step through
+ * Player, Media and Zones before moving to the next page. [go] takes the tab
+ * and whether to animate.
+ */
+class PageTabs(val count: Int, val current: () -> Int, val go: (Int, Boolean) -> Unit)
+
+/** Where a page's swipe_stack registers its [PageTabs]; null outside a page. */
+val LocalPageTabsSlot = compositionLocalOf<androidx.compose.runtime.MutableState<PageTabs?>?> { null }
+
 /** Counts button jumps to a page; see SwipeStackCard. 0 = none yet. */
 val LocalNavEpoch = compositionLocalOf { 0 }
 
-private const val PAGE_ENTER_MS = 220
+/** Opens the in-window TV Remote (IR) overlay from cards such as the TV Cinema console. */
+val LocalOpenIrMode = compositionLocalOf<(() -> Unit)?> { null }
+
+private const val PAGE_ENTER_MS = 160
 
 /**
  * A sideways swipe anywhere on a page turns it: [onTurn] gets +1 for the next
@@ -483,8 +537,10 @@ private fun RenderCard(cardConfig: CardConfig, ctx: CardContext) {
     val renderer = CardRegistry.get(cardConfig.type)
     if (renderer != null) {
         renderer.Render(cardConfig, ctx)
+    } else if (cardConfig.type == com.custom.astrion.config.DashboardLoader.INVALID_CARD) {
+        UnknownCard("This card can't be read: ${cardConfig.string("error").orEmpty()}")
     } else {
-        UnknownCard(cardConfig.type)
+        UnknownCard("Unknown card type: ${cardConfig.type}")
     }
 }
 
@@ -501,23 +557,27 @@ private fun RenderCard(cardConfig: CardConfig, ctx: CardContext) {
 @Composable
 private fun ConnectionBanner(
     connectionState: State<ConnectionState>,
+    lastLiveAtMs: Long = 0L,
     onRetry: () -> Unit = {},
 ) {
     val connection by connectionState
     if (connection == ConnectionState.CONNECTED) return
 
+    val seenSuffix = if (lastLiveAtMs > 0L) " · last seen ${Time.format(lastLiveAtMs, "h:mm a")}" else ""
+
     if (connection == ConnectionState.CONNECTING || connection == ConnectionState.AUTHENTICATING) {
+        // Sits below the 22dp clock row so it never covers the time.
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
             horizontalArrangement = Arrangement.Center,
         ) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
-                    .background(AstrionTheme.colors.surface.copy(alpha = 0.8f))
+                    .background(AstrionTheme.colors.surface.copy(alpha = 0.92f))
                     .padding(horizontal = 10.dp, vertical = 3.dp),
             ) {
-                Text("Connecting…", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
+                Text("Reconnecting…$seenSuffix", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
             }
         }
         return
@@ -525,8 +585,8 @@ private fun ConnectionBanner(
 
     val label = when (connection) {
         ConnectionState.AUTH_FAILED -> "Home Assistant refused the remote's login"
-        ConnectionState.ERROR -> "Can't reach Home Assistant, retrying"
-        else -> "Not connected. Controls are paused"
+        ConnectionState.ERROR -> "Can't reach Home Assistant$seenSuffix"
+        else -> "Not connected$seenSuffix. Controls are paused"
     }
     Box(
         modifier = Modifier
@@ -542,6 +602,31 @@ private fun ConnectionBanner(
             fontSize = AstrionTheme.body,
             fontWeight = FontWeight.Bold,
         )
+    }
+}
+
+@Composable
+private fun StorageReadOnlyBanner() {
+    var dismissed by remember { mutableStateOf(false) }
+    if (dismissed) return
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(AstrionTheme.colors.blushContainer)
+                .tap { dismissed = true }
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+        ) {
+            Text(
+                "Storage read-only — keep docked, do not reboot",
+                color = AstrionTheme.colors.blush,
+                fontSize = AstrionTheme.size.label,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
 
@@ -567,7 +652,7 @@ private fun ConfigNoticeBanner(text: String) {
 }
 
 @Composable
-private fun UnknownCard(type: String) {
+private fun UnknownCard(message: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -576,7 +661,7 @@ private fun UnknownCard(type: String) {
             .padding(14.dp),
     ) {
         Text(
-            "Unknown card type: $type",
+            message,
             color = AstrionTheme.colors.danger,
             fontSize = AstrionTheme.label,
         )

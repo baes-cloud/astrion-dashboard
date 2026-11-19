@@ -2,14 +2,19 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -35,11 +40,9 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * A mirror ball that toggles its entity (a fan, a switch: anything with
- * `toggle`). While it's on the ball turns, its facets sliding round, and
- * sparkles twinkle beside it; off, it hangs still and grey.
- *   { "type": "mirror_ball", "options": { "entity_id": "fan.mirror_ball", "size": 44 } }
- * In a `row`, give it a fixed "width" so the cards either side share the rest.
+ * Borderless Matte Mirror Ball pill (Bæo v3.0):
+ *  - 48dp matte action pill: warm matte ochre (`ochreSurface` + `ochreInk`)
+ *    when spinning, calm matte `cardBg` when still.
  */
 class MirrorBallCard : CardRenderer {
     override val type = "mirror_ball"
@@ -47,57 +50,58 @@ class MirrorBallCard : CardRenderer {
     @Composable
     override fun Render(config: CardConfig, ctx: CardContext) {
         val entityId = config.string("entity_id") ?: return
-        val size = config.int("size", 44).dp
+        val pillHeight = config.int("height", 48).coerceAtLeast(44).dp
+        val glyphSize = config.int("size", 28).coerceAtMost(36).dp
         val e = ctx.entities[entityId]
         val unavailable = e == null || e.isUnavailable
         val on = e?.isOn == true
-        val ink = if (on) AstrionTheme.on else AstrionTheme.textSecondary
+        val bg = if (on && !unavailable) AstrionTheme.ochreSurface else AstrionTheme.cardBg
+        val ink = if (on && !unavailable) AstrionTheme.ochreInk else AstrionTheme.textSecondary
+        val clipPath = remember { Path() }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(size)
+                .height(pillHeight)
                 .dimIfUnavailable(unavailable)
+                .clip(RoundedCornerShape(14.dp))
+                .background(bg)
                 .tap(enabled = !unavailable && ctx.connected) { ctx.client.toggle(entityId) }
                 .semantics { contentDescription = "Mirror ball, ${if (on) "on" else "off"}" },
             contentAlignment = Alignment.Center,
         ) {
             if (on) {
-                // On the specks' clock, not an infinite transition: that ran
-                // at the display's full rate, on every page and under the
-                // screensaver, for as long as the ball was on.
                 val clock = rememberBallClock(LocalPageVisible.current && LocalDashboardShowing.current)
-                Canvas(Modifier.size(size)) {
+                Canvas(Modifier.size(glyphSize)) {
                     val ms = clock.value
                     val turn = (ms % SPIN_MS) / SPIN_MS.toFloat() * PI.toFloat()
-                    // Up and back down again, eased each way as the tween was.
                     val leg = (ms % (2 * TWINKLE_MS)) / TWINKLE_MS.toFloat()
                     val twinkle = FastOutSlowInEasing.transform(if (leg <= 1f) leg else 2f - leg)
-                    ball(ink, turn, twinkle)
+                    ball(ink, turn, twinkle, clipPath)
                 }
             } else {
-                Canvas(Modifier.size(size)) { ball(ink, STILL_TURN, null) }
+                Canvas(Modifier.size(glyphSize)) { ball(ink, STILL_TURN, null, clipPath) }
             }
         }
     }
 }
 
-/** The ball on a 24-unit grid, scaled to the canvas, as the line icons are. */
-private fun DrawScope.ball(ink: Color, turn: Float, twinkle: Float?) {
+private fun DrawScope.ball(ink: Color, turn: Float, twinkle: Float?, outline: Path) {
     val u = size.minDimension / 24f
-    val stroke = Stroke(width = 1.6f * u, cap = StrokeCap.Round)
+    val outerStroke = Stroke(width = 1.6f * u, cap = StrokeCap.Round)
+    val facetStroke = Stroke(width = 1.2f * u)
     val c = Offset(12f * u, 13.5f * u)
     val r = 7f * u
     drawLine(ink, Offset(c.x, 2.5f * u), Offset(c.x, c.y - r), 1.6f * u, StrokeCap.Round)
-    drawCircle(ink, r, c, style = stroke)
-    val outline = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, r)) }
+    drawCircle(ink, r, c, style = outerStroke)
+    outline.reset()
+    outline.addOval(Rect(c, r))
     clipPath(outline) {
-        // Bands of facets across the ball.
         for (dy in listOf(-0.42f, 0.42f)) {
             val y = c.y + dy * r
             val half = sqrt(r * r - (dy * r) * (dy * r))
             drawLine(ink, Offset(c.x - half, y), Offset(c.x + half, y), 1.2f * u)
         }
-        // Meridians: ellipses whose width follows the turn, so they slide round.
         for (i in 0 until 3) {
             val w = r * abs(cos(turn + i * PI.toFloat() / 3f))
             if (w < 0.6f * u) continue
@@ -105,7 +109,7 @@ private fun DrawScope.ball(ink: Color, turn: Float, twinkle: Float?) {
                 ink,
                 topLeft = Offset(c.x - w, c.y - r),
                 size = Size(2f * w, 2f * r),
-                style = Stroke(width = 1.2f * u),
+                style = facetStroke,
             )
         }
     }
@@ -116,7 +120,6 @@ private fun DrawScope.ball(ink: Color, turn: Float, twinkle: Float?) {
     }
 }
 
-/** A four-point glint. */
 private fun DrawScope.sparkle(ink: Color, at: Offset, arm: Float) {
     if (arm <= 0.1f) return
     val w = arm * 0.45f
@@ -126,5 +129,4 @@ private fun DrawScope.sparkle(ink: Color, at: Offset, arm: Float) {
 
 private const val SPIN_MS = 2400
 private const val TWINKLE_MS = 700
-/** Where the facets sit while it's off: an even, at-rest look. */
 private const val STILL_TURN = 0.35f
