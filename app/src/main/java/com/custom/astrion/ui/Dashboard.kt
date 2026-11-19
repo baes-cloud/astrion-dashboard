@@ -192,6 +192,18 @@ fun Dashboard(
             config.pages.asSequence().flatMap { it.cards }.firstOrNull { it.type == "clock_header" }
         }
         val nameOverrides = remember(config.pages) { config.pages.map { mutableStateOf<String?>(null) } }
+        val tabSlots = remember(config.pages) { config.pages.map { mutableStateOf<PageTabs?>(null) } }
+        // Footer arrows: through the current page's tabs first, then on to the
+        // next page, landing on its first tab going forward or its last going back.
+        fun step(dir: Int) {
+            tabSlots.getOrNull(current)?.value?.let { tabs ->
+                val next = tabs.current() + dir
+                if (next in 0 until tabs.count) { tabs.go(next, true); return }
+            }
+            val nextPage = (current + dir).mod(pageCount)
+            tabSlots.getOrNull(nextPage)?.value?.let { it.go(if (dir > 0) 0 else it.count - 1, false) }
+            current = nextPage
+        }
         // Each page change fades the new page in, sliding a little from the
         // side it came from: opacity and translation only, cheap on this GPU.
         var lastPage by remember { mutableIntStateOf(current) }
@@ -221,6 +233,7 @@ fun Dashboard(
                     CompositionLocalProvider(
                         LocalPageVisible provides (i == current),
                         LocalPageNameOverride provides nameOverrides[i],
+                        LocalPageTabsSlot provides tabSlots[i],
                         LocalNavEpoch provides navEpoch,
                     ) {
                         // Hidden pages stay placed but invisible (alpha 0 draws
@@ -261,7 +274,7 @@ fun Dashboard(
         PageName(
             names = config.pages.mapIndexed { i, p -> nameOverrides.getOrNull(i)?.value ?: p.deviceName },
             current = current,
-            onGo = { current = it.mod(pageCount) },
+            onGo = { target -> step(if (target == (current + 1).mod(pageCount)) 1 else -1) },
             onWordmarkLongClick = onOpenGuide,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
@@ -282,6 +295,16 @@ fun Dashboard(
         }
     }
 }
+
+/**
+ * A page's own tabs (its swipe_stack), so the footer arrows can step through
+ * Player, Media and Zones before moving to the next page. [go] takes the tab
+ * and whether to animate.
+ */
+class PageTabs(val count: Int, val current: () -> Int, val go: (Int, Boolean) -> Unit)
+
+/** Where a page's swipe_stack registers its [PageTabs]; null outside a page. */
+val LocalPageTabsSlot = compositionLocalOf<androidx.compose.runtime.MutableState<PageTabs?>?> { null }
 
 /** Counts button jumps to a page; see SwipeStackCard. 0 = none yet. */
 val LocalNavEpoch = compositionLocalOf { 0 }

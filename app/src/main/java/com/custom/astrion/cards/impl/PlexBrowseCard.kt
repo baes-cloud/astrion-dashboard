@@ -153,6 +153,40 @@ class PlexBrowseCard : CardRenderer {
                     }
                 }
             }
+        } else if (config.string("style") == "panel") {
+            // Plex as its own section: a recessed panel with its name inside and
+            // the four choices as bare icons, no boxes around them.
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(AstrionTheme.colors.surfacePrimary)
+                    .padding(start = 12.dp, end = 12.dp, top = 9.dp, bottom = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                com.custom.astrion.ui.components.BaeoSectionHeader(config.string("title") ?: "Plex")
+                Row(Modifier.fillMaxWidth()) {
+                    buttons.forEach { b ->
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .height(config.int("tile_height", 64).coerceIn(48, 120).dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .tap { open = b },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Icon(buttonIcon(b), contentDescription = null, tint = AstrionTheme.accent, modifier = Modifier.size(28.dp))
+                            Spacer(Modifier.height(5.dp))
+                            Text(
+                                b["name"] as? String ?: "",
+                                color = AstrionTheme.textPrimary, fontSize = AstrionTheme.size.label,
+                                fontWeight = FontWeight.SemiBold, maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
         } else {
             val tileH = config.int("tile_height", if (flush) 50 else 58).coerceIn(40, 120)
             val title = config.string("title")

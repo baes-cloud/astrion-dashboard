@@ -23,7 +23,7 @@ data class AstrionColors(
     /** Tier 1: Borderless recessed troughs (segmented tracks, blind wells). */
     val surfacePrimary: Color = Color(0xFF141B22),
     /** Seamless canvas match for pinned top telemetry (floats directly on canvas). */
-    val pinnedTopBg: Color = Color(0xFF171F28),
+    val pinnedTopBg: Color = Color(0xFF131A21),
     /** Seamless canvas match for pinned bottom band / overlays. */
     val pinnedBottomBg: Color = Color(0xFF151D25),
     /** Tier 2: Calm matte page ground. */

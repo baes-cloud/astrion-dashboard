@@ -79,6 +79,15 @@ class SwipeStackCard : CardRenderer {
             SideEffect { nameOverride.value = tabName }
         }
 
+        // Lets the footer arrows step through these tabs (see Dashboard's step()).
+        val tabsSlot = com.custom.astrion.ui.LocalPageTabsSlot.current
+        androidx.compose.runtime.DisposableEffect(tabsSlot, children.size) {
+            tabsSlot?.value = com.custom.astrion.ui.PageTabs(children.size, { pagerState.currentPage }) { idx, animate ->
+                scope.launch { if (animate) pagerState.animateScrollToPage(idx) else pagerState.scrollToPage(idx) }
+            }
+            onDispose { tabsSlot?.value = null }
+        }
+
         val switchToTab: (Int) -> Unit = { idx ->
             if (idx in children.indices) scope.launch { pagerState.animateScrollToPage(idx) }
         }

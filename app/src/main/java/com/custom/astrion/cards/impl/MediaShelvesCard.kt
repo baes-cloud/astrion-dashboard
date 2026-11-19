@@ -292,7 +292,8 @@ class MediaShelvesCard : CardRenderer {
                 .fillMaxWidth()
                 .height(MINI_BAR_HEIGHT)
                 .clip(RoundedCornerShape(14.dp))
-                .background(AstrionTheme.surfaceElevated)
+                // Pink so the now-playing bar stands out from the shelves (Bae).
+                .background(AstrionTheme.blush)
                 .tap { switchTab?.invoke(0) }
                 .padding(start = 8.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -314,7 +315,7 @@ class MediaShelvesCard : CardRenderer {
             Column(Modifier.weight(1f)) {
                 Text(
                     title,
-                    color = AstrionTheme.textPrimary,
+                    color = AstrionTheme.colors.void,
                     fontSize = AstrionTheme.size.label,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -323,7 +324,7 @@ class MediaShelvesCard : CardRenderer {
                 if (artist.isNotBlank()) {
                     Text(
                         artist,
-                        color = AstrionTheme.textSecondary,
+                        color = AstrionTheme.colors.void.copy(alpha = 0.72f),
                         fontSize = AstrionTheme.size.micro,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -334,12 +335,12 @@ class MediaShelvesCard : CardRenderer {
                 visual = 34.dp,
                 enabled = ctx.connected,
                 onClick = { ctx.client.callService(ServiceCall("media_player", "media_play_pause", entityId)) },
-                face = Modifier.clip(CircleShape).background(AstrionTheme.accent),
+                face = Modifier.clip(CircleShape).background(AstrionTheme.colors.void),
             ) {
                 Icon(
                     if (playing) Glyphs.pause else Glyphs.play,
                     contentDescription = if (playing) "Pause" else "Play",
-                    tint = AstrionTheme.onAccent,
+                    tint = AstrionTheme.blush,
                     modifier = Modifier.size(15.dp),
                 )
             }
@@ -356,20 +357,18 @@ class MediaShelvesCard : CardRenderer {
         )
     }
 
-    /** Shelf heading on a full-width tinted band with an accent tick, so each shelf reads as its own section. */
+    /** Shelf heading: an accent tick before the name marks where each shelf starts (no band: too busy). */
     @Composable
     private fun ShelfHeader(text: String) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .background(AstrionTheme.surfaceElevated)
                 .padding(vertical = HEADER_BAND_PAD),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 Modifier
-                    .padding(start = 8.dp, end = 6.dp)
+                    .padding(start = 2.dp, end = 6.dp)
                     .width(3.dp)
                     .height(12.dp)
                     .clip(RoundedCornerShape(2.dp))

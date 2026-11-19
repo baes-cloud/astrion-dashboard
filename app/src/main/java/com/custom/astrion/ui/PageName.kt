@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -87,7 +88,9 @@ fun PageName(
                 .then(if (onWordmarkLongClick != null) Modifier.holdOnly(onLongClick = onWordmarkLongClick) else Modifier),
             contentAlignment = Alignment.Center,
         ) {
+            // As wide as the wordmark, so the rule underneath spans exactly the name.
             Column(
+                modifier = Modifier.width(IntrinsicSize.Max),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(PageRuleGap),
             ) {
@@ -108,20 +111,21 @@ fun PageName(
  */
 @Composable
 private fun PageRule(count: Int, current: Int) {
-    val on = AstrionTheme.accent
-    val off = AstrionTheme.colors.controlRaised
+    // Faint, so it reads as a hint under the name rather than a second line of UI.
+    val on = AstrionTheme.accent.copy(alpha = 0.55f)
+    val off = AstrionTheme.colors.controlRaised.copy(alpha = 0.45f)
     Row(
-        modifier = Modifier.semantics { contentDescription = "Page ${current + 1} of $count" },
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = "Page ${current + 1} of $count" },
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        // Narrower segments when there are many pages, so the rule never
-        // grows wider than the wordmark above it.
-        val segment = (PageRuleWidth / count - 4.dp).coerceIn(8.dp, 38.dp)
         repeat(count) { i ->
             val color by animateColorAsState(if (i == current) on else off, tween(FADE_MS), label = "pageRule")
             Box(
                 Modifier
-                    .size(width = segment, height = 2.dp)
+                    .weight(1f)
+                    .height(2.dp)
                     .clip(RoundedCornerShape(1.dp))
                     .background(color),
             )
@@ -130,8 +134,6 @@ private fun PageRule(count: Int, current: Int) {
 }
 
 private val PageRuleGap = 5.dp
-/** The rule's full width: about the wordmark's own. */
-private val PageRuleWidth = 168.dp
 
 @Composable
 private fun EdgeArrow(

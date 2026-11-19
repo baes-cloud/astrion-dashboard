@@ -229,14 +229,16 @@ class SpeakerGroupCard : CardRenderer {
 
         Column(
             modifier = Modifier
+                // A little air under the tab bar, paid for by the tighter card below.
+                .padding(top = 10.dp)
                 .fillMaxWidth()
                 .clip(shape)
                 // Between v2 and v3 (Bae): v3's layout on a plain card, with v2's
                 // thin accent outline marking it on instead of a full green wash.
                 .background(AstrionTheme.cardBg)
                 .then(if (on) Modifier.border(1.dp, AstrionTheme.accent.copy(alpha = 0.45f), shape) else Modifier)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = 14.dp, vertical = 5.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             // Full-row tappable BÆOLINK toggle header.
             Row(
