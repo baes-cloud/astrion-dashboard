@@ -138,6 +138,8 @@ fun Dashboard(
     onNavHandled: () -> Unit = {},
     /** The page on screen changed, by button or by swipe. */
     onPageShown: (Int) -> Unit = {},
+    /** Long-pressing the BÆO nameplate opens the button guide without a physical key. */
+    onOpenGuide: (() -> Unit)? = null,
 ) {
     // Built once per client, NOT per recomposition. See CardContext's docs —
     // rebuilding this was recomposing every card on every page on every HA
@@ -255,6 +257,7 @@ fun Dashboard(
             names = config.pages.mapIndexed { i, p -> nameOverrides.getOrNull(i)?.value ?: p.deviceName },
             current = current,
             onGo = { current = it.mod(pageCount) },
+            onWordmarkLongClick = onOpenGuide,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
 

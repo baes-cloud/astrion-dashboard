@@ -63,6 +63,7 @@ fun PageName(
     names: List<String?>,
     current: Int,
     onGo: (Int) -> Unit,
+    onWordmarkLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val count = names.size.coerceAtLeast(1)
@@ -82,7 +83,8 @@ fun PageName(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .height(PageNameHeight),
+                .height(PageNameHeight)
+                .then(if (onWordmarkLongClick != null) Modifier.holdOnly(onLongClick = onWordmarkLongClick) else Modifier),
             contentAlignment = Alignment.Center,
         ) {
             Column(
@@ -197,7 +199,7 @@ private fun Wordmark14(name: String?) {
             Text(
                 text = shownPrefix,
                 modifier = Modifier.graphicsLayer { alpha = prefixFade.value },
-                color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
+                color = AstrionTheme.textPrimary,
                 fontFamily = AstrionTheme.headingFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = AstrionTheme.size.emphasis,
@@ -220,9 +222,9 @@ private fun Wordmark14(name: String?) {
                         shownSuffix.forEach { char ->
                             Text(
                                 text = char.toString(),
-                                color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
+                                color = AstrionTheme.textMuted,
                                 fontFamily = AstrionTheme.headingFont,
-                                fontWeight = FontWeight.Thin,
+                                fontWeight = FontWeight.Normal,
                                 fontSize = AstrionTheme.size.emphasis,
                                 maxLines = 1,
                             )
@@ -232,9 +234,9 @@ private fun Wordmark14(name: String?) {
                     Text(
                         text = shownSuffix,
                         modifier = Modifier.graphicsLayer { alpha = suffixFade.value },
-                        color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
+                        color = AstrionTheme.textMuted,
                         fontFamily = AstrionTheme.headingFont,
-                        fontWeight = FontWeight.Thin,
+                        fontWeight = FontWeight.Normal,
                         fontSize = AstrionTheme.size.emphasis,
                         maxLines = 1,
                     )
@@ -247,9 +249,9 @@ private fun Wordmark14(name: String?) {
             modifier = Modifier
                 .padding(start = 5.dp)
                 .graphicsLayer { alpha = suffixFade.value },
-            color = AstrionTheme.textSecondary.copy(alpha = 0.7f),
+            color = AstrionTheme.textMuted,
             fontFamily = AstrionTheme.headingFont,
-            fontWeight = FontWeight.Thin,
+            fontWeight = FontWeight.Normal,
             fontSize = AstrionTheme.size.emphasis,
             letterSpacing = WordmarkTracking,
             maxLines = 1,

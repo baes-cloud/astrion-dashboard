@@ -16,23 +16,23 @@ data class StateVisuals(
 
 private val palette = AstrionColors()
 
-/** Control states, built from [AstrionColors] so they can't drift from it. */
+/** Borderless matte control states derived directly from [AstrionColors]. */
 @Immutable
 data class AstrionStates(
     val active: StateVisuals = StateVisuals(
-        backgroundColor = palette.controlSunken,
+        backgroundColor = palette.accentContainer,
         contentColor = palette.accent,
-        borderColor = palette.hairline,
-        borderStroke = 1.dp,
+        borderColor = Color.Transparent,
+        borderStroke = 0.dp,
     ),
     val inactive: StateVisuals = StateVisuals(
         backgroundColor = palette.surface,
         contentColor = palette.onSurfaceMuted,
     ),
     val pressed: StateVisuals = StateVisuals(
-        backgroundColor = palette.pinnedTopBg,
+        backgroundColor = palette.surfaceElevated,
         contentColor = palette.onSurface,
-        alpha = 0.95f,
+        alpha = 0.96f,
     ),
     val disabled: StateVisuals = StateVisuals(
         backgroundColor = palette.surfaceCard,

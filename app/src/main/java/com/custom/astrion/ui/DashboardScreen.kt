@@ -55,6 +55,7 @@ fun DashboardScreen(
                             navTarget = dashboardState.navTarget,
                             onNavHandled = { dashboardVm.onIntent(DashboardIntent.NavTargetHandled) },
                             onPageShown = { dashboardVm.onIntent(DashboardIntent.PageShown(it)) },
+                            onOpenGuide = { inputVm.onIntent(InputIntent.OpenGuide) },
                         )
                         sheetHost.Host()
                     }

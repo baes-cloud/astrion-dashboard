@@ -232,7 +232,7 @@ fun AstrionCard(
  */
 @Composable
 fun TouchTarget(
-    size: Dp = 44.dp,
+    size: Dp = MIN_TOUCH,
     enabled: Boolean = true,
     onClick: () -> Unit,
     content: @Composable () -> Unit,
@@ -246,9 +246,8 @@ fun TouchTarget(
 }
 
 /**
- * Power as a pill that says its state in words. A bare power glyph in grey
- * or teal left "is it on?" to colour alone, and the aircon's and the fan's
- * didn't even agree on the colours.
+ * Power as a pill that says its state in words. Off is a calm matte neutral
+ * control (never error red); on is Gunmetal matte teal.
  */
 @Composable
 fun PowerPill(
@@ -258,7 +257,7 @@ fun PowerPill(
     height: Dp = MIN_TOUCH,
     onClick: () -> Unit,
 ) {
-    val ink = if (on) Color.White else AstrionTheme.textOnControl
+    val ink = if (on) AstrionTheme.colors.onPrimary else AstrionTheme.textOnControl
     androidx.compose.foundation.layout.Row(
         modifier = Modifier
             .height(height)

@@ -24,7 +24,7 @@ data class AstrionTypography(
 
     // ---- Material 3 & Extended Scale ----------------------------------------
     val displayLarge: TextStyle,                       // 81sp (Screensaver giant clock)
-    val displayMedium: TextStyle,                      // 40sp (Climate giant temperature readout)
+    val displayMedium: TextStyle,                      // 44sp (Climate temperature readout, Manrope 400 tnum)
     val displaySmall: TextStyle,                       // 34sp (Weather card clock)
     val titleLarge: TextStyle,                         // 22sp (Dialog titles, media header)
     val titleMedium: TextStyle,                        // 16sp (Card names, climate header)
@@ -35,21 +35,29 @@ data class AstrionTypography(
     val labelLarge: TextStyle,                         // 12sp Bold, 1sp tracking (Status header)
     val labelMedium: TextStyle,                        // 12sp SemiBold, 1sp tracking (Section headers)
     val labelSmall: TextStyle,                         // 12sp Medium, 0.5sp tracking (Connection pill)
-    val labelMicro: TextStyle,                         // 8sp Bold, 0.16em tracking ("ON" badge)
+    val labelMicro: TextStyle,                         // 10sp Bold, 0.14em tracking ("ON" / "NOW" badge)
     val wordmark: TextStyle,                           // 16sp Bold, 0.318em tracking (BÆOREMOTE footer)
 
     /** The font sizes in use, for text that sets its own weight and family. */
     val sizes: AstrionTypeSizes = AstrionTypeSizes(),
 ) {
-    // Backwards-compatible TextUnit accessors
     val displaySize: TextUnit get() = display.fontSize
     val titleSize: TextUnit get() = title.fontSize
     val bodySize: TextUnit get() = body.fontSize
     val labelSize: TextUnit get() = label.fontSize
 }
 
+/**
+ * Rule of Two Typography:
+ *  - [bodyFont] (Manrope 400–700 + `tnum` on numeric readouts): all UI copy,
+ *    card/track titles, Climate & Light Sheet numerals (using Regular 400).
+ *  - [headingFont] (Syne 400–700, properly mapped): wordmarks & cinema/alert
+ *    display headlines only.
+ *  - Antonio retired cleanly.
+ */
 fun defaultAstrionTypography(): AstrionTypography {
     val bodyFont = FontFamily(
+        Font(R.font.manrope_400, FontWeight.Light),
         Font(R.font.manrope_400, FontWeight.Normal),
         Font(R.font.manrope_500, FontWeight.Medium),
         Font(R.font.manrope_600, FontWeight.SemiBold),
@@ -57,29 +65,24 @@ fun defaultAstrionTypography(): AstrionTypography {
     )
     val headingFont = FontFamily(
         Font(R.font.syne_400, FontWeight.Thin),
-        Font(R.font.syne_500, FontWeight.Light),
-        Font(R.font.syne_500, FontWeight.Normal),
+        Font(R.font.syne_400, FontWeight.Light),
+        Font(R.font.syne_400, FontWeight.Normal),
         Font(R.font.syne_500, FontWeight.Medium),
         Font(R.font.syne_600, FontWeight.SemiBold),
         Font(R.font.syne_700, FontWeight.Bold),
     )
-    val readoutFont = FontFamily(
-        Font(R.font.antonio_200, FontWeight.ExtraLight),
-        Font(R.font.antonio_300, FontWeight.Light),
-        Font(R.font.antonio_400, FontWeight.Normal),
-    )
     return AstrionTypography(
         bodyFont = bodyFont,
         headingFont = headingFont,
-        readoutFont = readoutFont,
+        readoutFont = bodyFont,
         display = TextStyle(fontFamily = headingFont, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Normal),
         title = TextStyle(fontFamily = bodyFont, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
         body = TextStyle(fontFamily = bodyFont, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Normal),
         label = TextStyle(fontFamily = bodyFont, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium),
 
-        displayLarge = TextStyle(fontFamily = bodyFont, fontSize = 81.sp, lineHeight = 81.sp, fontWeight = FontWeight.Medium, letterSpacing = (-1.5).sp),
-        displayMedium = TextStyle(fontFamily = headingFont, fontSize = 40.sp, lineHeight = 44.sp, fontWeight = FontWeight.Light),
-        displaySmall = TextStyle(fontFamily = headingFont, fontSize = 34.sp, lineHeight = 38.sp, fontWeight = FontWeight.Light),
+        displayLarge = TextStyle(fontFamily = bodyFont, fontSize = 81.sp, lineHeight = 81.sp, fontWeight = FontWeight.Medium, letterSpacing = (-1.5).sp, fontFeatureSettings = "tnum"),
+        displayMedium = TextStyle(fontFamily = bodyFont, fontSize = 44.sp, lineHeight = 46.sp, fontWeight = FontWeight.Normal, fontFeatureSettings = "tnum"),
+        displaySmall = TextStyle(fontFamily = bodyFont, fontSize = 34.sp, lineHeight = 38.sp, fontWeight = FontWeight.Normal, fontFeatureSettings = "tnum"),
         titleLarge = TextStyle(fontFamily = headingFont, fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold),
         titleMedium = TextStyle(fontFamily = bodyFont, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
         titleSmall = TextStyle(fontFamily = bodyFont, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold),
@@ -89,50 +92,31 @@ fun defaultAstrionTypography(): AstrionTypography {
         labelLarge = TextStyle(fontFamily = bodyFont, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
         labelMedium = TextStyle(fontFamily = bodyFont, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp),
         labelSmall = TextStyle(fontFamily = bodyFont, fontSize = 12.sp, lineHeight = 15.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp),
-        labelMicro = TextStyle(fontFamily = bodyFont, fontSize = 8.sp, lineHeight = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.16.em),
+        labelMicro = TextStyle(fontFamily = bodyFont, fontSize = 10.sp, lineHeight = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.14.em),
         wordmark = TextStyle(fontFamily = headingFont, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.318.em),
     )
 }
 
-/**
- * Every font size the app uses, smallest to largest. A `fontSize` comes from
- * here, never a literal, so the scale can be read (and changed) in one place.
- * Nothing is read below [MIN_TEXT] (12 sp, at arm's length on a 349 dp
- * panel); [micro] is the one exception, the "ON" badge's capitals.
- *
- * Seven sizes for the interface, then the big numerals. It used to be
- * fourteen, with 12-13-14-15-16-17-18-19-20 all in use: steps of one sp that
- * nobody can tell apart but that never quite lined up either. Each of those
- * went to its neighbour (13 to 12, 15 to 14, 17 to 16, 19 to 18, 20 to 22,
- * 26 to 28, 32 to 34).
- */
 @Immutable
 data class AstrionTypeSizes(
-    /** The "ON" badge on a scene tile: two capitals, not something to read. */
-    val micro: TextUnit = 8.sp,
-    /** The smallest text: time stamps, captions, small labels, secondary lines. */
+    /** Short status pills ("ON", "NOW", "VOL KEYS"). */
+    val micro: TextUnit = 10.sp,
+    /** Smallest readable text: timestamps, captions, labels, secondary lines. */
     val label: TextUnit = MIN_TEXT,
     val body: TextUnit = 14.sp,
-    /** Card names and anything that leads a row. */
+    /** Card names and primary row leads. */
     val emphasis: TextUnit = 16.sp,
     val titleLarge: TextUnit = 18.sp,
     val displayXs: TextUnit = 22.sp,
     val displayMd: TextUnit = 28.sp,
     val displayXl: TextUnit = 34.sp,
-    /** Climate's set temperature. */
-    val readout: TextUnit = 40.sp,
-    /** Light brightness percentage readout in LightDetailDialog. */
-    val readoutLarge: TextUnit = 64.sp,
-    // The three clocks keep their own sizes: each is fitted to the width of
-    // its own screen, and one size for all of them would clip one or shrink
-    // another.
-    /** The screensaver clock. */
+    /** Climate setpoint temperature (Manrope 400 tnum). */
+    val readout: TextUnit = 44.sp,
+    /** Light brightness percentage readout in LightDetailDialog (Manrope 400 tnum). */
+    val readoutLarge: TextUnit = 56.sp,
     val clock: TextUnit = 81.sp,
-    /** The ringing alarm's clock. */
     val alarmClock: TextUnit = 88.sp,
-    /** The ambient rest clock. */
     val restClock: TextUnit = 92.sp,
 )
 
-/** The smallest text size anything is set in (see [AstrionTypeSizes]). */
 val MIN_TEXT: TextUnit = 12.sp
