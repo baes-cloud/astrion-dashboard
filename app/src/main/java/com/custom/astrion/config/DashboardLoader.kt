@@ -72,21 +72,34 @@ object DashboardLoader {
      */
     @Volatile private var lastGood: AppConfig? = null
 
-    /** The bundled layout's text, written out verbatim as the first config file. */
-    private var bundledText: String? = null
+    @Volatile private var assetManager: AssetManager? = null
 
-    /** The bundled layout, or [DashboardConfig.fallback] if it won't parse. */
-    var default: AppConfig = DashboardConfig.fallback
-        private set
+    /** The bundled layout's text, loaded lazily only when needed (fallback or first run). */
+    @Volatile private var cachedBundledText: String? = null
+    @Volatile private var cachedDefault: AppConfig? = null
 
-    /** Read the layout bundled from device/config/dashboard.json. Call once at startup. */
-    fun init(assets: AssetManager) {
-        bundledText = runCatching { assets.open(BUNDLED_ASSET).bufferedReader().use { it.readText() } }
+    private fun bundledTextOrLoad(): String? {
+        cachedBundledText?.let { return it }
+        val assets = assetManager ?: return null
+        return runCatching { assets.open(BUNDLED_ASSET).bufferedReader().use { it.readText() } }
             .onFailure { Log.e(TAG, "No bundled $BUNDLED_ASSET", it) }
             .getOrNull()
-        default = bundledText?.let { text ->
-            runCatching { parse(text) }.onFailure { Log.e(TAG, "Bundled $BUNDLED_ASSET invalid", it) }.getOrNull()
-        } ?: DashboardConfig.fallback
+            ?.also { cachedBundledText = it }
+    }
+
+    /** The bundled layout, or [DashboardConfig.fallback] if it won't parse (parsed lazily). */
+    val default: AppConfig
+        get() {
+            cachedDefault?.let { return it }
+            val parsed = bundledTextOrLoad()?.let { text ->
+                runCatching { parse(text) }.onFailure { Log.e(TAG, "Bundled $BUNDLED_ASSET invalid", it) }.getOrNull()
+            }
+            return (parsed ?: DashboardConfig.fallback).also { if (parsed != null) cachedDefault = it }
+        }
+
+    /** Record the AssetManager once at startup; bundled JSON is only parsed on fallback. */
+    fun init(assets: AssetManager) {
+        assetManager = assets
     }
 
     fun load(): Result {
@@ -263,7 +276,11 @@ object DashboardLoader {
     // ---- write defaults -----------------------------------------------------
 
     private fun writeDefaults(): Boolean = try {
-        val text = bundledText ?: error("no bundled layout")
+        if (com.custom.astrion.power.StorageHealth.isDataReadOnly.value) {
+            Log.w(TAG, "Skipping writeDefaults: /data is mounted read-only")
+            return false
+        }
+        val text = bundledTextOrLoad() ?: error("no bundled layout")
         val file = configFile
         file.parentFile?.mkdirs()
         file.writeText(text)

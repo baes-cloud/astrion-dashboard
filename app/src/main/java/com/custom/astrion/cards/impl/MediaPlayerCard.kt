@@ -29,6 +29,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -197,12 +198,21 @@ class MediaPlayerCard : CardRenderer {
     private fun TvCard(config: CardConfig, ctx: CardContext, entityId: String) {
         val apps = remember(config) { (config.options["apps"] as? List<Map<String, Any?>>) ?: emptyList() }
         val players = remember(config) { config.stringList("art_entities") }
+        val alsoOnEntries = remember(config) {
+            when (val raw = config.options["also_on"]) {
+                is Map<*, *> -> listOf(raw)
+                is List<*> -> raw.filterIsInstance<Map<*, *>>()
+                else -> emptyList()
+            }
+        }
         val session by remember(config, ctx) {
             derivedStateOf {
+                val activeAlsoOn = alsoOnEntries.firstOrNull { alsoOn(it, ctx) }
                 resolveTvSession(
                     ctx.entity(entityId),
                     players.mapNotNull { ctx.entity(it) }.filterNot { it.isUnavailable },
                     apps,
+                    activeAlsoOn,
                 )
             }
         }
@@ -939,7 +949,12 @@ private fun appSource(a: Map<String, Any?>): String? = (a["data"] as? Map<*, *>)
  * paused session open in the background for hours after you've moved on to
  * another app, and that isn't what's on the TV.
  */
-private fun resolveTvSession(tv: EntityState?, players: List<EntityState>, apps: List<Map<String, Any?>>): TvSession {
+private fun resolveTvSession(
+    tv: EntityState?,
+    players: List<EntityState>,
+    apps: List<Map<String, Any?>>,
+    alsoOnMatch: Map<*, *>? = null,
+): TvSession {
     fun named(text: String?): Map<String, Any?>? = text?.let { t ->
         apps.firstOrNull { a -> (a["name"] as? String)?.let { t.contains(it, ignoreCase = true) } == true }
     }
@@ -974,6 +989,18 @@ private fun resolveTvSession(tv: EntityState?, players: List<EntityState>, apps:
             logoColor = app?.get("color") as? String,
             progressEntity = session.entityId,
             frontApp = frontPkg,
+        )
+    }
+    if (!tvOn && alsoOnMatch != null) {
+        val src = alsoOnMatch["is"]?.toString()?.uppercase() ?: "HDMI"
+        val title = (alsoOnMatch["title"] as? String) ?: (alsoOnMatch["name"] as? String) ?: "PC · $src"
+        val subtitle = (alsoOnMatch["subtitle"] as? String) ?: "External input"
+        return TvSession(
+            state = TvState.ON,
+            title = title,
+            subtitle = subtitle,
+            appName = alsoOnMatch["app_name"] as? String,
+            frontApp = alsoOnMatch["is"]?.toString(),
         )
     }
     if (!tvOn) return TvSession(TvState.OFF, "TV off")
@@ -1029,13 +1056,20 @@ private fun ArtBackdrop(
     bottomShade: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val blurred = remember(art, washPx) {
-        art?.let { img ->
-            val src = img.asAndroidBitmap()
-            if (src.width <= 0) return@let null
-            val w = washPx
-            val h = (w * src.height / src.width).coerceAtLeast(1)
-            Bitmap.createScaledBitmap(src, w, h, true).asImageBitmap()
+    val blurred by produceState<ImageBitmap?>(initialValue = null, art, washPx) {
+        value = art?.let { img ->
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                val src = img.asAndroidBitmap()
+                if (src.width <= 0) return@withContext null
+                val w = washPx
+                val h = (w * src.height / src.width).coerceAtLeast(1)
+                val scaled = Bitmap.createScaledBitmap(src, w, h, true)
+                // Always keep wash ARGB_8888 so smooth gradients never band on Mali-400.
+                val argb = if (scaled.config == Bitmap.Config.ARGB_8888) scaled else {
+                    scaled.copy(Bitmap.Config.ARGB_8888, false).also { if (scaled !== src) scaled.recycle() }
+                }
+                argb.asImageBitmap()
+            }
         }
     }
     val shade = AstrionTheme.colors.void

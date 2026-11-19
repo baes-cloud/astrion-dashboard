@@ -14,7 +14,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +70,7 @@ fun IrModeOverlay(
     val tvEntity = options["tv_entity"] as? String
     val remoteEntity = options["remote_entity"] as? String
     var toast by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     fun press(b: Map<String, Any?>) {
         val name = b["name"] as? String ?: "?"
@@ -93,8 +96,14 @@ fun IrModeOverlay(
             b["ir"] != null -> {
                 val code = IrBlaster.NAMED_CODES[(b["ir"] as String).uppercase()]
                     ?: IrBlaster.parseHex(b["ir"])
-                toast = if (code != null && blaster.blast(code)) "Sent $name"
-                        else "$name didn't send. Point it at the TV and try again"
+                if (code == null) {
+                    toast = "$name didn't send. Point it at the TV and try again"
+                } else {
+                    scope.launch {
+                        toast = if (blaster.blastAsync(code)) "Sent $name"
+                                else "$name didn't send. Point it at the TV and try again"
+                    }
+                }
             }
             // Launch an app on the TV over the network.
             b["app"] != null && tvEntity != null -> {

@@ -1,11 +1,6 @@
 package com.custom.astrion.cards.impl
 
-import android.content.BroadcastReceiver
 import com.custom.astrion.ui.LocalMinuteClock
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.os.BatteryManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,12 +12,6 @@ import androidx.compose.material.icons.filled.Event
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -31,7 +20,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -43,7 +31,6 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.AstrionTheme
 import com.custom.astrion.ui.Time
-import kotlin.math.roundToInt
 
 
 /**
@@ -142,25 +129,9 @@ class ClockHeaderCard : CardRenderer {
      */
     @Composable
     private fun BatteryIndicator() {
-        val context = LocalContext.current
-        var pct by remember { mutableIntStateOf(-1) }
-        var charging by remember { mutableStateOf(false) }
-        DisposableEffect(context) {
-            fun read(intent: Intent?) {
-                intent ?: return
-                val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-                val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
-                if (level >= 0 && scale > 0) pct = (level * 100f / scale).roundToInt()
-                val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
-                charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
-                    status == BatteryManager.BATTERY_STATUS_FULL
-            }
-            val receiver = object : BroadcastReceiver() {
-                override fun onReceive(c: Context, intent: Intent) = read(intent)
-            }
-            read(context.registerReceiver(receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED)))
-            onDispose { runCatching { context.unregisterReceiver(receiver) } }
-        }
+        val shared = com.custom.astrion.ui.LocalBatteryState.current
+        val pct = shared.pct ?: return
+        val charging = shared.charging
         if (pct < 0) return
 
         // Low and not on the dock: the percentage, the outline and the fill

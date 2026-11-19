@@ -367,7 +367,7 @@ class VoiceSession(
             return
         }
 
-        recorder = rec
+        synchronized(audioLock) { recorder = rec }
         streaming = true
         recordJob = scope.launch {
             // One buffer for the whole run, laid out as HA wants the frame:
@@ -451,12 +451,14 @@ class VoiceSession(
         return if (n == 0) 0.0 else Math.sqrt(sum / n) / 32768.0
     }
 
+    private val audioLock = Any()
+
     private fun releaseRecorder() {
-        recorder?.let {
-            runCatching { if (it.recordingState == AudioRecord.RECORDSTATE_RECORDING) it.stop() }
-            runCatching { it.release() }
+        val rec = synchronized(audioLock) { recorder.also { recorder = null } } ?: return
+        scope.launch(Dispatchers.IO) {
+            runCatching { if (rec.recordingState == AudioRecord.RECORDSTATE_RECORDING) rec.stop() }
+            runCatching { rec.release() }
         }
-        recorder = null
     }
 
     // ---- reply playback -----------------------------------------------------
@@ -464,35 +466,37 @@ class VoiceSession(
     private fun playReply(url: String) {
         _state.value = _state.value.copy(phase = VoicePhase.SPEAKING)
         stopPlayback()
-        try {
-            val mp = MediaPlayer()
-            player = mp
-            @Suppress("DEPRECATION")
-            mp.setAudioStreamType(AudioManager.STREAM_MUSIC)
-            mp.setDataSource(
-                context,
-                android.net.Uri.parse(client.authedUrl(url)),
-                client.authHeadersFor(client.authedUrl(url)),
-            )
-            mp.setOnCompletionListener { finish() }
-            mp.setOnErrorListener { _, what, extra ->
-                Log.w(TAG, "TTS playback error $what/$extra")
-                finish(); true
+        scope.launch(Dispatchers.IO) {
+            try {
+                val mp = MediaPlayer()
+                synchronized(audioLock) { player = mp }
+                @Suppress("DEPRECATION")
+                mp.setAudioStreamType(AudioManager.STREAM_MUSIC)
+                mp.setDataSource(
+                    context,
+                    android.net.Uri.parse(client.authedUrl(url)),
+                    client.authHeadersFor(client.authedUrl(url)),
+                )
+                mp.setOnCompletionListener { finish() }
+                mp.setOnErrorListener { _, what, extra ->
+                    Log.w(TAG, "TTS playback error $what/$extra")
+                    finish(); true
+                }
+                mp.prepareAsync()
+                mp.setOnPreparedListener { it.start() }
+            } catch (e: Exception) {
+                Log.w(TAG, "TTS playback failed", e)
+                finish()
             }
-            mp.prepareAsync()
-            mp.setOnPreparedListener { it.start() }
-        } catch (e: Exception) {
-            Log.w(TAG, "TTS playback failed", e)
-            finish()
         }
     }
 
     private fun stopPlayback() {
-        player?.let {
-            runCatching { if (it.isPlaying) it.stop() }
-            runCatching { it.release() }
+        val mp = synchronized(audioLock) { player.also { player = null } } ?: return
+        scope.launch(Dispatchers.IO) {
+            runCatching { if (mp.isPlaying) mp.stop() }
+            runCatching { mp.release() }
         }
-        player = null
     }
 
     // ---- terminal states ----------------------------------------------------

@@ -20,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,7 +56,11 @@ fun VoiceOverlay(
     // Decoded off the main thread, downsampled to the panel and cached, so
     // the overlay opening (at the wake word) and each phase change don't
     // stall on a full-size PNG decode.
-    val artPath = remember(imageDir, state.phase) { phaseImagePath(imageDir, state.phase) }
+    val artPath by produceState<String?>(initialValue = null, imageDir, state.phase) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            phaseImagePath(imageDir, state.phase)
+        }
+    }
     val art: ImageBitmap? = rememberSampledBitmap(artPath, targetPx = 256).value
 
     // In-content overlay rather than a Dialog, so MainActivity keeps input

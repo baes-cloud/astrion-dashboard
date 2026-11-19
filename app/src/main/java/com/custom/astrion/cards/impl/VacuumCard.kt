@@ -119,8 +119,11 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
     val mapPx = with(LocalDensity.current) { (mapHeight * 2).dp.roundToPx() }
     LaunchedEffect(mapPic, rotation) {
         val bytes = mapPic?.let { ctx.client.fetchBytes(it) } ?: return@LaunchedEffect
-        val fetched = withContext(Dispatchers.Default) { decodeSampled(bytes, mapPx) } ?: return@LaunchedEffect
-        mapBmp = if (rotation == 0) fetched else rotateVacuumBitmap(fetched, rotation)
+        val rendered = withContext(Dispatchers.Default) {
+            val fetched = decodeSampled(bytes, mapPx) ?: return@withContext null
+            if (rotation == 0) fetched else rotateVacuumBitmap(fetched, rotation)
+        } ?: return@LaunchedEffect
+        mapBmp = rendered
     }
 
     var fanExpanded by remember { mutableStateOf(false) }

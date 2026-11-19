@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -62,6 +63,14 @@ val LocalPageVisible = compositionLocalOf { true }
  * with the screen off.
  */
 val LocalDashboardShowing = compositionLocalOf { true }
+
+/**
+ * Shared remote battery state (`pct` and `charging`), provided once from
+ * [com.custom.astrion.viewmodel.PowerViewModel] instead of registering 4
+ * duplicate `ACTION_BATTERY_CHANGED` BroadcastReceivers across the 4 pages.
+ */
+data class BatteryReadout(val pct: Int? = null, val charging: Boolean = false)
+val LocalBatteryState = compositionLocalOf { BatteryReadout() }
 
 /**
  * Wall-clock time, ticking once a minute just after the minute turns, for
@@ -258,7 +267,9 @@ fun Dashboard(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth(),
         ) {
-            ConnectionBanner(connectionState, onRetry = { client.connect() })
+            ConnectionBanner(connectionState, lastLiveAtMs = client.lastLiveAtMs, onRetry = { client.connect() })
+            val storageRo by com.custom.astrion.power.StorageHealth.isDataReadOnly.collectAsState()
+            if (storageRo) StorageReadOnlyBanner()
             if (configNotice != null) ConfigNoticeBanner(configNotice)
         }
     }
@@ -512,23 +523,27 @@ private fun RenderCard(cardConfig: CardConfig, ctx: CardContext) {
 @Composable
 private fun ConnectionBanner(
     connectionState: State<ConnectionState>,
+    lastLiveAtMs: Long = 0L,
     onRetry: () -> Unit = {},
 ) {
     val connection by connectionState
     if (connection == ConnectionState.CONNECTED) return
 
+    val seenSuffix = if (lastLiveAtMs > 0L) " · last seen ${Time.format(lastLiveAtMs, "h:mm a")}" else ""
+
     if (connection == ConnectionState.CONNECTING || connection == ConnectionState.AUTHENTICATING) {
+        // Sits below the 22dp clock row so it never covers the time.
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
             horizontalArrangement = Arrangement.Center,
         ) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
-                    .background(AstrionTheme.colors.surface.copy(alpha = 0.8f))
+                    .background(AstrionTheme.colors.surface.copy(alpha = 0.92f))
                     .padding(horizontal = 10.dp, vertical = 3.dp),
             ) {
-                Text("Connecting…", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
+                Text("Reconnecting…$seenSuffix", color = AstrionTheme.textSecondary, fontSize = AstrionTheme.size.label)
             }
         }
         return
@@ -536,8 +551,8 @@ private fun ConnectionBanner(
 
     val label = when (connection) {
         ConnectionState.AUTH_FAILED -> "Home Assistant refused the remote's login"
-        ConnectionState.ERROR -> "Can't reach Home Assistant, retrying"
-        else -> "Not connected. Controls are paused"
+        ConnectionState.ERROR -> "Can't reach Home Assistant$seenSuffix"
+        else -> "Not connected$seenSuffix. Controls are paused"
     }
     Box(
         modifier = Modifier
@@ -553,6 +568,31 @@ private fun ConnectionBanner(
             fontSize = AstrionTheme.body,
             fontWeight = FontWeight.Bold,
         )
+    }
+}
+
+@Composable
+private fun StorageReadOnlyBanner() {
+    var dismissed by remember { mutableStateOf(false) }
+    if (dismissed) return
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(AstrionTheme.colors.blushContainer)
+                .tap { dismissed = true }
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+        ) {
+            Text(
+                "Storage read-only — keep docked, do not reboot",
+                color = AstrionTheme.colors.blush,
+                fontSize = AstrionTheme.size.label,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
 

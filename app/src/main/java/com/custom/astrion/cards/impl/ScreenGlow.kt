@@ -78,7 +78,7 @@ internal fun ScreenGlowLayer(screens: List<*>, ctx: CardContext) {
 }
 
 /** An "also_on" match: the entity's attribute, or its state, is "is" (or one of a list of them). */
-private fun alsoOn(c: Map<*, *>, ctx: CardContext): Boolean {
+internal fun alsoOn(c: Map<*, *>, ctx: CardContext): Boolean {
     val e = (c["entity_id"] as? String)?.let { ctx.entities[it] } ?: return false
     if (e.isUnavailable || e.state in TV_OFF) return false
     val actual = (c["attribute"] as? String)?.let { e.attrString(it) } ?: e.state

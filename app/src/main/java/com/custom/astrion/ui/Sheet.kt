@@ -47,7 +47,12 @@ import androidx.compose.ui.window.Dialog
  * same treatment through one host.
  */
 class SheetHost {
-    internal class Entry(val dismiss: () -> Unit, val bottom: Boolean, val content: @Composable () -> Unit)
+    internal class Entry(
+        val dismiss: () -> Unit,
+        val bottom: Boolean,
+        val onBack: (() -> Boolean)? = null,
+        val content: @Composable () -> Unit,
+    )
 
     internal val entries = mutableStateListOf<Entry>()
 
@@ -56,6 +61,14 @@ class SheetHost {
     /** Dismiss every popup (a page key took you elsewhere). */
     fun dismissAll() {
         entries.toList().asReversed().forEach { it.dismiss() }
+    }
+
+    /** Handle physical BACK: lets the top sheet pop an internal back-stack first, else dismisses it. */
+    fun handleBack(): Boolean {
+        val top = entries.lastOrNull() ?: return false
+        if (top.onBack?.invoke() == true) return true
+        top.dismiss()
+        return true
     }
 
     /** Dismiss the top popup (BACK). True if there was one. */
@@ -112,7 +125,12 @@ val LocalSheetHost = staticCompositionLocalOf<SheetHost?> { null }
  * host. [bottom] docks it to the bottom edge as a sheet.
  */
 @Composable
-fun InWindowDialog(onDismissRequest: () -> Unit, bottom: Boolean = false, content: @Composable () -> Unit) {
+fun InWindowDialog(
+    onDismissRequest: () -> Unit,
+    bottom: Boolean = false,
+    onBack: (() -> Boolean)? = null,
+    content: @Composable () -> Unit,
+) {
     val host = LocalSheetHost.current
     if (host == null) {
         Dialog(onDismissRequest = onDismissRequest, content = content)
@@ -120,8 +138,13 @@ fun InWindowDialog(onDismissRequest: () -> Unit, bottom: Boolean = false, conten
     }
     val latestContent = rememberUpdatedState(content)
     val latestDismiss = rememberUpdatedState(onDismissRequest)
+    val latestBack = rememberUpdatedState(onBack)
     DisposableEffect(host) {
-        val entry = SheetHost.Entry({ latestDismiss.value() }, bottom) { latestContent.value() }
+        val entry = SheetHost.Entry(
+            dismiss = { latestDismiss.value() },
+            bottom = bottom,
+            onBack = { latestBack.value?.invoke() == true },
+        ) { latestContent.value() }
         host.entries += entry
         onDispose { host.entries -= entry }
     }

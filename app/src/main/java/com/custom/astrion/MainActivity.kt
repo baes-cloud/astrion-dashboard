@@ -250,6 +250,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestBatteryExemptionOnce() {
+        if (com.custom.astrion.power.StorageHealth.isDataReadOnly.value) return
         val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
         if (pm.isIgnoringBatteryOptimizations(packageName)) return
         val prefs = getSharedPreferences("astrion", Context.MODE_PRIVATE)
@@ -318,11 +319,22 @@ class MainActivity : ComponentActivity() {
             }
         }
         val input = inputVm.uiState.value
-        if (event.keyCode == KeyEvent.KEYCODE_BACK && !input.isIrMode && !input.isGuideOpen && sheetHost.isShowing) {
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                sheetHost.dismissTop()
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && !input.isIrMode && !input.isGuideOpen) {
+            val dState = dashboardVm.uiState.value
+            val voiceOpen = dState.voiceState.phase != com.custom.astrion.voice.VoicePhase.IDLE
+            val doorbellOpen = dState.doorbell != null
+            val alertOpen = dState.activeAlerts.isNotEmpty() && (dState.activeAlarm == null || dState.isAlarmHidden)
+            if (voiceOpen || doorbellOpen || alertOpen || sheetHost.isShowing) {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                    when {
+                        voiceOpen -> dashboardVm.onIntent(DashboardIntent.CancelVoice)
+                        doorbellOpen -> dashboardVm.onIntent(DashboardIntent.HideDoorbell)
+                        alertOpen -> dashboardVm.onIntent(DashboardIntent.DismissAlert(dState.activeAlerts.first().token))
+                        else -> sheetHost.handleBack()
+                    }
+                }
+                return true
             }
-            return true
         }
         if (inputVm.handleKeyEvent(event, wasScreensaver)) return true
         return super.dispatchKeyEvent(event)

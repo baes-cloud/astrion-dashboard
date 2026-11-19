@@ -119,7 +119,11 @@ fun DoorbellOverlay(
     LaunchedEffect(ring.token, picture, camera?.attrString("snapshot_at")) {
         picture ?: return@LaunchedEffect
         while (true) {
-            client.fetchBytes(picture)?.let { bytes -> decodeSampled(bytes, SNAPSHOT_PX)?.let { snapshot = it } }
+            client.fetchBytes(picture)?.let { bytes ->
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    decodeSampled(bytes, SNAPSHOT_PX)
+                }?.let { snapshot = it }
+            }
             delay(SNAPSHOT_REFRESH_MS)
         }
     }

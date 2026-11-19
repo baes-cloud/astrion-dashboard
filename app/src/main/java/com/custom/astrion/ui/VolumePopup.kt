@@ -74,6 +74,7 @@ fun VolumePopup(
     client: HaClient,
     targetEntityId: String = "media_player.club",
     externalTriggerEpoch: Long = 0L,
+    suppressPassive: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val entity = client.live[targetEntityId]
@@ -102,7 +103,7 @@ fun VolumePopup(
     var initialized by remember { mutableStateOf(false) }
 
     // Detect volume changes or external button presses
-    LaunchedEffect(liveVolume, liveMuted, externalTriggerEpoch) {
+    LaunchedEffect(liveVolume, liveMuted, externalTriggerEpoch, suppressPassive) {
         if (!initialized) {
             initialized = true
             prevVolume = liveVolume
@@ -119,7 +120,7 @@ fun VolumePopup(
         prevMuted = liveMuted
         prevTriggerEpoch = externalTriggerEpoch
 
-        if (volChanged || muteChanged || triggerFired) {
+        if (triggerFired || (!suppressPassive && (volChanged || muteChanged))) {
             isVisible = true
             hideEpoch = System.currentTimeMillis() + 2200L
         }
@@ -157,8 +158,8 @@ fun VolumePopup(
         ) {
             Row(
                 modifier = Modifier
-                    .width(280.dp)
-                    .height(54.dp)
+                    .width(288.dp)
+                    .height(62.dp)
                     .shadow(12.dp, RoundedCornerShape(20.dp))
                     .clip(RoundedCornerShape(20.dp))
                     .background(AstrionTheme.colors.surfaceCard.copy(alpha = 0.95f)) // High-opacity Yacht Race slate ground
@@ -219,6 +220,8 @@ fun VolumePopup(
                             fontWeight = FontWeight.SemiBold,
                             fontSize = AstrionTheme.size.label,
                             maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(end = 8.dp),
                         )
                         Text(
                             text = if (liveMuted) "MUTED" else "${(animatedVol * 100).roundToInt()}%",
@@ -230,15 +233,11 @@ fun VolumePopup(
                         )
                     }
 
-                    Spacer(Modifier.height(5.dp))
-
-                    // Tactile Volume Slider Bar
+                    // Tactile Volume Slider Bar (48dp touch hit area around the visual track)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(AstrionTheme.colors.hairlineStrong)
+                            .height(28.dp)
                             .pointerInput(targetEntityId) {
                                 detectTapGestures { offset ->
                                     val pct = (offset.x / size.width).coerceIn(0f, 1f)
@@ -246,9 +245,9 @@ fun VolumePopup(
                                     client.callService(
                                         ServiceCall.of(
                                             "media_player",
-                                            "set_volume_level",
+                                            "volume_set",
                                             targetEntityId,
-                                            "volume_level" to pct,
+                                            "volume_level" to pct.toDouble(),
                                         )
                                     )
                                 }
@@ -265,9 +264,9 @@ fun VolumePopup(
                                             client.callService(
                                                 ServiceCall.of(
                                                     "media_player",
-                                                    "set_volume_level",
+                                                    "volume_set",
                                                     targetEntityId,
-                                                    "volume_level" to pct,
+                                                    "volume_level" to pct.toDouble(),
                                                 )
                                             )
                                         }
@@ -286,14 +285,23 @@ fun VolumePopup(
                                     },
                                 )
                             },
+                        contentAlignment = Alignment.CenterStart,
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(if (liveMuted) 0f else animatedVol.coerceIn(0f, 1f))
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(if (liveMuted) AstrionTheme.colors.blush.copy(alpha = 0.4f) else AstrionTheme.accent),
-                        )
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(AstrionTheme.colors.hairlineStrong),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(if (liveMuted) 0f else animatedVol.coerceIn(0f, 1f))
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(if (liveMuted) AstrionTheme.colors.blush.copy(alpha = 0.4f) else AstrionTheme.accent),
+                            )
+                        }
                     }
                 }
             }

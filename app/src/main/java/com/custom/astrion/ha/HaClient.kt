@@ -311,19 +311,23 @@ class HaClient(
     /** The filter the live subscription was actually made with. */
     @Volatile private var subscribedFilter: Set<String>? = null
 
+    private val connectLock = Any()
+    private val publishLock = Any()
     private var reconnectJob: Job? = null
     /** Consecutive failed connects, for backoff; reset on auth_ok. */
     @Volatile private var reconnectAttempts = 0
+    /** Wall-clock ms when HA last delivered a seed or live update, for offline honesty. */
+    @Volatile var lastLiveAtMs: Long = 0L
+        private set
 
     // ---- public API ---------------------------------------------------------
 
     /**
-     * Synchronized with [disconnect]: the main thread, the network callback,
-     * the reconnect job and the watchdog all call this, and two overlapping
-     * calls could each bump [epoch] and each leave a live socket behind.
+     * Synchronized on [connectLock] (separate from [publishLock]): the main
+     * thread, the network callback, the reconnect job and the watchdog all call
+     * this, without ever blocking behind a full-seed [publish].
      */
-    @Synchronized
-    fun connect() {
+    fun connect(): Unit = synchronized(connectLock) {
         val conn = ++epoch
         reconnectJob?.cancel()
         // Retire any previous socket first; its listener belongs to an older
@@ -339,8 +343,7 @@ class HaClient(
         socket = http.newWebSocket(req, listener(conn))
     }
 
-    @Synchronized
-    fun disconnect() {
+    fun disconnect() = synchronized(connectLock) {
         epoch++
         reconnectJob?.cancel()
         _connection.value = ConnectionState.DISCONNECTED
@@ -980,8 +983,7 @@ class HaClient(
      * Synchronized: the publisher loop and the seed both call it, and two
      * overlapping snapshots writing the same state would conflict.
      */
-    @Synchronized
-    private fun publish(forceFlowUpdate: Boolean = false) {
+    private fun publish(forceFlowUpdate: Boolean = false) = synchronized(publishLock) {
         val ids = changedIds.toList()
         changedIds.removeAll(ids.toSet())
         // One snapshot, so a batch of changes lands in a single frame.
@@ -1103,6 +1105,8 @@ class HaClient(
         if (storeMutated) {
             version.incrementAndGet()
         }
+        // Stamp lastLiveAtMs on every seed or live diff from HA.
+        lastLiveAtMs = System.currentTimeMillis()
         // The seed is important — publish at once so the first frame has data.
         if (seeded) {
             publish(forceFlowUpdate = true)
@@ -1138,18 +1142,25 @@ class HaClient(
     private fun epochMs(el: JsonElement?): Long? =
         (el as? JsonPrimitive)?.doubleOrNull?.let { (it * 1000).toLong() }
 
-    private fun send(msg: JsonObject) {
+    private fun send(msg: JsonObject): Boolean {
         // Never before auth_ok: HA drops a connection whose first message
         // isn't the auth message (see awaitConnected).
         if (_connection.value != ConnectionState.CONNECTED) {
             Log.w(TAG, "Not connected; dropped ${msg["type"]}")
-            return
+            return false
         }
-        socket?.send(msg.toString())
+        val ok = socket?.send(msg.toString()) == true
+        if (!ok) {
+            msg["id"]?.jsonPrimitive?.intOrNull?.let { id ->
+                resultHandlers.remove(id)
+                pending.remove(id)?.complete(SOCKET_LOST)
+            }
+        }
+        return ok
     }
 
     /** Retry with backoff: 3 s, 6 s, 12 s… up to a minute while HA is unreachable. */
-    private fun scheduleReconnect() {
+    private fun scheduleReconnect(): Unit = synchronized(connectLock) {
         val wait = (RECONNECT_MIN_MS shl reconnectAttempts.coerceAtMost(5)).coerceAtMost(RECONNECT_MAX_MS)
         reconnectAttempts++
         reconnectJob?.cancel()
@@ -1159,18 +1170,23 @@ class HaClient(
         }
     }
 
+    private fun monotonicMs(): Long {
+        val elapsed = runCatching { android.os.SystemClock.elapsedRealtime() }.getOrDefault(0L)
+        return if (elapsed > 0L) elapsed else System.nanoTime() / 1_000_000L
+    }
+
     /**
      * Last line of defence after an HA outage: whatever path left the socket
      * half-open or the retry lost, reconnect rather than show "Connecting…"
-     * or a frozen snapshot until someone reboots the remote. The clock
-     * restarts on every state change, new connection or new subscription.
+     * or a frozen snapshot until someone reboots the remote. Uses elapsedRealtime
+     * so deep-sleep suspend time still counts toward stuck detection.
      */
     private suspend fun watchConnection() {
         var key: List<Any>? = null
         var since = 0L
         while (true) {
             kotlinx.coroutines.delay(WATCHDOG_TICK_MS)
-            val now = System.nanoTime() / 1_000_000
+            val now = monotonicMs()
             val state = _connection.value
             val seedWait = awaitingSeed && state == ConnectionState.CONNECTED
             val current = listOf(state, epoch, entitiesSubId, seedWait)
