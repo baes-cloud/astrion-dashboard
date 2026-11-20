@@ -270,6 +270,8 @@ class CoverCard : CardRenderer {
             val sillH = 2.5.dp.toPx()
             val frameH = size.height - sillH - 2.dp.toPx()
             val inX = 4.dp.toPx()
+            // Squashed (e.g. the on-screen keyboard is up): nothing sensible to draw.
+            if (frameH < 12.dp.toPx() || size.width < inX * 4) return@Canvas
             val r = CornerRadius(6.dp.toPx(), 6.dp.toPx())
             // Pane, frame and sill.
             drawRoundRect(color = accent.copy(alpha = 0.06f), topLeft = Offset(inX, 0f),
@@ -284,7 +286,7 @@ class CoverCard : CardRenderer {
             val w = size.width - (inX + pad) * 2
             val y0 = pad
             val h = frameH - pad * 2
-            val drop = (h * closedFraction).coerceIn(0f, h)
+            val drop = (h * closedFraction).coerceIn(0f, h.coerceAtLeast(0f))
             val hemH = 2.5.dp.toPx()
             if (drop > hemH) {
                 drawRect(color = accent.copy(alpha = if (sheer) 0.16f else 0.30f), topLeft = Offset(x0, y0), size = Size(w, drop))
