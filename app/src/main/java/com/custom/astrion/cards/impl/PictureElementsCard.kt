@@ -843,7 +843,7 @@ class PictureElementsCard : CardRenderer {
  * ("icon": "table_lamp", "led_strip", "led_bar", "hue_strip", "glow_strip",
  * "zigzag", "underglow", "spotlight", "downlight", "playbar", "candles",
  * "artwork", "artworks", "portrait_art", "art_blob", "roundel", "bulbs",
- * "bulb_grid", "sofa", "mirrorball", "xmas_tree", "desk", "roller_blind"); null keeps the
+ * "bulb_grid", "sofa", "mirrorball", "xmas_tree", "desk", "shirt", "roller_blind"); null keeps the
  * bulb. On or off shows in its tint and backing, as for the bulb.
  */
 private fun fixtureGlyph(key: String?): androidx.compose.ui.graphics.vector.ImageVector? = when (key) {
@@ -869,6 +869,7 @@ private fun fixtureGlyph(key: String?): androidx.compose.ui.graphics.vector.Imag
     "mirrorball" -> Glyphs.mirrorball
     "xmas_tree" -> Glyphs.xmasTree
     "desk", "computer" -> Glyphs.desk
+    "shirt", "tshirt", "wardrobe" -> Glyphs.shirt
     "roller_blind", "blind" -> Glyphs.rollerBlind
     else -> null
 }
