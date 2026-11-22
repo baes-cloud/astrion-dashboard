@@ -202,7 +202,7 @@
                     {
                       "entity_id": "light.bar_spotlights",
                       "left": 85,
-                      "top": 13,
+                      "top": 16,
                       "icon": "roundel"
                     },
                     {
@@ -274,8 +274,8 @@
                     },
                     {
                       "entity_id": "light.kitchen_console_candles",
-                      "left": 93,
-                      "top": 33,
+                      "left": 91,
+                      "top": 35,
                       "glow_reach": 0.55,
                       "glow_color": "#FF9440",
                       "icon": "candles"
@@ -341,15 +341,15 @@
                     },
                     {
                       "entity_id": "light.office_lights",
-                      "left": 93,
-                      "top": 67,
+                      "left": 94,
+                      "top": 81,
                       "icon": "desk"
                     },
                     {
                       "entity_id": "light.wardrobes",
                       "left": 77,
                       "top": 86,
-                      "icon": "glow_strip"
+                      "icon": "shirt"
                     },
                     {
                       "entity_id": "light.bathroom_downlights",
@@ -367,6 +367,12 @@
                       "left": 40,
                       "top": 90,
                       "icon": "table_lamp"
+                    },
+                    {
+                      "entity_id": "fan.mirror_ball",
+                      "left": 95.5,
+                      "top": 54.5,
+                      "icon": "mirrorball"
                     }
                   ],
                   "vacuum": {
